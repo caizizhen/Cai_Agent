@@ -1,4 +1,3 @@
-README.md
 pyproject.toml
 src/cai_agent/__init__.py
 src/cai_agent/__main__.py

@@ -15,6 +15,7 @@ from textual.worker import Worker, WorkerState
 from cai_agent.config import Settings
 from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.models import fetch_models
+from cai_agent.session import load_session, save_session
 
 
 def run_tui(settings: Settings) -> None:
@@ -243,6 +244,8 @@ class CaiAgentApp(App[None]):
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
                 "/mcp call <name> <json_args> — 调用 MCP 工具\n"
+                "/save <path> — 保存当前会话为 JSON\n"
+                "/load <path> — 从 JSON 加载会话并覆盖当前对话\n"
                 "/use-model <id> — 临时切换当前会话模型\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/clear — 清空对话并重建系统提示\n"
@@ -371,6 +374,53 @@ class CaiAgentApp(App[None]):
                 }
             self.query_one("#chat", RichLog).write(
                 f"\n[green]已切换模型[/] [cyan]{model_id}[/]\n",
+            )
+            return
+
+        if raw.startswith("/save "):
+            p = raw[len("/save ") :].strip()
+            if not p:
+                self.query_one("#chat", RichLog).write("\n[red]用法错误:[/] /save <path>\n")
+                return
+            payload = {
+                "version": 2,
+                "workspace": self._settings.workspace,
+                "config": self._settings.config_loaded_from,
+                "provider": self._settings.provider,
+                "model": self._settings.model,
+                "mcp_enabled": self._settings.mcp_enabled,
+                "messages": self._messages,
+                "answer": "",
+            }
+            try:
+                save_session(p, payload)
+            except Exception as e:
+                self.query_one("#chat", RichLog).write(f"\n[bold red]保存失败[/]\n{e!r}\n")
+                return
+            self.query_one("#chat", RichLog).write(f"\n[green]已保存会话[/] {p}\n")
+            return
+
+        if raw.startswith("/load "):
+            p = raw[len("/load ") :].strip()
+            if not p:
+                self.query_one("#chat", RichLog).write("\n[red]用法错误:[/] /load <path>\n")
+                return
+            try:
+                data = load_session(p)
+            except Exception as e:
+                self.query_one("#chat", RichLog).write(f"\n[bold red]加载失败[/]\n{e!r}\n")
+                return
+            msgs = data.get("messages")
+            if not isinstance(msgs, list) or not msgs:
+                self.query_one("#chat", RichLog).write(
+                    "\n[bold red]会话格式错误[/] messages 必须是非空数组\n",
+                )
+                return
+            self._messages = list(msgs)
+            self.query_one("#chat", RichLog).clear()
+            self._print_welcome()
+            self.query_one("#chat", RichLog).write(
+                f"\n[green]已加载会话[/] {p}\n[dim]当前消息数: {len(self._messages)}[/]\n",
             )
             return
 

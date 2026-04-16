@@ -194,6 +194,18 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="输出更多诊断信息（provider/model/耗时等）",
     )
+    mcp_p.add_argument(
+        "--tool",
+        default=None,
+        metavar="TOOL_NAME",
+        help="额外调用一个 MCP 工具做真实探活",
+    )
+    mcp_p.add_argument(
+        "--args",
+        default="{}",
+        metavar="JSON",
+        help="与 --tool 配合使用的 JSON 参数，默认 {}",
+    )
 
     ui_p = sub.add_parser(
         "ui",
@@ -265,6 +277,22 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             ok = False
             txt = f"{type(e).__name__}: {e}"
+        probe_result = None
+        if ok and args.tool:
+            try:
+                probe_args = json.loads(args.args)
+                if not isinstance(probe_args, dict):
+                    raise ValueError("--args 必须是 JSON object")
+                probe_result = dispatch(
+                    settings,
+                    "mcp_call_tool",
+                    {"name": str(args.tool).strip(), "args": probe_args},
+                )
+                if isinstance(probe_result, str) and probe_result.startswith("[mcp_call_tool 失败]"):
+                    ok = False
+            except Exception as e:
+                ok = False
+                probe_result = f"{type(e).__name__}: {e}"
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         if args.json_output:
             payload = {
@@ -274,8 +302,10 @@ def main(argv: list[str] | None = None) -> int:
                 "mcp_enabled": settings.mcp_enabled,
                 "mcp_base_url": settings.mcp_base_url,
                 "force": bool(args.force),
+                "tool": args.tool,
                 "elapsed_ms": elapsed_ms,
                 "result": txt,
+                "probe_result": probe_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
         else:
@@ -286,8 +316,12 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"provider={settings.provider}")
                 print(f"model={settings.model}")
                 print(f"force={bool(args.force)}")
+                print(f"tool={args.tool}")
                 print(f"elapsed_ms={elapsed_ms}")
             print(txt)
+            if probe_result is not None:
+                print("--- tool probe ---")
+                print(probe_result)
         return 0 if ok else 2
 
     if args.command in ("run", "continue"):
@@ -328,7 +362,9 @@ def main(argv: list[str] | None = None) -> int:
             }
         else:
             state = initial_state(settings, goal)
+        started = time.perf_counter()
         final = app.invoke(state)
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
 
         if (
             not args.quiet
@@ -348,6 +384,10 @@ def main(argv: list[str] | None = None) -> int:
                 "finished": final.get("finished"),
                 "config": settings.config_loaded_from,
                 "workspace": settings.workspace,
+                "provider": settings.provider,
+                "model": settings.model,
+                "mcp_enabled": settings.mcp_enabled,
+                "elapsed_ms": elapsed_ms,
             }
             print(json.dumps(payload, ensure_ascii=False))
         else:
@@ -355,9 +395,13 @@ def main(argv: list[str] | None = None) -> int:
 
         if args.save_session:
             payload = {
-                "version": 1,
+                "version": 2,
                 "workspace": settings.workspace,
                 "config": settings.config_loaded_from,
+                "provider": settings.provider,
+                "model": settings.model,
+                "mcp_enabled": settings.mcp_enabled,
+                "elapsed_ms": elapsed_ms,
                 "messages": final.get("messages") or [],
                 "answer": final.get("answer"),
             }

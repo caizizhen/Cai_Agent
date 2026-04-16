@@ -20,7 +20,7 @@
 - `mcp_list_tools`：读取外部工具清单
 - `mcp_call_tool`：调用外部工具
 
-配置方式（`cai-agent.toml`）：
+配置方式（`cai-agent/cai-agent.toml`）：
 
 ```toml
 [mcp]
@@ -39,7 +39,17 @@ mcp_enabled = true
 
 ## 更新日志
 
-### 0.3.7（当前开发）
+### 0.3.9（当前开发）
+
+- **JSON 结果增强**：`run --json` / `continue --json` 新增 `provider`、`model`、`mcp_enabled`、`elapsed_ms` 字段，便于脚本和 CI 诊断。
+- **TUI 会话管理**：新增 `/save <path>` 与 `/load <path>`，可在交互界面直接保存/恢复会话。
+
+### 0.3.8
+
+- **README 移至仓库根目录**：统一从根目录查看项目说明，避免 `cai-agent/README.md` 与外层文档双份维护。
+- **MCP 探活增强**：`mcp-check` 新增 `--tool` / `--args`，可在列工具后直接做一次真实工具调用测试。
+
+### 0.3.7
 
 - **跨平台文档增强**：新增 macOS/Linux 使用说明（安装、复制配置、环境变量设置、常用命令）。
 - **MCP 运维增强**：`mcp-check` 新增 `--force` / `--verbose`；TUI 新增 `/mcp refresh` 与 `/mcp call <name> <json_args>`。
@@ -99,9 +109,10 @@ mcp_enabled = true
 
 ## 安装
 
-在 `cai-agent` 目录下：
+在仓库根目录下进入 `cai-agent`：
 
 ```bash
+cd cai-agent
 pip install -e .
 ```
 
@@ -112,10 +123,10 @@ pip install -e .
 ### 安装与初始化
 
 ```bash
-cd /path/to/cai-agent
+cd /path/to/Cai_Agent/cai-agent
 python3 -m pip install -e .
 cai-agent init
-cp cai-agent.toml .cai-agent.toml  # 可选：做一份备份
+cp cai-agent.toml .cai-agent.toml
 ```
 
 ### 环境变量（bash/zsh）
@@ -137,9 +148,22 @@ cai-agent ui -w "$PWD"
 cai-agent mcp-check --verbose
 ```
 
+## Windows 使用
+
+```powershell
+cd .\cai-agent
+py -m pip install -e .
+cai-agent init
+set LM_PROVIDER=copilot
+set COPILOT_BASE_URL=http://localhost:4141/v1
+set COPILOT_MODEL=gpt-4o-mini
+set COPILOT_API_KEY=your-token
+```
+
 ## 快速生成配置
 
 ```bash
+cd cai-agent
 cai-agent init
 ```
 
@@ -147,8 +171,8 @@ cai-agent init
 
 ## 配置文件
 
-1. 推荐 **`cai-agent init`** 生成 `cai-agent.toml`。
-2. 将 `cai-agent.toml` 放在**运行命令时的当前工作目录**，或使用 **`CAI_CONFIG`** / **`--config`**（适用于 `run` / `continue` / `ui` / **`doctor`**）。
+1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`。
+2. 将 `cai-agent.toml` 放在运行命令时的当前工作目录，或使用 **`CAI_CONFIG`** / **`--config`**。
 3. **优先级**：环境变量 **高于** TOML **高于** 内置默认值。勿将含真实 API Key 的配置提交到版本库。
 
 ### `[llm]` 常用项
@@ -173,26 +197,7 @@ cai-agent init
 | `mock` | 为 `true` 时不请求真实模型 |
 | `project_context` | 为 `true` 时在系统提示中附加根目录说明文件（有长度上限） |
 | `git_context` | 为 `true` 时附加只读 `git` 摘要 |
-
-### 本地（LM Studio）示例
-
-```toml
-[llm]
-base_url = "http://localhost:1234/v1"
-model = "你的模型标识"
-api_key = "lm-studio"
-temperature = 0.2
-timeout_sec = 120
-```
-
-### 云端兼容 API 示例
-
-```toml
-[llm]
-base_url = "https://api.openai.com/v1"
-model = "gpt-4o-mini"
-api_key = "sk-..."
-```
+| `mcp_enabled` | 为 `true` 时启用 MCP Bridge 工具 |
 
 ### Copilot 代理模式示例（重点）
 
@@ -206,24 +211,6 @@ model = "gpt-4o-mini"
 api_key = "your-copilot-proxy-token"
 ```
 
-也可以只设环境变量（推荐用于本机临时调试）：
-
-```bash
-set LM_PROVIDER=copilot
-set COPILOT_BASE_URL=http://localhost:4141/v1
-set COPILOT_MODEL=gpt-4o-mini
-set COPILOT_API_KEY=your-token
-```
-
-macOS / Linux 写法：
-
-```bash
-export LM_PROVIDER=copilot
-export COPILOT_BASE_URL=http://localhost:4141/v1
-export COPILOT_MODEL=gpt-4o-mini
-export COPILOT_API_KEY=your-token
-```
-
 ## 环境变量（覆盖配置文件）
 
 | 变量 | 含义 |
@@ -234,99 +221,40 @@ export COPILOT_API_KEY=your-token
 | `LM_MODEL` | 模型名 |
 | `LM_API_KEY` | Bearer Token |
 | `LM_PROVIDER` | `openai_compatible` 或 `copilot` |
-| `COPILOT_BASE_URL` | Copilot 模式的代理 URL（OpenAI 兼容） |
+| `COPILOT_BASE_URL` | Copilot 模式代理 URL |
 | `COPILOT_MODEL` | Copilot 模式模型名 |
 | `COPILOT_API_KEY` | Copilot 模式 token |
-| `LM_HTTP_TRUST_ENV` | `1` / `true` 时使用系统代理 |
-| `LM_TEMPERATURE` | 温度 |
-| `LM_TIMEOUT` | Chat Completions HTTP 超时（秒） |
-| `CAI_MAX_ITER` | 最大迭代轮数 |
-| `CAI_CMD_TIMEOUT` | `run_command` 超时（秒） |
-| `CAI_PROJECT_CONTEXT` | `0` / `1` 关闭或开启项目说明文件注入 |
-| `CAI_GIT_CONTEXT` | `0` / `1` 关闭或开启 Git 摘要注入 |
 | `MCP_ENABLED` | `1` 时启用 MCP Bridge 工具 |
-| `MCP_BASE_URL` | MCP Bridge 基础地址（如 `http://localhost:8787`） |
+| `MCP_BASE_URL` | MCP Bridge 基础地址 |
 | `MCP_API_KEY` | MCP Bridge 可选鉴权 token |
 | `MCP_TIMEOUT` | MCP Bridge 请求超时（秒） |
-| `CAI_MOCK` | `1` 时不请求真实模型 |
-| `CAI_MOCK_REPLY` | Mock 模式下固定模型返回文本 |
 
 ## 用法
 
-**诊断当前配置（推荐连不上 API 时先跑）：**
-
 ```bash
 cai-agent doctor
-cai-agent doctor -w D:\repo\myapp --config D:\repo\myapp\cai-agent.toml
-
-# 临时切模型查看配置结果
-cai-agent doctor --model gpt-4o-mini
-```
-
-**单次任务：**
-
-```bash
-cai-agent run --workspace D:\repo\myapp 用一句话说明 src 目录下有哪些顶层文件
-cai-agent run --model gpt-4o-mini 解释当前项目结构
-
-# 保存会话到 JSON（后续可继续）
-cai-agent run --save-session .cai-session.json 修复 tests 失败
-
-# 从历史会话继续
-cai-agent run --load-session .cai-session.json 继续刚才任务并补充测试
-```
-
-**继续历史会话（专用子命令）：**
-
-```bash
-cai-agent continue .cai-session.json 请把 README 的更新日志再整理一下
-```
-
-**查看代理可用模型并手动选择：**
-
-```bash
-# 文本输出
 cai-agent models
-
-# JSON 输出（脚本友好）
-cai-agent models --json
-
-# 结合 copilot provider + 指定模型运行
-cai-agent run --model gpt-4o-mini 请总结当前任务
-```
-
-**检查 MCP Bridge 连通性：**
-
-```bash
-cai-agent mcp-check
-cai-agent mcp-check --json
+cai-agent run --model gpt-4o-mini "解释当前项目结构"
+cai-agent continue .cai-session.json "继续上次任务"
+cai-agent run --json "输出机器可解析结果"
 cai-agent mcp-check --force --verbose
-```
-
-**单次任务且输出 JSON（便于脚本解析）：**
-
-```bash
-cai-agent run --json 你的任务描述
-```
-
-**交互式终端 UI：**
-
-```bash
-cai-agent ui -w D:\repo\myapp
+cai-agent mcp-check --tool ping --args "{}"
+cai-agent ui -w "$PWD"
 ```
 
 **内置斜杠命令（UI）：**
 
-- `/help` 或 `/?` — 帮助  
-- `/status` — 当前模型、API、工作区、配置路径、上下文开关  
-- `/models` — 拉取当前代理可用模型列表  
-- `/mcp` — 拉取 MCP 工具列表（带短时缓存）  
-- `/mcp refresh` — 强制刷新 MCP 工具列表  
-- `/mcp call <name> <json_args>` — 直接调用 MCP 工具  
-- `/use-model <id>` — 临时切换当前会话模型  
-- `/reload` — 仅更新首条 system 提示（重读项目说明与 Git）  
-- `/clear` — 清空对话并重建系统提示  
-- 其他 `/` 开头会提示未知命令  
+- `/help` 或 `/?`
+- `/status`
+- `/models`
+- `/mcp`
+- `/mcp refresh`
+- `/mcp call <name> <json_args>`
+- `/save <path>`
+- `/load <path>`
+- `/use-model <id>`
+- `/reload`
+- `/clear`
 
 ## 工具与安全说明
 
@@ -339,7 +267,7 @@ cai-agent ui -w D:\repo\myapp
 - **mcp_call_tool**：调用 MCP Bridge 工具（需启用）。
 - **run_command**：仅允许白名单中的可执行文件名，禁止路径形式与常见 shell 元字符；支持 `cwd` 指定工作区内子目录（默认 `.`）。
 
-实现见 `src/cai_agent/tools.py` 与 `src/cai_agent/sandbox.py`。
+实现见 `cai-agent/src/cai_agent/tools.py` 与 `cai-agent/src/cai_agent/sandbox.py`。
 
 ## 许可证
 
