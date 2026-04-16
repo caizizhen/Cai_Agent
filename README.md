@@ -273,6 +273,8 @@ cai-agent run --json "输出机器可解析结果"
 cai-agent mcp-check --force --verbose
 cai-agent mcp-check --tool ping --args "{}"
 cai-agent ui -w "$PWD"
+# 基于 workflow JSON 依次运行多步任务
+cai-agent workflow path/to/workflow.json --json
 ```
 
 `run --json` / `continue --json` 当前会返回：
@@ -312,4 +314,4 @@ cai-agent ui -w "$PWD"
 
 ## 许可证
 
-以仓库根目录为准（若未声明则由使用者自行约定）。
+本项目采用 **MIT License** 开源协议，你可以在遵守协议条款的前提下自由使用、修改和分发本仓库及其衍生作品。
