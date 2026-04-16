@@ -1,0 +1,46 @@
+# 由 `cai-agent init` 复制到当前目录的 cai-agent.toml（勿提交含真实 Key 的文件）
+#
+# 优先级：环境变量 > 本文件 > 内置默认
+# 也可通过环境变量 CAI_CONFIG 或命令行 --config 指定其他路径
+
+[llm]
+provider = "openai_compatible" # openai_compatible | copilot
+base_url = "http://localhost:1234/v1"
+model = "google/gemma-4-31b"
+api_key = "lm-studio"
+http_trust_env = false
+# 采样温度（0~2，视模型支持而定）
+temperature = 0.2
+# 单次 Chat Completions HTTP 超时（秒）
+timeout_sec = 120
+
+# Copilot 集成（重要）
+# 说明：Copilot 官方不提供稳定公开的 chat/completions 接口。
+# 建议通过“OpenAI 兼容代理”接入（例如本地代理服务），然后把 llm.provider 设为 "copilot"。
+# provider=copilot 时，优先读取 COPILOT_* 环境变量，其次读取本节配置，再回退 llm.*
+[copilot]
+# base_url = "http://localhost:4141/v1"
+# model = "gpt-4o-mini"
+# api_key = "ghu_or_proxy_token"
+
+# 最小 MCP Bridge（可选）
+# 协议约定：
+# - GET  {base_url}/tools              -> {"tools":[{"name":"...","description":"..."}]} 或 string[]
+# - POST {base_url}/tools/{name} body  -> {"args":{...}}
+# 返回 JSON 或文本，均会作为工具结果回传给模型。
+[mcp]
+# base_url = "http://localhost:8787"
+# api_key = "optional-token"
+timeout_sec = 20
+
+[agent]
+# workspace = "D:/gitrepo/myproject"
+max_iterations = 16
+command_timeout_sec = 120
+mock = false
+# 是否启用 MCP Bridge 工具（mcp_list_tools / mcp_call_tool）
+mcp_enabled = false
+# 是否在系统提示中附加工作区根目录的 CAI.md / AGENTS.md / CLAUDE.md
+project_context = true
+# 是否附加 git 分支与简短 status（只读）
+git_context = true

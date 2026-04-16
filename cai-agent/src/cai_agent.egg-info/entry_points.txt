@@ -1,0 +1,2 @@
+[console_scripts]
+cai-agent = cai_agent.__main__:main
