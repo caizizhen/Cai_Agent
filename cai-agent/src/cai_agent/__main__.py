@@ -10,13 +10,17 @@ from importlib import resources
 from pathlib import Path
 
 from cai_agent import __version__
+from cai_agent.agent_registry import list_agent_names, load_agent_text
+from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
+from cai_agent.hook_runtime import enabled_hook_ids
 from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
 from cai_agent.rules import load_rule_text
 from cai_agent.session import list_session_files, load_session, save_session
+from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.tools import dispatch, tools_spec_markdown
 from cai_agent.workflow import run_workflow
 
@@ -54,6 +58,20 @@ def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[st
                     errors += 1
     uniq = sorted(set(names))
     return len(names), uniq, last_tool, errors
+
+
+def _print_hook_status(
+    settings: Settings,
+    *,
+    event: str,
+    json_output: bool,
+) -> None:
+    if json_output:
+        return
+    ids = enabled_hook_ids(settings, event)
+    if not ids:
+        return
+    print(f"[hook:{event}] " + ", ".join(ids), file=sys.stderr)
 
 
 def _cmd_init(*, force: bool) -> int:
@@ -234,6 +252,104 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 数组输出模型列表",
     )
+    cmd_list_p = sub.add_parser(
+        "commands",
+        parents=[common],
+        help="列出仓库 commands/ 下可用命令模板",
+    )
+    cmd_list_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 数组输出命令名称",
+    )
+    cmd_run_p = sub.add_parser(
+        "command",
+        parents=[common],
+        help="按命令模板（commands/<name>.md）执行任务",
+    )
+    cmd_run_p.add_argument(
+        "name",
+        help="命令名（如 plan、code-review、verify）",
+    )
+    cmd_run_p.add_argument(
+        "goal",
+        nargs="+",
+        help="任务描述（可多个词）",
+    )
+    cmd_run_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    cmd_run_p.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="只打印最终回答，不打印过程",
+    )
+    cmd_run_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="将 answer 与迭代次数等以一行 JSON 打印到 stdout",
+    )
+    cmd_run_p.add_argument(
+        "--save-session",
+        default=None,
+        metavar="PATH",
+        help="将本轮运行后的会话写入 JSON 文件",
+    )
+    ag_list_p = sub.add_parser(
+        "agents",
+        parents=[common],
+        help="列出仓库 agents/ 下可用子代理模板",
+    )
+    ag_list_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 数组输出子代理名称",
+    )
+    ag_run_p = sub.add_parser(
+        "agent",
+        parents=[common],
+        help="按子代理模板（agents/<name>.md）执行任务",
+    )
+    ag_run_p.add_argument(
+        "name",
+        help="子代理名（如 planner、code-reviewer、security-reviewer）",
+    )
+    ag_run_p.add_argument(
+        "goal",
+        nargs="+",
+        help="任务描述（可多个词）",
+    )
+    ag_run_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    ag_run_p.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="只打印最终回答，不打印过程",
+    )
+    ag_run_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="将 answer 与迭代次数等以一行 JSON 打印到 stdout",
+    )
+    ag_run_p.add_argument(
+        "--save-session",
+        default=None,
+        metavar="PATH",
+        help="将本轮运行后的会话写入 JSON 文件",
+    )
     mcp_p = sub.add_parser(
         "mcp-check",
         parents=[common],
@@ -324,6 +440,12 @@ def main(argv: list[str] | None = None) -> int:
     wf_p.add_argument(
         "file",
         help="workflow JSON 文件路径（包含 steps 数组）",
+    )
+    wf_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
     )
     wf_p.add_argument(
         "--json",
@@ -457,6 +579,42 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 for m in models:
                     print(m)
+        return 0
+
+    if args.command == "commands":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        names = list_command_names(settings)
+        if args.json_output:
+            print(json.dumps(names, ensure_ascii=False))
+        else:
+            if not names:
+                print("(无命令模板)")
+            for n in names:
+                print(f"/{n}")
+        return 0
+
+    if args.command == "agents":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        names = list_agent_names(settings)
+        if args.json_output:
+            print(json.dumps(names, ensure_ascii=False))
+        else:
+            if not names:
+                print("(无子代理模板)")
+            for n in names:
+                print(n)
         return 0
 
     if args.command == "mcp-check":
@@ -696,7 +854,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
         return 0
 
-    if args.command in ("run", "continue"):
+    if args.command in ("run", "continue", "command", "agent"):
         try:
             settings = Settings.from_env(config_path=args.config)
         except FileNotFoundError as e:
@@ -713,10 +871,58 @@ def main(argv: list[str] | None = None) -> int:
         if not goal:
             print("goal 不能为空", file=sys.stderr)
             return 2
+        if args.command == "command":
+            cmd_name = str(args.name).strip().lstrip("/")
+            cmd_text = load_command_text(settings, cmd_name)
+            if not cmd_text:
+                print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
+                return 2
+            skill_texts = load_related_skill_texts(settings, cmd_name)
+            skill_block = ""
+            if skill_texts:
+                skill_block = (
+                    "\n\n下面是自动匹配到的相关技能，请在执行中参考：\n\n"
+                    + "\n\n---\n\n".join(skill_texts)
+                )
+            goal = (
+                f"你当前正在执行命令 /{cmd_name}。\n"
+                "请严格参考下方命令模板完成任务：\n\n"
+                f"{cmd_text}{skill_block}\n\n"
+                f"用户原始目标：{goal}"
+            )
+        if args.command == "agent":
+            agent_name = str(args.name).strip()
+            agent_text = load_agent_text(settings, agent_name)
+            if not agent_text:
+                print(f"子代理模板不存在: {agent_name}", file=sys.stderr)
+                return 2
+            skill_texts = load_related_skill_texts(settings, agent_name)
+            skill_block = ""
+            if skill_texts:
+                skill_block = (
+                    "\n\n下面是自动匹配到的相关技能，请在执行中参考：\n\n"
+                    + "\n\n---\n\n".join(skill_texts)
+                )
+            goal = (
+                f"你当前正在扮演子代理 {agent_name}。\n"
+                "请严格参考下方子代理模板完成任务：\n\n"
+                f"{agent_text}{skill_block}\n\n"
+                f"用户原始目标：{goal}"
+            )
 
         reset_usage_counters()
+        _print_hook_status(
+            settings,
+            event="session_start",
+            json_output=bool(args.json_output),
+        )
         app = build_app(settings)
-        load_session_path = args.load_session if args.command == "run" else args.session
+        if args.command == "run":
+            load_session_path = args.load_session
+        elif args.command == "continue":
+            load_session_path = args.session
+        else:
+            load_session_path = None
         if load_session_path:
             try:
                 sess = load_session(load_session_path)
@@ -776,7 +982,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             print(final.get("answer", "").strip())
 
-        if args.save_session:
+        save_session_path = getattr(args, "save_session", None)
+        if save_session_path:
             payload = {
                 "version": 2,
                 "workspace": settings.workspace,
@@ -789,10 +996,15 @@ def main(argv: list[str] | None = None) -> int:
                 "answer": final.get("answer"),
             }
             try:
-                save_session(args.save_session, payload)
+                save_session(str(save_session_path), payload)
             except Exception as e:
                 print(f"写入会话失败: {e}", file=sys.stderr)
                 return 2
+        _print_hook_status(
+            settings,
+            event="session_end",
+            json_output=bool(args.json_output),
+        )
         return 0
 
     if args.command == "ui":

@@ -181,11 +181,11 @@ def build_app(
             },
         )
         try:
-            out = dispatch(settings, pending["name"], pending["args"])
+            out = dispatch(settings, name, args)
         except Exception as e:
             out = f"工具执行失败: {e}"
         _emit(progress, {"phase": "tool_done", "name": name})
-        payload = {"tool": pending["name"], "result": out}
+        payload = {"tool": name, "result": out}
         raw = json.dumps(payload, ensure_ascii=False)
         if len(raw) > 100_000:
             raw = raw[:100_000] + "…[截断]"
