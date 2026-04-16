@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable, List
 
@@ -29,7 +29,7 @@ def save_instincts(root: str | Path, instincts: Iterable[Instinct]) -> Path | No
 
     out_dir = _default_memory_dir(root)
     out_dir.mkdir(parents=True, exist_ok=True)
-    ts = datetime.utcnow().strftime("%Y%m%d-%H%M%S")
+    ts = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     target = out_dir / f"instincts-{ts}.md"
     lines: list[str] = ["# Instincts snapshot", f"- generated_at: {ts}", ""]
     for inst in instincts:
