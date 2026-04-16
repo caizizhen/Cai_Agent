@@ -15,8 +15,10 @@ from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
+from cai_agent.rules import load_rule_text
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.tools import dispatch, tools_spec_markdown
+from cai_agent.workflow import run_workflow
 
 
 def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
@@ -292,6 +294,44 @@ def main(argv: list[str] | None = None) -> int:
         help="输出每个会话的摘要（消息数/工具调用数/最后回答预览）",
     )
 
+    stats_p = sub.add_parser(
+        "stats",
+        help="汇总当前目录近期会话的耗时与工具调用等指标（基于保存的会话 JSON）",
+    )
+    stats_p.add_argument(
+        "--pattern",
+        default=".cai-session*.json",
+        help="匹配模式（相对当前目录）",
+    )
+    stats_p.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="最多统计的会话文件数",
+    )
+    stats_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 对象输出汇总结果",
+    )
+
+    wf_p = sub.add_parser(
+        "workflow",
+        parents=[common],
+        help="根据 JSON workflow 文件依次运行多个步骤任务",
+    )
+    wf_p.add_argument(
+        "file",
+        help="workflow JSON 文件路径（包含 steps 数组）",
+    )
+    wf_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 对象输出全部步骤结果与汇总",
+    )
+
     ui_p = sub.add_parser(
         "ui",
         parents=[common],
@@ -342,6 +382,12 @@ def main(argv: list[str] | None = None) -> int:
             print("goal 不能为空", file=sys.stderr)
             return 2
 
+        rules_text = load_rule_text(settings)
+        rules_block = (
+            "\n\n下面是与本项目相关的工程规则与安全约定，请在规划中严格遵守：\n"
+            f"{rules_text}\n"
+        ) if rules_text else ""
+
         system = (
             "你是 CAI Agent 的规划助手，只负责在执行前给出实现方案，"
             "不会真正修改文件或运行命令。\n"
@@ -354,6 +400,7 @@ def main(argv: list[str] | None = None) -> int:
             "下列是 Agent 在执行阶段可用的工具说明（只读/写入/搜索等）：\n"
             f"{tools_spec_markdown()}\n"
             "本次仅输出规划文本，不要再输出 JSON 工具调用指令。"
+            f"{rules_block}"
         )
         messages = [
             {"role": "system", "content": system},
@@ -549,6 +596,104 @@ def main(argv: list[str] | None = None) -> int:
                         ap = d.get("answer_preview")
                         if isinstance(ap, str) and ap:
                             print(f"    answer={ap}")
+        return 0
+
+    if args.command == "stats":
+        files = list_session_files(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+        )
+        total = 0
+        total_elapsed = 0
+        total_tool_calls = 0
+        total_errors = 0
+        by_model: dict[str, int] = {}
+
+        for p in files:
+            try:
+                sess = load_session(str(p))
+            except Exception:
+                continue
+            total += 1
+            elapsed = sess.get("elapsed_ms")
+            if isinstance(elapsed, int):
+                total_elapsed += elapsed
+            model = sess.get("model")
+            if isinstance(model, str) and model.strip():
+                by_model[model] = by_model.get(model, 0) + 1
+            msgs = sess.get("messages")
+            msg_list = msgs if isinstance(msgs, list) else []
+            tc, _, _, err_count = _collect_tool_stats(
+                msg_list if isinstance(msg_list, list) else [],
+            )
+            total_tool_calls += tc
+            total_errors += err_count
+
+        summary = {
+            "sessions_count": total,
+            "elapsed_ms_total": total_elapsed,
+            "elapsed_ms_avg": int(total_elapsed / total) if total else 0,
+            "tool_calls_total": total_tool_calls,
+            "tool_calls_avg": float(total_tool_calls) / total if total else 0.0,
+            "tool_errors_total": total_errors,
+            "tool_errors_avg": float(total_errors) / total if total else 0.0,
+            "models_distribution": by_model,
+        }
+        if args.json_output:
+            print(json.dumps(summary, ensure_ascii=False))
+        else:
+            print(f"sessions_count={summary['sessions_count']}")
+            print(f"elapsed_ms_total={summary['elapsed_ms_total']}")
+            print(f"elapsed_ms_avg={summary['elapsed_ms_avg']}")
+            print(f"tool_calls_total={summary['tool_calls_total']}")
+            print(f"tool_calls_avg={summary['tool_calls_avg']:.2f}")
+            print(f"tool_errors_total={summary['tool_errors_total']}")
+            print(f"tool_errors_avg={summary['tool_errors_avg']:.2f}")
+            if by_model:
+                print("models_distribution:")
+                for m, cnt in by_model.items():
+                    print(f"  {m}: {cnt}")
+        return 0
+
+    if args.command == "workflow":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        try:
+            result = run_workflow(settings, args.file)
+        except Exception as e:
+            print(f"运行 workflow 失败: {e}", file=sys.stderr)
+            return 2
+        if args.json_output:
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            steps = result.get("steps") or []
+            summary = result.get("summary") or {}
+            print(f"steps_count={summary.get('steps_count', len(steps))}")
+            print(f"elapsed_ms_total={summary.get('elapsed_ms_total', 0)}")
+            print(f"elapsed_ms_avg={summary.get('elapsed_ms_avg', 0)}")
+            print(f"tool_calls_total={summary.get('tool_calls_total', 0)}")
+            print(f"tool_errors_total={summary.get('tool_errors_total', 0)}")
+            for step in steps:
+                name = step.get("name") or ""
+                goal = (step.get("goal") or "")[:80]
+                elapsed_ms = step.get("elapsed_ms")
+                tools = step.get("tool_calls_count")
+                errors = step.get("error_count")
+                print(
+                    f"- [{name}] elapsed_ms={elapsed_ms} "
+                    f"tool_calls={tools} errors={errors} goal={goal!r}"
+                )
         return 0
 
     if args.command in ("run", "continue"):

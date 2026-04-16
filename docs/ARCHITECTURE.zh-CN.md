@@ -182,9 +182,8 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
 
 ### 阶段 5：工作流与多 Agent / 子任务编排
 
-- 在现有 `run` / `continue` 的单任务模式上，引入可组合的「工作流」描述（例如 YAML/JSON/Markdown），按步骤驱动多轮 `AgentState` 执行；
-- 支持在同一进程内创建多个子 Agent（独立的 `messages` / `answer`），再在顶层汇总结果；
-- 在 CLI 中为这些工作流提供入口（如 `cai-agent workflow run <name>`），并在 `run --json` 输出中预留工作流/子任务摘要字段。
+- 当前已实现基础版 workflow：`cai-agent workflow <file> [--json]`，按 JSON 文件中的 `steps` 顺序依次运行多个 `goal`，并汇总每步的耗时与工具调用统计；
+- 后续可以在此基础上扩展为更复杂的工作流描述（如带条件、重试或分支），以及多 Agent 协调（在同一进程内维护多个独立的 `AgentState` 并汇总结果）。
 
 ### 阶段 6：规则执行与安全扫描深化
 
