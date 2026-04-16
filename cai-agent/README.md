@@ -39,7 +39,12 @@ mcp_enabled = true
 
 ## 更新日志
 
-### 0.3.6（当前开发）
+### 0.3.7（当前开发）
+
+- **跨平台文档增强**：新增 macOS/Linux 使用说明（安装、复制配置、环境变量设置、常用命令）。
+- **MCP 运维增强**：`mcp-check` 新增 `--force` / `--verbose`；TUI 新增 `/mcp refresh` 与 `/mcp call <name> <json_args>`。
+
+### 0.3.6
 
 - **MCP 可用性增强**：新增 `cai-agent mcp-check` 子命令；`mcp_list_tools` 增加短时缓存（15s，可 `force=true` 强刷）；TUI 增加 `/mcp` 快速查看。
 
@@ -101,6 +106,36 @@ pip install -e .
 ```
 
 安装后使用命令：`cai-agent`（`cai-agent --version` 查看版本）。
+
+## macOS / Linux 使用
+
+### 安装与初始化
+
+```bash
+cd /path/to/cai-agent
+python3 -m pip install -e .
+cai-agent init
+cp cai-agent.toml .cai-agent.toml  # 可选：做一份备份
+```
+
+### 环境变量（bash/zsh）
+
+```bash
+export LM_PROVIDER=copilot
+export COPILOT_BASE_URL=http://localhost:4141/v1
+export COPILOT_MODEL=gpt-4o-mini
+export COPILOT_API_KEY=your-token
+```
+
+### 常用命令（macOS/Linux）
+
+```bash
+cai-agent doctor
+cai-agent models
+cai-agent run --workspace "$PWD" "请总结当前仓库结构"
+cai-agent ui -w "$PWD"
+cai-agent mcp-check --verbose
+```
 
 ## 快速生成配置
 
@@ -180,6 +215,15 @@ set COPILOT_MODEL=gpt-4o-mini
 set COPILOT_API_KEY=your-token
 ```
 
+macOS / Linux 写法：
+
+```bash
+export LM_PROVIDER=copilot
+export COPILOT_BASE_URL=http://localhost:4141/v1
+export COPILOT_MODEL=gpt-4o-mini
+export COPILOT_API_KEY=your-token
+```
+
 ## 环境变量（覆盖配置文件）
 
 | 变量 | 含义 |
@@ -256,6 +300,7 @@ cai-agent run --model gpt-4o-mini 请总结当前任务
 ```bash
 cai-agent mcp-check
 cai-agent mcp-check --json
+cai-agent mcp-check --force --verbose
 ```
 
 **单次任务且输出 JSON（便于脚本解析）：**
@@ -276,6 +321,8 @@ cai-agent ui -w D:\repo\myapp
 - `/status` — 当前模型、API、工作区、配置路径、上下文开关  
 - `/models` — 拉取当前代理可用模型列表  
 - `/mcp` — 拉取 MCP 工具列表（带短时缓存）  
+- `/mcp refresh` — 强制刷新 MCP 工具列表  
+- `/mcp call <name> <json_args>` — 直接调用 MCP 工具  
 - `/use-model <id>` — 临时切换当前会话模型  
 - `/reload` — 仅更新首条 system 提示（重读项目说明与 Git）  
 - `/clear` — 清空对话并重建系统提示  

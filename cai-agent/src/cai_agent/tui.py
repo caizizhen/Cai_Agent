@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import replace
 from typing import Any
@@ -107,7 +108,7 @@ class CaiAgentApp(App[None]):
                 yield LoadingIndicator(id="loader")
                 yield Static("", id="activity-status")
             yield Input(
-                placeholder="输入任务 Enter · /help · /models · /use-model <id> · /clear",
+                placeholder="输入任务 Enter · /help · /models · /mcp · /use-model <id> · /clear",
                 id="user-input",
             )
         yield Footer()
@@ -239,7 +240,9 @@ class CaiAgentApp(App[None]):
                 "/help — 本帮助\n"
                 "/status — 当前模型、工作区与配置来源\n"
                 "/models — 拉取当前代理可用模型列表\n"
-                "/mcp — 拉取 MCP 工具列表\n"
+                "/mcp — 拉取 MCP 工具列表（缓存）\n"
+                "/mcp refresh — 强制刷新 MCP 工具列表\n"
+                "/mcp call <name> <json_args> — 调用 MCP 工具\n"
                 "/use-model <id> — 临时切换当前会话模型\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/clear — 清空对话并重建系统提示\n"
@@ -302,6 +305,52 @@ class CaiAgentApp(App[None]):
                 log.write(f"\n[bold red]MCP 查询失败[/]\n{text}\n")
             else:
                 log.write(f"\n[bold]MCP 工具列表[/]\n{text}\n")
+            return
+
+        if raw == "/mcp refresh":
+            from cai_agent.tools import dispatch
+
+            log = self.query_one("#chat", RichLog)
+            try:
+                text = dispatch(self._settings, "mcp_list_tools", {"force": True})
+            except Exception as e:
+                log.write(f"\n[bold red]MCP 刷新失败[/]\n{e!r}\n")
+                return
+            if text.startswith("[mcp_list_tools 失败]"):
+                log.write(f"\n[bold red]MCP 刷新失败[/]\n{text}\n")
+            else:
+                log.write(f"\n[bold]MCP 工具列表（强制刷新）[/]\n{text}\n")
+            return
+
+        if raw.startswith("/mcp call "):
+            from cai_agent.tools import dispatch
+
+            log = self.query_one("#chat", RichLog)
+            rest = raw[len("/mcp call ") :].strip()
+            if not rest:
+                log.write("\n[red]用法错误:[/] /mcp call <name> <json_args>\n")
+                return
+            parts = rest.split(maxsplit=1)
+            name = parts[0].strip()
+            args_text = parts[1].strip() if len(parts) > 1 else "{}"
+            try:
+                call_args = json.loads(args_text)
+                if not isinstance(call_args, dict):
+                    log.write("\n[red]参数错误:[/] json_args 必须是 JSON 对象\n")
+                    return
+            except Exception as e:
+                log.write(f"\n[red]JSON 解析失败:[/] {e}\n")
+                return
+            try:
+                text = dispatch(
+                    self._settings,
+                    "mcp_call_tool",
+                    {"name": name, "args": call_args},
+                )
+            except Exception as e:
+                log.write(f"\n[bold red]MCP 调用失败[/]\n{e!r}\n")
+                return
+            log.write(f"\n[bold]MCP 调用结果[/] tool={name}\n{text}\n")
             return
 
         if raw.startswith("/use-model"):

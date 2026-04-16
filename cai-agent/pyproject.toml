@@ -1,6 +1,6 @@
 [project]
 name = "cai-agent"
-version = "0.3.6"
+version = "0.3.7"
 description = "Local LM Studio agent with LangGraph and sandboxed tools"
 requires-python = ">=3.11"
 dependencies = [

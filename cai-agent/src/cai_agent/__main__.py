@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import sys
+import time
 from dataclasses import replace
 from importlib import resources
 from pathlib import Path
@@ -183,6 +184,16 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 输出检查结果",
     )
+    mcp_p.add_argument(
+        "--force",
+        action="store_true",
+        help="强制刷新工具列表（跳过本地缓存）",
+    )
+    mcp_p.add_argument(
+        "--verbose",
+        action="store_true",
+        help="输出更多诊断信息（provider/model/耗时等）",
+    )
 
     ui_p = sub.add_parser(
         "ui",
@@ -247,17 +258,23 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        started = time.perf_counter()
         try:
-            txt = dispatch(settings, "mcp_list_tools", {"force": True})
+            txt = dispatch(settings, "mcp_list_tools", {"force": bool(args.force)})
             ok = not txt.startswith("[mcp_list_tools 失败]")
         except Exception as e:
             ok = False
             txt = f"{type(e).__name__}: {e}"
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
         if args.json_output:
             payload = {
                 "ok": ok,
+                "provider": settings.provider,
+                "model": settings.model,
                 "mcp_enabled": settings.mcp_enabled,
                 "mcp_base_url": settings.mcp_base_url,
+                "force": bool(args.force),
+                "elapsed_ms": elapsed_ms,
                 "result": txt,
             }
             print(json.dumps(payload, ensure_ascii=False))
@@ -265,6 +282,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"ok={ok}")
             print(f"mcp_enabled={settings.mcp_enabled}")
             print(f"mcp_base_url={settings.mcp_base_url}")
+            if args.verbose:
+                print(f"provider={settings.provider}")
+                print(f"model={settings.model}")
+                print(f"force={bool(args.force)}")
+                print(f"elapsed_ms={elapsed_ms}")
             print(txt)
         return 0 if ok else 2
 
