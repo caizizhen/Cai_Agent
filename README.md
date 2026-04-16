@@ -2,6 +2,21 @@
 
 基于 **LangGraph** 的终端 Agent：在指定工作区内通过自然语言调用「目录树、列目录、glob、文本搜索、按行读文件、读/写文件、受限执行命令」，对接任意 **OpenAI 兼容** `POST /v1/chat/completions` 服务（默认面向 [LM Studio](https://lmstudio.ai/)），可选 **Textual** 交互界面。
 
+## 与 Claude Code / Everything Claude Code 的功能对齐
+
+- **整体定位**：`cai-agent` 对标官方 `anthropics/claude-code` 的「终端内智能代码 Agent」，并参考 `affaan-m/everything-claude-code` 的「性能优化 + 安全护栏 + 规则/技能」设计思路。
+- **当前已对齐的子系统**（概念层级）：
+  - **工具系统（Tools）**：`cai_agent.tools` 提供只读/写入/搜索/Git/MCP 等工具，并通过沙箱 `cai_agent.sandbox` 实现工作区越界防护和命令白名单，类似 Claude Code 的 Tool + 权限模型。
+  - **会话与编排（Query/Tasks）**：`cai_agent.graph` 使用 LangGraph 状态机驱动「LLM ↔ 工具」循环，与 Claude Code 的 QueryEngine 思路一致；CLI 的 `run` / `continue` + `sessions` 子命令承担最小会话/任务管理角色。
+  - **终端 UI（TUI）**：`cai_agent.tui` 使用 Textual 提供类似 Claude Code REPL 的对话界面和内置斜杠命令（`/status`、`/models`、`/mcp`、`/save`、`/load` 等）。
+  - **安全模型（Sandbox & MCP）**：`cai_agent.sandbox` + `run_command` 白名单 + Git 只读工具 + MCP Bridge 的超时/鉴权，与 Everything Claude Code 中的 Agent 安全与沙箱策略保持同类防护思路。
+- **规划中的增强能力**（逐步对齐中）：
+  - **计划模式（Plan Mode）**：在执行前生成只读实现方案，风格对齐 Claude Code 的 Plan 模式与 Everything Claude Code 的 “research-first / plan-then-execute”。
+  - **规则与技能（Rules / Skills）**：在仓库中提供 `rules/`、`skills/` 目录，结合 CLI/TUI 命令为常见语言和场景提供约束与可复用工作流（参考 ECC 的 `rules/`、`skills/` 结构）。
+  - **统计与诊断（Stats）**：在现有 `run --json` / `continue --json` 输出基础上，逐步加入模型调用耗时、token 使用等诊断信息，对齐 Claude Code / ECC 的成本与性能视角。
+
+完整架构说明与后续 Roadmap 见 `docs/ARCHITECTURE.zh-CN.md`。
+
 ## ⭐ Copilot 集成（重点）
 
 `cai-agent` 现已内置 **Copilot provider 模式**（`llm.provider = "copilot"`），用于快速切到 Copilot 生态代理。
@@ -39,7 +54,23 @@ mcp_enabled = true
 
 ## 更新日志
 
-### 0.3.9（当前开发）
+### 0.5.0（当前开发）
+
+- **JSON 诊断补强**：`run --json` / `continue --json` 新增 `last_tool` 与 `error_count` 字段。
+- **会话管理增强**：新增 `cai-agent sessions` 子命令；TUI 新增 `/sessions`，`/load latest` 可快速恢复最近会话。
+- **会话详情增强**：`cai-agent sessions --details` 可查看每个会话的消息数、工具调用数、错误计数与回答预览。
+- **会话匹配修复**：`sessions` 与 `/load latest` 默认匹配 `.cai-session*.json`，兼容 `.cai-session.json` 与自动命名文件。
+
+### 0.4.1
+
+- **TUI 保存优化**：`/save` 支持省略路径，默认生成 `.cai-session-YYYYMMDD-HHMMSS.json`。
+
+### 0.4.0
+
+- **JSON 结果再增强**：`run --json` / `continue --json` 新增 `tool_calls_count` 与 `used_tools` 字段。
+- **TUI 加载摘要**：`/load <path>` 成功后自动显示会话摘要（assistant 轮次、工具调用数、最后回答预览）。
+
+### 0.3.9
 
 - **JSON 结果增强**：`run --json` / `continue --json` 新增 `provider`、`model`、`mcp_enabled`、`elapsed_ms` 字段，便于脚本和 CI 诊断。
 - **TUI 会话管理**：新增 `/save <path>` 与 `/load <path>`，可在交互界面直接保存/恢复会话。
@@ -234,6 +265,8 @@ api_key = "your-copilot-proxy-token"
 ```bash
 cai-agent doctor
 cai-agent models
+cai-agent sessions
+cai-agent sessions --details
 cai-agent run --model gpt-4o-mini "解释当前项目结构"
 cai-agent continue .cai-session.json "继续上次任务"
 cai-agent run --json "输出机器可解析结果"
@@ -241,6 +274,13 @@ cai-agent mcp-check --force --verbose
 cai-agent mcp-check --tool ping --args "{}"
 cai-agent ui -w "$PWD"
 ```
+
+`run --json` / `continue --json` 当前会返回：
+
+- `answer` / `iteration` / `finished`
+- `workspace` / `config` / `provider` / `model`
+- `mcp_enabled` / `elapsed_ms`
+- `tool_calls_count` / `used_tools` / `last_tool` / `error_count`
 
 **内置斜杠命令（UI）：**
 
@@ -250,8 +290,9 @@ cai-agent ui -w "$PWD"
 - `/mcp`
 - `/mcp refresh`
 - `/mcp call <name> <json_args>`
-- `/save <path>`
-- `/load <path>`
+- `/save [path]`（不传则自动命名）
+- `/load <path|latest>`
+- `/sessions`
 - `/use-model <id>`
 - `/reload`
 - `/clear`

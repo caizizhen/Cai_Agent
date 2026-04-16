@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 from dataclasses import replace
+from datetime import datetime
 from typing import Any
 
 from textual.app import App, ComposeResult
@@ -15,7 +16,7 @@ from textual.worker import Worker, WorkerState
 from cai_agent.config import Settings
 from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.models import fetch_models
-from cai_agent.session import load_session, save_session
+from cai_agent.session import list_session_files, load_session, save_session
 
 
 def run_tui(settings: Settings) -> None:
@@ -100,6 +101,28 @@ class CaiAgentApp(App[None]):
             self.post_message(ProgressUpdate(payload))
 
         self._compiled = build_app(self._settings, progress=_progress_sink)
+
+    @staticmethod
+    def _session_summary(messages: list[dict[str, Any]]) -> tuple[int, int, str]:
+        turns = 0
+        tool_calls = 0
+        last_answer = ""
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content")
+            if role == "assistant" and isinstance(content, str):
+                turns += 1
+                if content.strip():
+                    last_answer = content.strip()
+            if role == "user" and isinstance(content, str):
+                try:
+                    obj = json.loads(content)
+                except Exception:
+                    continue
+                if isinstance(obj, dict) and isinstance(obj.get("tool"), str):
+                    tool_calls += 1
+        preview = last_answer[:120] + ("…" if len(last_answer) > 120 else "")
+        return turns, tool_calls, preview
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -244,8 +267,9 @@ class CaiAgentApp(App[None]):
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
                 "/mcp call <name> <json_args> — 调用 MCP 工具\n"
-                "/save <path> — 保存当前会话为 JSON\n"
-                "/load <path> — 从 JSON 加载会话并覆盖当前对话\n"
+                "/save [path] — 保存当前会话为 JSON（不传 path 则自动命名）\n"
+                "/load <path|latest> — 从 JSON 加载会话并覆盖当前对话\n"
+                "/sessions — 列出最近会话文件\n"
                 "/use-model <id> — 临时切换当前会话模型\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/clear — 清空对话并重建系统提示\n"
@@ -377,11 +401,11 @@ class CaiAgentApp(App[None]):
             )
             return
 
-        if raw.startswith("/save "):
-            p = raw[len("/save ") :].strip()
+        if raw == "/save" or raw.startswith("/save "):
+            p = raw[len("/save ") :].strip() if raw.startswith("/save ") else ""
             if not p:
-                self.query_one("#chat", RichLog).write("\n[red]用法错误:[/] /save <path>\n")
-                return
+                ts = datetime.now().strftime("%Y%m%d-%H%M%S")
+                p = f".cai-session-{ts}.json"
             payload = {
                 "version": 2,
                 "workspace": self._settings.workspace,
@@ -405,6 +429,12 @@ class CaiAgentApp(App[None]):
             if not p:
                 self.query_one("#chat", RichLog).write("\n[red]用法错误:[/] /load <path>\n")
                 return
+            if p == "latest":
+                recent = list_session_files(cwd=".", pattern=".cai-session*.json", limit=1)
+                if not recent:
+                    self.query_one("#chat", RichLog).write("\n[yellow]未找到会话文件[/]\n")
+                    return
+                p = str(recent[0])
             try:
                 data = load_session(p)
             except Exception as e:
@@ -419,8 +449,30 @@ class CaiAgentApp(App[None]):
             self._messages = list(msgs)
             self.query_one("#chat", RichLog).clear()
             self._print_welcome()
+            turns, tool_calls, preview = self._session_summary(self._messages)
             self.query_one("#chat", RichLog).write(
                 f"\n[green]已加载会话[/] {p}\n[dim]当前消息数: {len(self._messages)}[/]\n",
+            )
+            self.query_one("#chat", RichLog).write(
+                f"[dim]摘要: assistant轮次={turns}  工具调用={tool_calls}[/]\n",
+            )
+            if preview:
+                self.query_one("#chat", RichLog).write(
+                    f"[dim]最后回答预览: {preview}[/]\n",
+                )
+            return
+
+        if raw == "/sessions":
+            files = list_session_files(cwd=".", pattern=".cai-session*.json", limit=20)
+            if not files:
+                self.query_one("#chat", RichLog).write("\n[yellow]未找到会话文件[/]\n")
+                return
+            lines = []
+            for i, f in enumerate(files, start=1):
+                st = f.stat()
+                lines.append(f"{i:>2}. {f.name} ({st.st_size} bytes)")
+            self.query_one("#chat", RichLog).write(
+                "\n[bold]最近会话文件[/]\n" + "\n".join(lines) + "\n",
             )
             return
 

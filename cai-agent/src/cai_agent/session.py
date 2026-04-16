@@ -20,3 +20,15 @@ def load_session(path: str) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("会话文件根对象必须是 JSON object")
     return data
+
+
+def list_session_files(
+    *,
+    cwd: str | None = None,
+    pattern: str = ".cai-session*.json",
+    limit: int = 50,
+) -> list[Path]:
+    base = Path(cwd or ".").expanduser().resolve()
+    files = [p for p in base.glob(pattern) if p.is_file()]
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[: max(limit, 1)]

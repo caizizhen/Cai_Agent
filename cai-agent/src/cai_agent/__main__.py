@@ -13,9 +13,45 @@ from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
+from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
-from cai_agent.session import load_session, save_session
-from cai_agent.tools import dispatch
+from cai_agent.session import list_session_files, load_session, save_session
+from cai_agent.tools import dispatch, tools_spec_markdown
+
+
+def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
+    names: list[str] = []
+    errors = 0
+    last_tool: str | None = None
+    for m in messages:
+        if m.get("role") != "user":
+            continue
+        content = m.get("content")
+        if not isinstance(content, str):
+            continue
+        try:
+            obj = json.loads(content)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        tn = obj.get("tool")
+        if isinstance(tn, str) and tn.strip():
+            tool_name = tn.strip()
+            names.append(tool_name)
+            last_tool = tool_name
+            result = obj.get("result")
+            if isinstance(result, str):
+                r = result.lower()
+                if (
+                    "失败" in result
+                    or "error" in r
+                    or "exception" in r
+                    or "traceback" in r
+                ):
+                    errors += 1
+    uniq = sorted(set(names))
+    return len(names), uniq, last_tool, errors
 
 
 def _cmd_init(*, force: bool) -> int:
@@ -68,6 +104,29 @@ def main(argv: list[str] | None = None) -> int:
         "--force",
         action="store_true",
         help="覆盖已存在的 cai-agent.toml",
+    )
+
+    plan_p = sub.add_parser(
+        "plan",
+        parents=[common],
+        help="仅生成实现计划草案（不实际调用工具），类似 Claude Code 的 Plan 模式",
+    )
+    plan_p.add_argument(
+        "goal",
+        nargs="+",
+        help="要规划的任务描述（可多个词）",
+    )
+    plan_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    plan_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以一行 JSON 输出规划结果（便于脚本或其他 Agent 调用）",
     )
 
     run_p = sub.add_parser(
@@ -206,6 +265,32 @@ def main(argv: list[str] | None = None) -> int:
         metavar="JSON",
         help="与 --tool 配合使用的 JSON 参数，默认 {}",
     )
+    sess_p = sub.add_parser(
+        "sessions",
+        help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
+    )
+    sess_p.add_argument(
+        "--pattern",
+        default=".cai-session*.json",
+        help="匹配模式（相对当前目录）",
+    )
+    sess_p.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="最多显示条目数",
+    )
+    sess_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 数组输出",
+    )
+    sess_p.add_argument(
+        "--details",
+        action="store_true",
+        help="输出每个会话的摘要（消息数/工具调用数/最后回答预览）",
+    )
 
     ui_p = sub.add_parser(
         "ui",
@@ -238,6 +323,71 @@ def main(argv: list[str] | None = None) -> int:
                 workspace=os.path.abspath(args.workspace),
             )
         return run_doctor(settings)
+
+    if args.command == "plan":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        goal = " ".join(args.goal).strip()
+        if not goal:
+            print("goal 不能为空", file=sys.stderr)
+            return 2
+
+        system = (
+            "你是 CAI Agent 的规划助手，只负责在执行前给出实现方案，"
+            "不会真正修改文件或运行命令。\n"
+            "请以分步结构化方式输出：\n"
+            "1) 总体目标与风险\n"
+            "2) 需要修改/创建的文件列表\n"
+            "3) 每个步骤的大致实现要点\n"
+            "4) 验证与回滚策略\n\n"
+            f"工作区根目录: {settings.workspace}\n\n"
+            "下列是 Agent 在执行阶段可用的工具说明（只读/写入/搜索等）：\n"
+            f"{tools_spec_markdown()}\n"
+            "本次仅输出规划文本，不要再输出 JSON 工具调用指令。"
+        )
+        messages = [
+            {"role": "system", "content": system},
+            {"role": "user", "content": goal},
+        ]
+        reset_usage_counters()
+        started = time.perf_counter()
+        try:
+            plan_text = chat_completion(settings, messages)
+        except Exception as e:
+            print(f"生成计划失败: {e}", file=sys.stderr)
+            return 2
+        elapsed_ms = int((time.perf_counter() - started) * 1000)
+        usage = get_usage_counters()
+        if args.json_output:
+            payload = {
+                "goal": goal,
+                "plan": plan_text.strip(),
+                "workspace": settings.workspace,
+                "provider": settings.provider,
+                "model": settings.model,
+                "elapsed_ms": elapsed_ms,
+                "usage": usage,
+            }
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(plan_text.strip())
+            print(
+                f"\n[plan] provider={settings.provider} model={settings.model} "
+                f"elapsed_ms={elapsed_ms} "
+                f"tokens={usage.get('total_tokens', 0)}",
+                file=sys.stderr,
+            )
+        return 0
 
     if args.command == "models":
         try:
@@ -324,6 +474,83 @@ def main(argv: list[str] | None = None) -> int:
                 print(probe_result)
         return 0 if ok else 2
 
+    if args.command == "sessions":
+        files = list_session_files(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+        )
+        details: list[dict[str, object]] = []
+        if args.details:
+            for p in files:
+                try:
+                    sess = load_session(str(p))
+                except Exception:
+                    details.append(
+                        {
+                            "name": p.name,
+                            "path": str(p),
+                            "error": "parse_failed",
+                        },
+                    )
+                    continue
+                msgs = sess.get("messages")
+                msg_list = msgs if isinstance(msgs, list) else []
+                tc, used, last_tool, err_count = _collect_tool_stats(
+                    msg_list if isinstance(msg_list, list) else [],
+                )
+                ans = sess.get("answer")
+                ans_preview = ""
+                if isinstance(ans, str) and ans.strip():
+                    ans_preview = ans.strip()[:120] + ("…" if len(ans.strip()) > 120 else "")
+                details.append(
+                    {
+                        "name": p.name,
+                        "path": str(p),
+                        "messages_count": len(msg_list),
+                        "tool_calls_count": tc,
+                        "used_tools": used,
+                        "last_tool": last_tool,
+                        "error_count": err_count,
+                        "answer_preview": ans_preview,
+                    },
+                )
+        if args.json_output:
+            arr = []
+            for i, p in enumerate(files):
+                item: dict[str, object] = {
+                    "name": p.name,
+                    "path": str(p),
+                    "mtime": int(p.stat().st_mtime),
+                    "size": p.stat().st_size,
+                }
+                if args.details and i < len(details) and isinstance(details[i], dict):
+                    item.update(details[i])
+                arr.append(item)
+            print(json.dumps(arr, ensure_ascii=False))
+        else:
+            if not files:
+                print("(无会话文件)")
+            for i, p in enumerate(files, start=1):
+                st = p.stat()
+                print(f"{i:>2}. {p.name}\t{st.st_size} bytes")
+                if args.details and i - 1 < len(details):
+                    d = details[i - 1]
+                    if "error" in d:
+                        print("    [parse_failed]")
+                    else:
+                        print(
+                            "    "
+                            f"messages={d.get('messages_count')} "
+                            f"tool_calls={d.get('tool_calls_count')} "
+                            f"errors={d.get('error_count')} "
+                            f"last_tool={d.get('last_tool')}",
+                        )
+                        ap = d.get("answer_preview")
+                        if isinstance(ap, str) and ap:
+                            print(f"    answer={ap}")
+        return 0
+
     if args.command in ("run", "continue"):
         try:
             settings = Settings.from_env(config_path=args.config)
@@ -342,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
             print("goal 不能为空", file=sys.stderr)
             return 2
 
+        reset_usage_counters()
         app = build_app(settings)
         load_session_path = args.load_session if args.command == "run" else args.session
         if load_session_path:
@@ -377,7 +605,10 @@ def main(argv: list[str] | None = None) -> int:
                 content = (m.get("content") or "")[:2000]
                 print(f"[{role}]\n{content}\n", file=sys.stderr)
 
+        usage = get_usage_counters()
         if args.json_output:
+            msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
+            tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
             payload = {
                 "answer": (final.get("answer") or "").strip(),
                 "iteration": final.get("iteration"),
@@ -388,6 +619,13 @@ def main(argv: list[str] | None = None) -> int:
                 "model": settings.model,
                 "mcp_enabled": settings.mcp_enabled,
                 "elapsed_ms": elapsed_ms,
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
+                "total_tokens": usage.get("total_tokens", 0),
+                "tool_calls_count": tool_calls_count,
+                "used_tools": used_tools,
+                "last_tool": last_tool,
+                "error_count": error_count,
             }
             print(json.dumps(payload, ensure_ascii=False))
         else:
