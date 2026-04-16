@@ -10,6 +10,10 @@ from typing import Any, Dict, List
 from cai_agent.config import Settings
 from cai_agent.graph import build_app, initial_state
 from cai_agent.llm import get_usage_counters, reset_usage_counters
+from cai_agent.memory import (
+    extract_basic_instincts_from_session,
+    save_instincts,
+)
 
 
 def _load_workflow_file(path: str) -> Dict[str, Any]:
@@ -86,6 +90,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     total_tool_calls = 0
     total_errors = 0
 
+    instincts_root: str | None = None
+
     for idx, raw_step in enumerate(steps_data, start=1):
         if not isinstance(raw_step, dict):
             raise ValueError(f"workflow.steps[{idx - 1}] 必须是 JSON object")
@@ -139,6 +145,10 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         total_tool_calls += int(stats.get("tool_calls_count", 0))
         total_errors += int(stats.get("error_count", 0))
 
+        # 将当前步骤结果转换为最小 Instinct 记录，延后统一保存。
+        if instincts_root is None:
+            instincts_root = step_settings.workspace
+
     summary = {
         "steps_count": len(results),
         "elapsed_ms_total": total_elapsed,
@@ -146,5 +156,19 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "tool_calls_total": total_tool_calls,
         "tool_errors_total": total_errors,
     }
+
+    # 在 workflow 级别落盘一次 Instinct 快照，形成最小持续学习闭环。
+    try:
+        if instincts_root is not None:
+            sess_like = {
+                "goal": " ; ".join(r.get("goal", "") for r in results),
+                "answer": "\n\n".join(r.get("answer", "") for r in results),
+            }
+            instincts = extract_basic_instincts_from_session(sess_like)
+            save_instincts(instincts_root, instincts)
+    except Exception:
+        # Instinct 失败不影响主流程。
+        pass
+
     return {"steps": results, "summary": summary}
 

@@ -5,9 +5,10 @@ import json
 import os
 import subprocess
 import time
+from dataclasses import dataclass
 from urllib.parse import quote
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import httpx
 

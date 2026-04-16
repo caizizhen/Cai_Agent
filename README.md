@@ -17,6 +17,36 @@
 
 完整架构说明与后续 Roadmap 见 `docs/ARCHITECTURE.zh-CN.md`。
 
+## 高层架构示意
+
+```mermaid
+flowchart TD
+  user[User] --> cli[CLI/Entry]
+  cli --> mainAgent[MainAgent]
+  mainAgent --> planEngine[PlanEngine]
+  mainAgent --> toolRegistry[ToolRegistry]
+  mainAgent --> subAgents[SubAgents]
+  mainAgent --> skills[Skills]
+  mainAgent --> memory[Memory_Instincts]
+  mainAgent --> hooks[Hooks]
+
+  toolRegistry --> fsTools[FSTools]
+  toolRegistry --> searchTools[SearchTools]
+  toolRegistry --> shellTools[ShellTools]
+
+  subAgents --> explorerAgent[ExplorerAgent]
+  subAgents --> reviewerAgent[ReviewerAgent]
+  subAgents --> securityAgent[SecurityAgent]
+
+  memory --> instincts[InstinctStore]
+  memory --> summaries[ContextSummaries]
+
+  hooks --> securityHooks[SecurityHooks]
+  hooks --> automationHooks[AutomationHooks]
+
+  mainAgent --> llmClient[LLMClient]
+```
+
 ## ⭐ Copilot 集成（重点）
 
 `cai-agent` 现已内置 **Copilot provider 模式**（`llm.provider = "copilot"`），用于快速切到 Copilot 生态代理。
