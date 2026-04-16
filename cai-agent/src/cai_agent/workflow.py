@@ -90,7 +90,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     total_tool_calls = 0
     total_errors = 0
 
-    instincts_root: str | None = None
+    instincts_roots: set[str] = set()
 
     for idx, raw_step in enumerate(steps_data, start=1):
         if not isinstance(raw_step, dict):
@@ -145,9 +145,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         total_tool_calls += int(stats.get("tool_calls_count", 0))
         total_errors += int(stats.get("error_count", 0))
 
-        # 将当前步骤结果转换为最小 Instinct 记录，延后统一保存。
-        if instincts_root is None:
-            instincts_root = step_settings.workspace
+        # 记录所有参与 workflow 的工作区，后续分别落盘 instinct。
+        instincts_roots.add(step_settings.workspace)
 
     summary = {
         "steps_count": len(results),
@@ -159,13 +158,14 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     # 在 workflow 级别落盘一次 Instinct 快照，形成最小持续学习闭环。
     try:
-        if instincts_root is not None:
+        if instincts_roots:
             sess_like = {
                 "goal": " ; ".join(r.get("goal", "") for r in results),
                 "answer": "\n\n".join(r.get("answer", "") for r in results),
             }
             instincts = extract_basic_instincts_from_session(sess_like)
-            save_instincts(instincts_root, instincts)
+            for root in instincts_roots:
+                save_instincts(root, instincts)
     except Exception:
         # Instinct 失败不影响主流程。
         pass

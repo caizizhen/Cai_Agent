@@ -1,0 +1,24 @@
+{
+  "version": 1,
+  "hooks": [
+    {
+      "id": "session-start-context-check",
+      "event": "session_start",
+      "enabled": true,
+      "description": "会话开始时检查配置与上下文是否可用"
+    },
+    {
+      "id": "post-edit-doc-reminder",
+      "event": "post_edit",
+      "enabled": true,
+      "description": "检测到规则/技能新增后提醒同步 README 与 CHANGELOG"
+    },
+    {
+      "id": "session-end-summary",
+      "event": "session_end",
+      "enabled": true,
+      "description": "会话结束时输出摘要与后续建议"
+    }
+  ]
+}
+

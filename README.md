@@ -10,6 +10,10 @@
   - **会话与编排（Query/Tasks）**：`cai_agent.graph` 使用 LangGraph 状态机驱动「LLM ↔ 工具」循环，与 Claude Code 的 QueryEngine 思路一致；CLI 的 `run` / `continue` + `sessions` 子命令承担最小会话/任务管理角色。
   - **终端 UI（TUI）**：`cai_agent.tui` 使用 Textual 提供类似 Claude Code REPL 的对话界面和内置斜杠命令（`/status`、`/models`、`/mcp`、`/save`、`/load` 等）。
   - **安全模型（Sandbox & MCP）**：`cai_agent.sandbox` + `run_command` 白名单 + Git 只读工具 + MCP Bridge 的超时/鉴权，与 Everything Claude Code 中的 Agent 安全与沙箱策略保持同类防护思路。
+- **已补充的规则与技能库**（内容层级）：
+  - **Rules**：`rules/common` 与 `rules/python` 已补充命名/结构、日志/错误、安全/敏感信息、Git/提交、文档/注释、性能/资源、上下文/记忆、MCP/外部工具、Hook 自动化、子代理协作、验证评估、research-first、prompt hygiene、类型风格、测试/CI、依赖/打包、CLI/TUI、配置演进、并发模型、HTTP 调用与重试等主题。
+  - **Skills**：`skills/` 已补充 plan-then-execute、search-first、TDD、verification loop、单模块/多模块重构、新功能+测试、调试诊断、轻量安全扫描、安全加固、性能评估、依赖升级、API 集成、规则维护、Hook 设计、子代理编排、记忆提炼、代码评审、测试覆盖审计、发布前检查、workflow 编写、迁移规划、故障复盘、文档同步等可复用工作流。
+  - **运行层骨架**：已新增 `commands/`（斜杠命令兼容层）、`agents/`（核心子代理定义）、`hooks/`（自动化配置骨架），用于逐步对齐 ECC 的插件化运行体系。
 - **规划中的增强能力**（逐步对齐中）：
   - **计划模式（Plan Mode）**：在执行前生成只读实现方案，风格对齐 Claude Code 的 Plan 模式与 Everything Claude Code 的 “research-first / plan-then-execute”。
   - **规则与技能（Rules / Skills）**：在仓库中提供 `rules/`、`skills/` 目录，结合 CLI/TUI 命令为常见语言和场景提供约束与可复用工作流（参考 ECC 的 `rules/`、`skills/` 结构）。
@@ -86,6 +90,17 @@ mcp_enabled = true
 
 - 详细版本历史请见 `CHANGELOG.md`。
 - 若要更新变更记录，请优先修改 `CHANGELOG.md`，然后在需要时在此处补充少量关键信息（例如当前主版本亮点）。
+
+## Rules / Skills 目录现状
+
+- `rules/common/`：通用工程规则，覆盖结构、日志、安全、Git、文档、性能、上下文记忆、MCP 等主题。
+- `rules/python/`：Python 规则，覆盖风格与类型、测试/CI、依赖打包、CLI/TUI、配置演进、并发模型、HTTP 调用与重试等主题。
+- `skills/`：可复用工作流，覆盖计划、调研、TDD、验证循环、重构、加功能、调试、安全扫描与加固、性能评估、依赖升级、评审、发布前检查、workflow 编写、迁移规划、复盘与文档同步等任务。
+- `commands/`：命令兼容层，提供 `/plan`、`/code-review`、`/verify`、`/security-scan`、`/sessions` 等入口定义。
+- `agents/`：子代理定义层，提供 `planner`、`code-reviewer`、`security-reviewer`、`debug-resolver`、`doc-updater` 等核心角色模板。
+- `hooks/`：会话与操作自动化骨架，提供 `hooks.json` 与 session start/end 建议流程。
+
+这些目录当前已经从「骨架」扩展为可实际引用的内容库与运行层雏形；下一步会继续把 `commands/agents/hooks` 接入 `plan` / `workflow` / TUI 命令入口。
 
 ---
 

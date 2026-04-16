@@ -34,7 +34,9 @@ class Agent:
     config: AgentConfig
     progress: Callable[[dict[str, Any]], None] | None = None
 
-    def _build_state(self, goal: str) -> AgentState:
+    def _effective_settings(self) -> Settings:
+        """返回当前 Agent 的实际运行配置。"""
+
         base = self.settings
         if (
             self.config.max_iterations is not None
@@ -42,7 +44,11 @@ class Agent:
         ):
             from dataclasses import replace
 
-            base = replace(base, max_iterations=self.config.max_iterations)
+            return replace(base, max_iterations=self.config.max_iterations)
+        return base
+
+    def _build_state(self, goal: str) -> AgentState:
+        base = self._effective_settings()
         state = initial_state(base, goal)
         # 角色信息仅作为 metadata 附在第一条 user message 上，便于后续扩展。
         if state["messages"] and self.config.role != "default":
@@ -57,7 +63,8 @@ class Agent:
     def run(self, goal: str) -> dict[str, Any]:
         """执行单轮任务并返回最终状态字典。"""
 
-        app = build_app(self.settings, progress=self.progress)
+        effective = self._effective_settings()
+        app = build_app(effective, progress=self.progress)
         state = self._build_state(goal)
         final = app.invoke(state)
         return final
