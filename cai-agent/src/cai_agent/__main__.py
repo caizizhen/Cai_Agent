@@ -18,9 +18,15 @@ from cai_agent.graph import build_app, initial_state
 from cai_agent.hook_runtime import enabled_hook_ids
 from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
+from cai_agent.exporter import export_target
+from cai_agent.memory import extract_basic_instincts_from_session, save_instincts
+from cai_agent.plugin_registry import list_plugin_surface
+from cai_agent.quality_gate import run_quality_gate
 from cai_agent.rules import load_rule_text
-from cai_agent.session import list_session_files, load_session, save_session
+from cai_agent.security_scan import run_security_scan
+from cai_agent.session import aggregate_sessions, list_session_files, load_session, save_session
 from cai_agent.skill_registry import load_related_skill_texts
+from cai_agent.task_state import new_task
 from cai_agent.tools import dispatch, tools_spec_markdown
 from cai_agent.workflow import run_workflow
 
@@ -252,6 +258,17 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 数组输出模型列表",
     )
+    plugins_p = sub.add_parser(
+        "plugins",
+        parents=[common],
+        help="输出当前项目插件化扩展面清单（skills/commands/agents/hooks/rules/mcp）",
+    )
+    plugins_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 对象输出扩展面信息",
+    )
     cmd_list_p = sub.add_parser(
         "commands",
         parents=[common],
@@ -300,6 +317,45 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="PATH",
         help="将本轮运行后的会话写入 JSON 文件",
+    )
+    fix_build_p = sub.add_parser(
+        "fix-build",
+        parents=[common],
+        help="快捷执行 /fix-build 命令模板（等价于 command fix-build）",
+    )
+    fix_build_p.add_argument(
+        "goal",
+        nargs="+",
+        help="构建失败修复目标描述（可多个词）",
+    )
+    fix_build_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    fix_build_p.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="只打印最终回答，不打印过程",
+    )
+    fix_build_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="将 answer 与迭代次数等以一行 JSON 打印到 stdout",
+    )
+    fix_build_p.add_argument(
+        "--save-session",
+        default=None,
+        metavar="PATH",
+        help="将本轮运行后的会话写入 JSON 文件",
+    )
+    fix_build_p.add_argument(
+        "--no-gate",
+        action="store_true",
+        help="修复后不自动执行 quality-gate",
     )
     ag_list_p = sub.add_parser(
         "agents",
@@ -431,6 +487,75 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出汇总结果",
     )
+    qg_p = sub.add_parser(
+        "quality-gate",
+        parents=[common],
+        help="执行最小质量门禁（编译检查 + pytest）",
+    )
+    qg_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 输出质量门禁结果",
+    )
+    qg_p.add_argument("--no-compile", action="store_true", help="跳过 compile 检查")
+    qg_p.add_argument("--no-test", action="store_true", help="跳过 test 检查")
+    qg_p.add_argument("--lint", action="store_true", help="启用 lint 检查（ruff）")
+    qg_p.add_argument("--security-scan", action="store_true", help="在质量门禁中启用安全扫描")
+    sec_p = sub.add_parser(
+        "security-scan",
+        parents=[common],
+        help="执行轻量安全扫描（敏感信息模式 + 风险摘要）",
+    )
+    sec_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    sec_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 输出扫描结果",
+    )
+    sec_p.add_argument(
+        "--exclude-glob",
+        action="append",
+        default=[],
+        dest="exclude_globs",
+        help="附加忽略路径模式（可多次指定），如 --exclude-glob \"**/*.md\"",
+    )
+    sec_p.add_argument("--disable-aws", action="store_true", help="禁用 AKIA 规则")
+    sec_p.add_argument("--disable-github", action="store_true", help="禁用 ghp_ 规则")
+    sec_p.add_argument("--disable-openai", action="store_true", help="禁用 sk- 规则")
+    sec_p.add_argument("--disable-private-key", action="store_true", help="禁用 BEGIN PRIVATE KEY 规则")
+
+    memory_p = sub.add_parser("memory", help="记忆管理命令")
+    memory_sub = memory_p.add_subparsers(dest="memory_action", required=True)
+    memory_extract = memory_sub.add_parser("extract", help="从会话提取记忆")
+    memory_extract.add_argument("--pattern", default=".cai-session*.json")
+    memory_extract.add_argument("--limit", type=int, default=10)
+    memory_list = memory_sub.add_parser("list", help="列出记忆快照")
+    memory_list.add_argument("--limit", type=int, default=20)
+    memory_export = memory_sub.add_parser("export", help="导出记忆目录")
+    memory_export.add_argument("file")
+    memory_import = memory_sub.add_parser("import", help="导入记忆文件")
+    memory_import.add_argument("file")
+
+    cost_p = sub.add_parser("cost", help="成本治理命令")
+    cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
+    cost_budget = cost_sub.add_parser("budget", help="预算检查")
+    cost_budget.add_argument("--check", action="store_true")
+    cost_budget.add_argument("--max-tokens", type=int, default=50000)
+
+    export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
+    export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
+
+    obs_p = sub.add_parser("observe", help="输出可观测聚合 JSON")
+    obs_p.add_argument("--pattern", default=".cai-session*.json")
+    obs_p.add_argument("--limit", type=int, default=100)
+    obs_p.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -579,6 +704,29 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 for m in models:
                     print(m)
+        return 0
+
+    if args.command == "plugins":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        surface = list_plugin_surface(settings)
+        if args.json_output:
+            print(json.dumps(surface, ensure_ascii=False))
+        else:
+            print(f"project_root={surface.get('project_root')}")
+            comps = surface.get("components")
+            if isinstance(comps, dict):
+                for name, meta in comps.items():
+                    if not isinstance(meta, dict):
+                        continue
+                    exists = bool(meta.get("exists"))
+                    files_count = int(meta.get("files_count", 0))
+                    print(f"- {name}: exists={exists} files={files_count}")
         return 0
 
     if args.command == "commands":
@@ -814,6 +962,160 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  {m}: {cnt}")
         return 0
 
+    if args.command == "quality-gate":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        result = run_quality_gate(
+            settings,
+            enable_compile=settings.quality_gate_compile and not bool(args.no_compile),
+            enable_test=settings.quality_gate_test and not bool(args.no_test),
+            enable_lint=bool(args.lint) or settings.quality_gate_lint,
+            enable_security_scan=bool(args.security_scan) or settings.quality_gate_security_scan,
+        )
+        if args.json_output:
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            print(f"ok={result.get('ok')}")
+            print(f"failed_count={result.get('failed_count')}")
+            checks = result.get("checks")
+            if isinstance(checks, list):
+                for item in checks:
+                    if not isinstance(item, dict):
+                        continue
+                    print(
+                        f"- {item.get('name')}: exit={item.get('exit_code')} "
+                        f"elapsed_ms={item.get('elapsed_ms')}",
+                    )
+        return 0 if bool(result.get("ok")) else 2
+
+    if args.command == "security-scan":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        exclude_globs = [
+            str(x).strip()
+            for x in (args.exclude_globs or [])
+            if isinstance(x, str) and str(x).strip()
+        ]
+        ex_arg = exclude_globs if exclude_globs else None
+        rule_flags = {
+            "aws_access_key": not bool(args.disable_aws),
+            "github_pat": not bool(args.disable_github),
+            "openai_like_key": not bool(args.disable_openai),
+            "private_key_header": not bool(args.disable_private_key),
+        }
+        result = run_security_scan(settings, exclude_globs=ex_arg, rule_flags=rule_flags)
+        if args.json_output:
+            print(json.dumps(result, ensure_ascii=False))
+        else:
+            print(f"ok={result.get('ok')}")
+            print(f"scanned_files={result.get('scanned_files')}")
+            print(f"findings_count={result.get('findings_count')}")
+            findings = result.get("findings")
+            if isinstance(findings, list):
+                for item in findings[:20]:
+                    if not isinstance(item, dict):
+                        continue
+                    print(
+                        f"- [{item.get('severity')}] {item.get('rule')} "
+                        f"{item.get('file')}:{item.get('line')}",
+                    )
+        return 0 if bool(result.get("ok")) else 2
+
+    if args.command == "memory":
+        root = Path.cwd().resolve()
+        mem_dir = root / "memory" / "instincts"
+        mem_dir.mkdir(parents=True, exist_ok=True)
+        if args.memory_action == "extract":
+            files = list_session_files(cwd=str(root), pattern=str(args.pattern), limit=int(args.limit))
+            written: list[str] = []
+            for p in files:
+                try:
+                    sess = load_session(str(p))
+                except Exception:
+                    continue
+                instincts = extract_basic_instincts_from_session(sess)
+                out = save_instincts(root, instincts)
+                if out:
+                    written.append(str(out))
+            print(json.dumps({"written": written}, ensure_ascii=False))
+            return 0
+        if args.memory_action == "list":
+            files = sorted(mem_dir.glob("instincts-*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
+            arr = [str(p) for p in files[: int(args.limit)]]
+            print(json.dumps(arr, ensure_ascii=False))
+            return 0
+        if args.memory_action == "export":
+            target = Path(args.file).expanduser().resolve()
+            files = sorted(mem_dir.glob("instincts-*.md"), key=lambda p: p.stat().st_mtime)
+            payload = [{"path": str(p), "content": p.read_text(encoding="utf-8")} for p in files]
+            target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            print(str(target))
+            return 0
+        if args.memory_action == "import":
+            src = Path(args.file).expanduser().resolve()
+            arr = json.loads(src.read_text(encoding="utf-8"))
+            if not isinstance(arr, list):
+                raise ValueError("memory import file must be array")
+            count = 0
+            for i, item in enumerate(arr, start=1):
+                if not isinstance(item, dict):
+                    continue
+                content = item.get("content")
+                if not isinstance(content, str):
+                    continue
+                p = mem_dir / f"instincts-import-{i:04d}.md"
+                p.write_text(content, encoding="utf-8")
+                count += 1
+            print(json.dumps({"imported": count}, ensure_ascii=False))
+            return 0
+
+    if args.command == "cost":
+        if args.cost_action == "budget":
+            agg = aggregate_sessions(cwd=os.getcwd(), limit=200)
+            max_tokens = int(args.max_tokens)
+            total_tokens = int(agg.get("total_tokens", 0))
+            state = "pass"
+            if total_tokens > max_tokens:
+                state = "fail"
+            elif total_tokens > int(max_tokens * 0.8):
+                state = "warn"
+            payload = {"state": state, "total_tokens": total_tokens, "max_tokens": max_tokens}
+            print(json.dumps(payload, ensure_ascii=False))
+            return 0 if state != "fail" else 2
+
+    if args.command == "export":
+        try:
+            settings = Settings.from_env(config_path=args.config)
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        result = export_target(settings, str(args.target))
+        print(json.dumps(result, ensure_ascii=False))
+        return 0
+
+    if args.command == "observe":
+        agg = aggregate_sessions(cwd=os.getcwd(), pattern=str(args.pattern), limit=int(args.limit))
+        if args.json_output:
+            print(json.dumps(agg, ensure_ascii=False))
+        else:
+            print(f"sessions={agg.get('sessions_count')} failed={agg.get('failed_count')} tokens={agg.get('total_tokens')}")
+        return 0
+
     if args.command == "workflow":
         try:
             settings = Settings.from_env(config_path=args.config)
@@ -854,7 +1156,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
         return 0
 
-    if args.command in ("run", "continue", "command", "agent"):
+    if args.command in ("run", "continue", "command", "agent", "fix-build"):
         try:
             settings = Settings.from_env(config_path=args.config)
         except FileNotFoundError as e:
@@ -871,8 +1173,11 @@ def main(argv: list[str] | None = None) -> int:
         if not goal:
             print("goal 不能为空", file=sys.stderr)
             return 2
-        if args.command == "command":
-            cmd_name = str(args.name).strip().lstrip("/")
+        if args.command in ("command", "fix-build"):
+            if args.command == "fix-build":
+                cmd_name = "fix-build"
+            else:
+                cmd_name = str(args.name).strip().lstrip("/")
             cmd_text = load_command_text(settings, cmd_name)
             if not cmd_text:
                 print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
@@ -911,6 +1216,8 @@ def main(argv: list[str] | None = None) -> int:
             )
 
         reset_usage_counters()
+        task = new_task(args.command)
+        task.status = "running"
         _print_hook_status(
             settings,
             event="session_start",
@@ -944,6 +1251,8 @@ def main(argv: list[str] | None = None) -> int:
         started = time.perf_counter()
         final = app.invoke(state)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        task.ended_at = time.time()
+        task.elapsed_ms = elapsed_ms
 
         if (
             not args.quiet
@@ -957,6 +1266,17 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[{role}]\n{content}\n", file=sys.stderr)
 
         usage = get_usage_counters()
+        task.status = "completed" if bool(final.get("finished")) else "failed"
+        task.error = None if task.status == "completed" else "unfinished"
+        gate_result = None
+        if args.command == "fix-build" and not bool(getattr(args, "no_gate", False)):
+            gate_result = run_quality_gate(
+                settings,
+                enable_compile=settings.quality_gate_compile,
+                enable_test=settings.quality_gate_test,
+                enable_lint=settings.quality_gate_lint,
+                enable_security_scan=settings.quality_gate_security_scan,
+            )
         if args.json_output:
             msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
             tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
@@ -977,10 +1297,17 @@ def main(argv: list[str] | None = None) -> int:
                 "used_tools": used_tools,
                 "last_tool": last_tool,
                 "error_count": error_count,
+                "task": task.to_dict(),
+                "post_gate": gate_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
         else:
             print(final.get("answer", "").strip())
+            if gate_result is not None:
+                print(
+                    f"\n[fix-build] quality-gate ok={gate_result.get('ok')} failed_count={gate_result.get('failed_count')}",
+                    file=sys.stderr,
+                )
 
         save_session_path = getattr(args, "save_session", None)
         if save_session_path:
@@ -992,8 +1319,12 @@ def main(argv: list[str] | None = None) -> int:
                 "model": settings.model,
                 "mcp_enabled": settings.mcp_enabled,
                 "elapsed_ms": elapsed_ms,
+                "total_tokens": usage.get("total_tokens", 0),
+                "prompt_tokens": usage.get("prompt_tokens", 0),
+                "completion_tokens": usage.get("completion_tokens", 0),
                 "messages": final.get("messages") or [],
                 "answer": final.get("answer"),
+                "task": task.to_dict(),
             }
             try:
                 save_session(str(save_session_path), payload)

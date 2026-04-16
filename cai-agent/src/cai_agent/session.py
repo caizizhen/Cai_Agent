@@ -32,3 +32,37 @@ def list_session_files(
     files = [p for p in base.glob(pattern) if p.is_file()]
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
     return files[: max(limit, 1)]
+
+
+def aggregate_sessions(
+    *,
+    cwd: str | None = None,
+    pattern: str = ".cai-session*.json",
+    limit: int = 100,
+) -> dict[str, Any]:
+    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    sessions_count = 0
+    total_elapsed = 0
+    total_tokens = 0
+    failed_count = 0
+    for p in files:
+        try:
+            s = load_session(str(p))
+        except Exception:
+            continue
+        sessions_count += 1
+        elapsed = s.get("elapsed_ms")
+        if isinstance(elapsed, int):
+            total_elapsed += elapsed
+        tt = s.get("total_tokens")
+        if isinstance(tt, int):
+            total_tokens += tt
+        if bool(s.get("error_count", 0)):
+            failed_count += 1
+    return {
+        "sessions_count": sessions_count,
+        "elapsed_ms_total": total_elapsed,
+        "total_tokens": total_tokens,
+        "failed_count": failed_count,
+        "failure_rate": (float(failed_count) / sessions_count) if sessions_count else 0.0,
+    }

@@ -79,6 +79,11 @@ class Settings:
     mcp_base_url: str | None
     mcp_api_key: str | None
     mcp_timeout_sec: float
+    quality_gate_compile: bool
+    quality_gate_test: bool
+    quality_gate_lint: bool
+    quality_gate_security_scan: bool
+    security_scan_exclude_globs: tuple[str, ...]
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
 
@@ -222,6 +227,18 @@ class Settings:
             else:
                 mcp_timeout_sec = 20.0
         mcp_timeout_sec = max(3.0, min(300.0, mcp_timeout_sec))
+        qg = _section(file_data, "quality_gate")
+        sec = _section(file_data, "security_scan")
+
+        quality_gate_compile = bool(qg.get("compile", True))
+        quality_gate_test = bool(qg.get("test", True))
+        quality_gate_lint = bool(qg.get("lint", False))
+        quality_gate_security_scan = bool(qg.get("security_scan", False))
+        sec_ex = sec.get("exclude_globs")
+        if isinstance(sec_ex, list):
+            security_scan_exclude_globs = tuple(str(x).strip() for x in sec_ex if str(x).strip())
+        else:
+            security_scan_exclude_globs = ()
 
         config_loaded_from = str(resolved) if resolved is not None else None
 
@@ -243,5 +260,10 @@ class Settings:
             mcp_base_url=mcp_base_url,
             mcp_api_key=mcp_api_key,
             mcp_timeout_sec=mcp_timeout_sec,
+            quality_gate_compile=quality_gate_compile,
+            quality_gate_test=quality_gate_test,
+            quality_gate_lint=quality_gate_lint,
+            quality_gate_security_scan=quality_gate_security_scan,
+            security_scan_exclude_globs=security_scan_exclude_globs,
             config_loaded_from=config_loaded_from,
         )

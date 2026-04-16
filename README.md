@@ -102,7 +102,13 @@ cai-agent workflow workflow.json --json
   - **规则与技能（Rules / Skills）**：在仓库中提供 `rules/`、`skills/` 目录，结合 CLI/TUI 命令为常见语言和场景提供约束与可复用工作流（参考 ECC 的 `rules/`、`skills/` 结构）。
   - **统计与诊断（Stats）**：在现有 `run --json` / `continue --json` 输出基础上，逐步加入模型调用耗时、token 使用等诊断信息，对齐 Claude Code / ECC 的成本与性能视角。
 
-完整架构说明与后续 Roadmap 见 `docs/ARCHITECTURE.zh-CN.md`。
+完整架构说明与后续 Roadmap 见：
+
+- `docs/ARCHITECTURE.zh-CN.md`
+- `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（Claude 生态能力对比与缺口）
+- `docs/ROADMAP_EXECUTION.zh-CN.md`（P0/P1/P2 落地清单）
+- `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`（记忆与成本治理方案）
+- `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`（跨工具兼容映射）
 
 ## 高层架构示意
 
@@ -179,7 +185,7 @@ mcp_enabled = true
 - `rules/common/`：通用工程规则，覆盖结构、日志、安全、Git、文档、性能、上下文记忆、MCP 等主题。
 - `rules/python/`：Python 规则，覆盖风格与类型、测试/CI、依赖打包、CLI/TUI、配置演进、并发模型、HTTP 调用与重试等主题。
 - `skills/`：可复用工作流，覆盖计划、调研、TDD、验证循环、重构、加功能、调试、安全扫描与加固、性能评估、依赖升级、评审、发布前检查、workflow 编写、迁移规划、复盘与文档同步等任务。
-- `commands/`：命令兼容层，提供 `/plan`、`/code-review`、`/verify`、`/security-scan`、`/sessions` 等入口定义。
+- `commands/`：命令兼容层，提供 `/plan`、`/code-review`、`/verify`、`/fix-build`、`/security-scan`、`/sessions` 等入口定义。
 - `agents/`：子代理定义层，提供 `planner`、`code-reviewer`、`security-reviewer`、`debug-resolver`、`doc-updater` 等核心角色模板。
 - `hooks/`：会话与操作自动化骨架，提供 `hooks.json` 与 session start/end 建议流程；CLI 会在会话开始/结束读取并输出已启用 hook 标识。
 - `cai-agent command` / `cai-agent agent`：会自动尝试匹配并注入 `skills/` 中相关技能内容（同名或前缀匹配），提升命令/角色执行质量。
@@ -232,6 +238,18 @@ cai-agent models
 cai-agent run --workspace "$PWD" "请总结当前仓库结构"
 cai-agent ui -w "$PWD"
 cai-agent mcp-check --verbose
+cai-agent fix-build "修复当前仓库测试失败问题"
+cai-agent security-scan --json
+cai-agent security-scan --json --exclude-glob "**/*.md"
+cai-agent plugins
+cai-agent quality-gate
+cai-agent quality-gate --lint --security-scan
+cai-agent quality-gate --no-test
+cai-agent memory extract --limit 5
+cai-agent memory list --limit 10
+cai-agent cost budget --check --max-tokens 60000
+cai-agent export --target cursor
+cai-agent observe --json
 ```
 
 ## Windows 使用

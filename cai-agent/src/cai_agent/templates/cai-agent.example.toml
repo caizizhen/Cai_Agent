@@ -44,3 +44,17 @@ mcp_enabled = false
 project_context = true
 # 是否附加 git 分支与简短 status（只读）
 git_context = true
+
+[quality_gate]
+compile = true
+test = true
+lint = false
+security_scan = false
+
+[security_scan]
+exclude_globs = [
+  "cai-agent/src/cai_agent/security_scan.py",
+  "commands/security-scan.md",
+  "skills/security-scan-light.md",
+  "docs/**",
+]

@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from cai_agent.config import Settings
+from cai_agent.agents import create_agent
 from cai_agent.graph import build_app, initial_state
 from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.memory import (
     extract_basic_instincts_from_session,
     save_instincts,
 )
+from cai_agent.task_state import new_task
 
 
 def _load_workflow_file(path: str) -> Dict[str, Any]:
@@ -82,6 +84,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
       ]
     }
     """
+    wf_task = new_task("workflow")
+    wf_task.status = "running"
     data = _load_workflow_file(path)
     steps_data = data["steps"]
 
@@ -111,12 +115,19 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         if isinstance(model_raw, str) and model_raw.strip():
             step_settings = replace(step_settings, model=model_raw.strip())
 
+        role_raw = str(raw_step.get("role") or "default").strip().lower()
+        if role_raw not in ("default", "explorer", "reviewer", "security"):
+            role_raw = "default"
         reset_usage_counters()
-        app = build_app(step_settings)
-        state = initial_state(step_settings, goal)
+        agent = create_agent(step_settings, role=role_raw) if role_raw != "default" else None
 
         started = time.perf_counter()
-        final = app.invoke(state)
+        if agent is not None:
+            final = agent.run(goal)
+        else:
+            app = build_app(step_settings)
+            state = initial_state(step_settings, goal)
+            final = app.invoke(state)
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         usage = get_usage_counters()
 
@@ -138,6 +149,12 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             "completion_tokens": usage.get("completion_tokens", 0),
             "total_tokens": usage.get("total_tokens", 0),
             **stats,
+            "role": role_raw,
+            "protocol": {
+                "input": {"goal": goal, "role": role_raw},
+                "output": {"answer": (final.get("answer") or "").strip()},
+                "error": None if int(stats.get("error_count", 0)) == 0 else "tool_error_detected",
+            },
         }
         results.append(step_result)
 
@@ -148,12 +165,27 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         # 记录所有参与 workflow 的工作区，后续分别落盘 instinct。
         instincts_roots.add(step_settings.workspace)
 
+    conflicts: list[dict[str, Any]] = []
+    by_name: dict[str, str] = {}
+    for r in results:
+        n = str(r.get("name", ""))
+        a = str(r.get("answer", "")).strip()
+        if not n:
+            continue
+        prev = by_name.get(n)
+        if prev is None:
+            by_name[n] = a
+        elif prev != a:
+            conflicts.append({"name": n, "type": "answer_mismatch"})
+
     summary = {
         "steps_count": len(results),
         "elapsed_ms_total": total_elapsed,
         "elapsed_ms_avg": int(total_elapsed / len(results)) if results else 0,
         "tool_calls_total": total_tool_calls,
         "tool_errors_total": total_errors,
+        "conflicts": conflicts,
+        "merge_decision": "manual_review" if conflicts else "auto_merge",
     }
 
     # 在 workflow 级别落盘一次 Instinct 快照，形成最小持续学习闭环。
@@ -170,5 +202,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         # Instinct 失败不影响主流程。
         pass
 
-    return {"steps": results, "summary": summary}
+    wf_task.ended_at = time.time()
+    wf_task.elapsed_ms = int((wf_task.ended_at - wf_task.started_at) * 1000)
+    wf_task.status = "completed" if total_errors == 0 else "failed"
+    wf_task.error = None if total_errors == 0 else "workflow_has_step_errors"
+    return {"task": wf_task.to_dict(), "steps": results, "summary": summary}
 
