@@ -100,3 +100,62 @@ budget_max_tokens = 50000
 # profile = "standard"   # minimal | standard | strict（控制 hooks.json 中带 command 的外部钩子）
 # disabled = ["some-hook-id"]
 # timeout_sec = 120
+
+# ===========================================================================
+# 模型 Profile（开发中，详见 docs/MODEL_SWITCHER_BACKLOG.zh-CN.md）
+# 说明：启用 [[models.profile]] 后，上方 [llm] 段将被视为兼容回退；推荐把密钥
+# 写到环境变量，在 profile 里只写 api_key_env = "VAR_NAME"。
+# ---------------------------------------------------------------------------
+# [models]
+# active = "local-lmstudio"
+# subagent = "local-lmstudio"
+# planner = "anthropic-sonnet"
+#
+# # 官方 ChatGPT（OpenAI）
+# [[models.profile]]
+# id = "openai-gpt4o"
+# provider = "openai"
+# base_url = "https://api.openai.com/v1"
+# model = "gpt-4o"
+# api_key_env = "OPENAI_API_KEY"
+# temperature = 0.2
+# timeout_sec = 120
+#
+# # 官方 Claude（Anthropic 原生 /v1/messages）
+# [[models.profile]]
+# id = "anthropic-sonnet"
+# provider = "anthropic"
+# base_url = "https://api.anthropic.com"
+# model = "claude-sonnet-4-5-20250929"
+# api_key_env = "ANTHROPIC_API_KEY"
+# anthropic_version = "2023-06-01"
+# max_tokens = 4096
+# temperature = 0.2
+# timeout_sec = 120
+#
+# # Claude 经 OpenAI 兼容网关（OpenRouter / LiteLLM / 自建代理）
+# [[models.profile]]
+# id = "claude-via-openrouter"
+# provider = "openai_compatible"
+# base_url = "https://openrouter.ai/api/v1"
+# model = "anthropic/claude-sonnet-4.5"
+# api_key_env = "OPENROUTER_API_KEY"
+# temperature = 0.2
+#
+# # 本地 LM Studio
+# [[models.profile]]
+# id = "local-lmstudio"
+# provider = "openai_compatible"
+# base_url = "http://localhost:1234/v1"
+# model = "google/gemma-4-31b"
+# api_key_env = "LM_API_KEY"
+# temperature = 0.2
+#
+# # 本地 Ollama
+# [[models.profile]]
+# id = "local-ollama"
+# provider = "openai_compatible"
+# base_url = "http://localhost:11434/v1"
+# model = "qwen2.5-coder:7b"
+# api_key_env = "OLLAMA_API_KEY"
+# temperature = 0.2

@@ -1,0 +1,587 @@
+"""模型 Profile：解析 `[[models.profile]]`、兼容 `[llm]`、TOML 原子写入与供应商预设。
+
+设计目标（见 docs/MODEL_SWITCHER_BACKLOG.zh-CN.md）：
+
+1. 把 `[llm]` 单一模型扩展为 **多 profile 并列** + **主/子代理路由**；
+2. 密钥默认用 `api_key_env = "..."` 引用环境变量，`api_key` 明文仅为回退兼容；
+3. 写入 TOML 时对 `[models]` / `[[models.profile]]` 做 **原子替换**（`.bak` 备份）
+   并 **保留** 用户其它手写内容（以非 `models` 表头分段）。
+"""
+from __future__ import annotations
+
+import os
+import re
+import tempfile
+from dataclasses import dataclass, field, replace
+from pathlib import Path
+from typing import Any, Iterable, Sequence
+
+
+KNOWN_PROVIDERS: tuple[str, ...] = (
+    "openai",
+    "anthropic",
+    "openai_compatible",
+    "azure_openai",
+    "copilot",
+    "ollama",
+    "lmstudio",
+    "vllm",
+)
+
+_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-.]{0,63}$")
+
+
+class ProfilesError(ValueError):
+    """Profile 解析 / 校验错误（向 CLI 报可读消息时使用）。"""
+
+
+@dataclass(frozen=True)
+class Profile:
+    id: str
+    provider: str
+    base_url: str
+    model: str
+    api_key_env: str | None = None
+    api_key: str | None = None
+    temperature: float = 0.2
+    timeout_sec: float = 120.0
+    anthropic_version: str | None = None
+    max_tokens: int | None = None
+    notes: str | None = None
+
+    def resolve_api_key(self) -> str:
+        """按 env → literal 顺序解析；均缺失时返回空串（调用方决定是否报错）。"""
+        if self.api_key_env:
+            return (os.getenv(self.api_key_env, "") or "").strip()
+        return (self.api_key or "").strip()
+
+    def api_key_env_missing(self) -> bool:
+        return bool(self.api_key_env) and not (os.getenv(self.api_key_env) or "").strip()
+
+
+PRESETS: dict[str, dict[str, Any]] = {
+    "openai": {
+        "provider": "openai",
+        "base_url": "https://api.openai.com/v1",
+        "api_key_env": "OPENAI_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+    "anthropic": {
+        "provider": "anthropic",
+        "base_url": "https://api.anthropic.com",
+        "api_key_env": "ANTHROPIC_API_KEY",
+        "anthropic_version": "2023-06-01",
+        "max_tokens": 4096,
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+    "openrouter": {
+        "provider": "openai_compatible",
+        "base_url": "https://openrouter.ai/api/v1",
+        "api_key_env": "OPENROUTER_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+    "lmstudio": {
+        "provider": "openai_compatible",
+        "base_url": "http://localhost:1234/v1",
+        "api_key_env": "LM_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+    "ollama": {
+        "provider": "openai_compatible",
+        "base_url": "http://localhost:11434/v1",
+        "api_key_env": "OLLAMA_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+}
+
+
+def apply_preset(raw: dict[str, Any], preset_name: str) -> dict[str, Any]:
+    """以预设为底 + 用户输入覆盖，返回可交给 `build_profile` 的 dict。"""
+    key = str(preset_name or "").strip().lower()
+    if key not in PRESETS:
+        known = ", ".join(sorted(PRESETS.keys()))
+        raise ProfilesError(f"未知预设 '{preset_name}'（可用：{known}）")
+    merged: dict[str, Any] = dict(PRESETS[key])
+    for k, v in raw.items():
+        if v is None:
+            continue
+        merged[k] = v
+    return merged
+
+
+def _as_float(v: Any, default: float | None) -> float | None:
+    if isinstance(v, bool):
+        return float(int(v))
+    if isinstance(v, int | float):
+        return float(v)
+    if isinstance(v, str) and v.strip():
+        try:
+            return float(v.strip())
+        except ValueError:
+            return default
+    return default
+
+
+def _as_int(v: Any, default: int | None) -> int | None:
+    if isinstance(v, bool):
+        return int(v)
+    if isinstance(v, int):
+        return int(v)
+    if isinstance(v, float):
+        return int(v)
+    if isinstance(v, str) and v.strip():
+        try:
+            return int(v.strip())
+        except ValueError:
+            return default
+    return default
+
+
+def _as_str(v: Any) -> str | None:
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    return None
+
+
+def build_profile(raw: dict[str, Any], *, hint: str = "") -> Profile:
+    """从 dict 构造 Profile，做必填 / 类型 / 冲突校验。"""
+    if not isinstance(raw, dict):
+        raise ProfilesError(f"profile 必须是表（table）：{hint}")
+
+    pid = _as_str(raw.get("id"))
+    if not pid or not _ID_RE.match(pid):
+        raise ProfilesError(
+            f"profile id 非法：{raw.get('id')!r}（须为字母数字开头，长度 1-64）",
+        )
+
+    provider = _as_str(raw.get("provider")) or ""
+    provider = provider.lower()
+    if provider not in KNOWN_PROVIDERS:
+        known = ", ".join(KNOWN_PROVIDERS)
+        raise ProfilesError(
+            f"profile[{pid}] provider='{provider}' 非法（可选：{known}）",
+        )
+
+    base_url = _as_str(raw.get("base_url"))
+    if not base_url:
+        raise ProfilesError(f"profile[{pid}] 缺少 base_url")
+
+    model = _as_str(raw.get("model"))
+    if not model:
+        raise ProfilesError(f"profile[{pid}] 缺少 model")
+
+    api_key = _as_str(raw.get("api_key"))
+    api_key_env = _as_str(raw.get("api_key_env"))
+    if api_key and api_key_env:
+        raise ProfilesError(
+            f"profile[{pid}] 不能同时设置 api_key 与 api_key_env；推荐只写 api_key_env",
+        )
+
+    temperature = _as_float(raw.get("temperature"), 0.2) or 0.2
+    temperature = max(0.0, min(2.0, float(temperature)))
+    timeout_sec = _as_float(raw.get("timeout_sec"), 120.0) or 120.0
+    timeout_sec = max(5.0, min(3600.0, float(timeout_sec)))
+
+    anthropic_version = _as_str(raw.get("anthropic_version"))
+    max_tokens = _as_int(raw.get("max_tokens"), None)
+    if max_tokens is not None:
+        max_tokens = max(1, min(1_000_000, int(max_tokens)))
+
+    if provider == "anthropic":
+        # Anthropic 需要这两项；给个合理默认，避免调用时报错。
+        anthropic_version = anthropic_version or "2023-06-01"
+        if max_tokens is None:
+            max_tokens = 4096
+
+    notes = _as_str(raw.get("notes"))
+
+    return Profile(
+        id=pid,
+        provider=provider,
+        base_url=base_url,
+        model=model,
+        api_key_env=api_key_env,
+        api_key=api_key,
+        temperature=temperature,
+        timeout_sec=timeout_sec,
+        anthropic_version=anthropic_version,
+        max_tokens=max_tokens,
+        notes=notes,
+    )
+
+
+def parse_models_section(
+    file_data: dict[str, Any],
+) -> tuple[tuple[Profile, ...], str | None, str | None, str | None]:
+    """解析顶层 `[models]` 与 `[[models.profile]]`。
+
+    - 未配置 models 段 → 返回 `((), None, None, None)`；
+    - 路由字段 `active / subagent / planner` 可缺省；
+    - profile id 必须唯一，否则抛 ``ProfilesError``。
+    """
+    models_sec = file_data.get("models")
+    if not isinstance(models_sec, dict):
+        return ((), None, None, None)
+
+    raw_list = models_sec.get("profile")
+    if raw_list is None:
+        raw_list = []
+    if not isinstance(raw_list, list):
+        raise ProfilesError("[models].profile 必须是数组（[[models.profile]]）")
+
+    profiles: list[Profile] = []
+    seen: set[str] = set()
+    for idx, raw in enumerate(raw_list):
+        p = build_profile(raw, hint=f"[[models.profile]][{idx}]")
+        if p.id in seen:
+            raise ProfilesError(f"profile id 重复: {p.id!r}")
+        seen.add(p.id)
+        profiles.append(p)
+
+    def _route(name: str) -> str | None:
+        v = _as_str(models_sec.get(name))
+        if v is None:
+            return None
+        if profiles and v not in seen:
+            raise ProfilesError(f"[models].{name}={v!r} 不存在于已定义 profile 中")
+        return v
+
+    active = _route("active")
+    subagent = _route("subagent")
+    planner = _route("planner")
+    return tuple(profiles), active, subagent, planner
+
+
+def synthesize_default_profile(
+    *,
+    provider: str,
+    base_url: str,
+    model: str,
+    api_key: str,
+    temperature: float,
+    timeout_sec: float,
+) -> Profile:
+    """基于旧 `[llm]` 段构造隐式 default profile，保证零迁移启动。"""
+    prov = (provider or "").lower()
+    if prov not in KNOWN_PROVIDERS:
+        prov = "openai_compatible"
+    return Profile(
+        id="default",
+        provider=prov,
+        base_url=base_url,
+        model=model,
+        api_key_env=None,
+        api_key=api_key if api_key else None,
+        temperature=temperature,
+        timeout_sec=timeout_sec,
+        anthropic_version=None,
+        max_tokens=None,
+        notes=None,
+    )
+
+
+def pick_active(
+    profiles: Sequence[Profile],
+    active_id: str | None,
+    *,
+    env_override: str | None = None,
+) -> Profile:
+    """按优先级返回激活 profile。
+
+    优先级：`CAI_ACTIVE_MODEL`（env_override）> `[models].active` > 列表首个。
+    若 `env_override` 指向未定义 id：**不抛异常**，退回 `active` 或首个；
+    否则 UX 上一切配置来源切换都会踩到这个坑。
+    """
+    if not profiles:
+        raise ProfilesError("profiles 列表为空，无法选中激活 profile")
+    ids = {p.id: p for p in profiles}
+    if env_override and env_override in ids:
+        return ids[env_override]
+    if active_id and active_id in ids:
+        return ids[active_id]
+    return profiles[0]
+
+
+def project_base_url(profile: Profile) -> str:
+    """按 provider 规则把 base_url 规整为「call-site 直接拼路径」的形式。
+
+    - `anthropic`: 返回 **不含 /v1** 的根（llm_anthropic 拼 `/v1/messages`）；
+    - 其它 provider：统一补齐 `/v1` 后缀（llm 拼 `/chat/completions`）。
+    """
+    raw = (profile.base_url or "").strip().rstrip("/")
+    if profile.provider == "anthropic":
+        if raw.endswith("/v1"):
+            raw = raw[: -len("/v1")]
+        return raw
+    if not raw.endswith("/v1"):
+        return raw + "/v1"
+    return raw
+
+
+# ---------------------------------------------------------------------------
+# TOML 序列化 / 原子写入
+# ---------------------------------------------------------------------------
+
+def _toml_str(val: str) -> str:
+    escaped = val.replace("\\", "\\\\").replace('"', '\\"')
+    return '"' + escaped + '"'
+
+
+def _format_float(v: float) -> str:
+    # 用 repr 避免 1.0 写成 "1"；TOML 要求 float 必须带小数点。
+    s = repr(float(v))
+    if "." not in s and "e" not in s and "E" not in s:
+        s += ".0"
+    return s
+
+
+def _serialize_profile(p: Profile) -> str:
+    lines: list[str] = ["[[models.profile]]"]
+    lines.append(f"id = {_toml_str(p.id)}")
+    lines.append(f"provider = {_toml_str(p.provider)}")
+    lines.append(f"base_url = {_toml_str(p.base_url)}")
+    lines.append(f"model = {_toml_str(p.model)}")
+    if p.api_key_env:
+        lines.append(f"api_key_env = {_toml_str(p.api_key_env)}")
+    if p.api_key:
+        lines.append(f"api_key = {_toml_str(p.api_key)}")
+    lines.append(f"temperature = {_format_float(p.temperature)}")
+    lines.append(f"timeout_sec = {_format_float(p.timeout_sec)}")
+    if p.anthropic_version:
+        lines.append(f"anthropic_version = {_toml_str(p.anthropic_version)}")
+    if p.max_tokens is not None:
+        lines.append(f"max_tokens = {int(p.max_tokens)}")
+    if p.notes:
+        lines.append(f"notes = {_toml_str(p.notes)}")
+    return "\n".join(lines) + "\n"
+
+
+def serialize_models_block(
+    profiles: Sequence[Profile],
+    *,
+    active: str | None,
+    subagent: str | None = None,
+    planner: str | None = None,
+) -> str:
+    """生成 `[models] + [[models.profile]] ...` 块（末尾不带多余空行）。"""
+    out: list[str] = ["[models]"]
+    if active:
+        out.append(f"active = {_toml_str(active)}")
+    if subagent:
+        out.append(f"subagent = {_toml_str(subagent)}")
+    if planner:
+        out.append(f"planner = {_toml_str(planner)}")
+    out.append("")
+    for p in profiles:
+        out.append(_serialize_profile(p))
+    return "\n".join(out).rstrip() + "\n"
+
+
+# 识别「未被注释」的 TOML 顶层表/数组表表头
+_HEADER_RE = re.compile(r"^\s*(\[\[([^\]]+)\]\]|\[([^\]]+)\])\s*(#.*)?$")
+
+
+def _is_models_header(line: str) -> bool:
+    m = _HEADER_RE.match(line)
+    if not m:
+        return False
+    name = (m.group(2) or m.group(3) or "").strip()
+    return name == "models" or name.startswith("models.")
+
+
+def _is_section_header(line: str) -> bool:
+    return bool(_HEADER_RE.match(line))
+
+
+def strip_models_blocks(text: str) -> str:
+    """删除 text 中未被注释的 `[models]` / `[models.*]` / `[[models.*]]` 整段。
+
+    以「下一段顶层表头」为边界；注释行（# 开头）不会被当作表头。
+    """
+    lines = text.splitlines()
+    out: list[str] = []
+    skipping = False
+    for raw in lines:
+        stripped = raw.lstrip()
+        if stripped.startswith("#"):
+            if not skipping:
+                out.append(raw)
+            continue
+        if _is_section_header(raw):
+            if _is_models_header(raw):
+                skipping = True
+                continue
+            skipping = False
+            out.append(raw)
+            continue
+        if not skipping:
+            out.append(raw)
+    # 收尾：去掉连续空行，保证末尾单一换行。
+    cleaned: list[str] = []
+    for ln in out:
+        if ln.strip() == "" and cleaned and cleaned[-1].strip() == "":
+            continue
+        cleaned.append(ln)
+    txt = "\n".join(cleaned).rstrip() + "\n"
+    return txt
+
+
+def _atomic_write_text(path: Path, text: str, *, backup: bool = True) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmpname = tempfile.mkstemp(prefix=".tmp-cai-", dir=str(path.parent))
+    tmp_path = Path(tmpname)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except OSError:
+                pass
+        if backup and path.is_file():
+            bak = path.with_name(path.name + ".bak")
+            try:
+                if bak.exists():
+                    bak.unlink()
+            except OSError:
+                pass
+            try:
+                os.replace(str(path), str(bak))
+            except OSError:
+                # Windows 某些路径下 replace 失败时退回 copy
+                bak.write_bytes(path.read_bytes())
+        os.replace(str(tmp_path), str(path))
+    except Exception:
+        try:
+            tmp_path.unlink()
+        except FileNotFoundError:
+            pass
+        raise
+
+
+def write_models_to_toml(
+    config_path: Path,
+    profiles: Sequence[Profile],
+    *,
+    active: str | None,
+    subagent: str | None = None,
+    planner: str | None = None,
+) -> None:
+    """把 profiles 写回 TOML 文件：保留非 models 段 + 原子替换 + `.bak` 备份。
+
+    若目标文件不存在则新建，仅写 `[models]` + `[[models.profile]]` 块。
+    """
+    new_block = serialize_models_block(
+        profiles, active=active, subagent=subagent, planner=planner,
+    )
+    if config_path.is_file():
+        original = config_path.read_text(encoding="utf-8")
+        head = strip_models_blocks(original)
+        if not head.endswith("\n\n"):
+            head = head.rstrip() + "\n\n"
+        new_text = head + new_block
+    else:
+        new_text = new_block
+    _atomic_write_text(config_path, new_text, backup=True)
+
+
+# ---------------------------------------------------------------------------
+# 小工具：新增 / 编辑 / 删除 / 切换（只负责集合运算，不管 IO）
+# ---------------------------------------------------------------------------
+
+def add_profile(
+    profiles: Sequence[Profile], new_p: Profile, *, allow_replace: bool = False,
+) -> tuple[Profile, ...]:
+    for p in profiles:
+        if p.id == new_p.id and not allow_replace:
+            raise ProfilesError(f"profile id 已存在：{new_p.id!r}（如需覆盖请用 edit）")
+    return tuple(p for p in profiles if p.id != new_p.id) + (new_p,)
+
+
+def remove_profile(profiles: Sequence[Profile], pid: str) -> tuple[Profile, ...]:
+    if not any(p.id == pid for p in profiles):
+        raise ProfilesError(f"profile 不存在：{pid!r}")
+    return tuple(p for p in profiles if p.id != pid)
+
+
+def edit_profile(
+    profiles: Sequence[Profile], pid: str, updates: dict[str, Any],
+) -> tuple[Profile, ...]:
+    found: Profile | None = None
+    for p in profiles:
+        if p.id == pid:
+            found = p
+            break
+    if found is None:
+        raise ProfilesError(f"profile 不存在：{pid!r}")
+    merged: dict[str, Any] = {
+        "id": found.id,
+        "provider": found.provider,
+        "base_url": found.base_url,
+        "model": found.model,
+        "api_key_env": found.api_key_env,
+        "api_key": found.api_key,
+        "temperature": found.temperature,
+        "timeout_sec": found.timeout_sec,
+        "anthropic_version": found.anthropic_version,
+        "max_tokens": found.max_tokens,
+        "notes": found.notes,
+    }
+    for k, v in updates.items():
+        if v is None:
+            continue
+        merged[k] = v
+    new_p = build_profile(merged, hint=f"edit {pid}")
+    return tuple(new_p if p.id == pid else p for p in profiles)
+
+
+def profile_to_public_dict(p: Profile, *, include_resolved_key: bool = False) -> dict[str, Any]:
+    """面向 `models list --json` / `status` 的 **脱敏** 表示。"""
+    out: dict[str, Any] = {
+        "id": p.id,
+        "provider": p.provider,
+        "base_url": p.base_url,
+        "model": p.model,
+        "temperature": p.temperature,
+        "timeout_sec": p.timeout_sec,
+    }
+    if p.api_key_env:
+        out["api_key_env"] = p.api_key_env
+        out["api_key_env_present"] = not p.api_key_env_missing()
+    if p.api_key:
+        out["api_key_literal"] = True  # 不回显密钥值
+    if p.anthropic_version:
+        out["anthropic_version"] = p.anthropic_version
+    if p.max_tokens is not None:
+        out["max_tokens"] = p.max_tokens
+    if p.notes:
+        out["notes"] = p.notes
+    if include_resolved_key:
+        out["api_key_present"] = bool(p.resolve_api_key())
+    return out
+
+
+__all__ = [
+    "KNOWN_PROVIDERS",
+    "PRESETS",
+    "Profile",
+    "ProfilesError",
+    "add_profile",
+    "apply_preset",
+    "build_profile",
+    "edit_profile",
+    "parse_models_section",
+    "pick_active",
+    "profile_to_public_dict",
+    "project_base_url",
+    "remove_profile",
+    "serialize_models_block",
+    "strip_models_blocks",
+    "synthesize_default_profile",
+    "write_models_to_toml",
+]

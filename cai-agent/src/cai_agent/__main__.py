@@ -21,8 +21,20 @@ from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import build_board_payload, save_last_workflow_snapshot
 from cai_agent.hook_runtime import enabled_hook_ids, run_project_hooks
-from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
-from cai_agent.models import fetch_models
+from cai_agent.llm import get_usage_counters, reset_usage_counters
+from cai_agent.llm_factory import chat_completion_by_role
+from cai_agent.models import fetch_models, ping_profile
+from cai_agent.profiles import (
+    Profile,
+    ProfilesError,
+    add_profile,
+    apply_preset,
+    build_profile,
+    edit_profile,
+    profile_to_public_dict,
+    remove_profile,
+    write_models_to_toml,
+)
 from cai_agent.exporter import export_target
 from cai_agent.memory import (
     export_memory_entries_bundle,
@@ -135,6 +147,211 @@ def _inject_plan_file(goal: str, plan_path: str) -> str:
         "下列为已保存的实现计划，请在执行时遵循：\n\n"
         f"{body}\n\n---\n\n用户任务：\n{goal}"
     )
+
+
+def _resolve_config_target(settings: Settings) -> Path:
+    """决定 `models add/use/edit/rm` 写入哪个 TOML 文件：已加载的 > CWD 下的默认名。"""
+    if settings.config_loaded_from:
+        return Path(settings.config_loaded_from).expanduser().resolve()
+    return (Path.cwd() / "cai-agent.toml").resolve()
+
+
+def _resolve_active_after_mutation(
+    current_active: str | None, profiles: tuple[Profile, ...], *, prefer: str | None = None,
+) -> str | None:
+    if prefer and any(p.id == prefer for p in profiles):
+        return prefer
+    if current_active and any(p.id == current_active for p in profiles):
+        return current_active
+    return profiles[0].id if profiles else None
+
+
+def _load_settings_for_models(config_path: str | None) -> Settings | int:
+    try:
+        return Settings.from_env(config_path=config_path)
+    except FileNotFoundError as e:
+        print(str(e), file=sys.stderr)
+        return 2
+    except ProfilesError as e:
+        print(f"模型 profile 配置错误: {e}", file=sys.stderr)
+        return 2
+
+
+def _cmd_models_list(settings: Settings, *, json_output: bool) -> int:
+    rows = [profile_to_public_dict(p) for p in settings.profiles]
+    active = settings.active_profile_id
+    if json_output:
+        payload = {
+            "active": active,
+            "subagent": settings.subagent_profile_id,
+            "planner": settings.planner_profile_id,
+            "profiles": rows,
+        }
+        print(json.dumps(payload, ensure_ascii=False))
+        return 0
+    if not rows:
+        print("(无 profile)")
+        return 0
+    print(
+        f"active={active}"
+        + (f" subagent={settings.subagent_profile_id}" if settings.subagent_profile_id else "")
+        + (f" planner={settings.planner_profile_id}" if settings.planner_profile_id else ""),
+    )
+    for r in rows:
+        mark = "*" if r["id"] == active else " "
+        env = r.get("api_key_env")
+        env_note = ""
+        if env:
+            env_note = f" env={env}" + ("" if r.get("api_key_env_present") else "(未导出)")
+        print(
+            f"{mark} {r['id']:<20} provider={r['provider']:<18} model={r['model']} "
+            f"base_url={r['base_url']}{env_note}",
+        )
+    return 0
+
+
+def _build_add_profile(args: argparse.Namespace) -> Profile:
+    raw: dict[str, Any] = {
+        "id": args.pid,
+        "provider": args.provider,
+        "base_url": args.base_url,
+        "model": args.model_field,
+        "api_key_env": args.api_key_env,
+        "api_key": args.api_key_literal,
+        "temperature": args.temperature,
+        "timeout_sec": args.timeout_sec,
+        "anthropic_version": args.anthropic_version,
+        "max_tokens": args.max_tokens,
+        "notes": args.notes,
+    }
+    if args.preset:
+        raw = apply_preset(raw, args.preset)
+    return build_profile(raw, hint=f"add {args.pid}")
+
+
+def _cmd_models(args: argparse.Namespace) -> int:
+    action = getattr(args, "models_action", None) or "list"
+
+    loaded = _load_settings_for_models(args.config)
+    if isinstance(loaded, int):
+        return loaded
+    settings: Settings = loaded
+
+    if action == "list":
+        return _cmd_models_list(settings, json_output=bool(getattr(args, "json_output", False)))
+
+    if action == "fetch":
+        try:
+            models = fetch_models(settings)
+        except Exception as e:
+            print(f"获取模型列表失败: {e}", file=sys.stderr)
+            return 2
+        if getattr(args, "json_output", False):
+            print(json.dumps(models, ensure_ascii=False))
+        else:
+            if not models:
+                print("(无模型)")
+            else:
+                for m in models:
+                    print(m)
+        return 0
+
+    if action == "ping":
+        pid = getattr(args, "id", None)
+        timeout_sec = float(getattr(args, "timeout_sec", 10.0) or 10.0)
+        targets = (
+            [p for p in settings.profiles if p.id == pid] if pid else list(settings.profiles)
+        )
+        if pid and not targets:
+            print(f"profile 不存在: {pid}", file=sys.stderr)
+            return 2
+        results = [
+            ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=timeout_sec)
+            for p in targets
+        ]
+        if getattr(args, "json_output", False):
+            print(json.dumps({"results": results}, ensure_ascii=False))
+        else:
+            for r in results:
+                status = r.get("status")
+                msg = r.get("message")
+                http = r.get("http_status")
+                extra = ""
+                if http is not None:
+                    extra += f" http={http}"
+                if msg:
+                    extra += f" msg={msg}"
+                print(f"{r.get('profile_id')}: {status}{extra}")
+        fail = any(r.get("status") != "OK" for r in results)
+        return 1 if fail else 0
+
+    # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
+    target = _resolve_config_target(settings)
+    # 合成 default 不应持久化：仅显式配置才作为写入基线。
+    base_profiles: tuple[Profile, ...] = (
+        settings.profiles if settings.profiles_explicit else ()
+    )
+    base_active = settings.active_profile_id if settings.profiles_explicit else None
+
+    try:
+        if action == "add":
+            new_p = _build_add_profile(args)
+            new_profiles = add_profile(base_profiles, new_p)
+            next_active = _resolve_active_after_mutation(
+                base_active,
+                new_profiles,
+                prefer=new_p.id if args.set_active else None,
+            )
+        elif action == "use":
+            if not any(p.id == args.id for p in base_profiles):
+                print(f"profile 不存在: {args.id}", file=sys.stderr)
+                return 2
+            new_profiles = base_profiles
+            next_active = args.id
+        elif action == "rm":
+            new_profiles = remove_profile(base_profiles, args.id)
+            prefer = None if base_active == args.id else base_active
+            next_active = _resolve_active_after_mutation(prefer, new_profiles)
+        elif action == "edit":
+            updates: dict[str, Any] = {
+                "provider": args.provider,
+                "base_url": args.base_url,
+                "model": args.model_field,
+                "api_key_env": args.api_key_env,
+                "api_key": args.api_key_literal,
+                "temperature": args.temperature,
+                "timeout_sec": args.timeout_sec,
+                "anthropic_version": args.anthropic_version,
+                "max_tokens": args.max_tokens,
+                "notes": args.notes,
+            }
+            new_profiles = edit_profile(base_profiles, args.id, updates)
+            next_active = _resolve_active_after_mutation(
+                base_active, new_profiles,
+            )
+        else:
+            print(f"未知子命令: {action}", file=sys.stderr)
+            return 2
+    except ProfilesError as e:
+        print(f"操作失败: {e}", file=sys.stderr)
+        return 2
+
+    try:
+        write_models_to_toml(
+            target,
+            new_profiles,
+            active=next_active,
+            subagent=settings.subagent_profile_id,
+            planner=settings.planner_profile_id,
+        )
+    except Exception as e:
+        print(f"写入 {target} 失败: {e}", file=sys.stderr)
+        return 2
+    print(
+        f"[models] {action} ok | active={next_active} "
+        f"profiles={len(new_profiles)} file={target}",
+    )
+    return 0
 
 
 def _cmd_init(*, force: bool) -> int:
@@ -334,17 +551,78 @@ def main(argv: list[str] | None = None) -> int:
         help="permissions=ask 时设置 CAI_AUTO_APPROVE=1（本进程内）",
     )
 
+    # models 子命令专用父 parser：仅提供 --config，避免与 `common.--model` 冲突。
+    # 注意：--config 只挂在 `models` 顶层上，**不**挂在各子动作上；否则子动作会再
+    # 定义一份 --config=None 覆盖掉外层值（argparse 的 parents 语义）。
+    models_parent = argparse.ArgumentParser(add_help=False)
+    models_parent.add_argument(
+        "--config", default=None, metavar="PATH",
+        help="TOML 配置文件（未指定时可用环境变量 CAI_CONFIG 或当前目录 cai-agent.toml）",
+    )
+
     models_p = sub.add_parser(
         "models",
-        parents=[common],
-        help="从当前 provider 的 OpenAI 兼容 /models 端点列出可用模型",
+        parents=[models_parent],
+        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch",
     )
-    models_p.add_argument(
-        "--json",
-        action="store_true",
-        dest="json_output",
-        help="以 JSON 数组输出模型列表",
+    models_sub = models_p.add_subparsers(dest="models_action", required=False)
+
+    _ml = models_sub.add_parser("list", help="列出已配置的模型 profile")
+    _ml.add_argument("--json", action="store_true", dest="json_output")
+
+    _mu = models_sub.add_parser("use", help="切换激活 profile 并写回配置")
+    _mu.add_argument("id", help="profile id")
+
+    _ma = models_sub.add_parser("add", help="新增一个 profile")
+    _ma.add_argument("--id", required=True, dest="pid")
+    _ma.add_argument(
+        "--preset", default=None,
+        choices=sorted(["openai", "anthropic", "openrouter", "lmstudio", "ollama"]),
     )
+    _ma.add_argument("--provider", default=None)
+    _ma.add_argument("--base-url", default=None, dest="base_url")
+    _ma.add_argument("--model", dest="model_field", default=None)
+    _ma.add_argument("--api-key-env", default=None, dest="api_key_env")
+    _ma.add_argument("--api-key", default=None, dest="api_key_literal")
+    _ma.add_argument("--temperature", type=float, default=None)
+    _ma.add_argument("--timeout-sec", type=float, default=None, dest="timeout_sec")
+    _ma.add_argument("--anthropic-version", default=None, dest="anthropic_version")
+    _ma.add_argument("--max-tokens", type=int, default=None, dest="max_tokens")
+    _ma.add_argument("--notes", default=None)
+    _ma.add_argument(
+        "--set-active", action="store_true", dest="set_active",
+        help="添加后立即设为 active",
+    )
+
+    _me = models_sub.add_parser("edit", help="编辑现有 profile 字段")
+    _me.add_argument("id", help="profile id")
+    _me.add_argument("--provider", default=None)
+    _me.add_argument("--base-url", default=None, dest="base_url")
+    _me.add_argument("--model", dest="model_field", default=None)
+    _me.add_argument("--api-key-env", default=None, dest="api_key_env")
+    _me.add_argument("--api-key", default=None, dest="api_key_literal")
+    _me.add_argument("--temperature", type=float, default=None)
+    _me.add_argument("--timeout-sec", type=float, default=None, dest="timeout_sec")
+    _me.add_argument("--anthropic-version", default=None, dest="anthropic_version")
+    _me.add_argument("--max-tokens", type=int, default=None, dest="max_tokens")
+    _me.add_argument("--notes", default=None)
+
+    _mr = models_sub.add_parser("rm", help="删除一个 profile")
+    _mr.add_argument("id", help="profile id")
+
+    _mp = models_sub.add_parser("ping", help="对 profile 做 /models 健康检查")
+    _mp.add_argument("id", nargs="?", default=None, help="profile id（缺省 ping 全部）")
+    _mp.add_argument("--json", action="store_true", dest="json_output")
+    _mp.add_argument("--timeout-sec", type=float, default=10.0, dest="timeout_sec")
+
+    _mf = models_sub.add_parser(
+        "fetch",
+        help="调用当前激活 profile 的 /v1/models 端点列出模型（原 `cai-agent models` 行为）",
+    )
+    _mf.add_argument("--json", action="store_true", dest="json_output")
+
+    # 顶层兼容：不带子命令时等价于 list。
+    models_p.add_argument("--json", action="store_true", dest="json_output")
     plugins_p = sub.add_parser(
         "plugins",
         parents=[common],
@@ -666,7 +944,14 @@ def main(argv: list[str] | None = None) -> int:
     sec_p.add_argument("--disable-aws", action="store_true", help="禁用 AKIA 规则")
     sec_p.add_argument("--disable-github", action="store_true", help="禁用 ghp_ 规则")
     sec_p.add_argument("--disable-openai", action="store_true", help="禁用 sk- 规则")
+    sec_p.add_argument("--disable-anthropic", action="store_true", help="禁用 sk-ant- 规则（Anthropic key）")
+    sec_p.add_argument("--disable-openrouter", action="store_true", help="禁用 sk-or- 规则（OpenRouter key）")
     sec_p.add_argument("--disable-private-key", action="store_true", help="禁用 BEGIN PRIVATE KEY 规则")
+    sec_p.add_argument(
+        "--disable-profile-plaintext-key",
+        action="store_true",
+        help="禁用 models.profile / [llm] 段 api_key 明文告警规则",
+    )
 
     memory_p = sub.add_parser("memory", help="记忆管理命令")
     memory_sub = memory_p.add_subparsers(dest="memory_action", required=True)
@@ -883,7 +1168,7 @@ def main(argv: list[str] | None = None) -> int:
         plan_task.status = "running"
         started = time.perf_counter()
         try:
-            plan_text = chat_completion(settings, messages)
+            plan_text = chat_completion_by_role(settings, messages, role="planner")
         except KeyboardInterrupt:
             plan_task.status = "failed"
             plan_task.ended_at = time.time()
@@ -974,27 +1259,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "models":
-        try:
-            settings = Settings.from_env(config_path=args.config)
-        except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
-            return 2
-        if args.model:
-            settings = replace(settings, model=str(args.model).strip())
-        try:
-            models = fetch_models(settings)
-        except Exception as e:
-            print(f"获取模型列表失败: {e}", file=sys.stderr)
-            return 2
-        if args.json_output:
-            print(json.dumps(models, ensure_ascii=False))
-        else:
-            if not models:
-                print("(无模型)")
-            else:
-                for m in models:
-                    print(m)
-        return 0
+        return _cmd_models(args)
 
     if args.command == "plugins":
         try:
@@ -1368,8 +1633,11 @@ def main(argv: list[str] | None = None) -> int:
         rule_flags = {
             "aws_access_key": True,
             "github_pat": True,
+            "anthropic_api_key": True,
+            "openrouter_api_key": True,
             "openai_like_key": True,
             "private_key_header": True,
+            "cai_profile_plaintext_api_key": True,
         }
         rule_flags.update(dict(settings.security_scan_rule_overrides))
         if bool(args.disable_aws):
@@ -1378,8 +1646,14 @@ def main(argv: list[str] | None = None) -> int:
             rule_flags["github_pat"] = False
         if bool(args.disable_openai):
             rule_flags["openai_like_key"] = False
+        if bool(getattr(args, "disable_anthropic", False)):
+            rule_flags["anthropic_api_key"] = False
+        if bool(getattr(args, "disable_openrouter", False)):
+            rule_flags["openrouter_api_key"] = False
         if bool(args.disable_private_key):
             rule_flags["private_key_header"] = False
+        if bool(getattr(args, "disable_profile_plaintext_key", False)):
+            rule_flags["cai_profile_plaintext_api_key"] = False
         _print_hook_status(
             settings,
             event="security_scan_start",

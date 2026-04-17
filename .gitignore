@@ -1,0 +1,45 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# --- Virtual envs / tools ---
+.venv/
+.env
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.coverage
+.coverage.*
+htmlcov/
+
+# --- Editor / OS ---
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+
+# --- Cai Agent runtime artifacts ---
+# 不要把本地 / 临时配置的备份 / 写时副本放进仓
+*.toml.bak
+cai-agent.toml.bak
+
+# Cai Agent 的运行时缓存（last-workflow / observe 状态等）
+.cai/
+cai-agent/.cai/
+
+# Memory / instinct 快照属于运行时产物，按时间命名，不入仓
+memory/instincts/instincts-*.md
+cai-agent/memory/instincts/instincts-*.md
+
+# QA 临时驱动 / 实验脚本
+.tmp_qa/
+.tmp_qg/
+
+# 临时 plan / regression 工件
+.regression-workflow.json
