@@ -9,11 +9,13 @@
 
 - **[English README（默认）](README.md)**：仓库根目录英文说明。
 - **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run` 与流水线权限说明。
+- **[试点用户说明](docs/PILOT_USERS.zh-CN.md)**：小范围试用目标、清单、安全与反馈方式。
 - **[上下文压缩与成本](docs/CONTEXT_AND_COMPACT.zh-CN.md)**：`[context]` 压缩提示与 `observe` / `cost` 联动建议。
 - **快速上手**：先看“环境要求”+“安装”+“5 分钟跑通”。
 - **产品愿景（完全体）**：[docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)（三源融合、统一运行时、L1/L2/L3 验收）。
 - **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
 - **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
+- **对标双参考源的本版功能清单（Dev/QA/用户）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)（[claude-code](https://github.com/anthropics/claude-code) + [everything-claude-code](https://github.com/affaan-m/everything-claude-code)）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。

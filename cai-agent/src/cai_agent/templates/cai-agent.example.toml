@@ -95,3 +95,8 @@ fetch_url = "deny"
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）
 budget_max_tokens = 50000
+
+# [hooks]
+# profile = "standard"   # minimal | standard | strict（控制 hooks.json 中带 command 的外部钩子）
+# disabled = ["some-hook-id"]
+# timeout_sec = 120

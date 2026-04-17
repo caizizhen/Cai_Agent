@@ -19,17 +19,22 @@ from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
-from cai_agent.hook_runtime import enabled_hook_ids
+from cai_agent.board_state import build_board_payload, save_last_workflow_snapshot
+from cai_agent.hook_runtime import enabled_hook_ids, run_project_hooks
 from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
 from cai_agent.exporter import export_target
 from cai_agent.memory import (
+    export_memory_entries_bundle,
     extract_basic_instincts_from_session,
     extract_memory_entries_from_session,
+    import_memory_entries_bundle,
     load_memory_entries,
+    load_memory_entries_validated,
     prune_expired_memory_entries,
     save_instincts,
     search_memory_entries,
+    sort_memory_rows,
 )
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
@@ -109,7 +114,9 @@ def _print_hook_status(
     *,
     event: str,
     json_output: bool,
+    hook_payload: dict[str, Any] | None = None,
 ) -> None:
+    run_project_hooks(settings, event, hook_payload)
     if json_output:
         return
     ids = enabled_hook_ids(settings, event)
@@ -674,6 +681,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="输出 JSON 数组（含 id/category/confidence/expires_at）",
     )
+    memory_list.add_argument(
+        "--sort",
+        default="none",
+        choices=("none", "confidence", "created_at"),
+        help="list 结果排序（默认按文件顺序；无效行会被校验过滤）",
+    )
     memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
     memory_instincts.add_argument("--limit", type=int, default=20)
     memory_instincts.add_argument(
@@ -685,6 +698,11 @@ def main(argv: list[str] | None = None) -> int:
     memory_search = memory_sub.add_parser("search", help="按子串搜索记忆条目")
     memory_search.add_argument("query", help="搜索子串")
     memory_search.add_argument("--limit", type=int, default=50)
+    memory_search.add_argument(
+        "--sort",
+        default="",
+        help="confidence 或 created_at（命中后排序再截断）",
+    )
     memory_search.add_argument("--json", action="store_true", dest="json_output")
     memory_prune = memory_sub.add_parser("prune", help="删除已过期的记忆条目")
     memory_prune.add_argument("--json", action="store_true", dest="json_output")
@@ -692,6 +710,16 @@ def main(argv: list[str] | None = None) -> int:
     memory_export.add_argument("file")
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
     memory_import.add_argument("file")
+    memory_export_entries = memory_sub.add_parser(
+        "export-entries",
+        help="导出校验后的 memory/entries.jsonl 为 JSON bundle（schema: memory_entries_bundle_v1）",
+    )
+    memory_export_entries.add_argument("file")
+    memory_import_entries = memory_sub.add_parser(
+        "import-entries",
+        help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
+    )
+    memory_import_entries.add_argument("file")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
@@ -717,6 +745,14 @@ def main(argv: list[str] | None = None) -> int:
     obs_p.add_argument("--pattern", default=".cai-session*.json")
     obs_p.add_argument("--limit", type=int, default=100)
     obs_p.add_argument("--json", action="store_true", dest="json_output")
+
+    board_p = sub.add_parser(
+        "board",
+        help="任务/会话运营最小看板（observe + .cai/last-workflow.json）",
+    )
+    board_p.add_argument("--pattern", default=".cai-session*.json")
+    board_p.add_argument("--limit", type=int, default=100)
+    board_p.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -1420,7 +1456,12 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 0
             if args.memory_action == "list":
-                rows = load_memory_entries(root)[: int(args.limit)]
+                rows, vwarn = load_memory_entries_validated(root)
+                for w in vwarn:
+                    print(f"[memory] {w}", file=sys.stderr)
+                sort_key = str(getattr(args, "sort", "none") or "none")
+                sort_memory_rows(rows, sort_key)
+                rows = rows[: int(args.limit)]
                 if args.json_output:
                     print(json.dumps(rows, ensure_ascii=False))
                 else:
@@ -1444,10 +1485,12 @@ def main(argv: list[str] | None = None) -> int:
                         print(p)
                 return 0
             if args.memory_action == "search":
+                sk = str(getattr(args, "sort", "") or "").strip() or None
                 hits = search_memory_entries(
                     root,
                     str(args.query),
                     limit=int(args.limit),
+                    sort=sk,
                 )
                 if args.json_output:
                     print(json.dumps(hits, ensure_ascii=False))
@@ -1496,6 +1539,24 @@ def main(argv: list[str] | None = None) -> int:
                     p.write_text(content, encoding="utf-8")
                     count += 1
                 print(json.dumps({"imported": count}, ensure_ascii=False))
+                return 0
+            if args.memory_action == "export-entries":
+                target = Path(args.file).expanduser().resolve()
+                bundle = export_memory_entries_bundle(root)
+                target.write_text(
+                    json.dumps(bundle, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                warns = bundle.get("export_warnings") or []
+                for w in warns:
+                    print(f"[memory] {w}", file=sys.stderr)
+                print(str(target))
+                return 0
+            if args.memory_action == "import-entries":
+                src = Path(args.file).expanduser().resolve()
+                doc = json.loads(src.read_text(encoding="utf-8"))
+                n = import_memory_entries_bundle(root, doc)
+                print(json.dumps({"imported": n}, ensure_ascii=False))
                 return 0
         finally:
             _print_hook_status(
@@ -1575,6 +1636,10 @@ def main(argv: list[str] | None = None) -> int:
             settings_obs,
             event="observe_start",
             json_output=obs_json,
+            hook_payload={
+                "pattern": str(args.pattern),
+                "limit": int(args.limit),
+            },
         )
         try:
             obs = build_observe_payload(
@@ -1596,6 +1661,59 @@ def main(argv: list[str] | None = None) -> int:
                 settings_obs,
                 event="observe_end",
                 json_output=obs_json,
+                hook_payload={
+                    "pattern": str(args.pattern),
+                    "limit": int(args.limit),
+                },
+            )
+        return 0
+
+    if args.command == "board":
+        settings_board = Settings.from_env(config_path=None)
+        board_json = bool(getattr(args, "json_output", False))
+        _print_hook_status(
+            settings_board,
+            event="board_start",
+            json_output=board_json,
+        )
+        try:
+            payload = build_board_payload(
+                cwd=os.getcwd(),
+                observe_pattern=str(args.pattern),
+                observe_limit=int(args.limit),
+            )
+            if board_json:
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                obs = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
+                ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+                print(
+                    f"[observe] schema={obs.get('schema_version')} "
+                    f"sessions={obs.get('sessions_count')} "
+                    f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
+                    f"run_events_total={ag.get('run_events_total', 0)}",
+                )
+                wf = payload.get("last_workflow")
+                if isinstance(wf, dict):
+                    task = wf.get("task") if isinstance(wf.get("task"), dict) else {}
+                    tid = task.get("task_id", "")
+                    st = task.get("status", "")
+                    print(f"[last_workflow] task_id={tid} status={st}")
+                    steps = wf.get("steps") if isinstance(wf.get("steps"), list) else []
+                    for s in steps:
+                        if not isinstance(s, dict):
+                            continue
+                        nm = s.get("name", "")
+                        ix = s.get("index", "")
+                        ec = s.get("error_count", 0)
+                        print(f"  step {ix} {nm} errors={ec}")
+                else:
+                    print("[last_workflow] (none — run `cai-agent workflow …` once)")
+        finally:
+            _print_hook_status(
+                settings_board,
+                event="board_end",
+                json_output=board_json,
             )
         return 0
 
@@ -1612,10 +1730,13 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
+        wf_abs = str(Path(args.file).expanduser().resolve())
+        wf_hook_payload = {"workflow_file": wf_abs}
         _print_hook_status(
             settings,
             event="workflow_start",
             json_output=bool(args.json_output),
+            hook_payload=wf_hook_payload,
         )
         try:
             result = run_workflow(settings, args.file)
@@ -1625,12 +1746,27 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 event="workflow_end",
                 json_output=bool(args.json_output),
+                hook_payload=wf_hook_payload,
             )
             return 2
+        try:
+            save_last_workflow_snapshot(
+                Path.cwd(),
+                result,
+                workflow_file=wf_abs,
+            )
+        except Exception:
+            pass
+        end_payload = {
+            **wf_hook_payload,
+            "task": result.get("task"),
+            "summary": result.get("summary"),
+        }
         _print_hook_status(
             settings,
             event="workflow_end",
             json_output=bool(args.json_output),
+            hook_payload=end_payload,
         )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))

@@ -50,10 +50,12 @@ Do not commit real API keys.
 |------|--------|
 | `docs/ARCHITECTURE.zh-CN.md` | Architecture |
 | `docs/ONBOARDING.zh-CN.md` | First-run path and CI (`init` → `doctor` → `run`) |
+| `docs/PILOT_USERS.zh-CN.md` | Pilot user guide (scope, checklist, safety, feedback) |
 | `docs/CONTEXT_AND_COMPACT.zh-CN.md` | Context compact hints vs cost / observe |
 | `docs/PRODUCT_VISION_FUSION.zh-CN.md` | Product vision: fused “full stack” on unified runtime (L1/L2/L3) |
 | `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
+| `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
 | `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
 | `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |

@@ -123,19 +123,124 @@ def load_memory_entries(root: str | Path) -> list[dict[str, Any]]:
     return out
 
 
-def search_memory_entries(root: str | Path, query: str, *, limit: int = 50) -> list[dict[str, Any]]:
+def load_memory_entries_validated(
+    root: str | Path,
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """逐行校验 schema；无效行记入 warnings，不进入返回列表。"""
+    path = _entries_path(root)
+    if not path.is_file():
+        return [], []
+    valid: list[dict[str, Any]] = []
+    warnings: list[str] = []
+    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
+            warnings.append(f"行 {lineno}: JSON 解析失败 ({e})")
+            continue
+        if not isinstance(obj, dict):
+            warnings.append(f"行 {lineno}: 根类型须为 object")
+            continue
+        errs = validate_memory_entry_row(obj)
+        if errs:
+            warnings.append(f"行 {lineno}: " + "; ".join(errs))
+            continue
+        valid.append(obj)
+    return valid, warnings
+
+
+def export_memory_entries_bundle(root: str | Path) -> dict[str, Any]:
+    valid, warnings = load_memory_entries_validated(root)
+    return {
+        "schema_version": "memory_entries_bundle_v1",
+        "entries": valid,
+        "export_warnings": warnings,
+    }
+
+
+def import_memory_entries_bundle(root: str | Path, bundle: dict[str, Any]) -> int:
+    """导入 `export_memory_entries_bundle` 或同结构 JSON；任一行校验失败则整批失败。"""
+    if not isinstance(bundle, dict):
+        msg = "根对象须为 JSON object"
+        raise ValueError(msg)
+    entries = bundle.get("entries")
+    if not isinstance(entries, list):
+        msg = "缺少 entries 数组"
+        raise ValueError(msg)
+    to_write: list[dict[str, Any]] = []
+    for i, row in enumerate(entries, start=1):
+        if not isinstance(row, dict):
+            msg = f"entries[{i}] 须为 object"
+            raise ValueError(msg)
+        errs = validate_memory_entry_row(row)
+        if errs:
+            msg = f"entries[{i}] schema 无效: " + "; ".join(errs)
+            raise ValueError(msg)
+        to_write.append(row)
+    path = _entries_path(root)
+    with path.open("a", encoding="utf-8") as f:
+        for row in to_write:
+            f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return len(to_write)
+
+
+def _parse_created_at(row: dict[str, Any]) -> float:
+    raw = row.get("created_at")
+    if not isinstance(raw, str) or not raw.strip():
+        return 0.0
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        return dt.timestamp()
+    except ValueError:
+        return 0.0
+
+
+def sort_memory_rows(rows: list[dict[str, Any]], sort: str) -> None:
+    """就地排序；sort 为 none/空则不变。"""
+    s = sort.strip().lower()
+    if s in ("", "none", "file"):
+        return
+    if s == "confidence":
+        rows.sort(key=_confidence_val, reverse=True)
+    elif s in ("created_at", "created"):
+        rows.sort(key=_parse_created_at, reverse=True)
+
+
+def _confidence_val(row: dict[str, Any]) -> float:
+    c = row.get("confidence")
+    if isinstance(c, bool) or not isinstance(c, int | float):
+        return 0.0
+    return float(c)
+
+
+def search_memory_entries(
+    root: str | Path,
+    query: str,
+    *,
+    limit: int = 50,
+    sort: str | None = None,
+) -> list[dict[str, Any]]:
     q = query.strip().lower()
     if not q:
         return []
     hits: list[dict[str, Any]] = []
+    s = (sort or "").strip().lower()
+    want_sort = s in ("confidence", "created_at", "created")
     for row in load_memory_entries(root):
         text = str(row.get("text", "")).lower()
         cat = str(row.get("category", "")).lower()
         if q in text or q in cat:
             hits.append(row)
-        if len(hits) >= limit:
-            break
-    return hits
+            if not want_sort and len(hits) >= limit:
+                return hits
+    if s == "confidence":
+        hits.sort(key=_confidence_val, reverse=True)
+    elif s in ("created_at", "created"):
+        hits.sort(key=_parse_created_at, reverse=True)
+    return hits[:limit]
 
 
 def prune_expired_memory_entries(root: str | Path) -> int:

@@ -279,6 +279,47 @@ def main() -> int:
     finally:
         wf.unlink(missing_ok=True)
 
+    proc_board = subprocess.run(
+        [exe, "board", "--json", "--limit", "20"],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    board_parse_ok = False
+    if proc_board.returncode == 0:
+        try:
+            board_obj = json.loads((proc_board.stdout or "").strip())
+            board_parse_ok = (
+                board_obj.get("schema_version") == "board_v1"
+                and isinstance(board_obj.get("observe"), dict)
+            )
+        except json.JSONDecodeError:
+            board_parse_ok = False
+    board_ok = proc_board.returncode == 0 and board_parse_ok
+    records.append(
+        StepRecord(
+            name="board --json",
+            argv=[exe, "board", "--json", "--limit", "20"],
+            expected=(0,),
+            exit_code=int(proc_board.returncode),
+            passed=board_ok,
+            stdout_tail=proc_board.stdout or "",
+            stderr_tail=proc_board.stderr or "",
+            notes="schema_ok" if board_parse_ok else "schema_or_parse",
+        ),
+    )
+    if not board_ok:
+        print(
+            f"FAIL board --json: exit={proc_board.returncode} parse_ok={board_parse_ok}",
+            file=sys.stderr,
+        )
+    else:
+        print("OK   board --json")
+    all_ok = all_ok and board_ok
+    (root / ".cai" / "last-workflow.json").unlink(missing_ok=True)
+
     tmp = Path(tempfile.mkdtemp(prefix="cai-regression-"))
     plan_file = tmp / "PLAN.md"
     sess_file = tmp / "session.json"
@@ -586,6 +627,96 @@ def main() -> int:
         else:
             print("OK   memory list --json")
         all_ok = all_ok and mem_ok
+
+        mem_bundle = tmp / "mem-import.json"
+        mem_bundle.write_text(
+            json.dumps(
+                {
+                    "schema_version": "memory_entries_bundle_v1",
+                    "entries": [
+                        {
+                            "id": "regression-entry-1",
+                            "category": "regression",
+                            "text": "qa roundtrip",
+                            "confidence": 0.5,
+                            "expires_at": None,
+                            "created_at": "2026-04-17T00:00:00+00:00",
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        mem_out = tmp / "mem-export.json"
+        proc_mimp = subprocess.run(
+            [exe, "memory", "import-entries", str(mem_bundle)],
+            cwd=str(tmp),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        imp_ok = proc_mimp.returncode == 0 and (tmp / "memory" / "entries.jsonl").is_file()
+        records.append(
+            StepRecord(
+                name="memory import-entries",
+                argv=[exe, "memory", "import-entries", str(mem_bundle)],
+                expected=(0,),
+                exit_code=int(proc_mimp.returncode),
+                passed=imp_ok,
+                stdout_tail=proc_mimp.stdout or "",
+                stderr_tail=proc_mimp.stderr or "",
+            ),
+        )
+        if not imp_ok:
+            print(
+                f"FAIL memory import-entries: exit={proc_mimp.returncode}",
+                file=sys.stderr,
+            )
+        else:
+            print("OK   memory import-entries")
+        all_ok = all_ok and imp_ok
+
+        proc_mexp = subprocess.run(
+            [exe, "memory", "export-entries", str(mem_out)],
+            cwd=str(tmp),
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        exp_ok = proc_mexp.returncode == 0 and mem_out.is_file()
+        if exp_ok:
+            try:
+                exported = json.loads(mem_out.read_text(encoding="utf-8"))
+                rows = exported.get("entries") if isinstance(exported, dict) else None
+                exp_ok = isinstance(rows, list) and any(
+                    isinstance(r, dict) and r.get("id") == "regression-entry-1"
+                    for r in rows
+                )
+            except json.JSONDecodeError:
+                exp_ok = False
+        records.append(
+            StepRecord(
+                name="memory export-entries",
+                argv=[exe, "memory", "export-entries", str(mem_out)],
+                expected=(0,),
+                exit_code=int(proc_mexp.returncode),
+                passed=exp_ok,
+                stdout_tail=proc_mexp.stdout or "",
+                stderr_tail=proc_mexp.stderr or "",
+            ),
+        )
+        if not exp_ok:
+            print(
+                f"FAIL memory export-entries: exit={proc_mexp.returncode}",
+                file=sys.stderr,
+            )
+        else:
+            print("OK   memory export-entries")
+        all_ok = all_ok and exp_ok
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

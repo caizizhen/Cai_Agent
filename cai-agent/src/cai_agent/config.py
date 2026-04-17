@@ -101,6 +101,9 @@ class Settings:
     fetch_url_max_bytes: int
     fetch_url_timeout_sec: float
     cost_budget_max_tokens: int
+    hooks_profile: str
+    hooks_disabled_ids: tuple[str, ...]
+    hooks_timeout_sec: float
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
 
@@ -388,6 +391,33 @@ class Settings:
         else:
             cost_budget_max_tokens = 50_000
 
+        hooks_sec = _section(file_data, "hooks")
+        raw_prof = os.getenv("CAI_HOOKS_PROFILE")
+        if raw_prof is not None and raw_prof.strip():
+            hooks_profile = str(raw_prof).strip().lower()
+        else:
+            hooks_profile = str(hooks_sec.get("profile", "standard")).strip().lower()
+        if hooks_profile not in ("minimal", "standard", "strict"):
+            hooks_profile = "standard"
+        disabled_ids: list[str] = []
+        raw_dis_env = os.getenv("CAI_HOOKS_DISABLED")
+        if raw_dis_env is not None and raw_dis_env.strip():
+            disabled_ids = [
+                x.strip() for x in raw_dis_env.split(",") if x.strip()
+            ]
+        else:
+            dis = hooks_sec.get("disabled")
+            if isinstance(dis, list):
+                disabled_ids = [str(x).strip() for x in dis if str(x).strip()]
+        raw_ht = hooks_sec.get("timeout_sec")
+        if os.getenv("CAI_HOOKS_TIMEOUT_SEC") is not None:
+            hooks_timeout_sec = float(os.environ["CAI_HOOKS_TIMEOUT_SEC"])
+        elif isinstance(raw_ht, int | float) and not isinstance(raw_ht, bool):
+            hooks_timeout_sec = float(raw_ht)
+        else:
+            hooks_timeout_sec = float(command_timeout_sec)
+        hooks_timeout_sec = max(1.0, min(600.0, hooks_timeout_sec))
+
         config_loaded_from = str(resolved) if resolved is not None else None
 
         return cls(
@@ -430,5 +460,8 @@ class Settings:
             fetch_url_max_bytes=fetch_url_max_bytes,
             fetch_url_timeout_sec=fetch_url_timeout_sec,
             cost_budget_max_tokens=cost_budget_max_tokens,
+            hooks_profile=hooks_profile,
+            hooks_disabled_ids=tuple(disabled_ids),
+            hooks_timeout_sec=hooks_timeout_sec,
             config_loaded_from=config_loaded_from,
         )
