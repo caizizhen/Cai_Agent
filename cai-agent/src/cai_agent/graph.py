@@ -64,10 +64,27 @@ def build_app(
     settings: Settings,
     *,
     progress: Callable[[dict[str, Any]], None] | None = None,
+    should_stop: Callable[[], bool] | None = None,
 ):
+    def _is_stopped() -> bool:
+        if not should_stop:
+            return False
+        try:
+            return bool(should_stop())
+        except Exception:
+            return False
+
     def llm_node(state: AgentState) -> dict[str, Any]:
         if state.get("finished"):
             return {}
+        if _is_stopped():
+            _emit(progress, {"phase": "stopped"})
+            return {
+                "finished": True,
+                "answer": "已手动停止本次运行。",
+                "pending": None,
+                "compact_hint_sent": bool(state.get("compact_hint_sent")),
+            }
         messages = list(state["messages"])
         iteration = int(state.get("iteration", 0)) + 1
         if iteration > settings.max_iterations:
@@ -118,6 +135,16 @@ def build_app(
             },
         )
         text = chat_completion(settings, messages)
+        if _is_stopped():
+            _emit(progress, {"phase": "stopped"})
+            return {
+                "messages": messages,
+                "iteration": iteration,
+                "finished": True,
+                "answer": "已手动停止本次运行。",
+                "pending": None,
+                "compact_hint_sent": compact_hint_sent,
+            }
         messages.append({"role": "assistant", "content": text})
         _emit(
             progress,
@@ -201,6 +228,14 @@ def build_app(
         pending = state.get("pending")
         if not pending:
             return {}
+        if _is_stopped():
+            _emit(progress, {"phase": "stopped"})
+            return {
+                "finished": True,
+                "answer": "已手动停止本次运行。",
+                "pending": None,
+                "compact_hint_sent": bool(state.get("compact_hint_sent")),
+            }
         messages = list(state["messages"])
         name = str(pending.get("name", ""))
         args = pending.get("args") if isinstance(pending.get("args"), dict) else {}

@@ -10,6 +10,8 @@
 python scripts/run_regression.py
 ```
 
+过程中会执行 **`scripts/smoke_new_features.py`**，校验近期版本中的 `plan` / `run` / `stats` / `sessions` / `observe` 等 JSON 契约与字段。
+
 结束后会写入：
 
 - `docs/qa/runs/regression-YYYYMMDD-HHmmss.md`（文件名中的时间为**本机本地**时间前缀）

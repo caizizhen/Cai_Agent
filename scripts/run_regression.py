@@ -234,6 +234,11 @@ def main() -> int:
             ],
             (0,),
         ),
+        (
+            "smoke new features (JSON envelopes)",
+            [sys.executable, "scripts/smoke_new_features.py"],
+            (0,),
+        ),
         ("version", [exe, "--version"], (0,)),
         ("doctor", [exe, "doctor"], (0,)),
         ("plugins", [exe, "plugins", "--json"], (0,)),

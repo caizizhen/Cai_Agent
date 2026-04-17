@@ -10,6 +10,8 @@ From the repository root:
 python scripts/run_regression.py
 ```
 
+The script also runs **`scripts/smoke_new_features.py`** (plan/run/stats/sessions/observe JSON envelopes from recent releases).
+
 On completion, the script writes:
 
 - `docs/qa/runs/regression-YYYYMMDD-HHmmss.md` — timestamp in **local** time (filename prefix).

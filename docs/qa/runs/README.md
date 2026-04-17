@@ -1,6 +1,6 @@
 # Regression run logs
 
-This directory stores **auto-generated** Markdown reports from `scripts/run_regression.py`.
+This directory stores **auto-generated** Markdown reports from `scripts/run_regression.py` (which also runs `scripts/smoke_new_features.py` for JSON envelope checks).
 
 - Filenames: `regression-YYYYMMDD-HHmmss.md`
 - Policy: see `docs/QA_REGRESSION_LOGGING.md` (English) and `docs/QA_REGRESSION_LOGGING.zh-CN.md` (Chinese).

@@ -3,7 +3,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import signal
 import sys
+import threading
 import time
 from dataclasses import replace
 from datetime import UTC, datetime
@@ -846,6 +848,33 @@ def main(argv: list[str] | None = None) -> int:
         started = time.perf_counter()
         try:
             plan_text = chat_completion(settings, messages)
+        except KeyboardInterrupt:
+            plan_task.status = "failed"
+            plan_task.ended_at = time.time()
+            plan_task.elapsed_ms = int((time.perf_counter() - started) * 1000)
+            plan_task.error = "interrupted"
+            if bool(getattr(args, "json_output", False)):
+                print(
+                    json.dumps(
+                        {
+                            "plan_schema_version": "1.0",
+                            "ok": False,
+                            "error": "interrupted",
+                            "message": "用户已手动停止",
+                            "generated_at": datetime.now(UTC).isoformat(),
+                            "goal": goal,
+                            "workspace": settings.workspace,
+                            "provider": settings.provider,
+                            "model": settings.model,
+                            "task": plan_task.to_dict(),
+                            "usage": get_usage_counters(),
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print("已手动停止（Ctrl+C）。", file=sys.stderr)
+            return 130
         except Exception as e:
             plan_task.status = "failed"
             plan_task.ended_at = time.time()
@@ -1705,7 +1734,30 @@ def main(argv: list[str] | None = None) -> int:
                 event="session_start",
                 json_output=bool(args.json_output),
             )
-            app = build_app(settings)
+            stop_requested = False
+            last_sigint_at = 0.0
+            prev_sigint_handler: Any = None
+
+            def _on_sigint(_signum: int, _frame: Any) -> None:
+                nonlocal stop_requested, last_sigint_at
+                now = time.monotonic()
+                # Two-stage stop:
+                # 1st Ctrl+C => graceful stop request.
+                # 2nd Ctrl+C within 2s => hard interrupt.
+                if stop_requested and (now - last_sigint_at) <= 2.0:
+                    raise KeyboardInterrupt
+                stop_requested = True
+                last_sigint_at = now
+                print(
+                    "已请求停止当前运行；再次按 Ctrl+C 可强制中断。",
+                    file=sys.stderr,
+                )
+
+            if threading.current_thread() is threading.main_thread():
+                prev_sigint_handler = signal.getsignal(signal.SIGINT)
+                signal.signal(signal.SIGINT, _on_sigint)
+
+            app = build_app(settings, should_stop=lambda: stop_requested)
             if args.command == "run":
                 load_session_path = args.load_session
             elif args.command == "continue":
@@ -1731,7 +1783,57 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 state = initial_state(settings, goal)
             started = time.perf_counter()
-            final = app.invoke(state)
+            try:
+                final = app.invoke(state)
+            except KeyboardInterrupt:
+                elapsed_ms = int((time.perf_counter() - started) * 1000)
+                task.ended_at = time.time()
+                task.elapsed_ms = elapsed_ms
+                task.status = "failed"
+                task.error = "interrupted"
+                if args.json_output:
+                    payload = {
+                        "run_schema_version": "1.0",
+                        "answer": "",
+                        "iteration": None,
+                        "finished": False,
+                        "config": settings.config_loaded_from,
+                        "workspace": settings.workspace,
+                        "provider": settings.provider,
+                        "model": settings.model,
+                        "mcp_enabled": settings.mcp_enabled,
+                        "elapsed_ms": elapsed_ms,
+                        "prompt_tokens": 0,
+                        "completion_tokens": 0,
+                        "total_tokens": 0,
+                        "tool_calls_count": 0,
+                        "used_tools": [],
+                        "last_tool": None,
+                        "error_count": 0,
+                        "task": task.to_dict(),
+                        "post_gate": None,
+                        "events": [
+                            {
+                                "event": "run.started",
+                                "command": str(getattr(args, "command", "run")),
+                                "task_id": task.task_id,
+                            },
+                            {
+                                "event": "run.interrupted",
+                                "command": str(getattr(args, "command", "run")),
+                                "task_id": task.task_id,
+                            },
+                        ],
+                        "error": "interrupted",
+                        "message": "用户已手动停止",
+                    }
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print("已手动停止（Ctrl+C）。", file=sys.stderr)
+                return 130
+            finally:
+                if threading.current_thread() is threading.main_thread() and prev_sigint_handler is not None:
+                    signal.signal(signal.SIGINT, prev_sigint_handler)
             elapsed_ms = int((time.perf_counter() - started) * 1000)
             task.ended_at = time.time()
             task.elapsed_ms = elapsed_ms

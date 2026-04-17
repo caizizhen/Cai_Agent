@@ -73,6 +73,7 @@ class CaiAgentApp(App[None]):
 
     BINDINGS = [
         Binding("ctrl+q", "quit", "退出", show=True),
+        Binding("ctrl+c", "stop_run", "停止任务", show=True),
     ]
 
     WORKER_NAME = "cai-agent-invoke"
@@ -86,11 +87,17 @@ class CaiAgentApp(App[None]):
         self._activity_timer: Any = None
         self._agent_worker: Worker | None = None
         self._pending_agent_ctx: dict[str, Any] | None = None
+        self._stop_requested = False
+        self._last_stop_request_at = 0.0
 
         def _progress_sink(payload: dict[str, Any]) -> None:
             self.post_message(ProgressUpdate(payload))
 
-        self._compiled = build_app(settings, progress=_progress_sink)
+        self._compiled = build_app(
+            settings,
+            progress=_progress_sink,
+            should_stop=lambda: self._stop_requested,
+        )
         self._messages: list[dict[str, Any]] = [
             {"role": "system", "content": build_system_prompt(settings)},
         ]
@@ -100,7 +107,11 @@ class CaiAgentApp(App[None]):
         def _progress_sink(payload: dict[str, Any]) -> None:
             self.post_message(ProgressUpdate(payload))
 
-        self._compiled = build_app(self._settings, progress=_progress_sink)
+        self._compiled = build_app(
+            self._settings,
+            progress=_progress_sink,
+            should_stop=lambda: self._stop_requested,
+        )
 
     @staticmethod
     def _session_summary(messages: list[dict[str, Any]]) -> tuple[int, int, str]:
@@ -150,7 +161,7 @@ class CaiAgentApp(App[None]):
             f"工作区: [cyan]{self._settings.workspace}[/]\n"
             f"模型: [cyan]{self._settings.model}[/]  "
             f"API: [dim]{self._settings.base_url}[/]\n"
-            "[dim]Ctrl+Q 退出 · 运行中可滚动上方记录[/]\n",
+            "[dim]Ctrl+C 停止当前任务 · Ctrl+Q 退出 · 运行中可滚动上方记录[/]\n",
         )
 
     def _format_phase_line(self, p: dict[str, Any]) -> str:
@@ -175,7 +186,25 @@ class CaiAgentApp(App[None]):
             return "[green]收尾[/] 汇总最终回答"
         if phase == "limit":
             return "[red]停止[/] 达到最大轮次"
+        if phase == "stopped":
+            return "[red]停止[/] 用户手动中断"
         return ""
+
+    def action_stop_run(self) -> None:
+        if not self._agent_busy:
+            self.notify("当前没有正在运行的任务。", severity="information", timeout=2.5)
+            return
+        now = time.monotonic()
+        # Two-stage stop:
+        # first request asks for graceful stop; second request within 2s exits app.
+        if self._stop_requested and (now - self._last_stop_request_at) <= 2.0:
+            self.query_one("#chat", RichLog).write("\n[bold red]强制中断[/] 正在退出…\n")
+            self.exit()
+            return
+        self._stop_requested = True
+        self._last_stop_request_at = now
+        self.query_one("#chat", RichLog).write("\n[dim]已请求停止：等待当前步骤结束…[/]\n")
+        self.notify("已请求停止，再按一次 Ctrl+C 可强制退出", severity="warning", timeout=3.2)
 
     def on_progress_update(self, event: ProgressUpdate) -> None:
         self._phase_detail = self._format_phase_line(event.payload)
@@ -272,6 +301,7 @@ class CaiAgentApp(App[None]):
                 "/sessions — 列出最近会话文件\n"
                 "/use-model <id> — 临时切换当前会话模型\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
+                "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
                 "其他以 / 开头会提示未知命令。\n",
             )
@@ -487,6 +517,10 @@ class CaiAgentApp(App[None]):
             self._print_welcome()
             return
 
+        if raw == "/stop":
+            self.action_stop_run()
+            return
+
         if raw.startswith("/"):
             self.query_one("#chat", RichLog).write(
                 f"[red]未知命令:[/] {raw}（/help 查看可用命令）\n",
@@ -530,6 +564,8 @@ class CaiAgentApp(App[None]):
         log.focus()
 
         self._agent_busy = True
+        self._stop_requested = False
+        self._last_stop_request_at = 0.0
         self._pending_agent_ctx = {"prev_len": prev_len, "msgs": msgs}
         self.sub_title = f"{self._settings.workspace}  [dim]运行中…[/]"
 
