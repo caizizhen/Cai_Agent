@@ -282,37 +282,47 @@ class AnthropicAdapterTests(unittest.TestCase):
             )
         self.assertIn("401", str(ctx.exception))
 
-    def test_no_text_content_raises(self) -> None:
+    def test_no_text_content_returns_finish_envelope(self) -> None:
+        """Contract change (2026-04): an Anthropic response containing only
+        non-text blocks (e.g. ``tool_use``) no longer raises. Instead we
+        synthesise a ``{"type":"finish", ...}`` envelope so the graph can
+        surface the problem to the user and stop cleanly — matching the
+        behaviour of the OpenAI-compat adapter's empty-content guard.
+        """
         def responder(_req: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200,
                 json={
                     "content": [{"type": "tool_use", "name": "x", "input": {}}],
+                    "stop_reason": "tool_use",
                     "usage": {"input_tokens": 1, "output_tokens": 0},
                 },
             )
 
-        with self.assertRaises(RuntimeError) as ctx:
-            llm_anthropic.chat_completion(
-                _make_settings(),
-                [{"role": "user", "content": "hi"}],
-                transport=self._mock_transport(responder),
-            )
-        self.assertIn("文本", str(ctx.exception))
+        out = llm_anthropic.chat_completion(
+            _make_settings(),
+            [{"role": "user", "content": "hi"}],
+            transport=self._mock_transport(responder),
+        )
+        obj = json.loads(out)
+        self.assertEqual(obj["type"], "finish")
+        self.assertIn("empty-completion", obj["message"])
+        self.assertIn("provider=Anthropic", obj["message"])
 
-    def test_missing_content_array_raises(self) -> None:
+    def test_missing_content_array_returns_finish_envelope(self) -> None:
         def responder(_req: httpx.Request) -> httpx.Response:
             return httpx.Response(
                 200, json={"usage": {"input_tokens": 1, "output_tokens": 0}},
             )
 
-        with self.assertRaises(RuntimeError) as ctx:
-            llm_anthropic.chat_completion(
-                _make_settings(),
-                [{"role": "user", "content": "hi"}],
-                transport=self._mock_transport(responder),
-            )
-        self.assertIn("content", str(ctx.exception).lower())
+        out = llm_anthropic.chat_completion(
+            _make_settings(),
+            [{"role": "user", "content": "hi"}],
+            transport=self._mock_transport(responder),
+        )
+        obj = json.loads(out)
+        self.assertEqual(obj["type"], "finish")
+        self.assertIn("empty-completion", obj["message"])
 
     def test_mock_mode_shortcircuits(self) -> None:
         settings = _make_settings(mock=True)

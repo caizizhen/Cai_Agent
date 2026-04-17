@@ -184,17 +184,24 @@ def chat_completion(
         _accumulate_usage(usage)
 
     content = data.get("content")
-    if not isinstance(content, list):
-        raise RuntimeError("Anthropic 返回格式异常：缺少 content 数组")
     parts: list[str] = []
-    for it in content:
-        if isinstance(it, dict) and it.get("type") == "text":
-            t = it.get("text")
-            if isinstance(t, str):
-                parts.append(t)
-    if not parts:
-        raise RuntimeError("Anthropic 返回缺少文本内容（仅工具调用/非文本块）")
-    return "".join(parts)
+    if isinstance(content, list):
+        for it in content:
+            if isinstance(it, dict) and it.get("type") == "text":
+                t = it.get("text")
+                if isinstance(t, str):
+                    parts.append(t)
+    joined = "".join(parts).strip()
+    if joined:
+        return joined
+
+    return _usage_mod.normalize_assistant_text(
+        content=joined,
+        message={"reasoning_content": ""},
+        choice={"finish_reason": data.get("stop_reason")},
+        usage=usage if isinstance(usage, dict) else {},
+        provider_label="Anthropic",
+    )
 
 
 __all__ = [

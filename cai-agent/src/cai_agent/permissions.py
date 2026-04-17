@@ -12,8 +12,8 @@ def _auto_approved() -> bool:
 
 
 def enforce_tool_permission(settings: Settings, tool_name: str) -> None:
-    """在 dispatch 前校验 write_file / run_command 策略。"""
-    if tool_name == "write_file":
+    """在 dispatch 前校验 write_file / make_dir / run_command 策略。"""
+    if tool_name in ("write_file", "make_dir"):
         mode = settings.permission_write_file
     elif tool_name == "run_command":
         mode = settings.permission_run_command

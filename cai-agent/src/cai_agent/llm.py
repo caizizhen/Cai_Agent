@@ -104,7 +104,124 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
         if isinstance(tt, int) and tt >= 0:
             _USAGE_TOTAL_TOKENS += tt
 
-    return str(data["choices"][0]["message"]["content"])
+    choice = (data.get("choices") or [{}])[0] if isinstance(data.get("choices"), list) else {}
+    message = choice.get("message") if isinstance(choice, dict) else None
+    if not isinstance(message, dict):
+        message = {}
+    return normalize_assistant_text(
+        content=message.get("content"),
+        message=message,
+        choice=choice if isinstance(choice, dict) else {},
+        usage=usage if isinstance(usage, dict) else {},
+        provider_label="OpenAI-compatible",
+    )
+
+
+_THINK_BLOCK_RE = re.compile(r"<think\b[^>]*>[\s\S]*?</think>\s*", re.IGNORECASE)
+
+
+def _stringify_content(content: Any) -> str:
+    """Best-effort coerce ``message.content`` into a plain string.
+
+    Some OpenAI-compatible servers return ``content`` as a list of
+    ``{"type":"text","text":...}`` chunks instead of a bare string.
+    """
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for it in content:
+            if isinstance(it, dict):
+                t = it.get("text") or it.get("content")
+                if isinstance(t, str):
+                    parts.append(t)
+            elif isinstance(it, str):
+                parts.append(it)
+        return "\n".join(parts)
+    return str(content)
+
+
+def normalize_assistant_text(
+    *,
+    content: Any,
+    message: dict[str, Any],
+    choice: dict[str, Any],
+    usage: dict[str, Any],
+    provider_label: str = "LLM",
+) -> str:
+    """Return a non-empty assistant text, synthesising a ``finish`` envelope
+    when the model produced no usable output.
+
+    Triggered by reasoning-style models (Qwen3 / DeepSeek-R1 / LM Studio) which
+    may emit ``content=""`` together with a huge ``reasoning_content`` once the
+    reasoning budget is exhausted. Returning a finish envelope lets the graph
+    surface the problem and stop cleanly instead of crashing on JSON parsing
+    or spinning ``max_iterations``.
+    """
+    raw = _stringify_content(content)
+    text = raw.strip()
+
+    if text:
+        stripped = _THINK_BLOCK_RE.sub("", text).strip()
+        if stripped:
+            return stripped
+
+    return _empty_content_finish(
+        message=message,
+        choice=choice,
+        usage=usage,
+        provider_label=provider_label,
+    )
+
+
+def _empty_content_finish(
+    *,
+    message: dict[str, Any],
+    choice: dict[str, Any],
+    usage: dict[str, Any],
+    provider_label: str,
+) -> str:
+    finish_reason = choice.get("finish_reason") if isinstance(choice, dict) else None
+    reasoning_tokens: int | None = None
+    details = usage.get("completion_tokens_details") if isinstance(usage, dict) else None
+    if isinstance(details, dict):
+        rt = details.get("reasoning_tokens")
+        if isinstance(rt, int):
+            reasoning_tokens = rt
+    has_reasoning = isinstance(
+        message.get("reasoning_content") or message.get("reasoning"), str,
+    ) and bool((message.get("reasoning_content") or message.get("reasoning") or "").strip())
+
+    meta_parts: list[str] = [f"provider={provider_label}"]
+    if finish_reason:
+        meta_parts.append(f"finish_reason={finish_reason}")
+    if isinstance(reasoning_tokens, int):
+        meta_parts.append(f"reasoning_tokens={reasoning_tokens}")
+    meta = "; ".join(meta_parts)
+
+    if has_reasoning or (isinstance(reasoning_tokens, int) and reasoning_tokens > 0):
+        advice = (
+            "模型把所有输出塞进了 reasoning_content（推理死循环或推理预算耗尽），"
+            "未产生可用的最终回答。建议：切换到非 reasoning 模型（如 Qwen2.5-Instruct "
+            "或 gpt-4o-mini），或在 profile 里把 temperature 调到 ≤0.3、给 max_tokens "
+            "设上限。"
+        )
+    else:
+        advice = (
+            "模型返回了空 content 且无 reasoning_content。可能是被安全策略拦截、"
+            "上下文过长被截断，或服务器返回异常。建议：缩减 messages 历史后重试，"
+            "或检查服务端日志。"
+        )
+
+    return json.dumps(
+        {
+            "type": "finish",
+            "message": f"[empty-completion] {meta}。{advice}",
+        },
+        ensure_ascii=False,
+    )
 
 
 def extract_json_object(text: str) -> dict[str, Any]:

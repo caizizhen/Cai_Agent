@@ -51,9 +51,10 @@ git_context = true
 # compact_after_iterations = 10
 # compact_min_messages = 8
 
+# 默认不跑编译/测试门禁（与程序内置默认一致）；需要 CI 式检查时再改为 true。
 [quality_gate]
-compile = true
-test = true
+compile = false
+test = false
 lint = false
 typecheck = false
 security_scan = false
@@ -79,14 +80,13 @@ exclude_globs = [
 # [security_scan.rule_overrides]
 # openai_like_key = false
 
-# 受控 HTTPS 只读拉取（可选）。默认关闭；未开 unrestricted 时需配置 allow_hosts；字面私网 IP 会被拒绝。
-# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
+# 出网拉取：程序默认 enabled=true、unrestricted=true（任意 https/http 公网，仍拦本机/元数据/字面私网 IP）。
+# 若要收紧：设 unrestricted=false 并维护 allow_hosts；或 CAI_FETCH_URL_ENABLED=0 关闭。
+# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
 [fetch_url]
 enabled = true
-# true：不要求白名单、不按 allow_hosts 过滤，并允许 http（仍拒绝 localhost / 元数据主机 / 字面私网 IP）。也可用 CAI_FETCH_URL_UNRESTRICTED=1。
-unrestricted = true 
-# 仅下面这些主机允许出网；支持 `*.example.com` 泛解析。需要更多域请追加到下面的列表，
-# 或临时通过 `CAI_FETCH_URL_ALLOW_HOSTS="site-a.com,*.site-b.com"` 覆盖。
+unrestricted = true
+# 仅在 unrestricted=false 时生效；为 true 时可整段注释掉。
 allow_hosts = [
   # 代码与 gist
   "github.com",
@@ -118,6 +118,7 @@ allow_hosts = [
 # timeout_sec = 30
 
 [permissions]
+# write_file 与 make_dir（新建目录）共用同一策略
 # write_file / run_command / fetch_url: allow | ask | deny
 # - allow：工具直接执行
 # - ask  ：阻塞并提示；非交互场景可用 `--auto-approve` 或 `CAI_AUTO_APPROVE=1` 放行

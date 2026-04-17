@@ -27,7 +27,9 @@ def _settings_from_toml(content: str) -> Settings:
 
 
 class FetchUrlToolTests(unittest.TestCase):
-    def test_dispatch_permission_deny_by_default(self) -> None:
+    @patch("cai_agent.tools.httpx.Client")
+    def test_builtin_defaults_enable_unrestricted_fetch(self, client_cls: MagicMock) -> None:
+        """无 [fetch_url] 段时：内置默认开启且无主机白名单。"""
         s = _settings_from_toml(
             textwrap.dedent(
                 """
@@ -35,6 +37,34 @@ class FetchUrlToolTests(unittest.TestCase):
                 base_url = "http://localhost:1/v1"
                 model = "m"
                 api_key = "k"
+                """,
+            ),
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://api.weather.example/1"
+        mock_resp.headers = {"content-type": "text/plain"}
+        mock_resp.content = b"sunny"
+        inst = MagicMock()
+        inst.get.return_value = mock_resp
+        inst.__enter__.return_value = inst
+        inst.__exit__.return_value = None
+        client_cls.return_value = inst
+
+        out = tool_fetch_url(s, {"url": "https://api.weather.example/1"})
+        self.assertIn("HTTP 200", out)
+        self.assertIn("sunny", out)
+
+    def test_dispatch_permission_deny(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [permissions]
+                fetch_url = "deny"
                 """,
             ),
         )
@@ -50,6 +80,8 @@ class FetchUrlToolTests(unittest.TestCase):
                 base_url = "http://localhost:1/v1"
                 model = "m"
                 api_key = "k"
+                [fetch_url]
+                enabled = false
                 [permissions]
                 fetch_url = "allow"
                 """,
@@ -69,6 +101,7 @@ class FetchUrlToolTests(unittest.TestCase):
                 api_key = "k"
                 [fetch_url]
                 enabled = true
+                unrestricted = false
                 allow_hosts = ["github.com"]
                 [permissions]
                 fetch_url = "allow"
@@ -89,6 +122,7 @@ class FetchUrlToolTests(unittest.TestCase):
                 api_key = "k"
                 [fetch_url]
                 enabled = true
+                unrestricted = false
                 allow_hosts = ["example.com"]
                 [permissions]
                 fetch_url = "allow"
@@ -109,6 +143,7 @@ class FetchUrlToolTests(unittest.TestCase):
                 api_key = "k"
                 [fetch_url]
                 enabled = true
+                unrestricted = false
                 allow_hosts = ["localhost"]
                 [permissions]
                 fetch_url = "allow"
@@ -129,6 +164,7 @@ class FetchUrlToolTests(unittest.TestCase):
                 api_key = "k"
                 [fetch_url]
                 enabled = true
+                unrestricted = false
                 allow_hosts = ["127.0.0.1"]
                 [permissions]
                 fetch_url = "allow"
@@ -150,6 +186,7 @@ class FetchUrlToolTests(unittest.TestCase):
                 api_key = "k"
                 [fetch_url]
                 enabled = true
+                unrestricted = false
                 allow_hosts = ["example.com"]
                 max_bytes = 10000
                 [permissions]

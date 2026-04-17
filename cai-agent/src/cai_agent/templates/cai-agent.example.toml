@@ -50,9 +50,10 @@ git_context = true
 # compact_after_iterations = 10
 # compact_min_messages = 8
 
+# 默认不强制 compile/test；在 CI 或提交前可把 compile / test 改为 true。
 [quality_gate]
-compile = true
-test = true
+compile = false
+test = false
 lint = false
 typecheck = false
 security_scan = false
@@ -78,20 +79,22 @@ exclude_globs = [
 # [security_scan.rule_overrides]
 # openai_like_key = false
 
-# 受控 HTTPS 只读拉取（可选）。默认关闭；启用后必须配置 allow_hosts；字面 IP 若为私网/保留地址会被拒绝。
+# 默认开启且无主机白名单（unrestricted），便于查文档/天气 API 等；收紧时设 unrestricted=false 并配置 allow_hosts。
 # 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
 [fetch_url]
-enabled = false
-# unrestricted = false  # true：不要求 allow_hosts、不按白名单过滤，并允许 http（仍拒绝 localhost/元数据主机/字面私网 IP）
+enabled = true
+unrestricted = true
+# unrestricted = false
 # allow_hosts = ["github.com", "*.example.com"]
 # max_bytes = 500000
 # timeout_sec = 30
 
 [permissions]
-# write_file / run_command / fetch_url: allow | ask | deny
+# write_file 与 make_dir 共用同一策略；run_command、fetch_url 各自一行
+# write_file / run_command / fetch_url: allow | ask | deny（默认均为 allow；需要审批再改为 ask）
 write_file = "allow"
 run_command = "allow"
-fetch_url = "deny"
+fetch_url = "allow"
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）

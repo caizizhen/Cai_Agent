@@ -27,6 +27,8 @@ ALLOWED_CMD_NAMES = frozenset(
         "npm",
         "npx",
         "node",
+        "curl",
+        "wget",
     },
 )
 
@@ -166,6 +168,18 @@ def tool_write_file(workspace: str, args: dict[str, Any]) -> str:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8", newline="\n")
     return f"已写入 {p.relative_to(Path(workspace).resolve())}（{len(content)} 字符）"
+
+
+def tool_make_dir(workspace: str, args: dict[str, Any]) -> str:
+    rel = str(args.get("path", "")).strip()
+    if not rel:
+        raise SandboxError("make_dir 需要 path")
+    root = Path(workspace).resolve()
+    p = resolve_workspace_path(workspace, rel)
+    if p.exists() and not p.is_dir():
+        raise SandboxError(f"路径已存在且不是目录: {p.relative_to(root)}")
+    p.mkdir(parents=True, exist_ok=True)
+    return f"已创建或已存在目录: {p.relative_to(root).as_posix()}"
 
 
 def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
@@ -603,6 +617,8 @@ def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
         return tool_list_tree(ws, args)
     if name == "write_file":
         return tool_write_file(ws, args)
+    if name == "make_dir":
+        return tool_make_dir(ws, args)
     if name == "run_command":
         return tool_run_command(settings, args)
     if name == "glob_search":
@@ -635,5 +651,6 @@ def tools_spec_markdown() -> str:
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
 - fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；受 permissions.fetch_url 约束
 - write_file: {"path": "相对路径", "content": "文件全文"}
+- make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
 - run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符
 """

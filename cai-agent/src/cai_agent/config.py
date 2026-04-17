@@ -273,8 +273,8 @@ class Settings:
         qg = _section(file_data, "quality_gate")
         sec = _section(file_data, "security_scan")
 
-        quality_gate_compile = bool(qg.get("compile", True))
-        quality_gate_test = bool(qg.get("test", True))
+        quality_gate_compile = bool(qg.get("compile", False))
+        quality_gate_test = bool(qg.get("test", False))
         quality_gate_lint = bool(qg.get("lint", False))
         quality_gate_security_scan = bool(qg.get("security_scan", False))
         test_pol = str(qg.get("test_policy", "skip")).strip().lower()
@@ -356,24 +356,26 @@ class Settings:
 
         permission_write_file = _perm_mode(perm.get("write_file"), "allow")
         permission_run_command = _perm_mode(perm.get("run_command"), "allow")
-        permission_fetch_url = _perm_mode(perm.get("fetch_url"), "deny")
+        permission_fetch_url = _perm_mode(perm.get("fetch_url"), "allow")
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
             fetch_url_enabled = _env_bool("CAI_FETCH_URL_ENABLED", False)
         else:
             raw_fu_en = fu.get("enabled")
-            fetch_url_enabled = (
-                bool(raw_fu_en) if isinstance(raw_fu_en, bool) else False
-            )
+            if isinstance(raw_fu_en, bool):
+                fetch_url_enabled = raw_fu_en
+            else:
+                fetch_url_enabled = True
 
         if os.getenv("CAI_FETCH_URL_UNRESTRICTED") is not None:
             fetch_url_unrestricted = _env_bool("CAI_FETCH_URL_UNRESTRICTED", False)
         else:
             raw_fu_ur = fu.get("unrestricted")
-            fetch_url_unrestricted = (
-                bool(raw_fu_ur) if isinstance(raw_fu_ur, bool) else False
-            )
+            if isinstance(raw_fu_ur, bool):
+                fetch_url_unrestricted = raw_fu_ur
+            else:
+                fetch_url_unrestricted = True
 
         raw_hosts_env = os.getenv("CAI_FETCH_URL_ALLOW_HOSTS")
         if raw_hosts_env is not None and raw_hosts_env.strip():
