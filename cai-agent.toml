@@ -81,16 +81,39 @@ exclude_globs = [
 # 受控 HTTPS 只读拉取（可选）。默认关闭；启用后必须配置 allow_hosts；字面 IP 若为私网/保留地址会被拒绝。
 # 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
 [fetch_url]
-enabled = false
-# allow_hosts = ["github.com", "*.example.com"]
+enabled = true
+# 仅下面这些主机允许出网；支持 `*.example.com` 泛解析。需要更多域请追加到下面的列表，
+# 或临时通过 `CAI_FETCH_URL_ALLOW_HOSTS="site-a.com,*.site-b.com"` 覆盖。
+allow_hosts = [
+  # 代码与 gist
+  "github.com",
+  "*.github.com",
+  "raw.githubusercontent.com",
+  "*.githubusercontent.com",
+  "gist.github.com",
+  # Python 包 / 文档
+  "pypi.org",
+  "files.pythonhosted.org",
+  "docs.python.org",
+  # 其它常用开发文档
+  "developer.mozilla.org",
+  "stackoverflow.com",
+  "*.stackexchange.com",
+  "readthedocs.io",
+  "*.readthedocs.io",
+]
+# 单次响应体截断上限（字节）与单次请求超时（秒）：默认够用，需要更大的包再放开
 # max_bytes = 500000
 # timeout_sec = 30
 
 [permissions]
 # write_file / run_command / fetch_url: allow | ask | deny
+# - allow：工具直接执行
+# - ask  ：阻塞并提示；非交互场景可用 `--auto-approve` 或 `CAI_AUTO_APPROVE=1` 放行
+# - deny ：彻底禁用
 write_file = "allow"
 run_command = "allow"
-fetch_url = "deny"
+fetch_url = "allow"
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）
