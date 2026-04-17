@@ -17,20 +17,63 @@ from cai_agent.config import Settings
 from cai_agent.profiles import Profile, project_base_url
 
 
-def fetch_models(settings: Settings) -> list[str]:
-    """从 OpenAI 兼容 /models 端点获取模型 id 列表（按当前激活 profile）。"""
-    url = f"{settings.base_url.rstrip('/')}/models"
-    headers = {
-        "Authorization": f"Bearer {settings.api_key}",
-        "Content-Type": "application/json",
-    }
-    timeout = httpx.Timeout(
-        connect=15.0,
-        read=30.0,
-        write=15.0,
-        pool=15.0,
+def fetch_models(
+    settings: Settings,
+    *,
+    transport: httpx.BaseTransport | None = None,
+) -> list[str]:
+    """按当前激活 profile 的 provider 拉取模型 id 列表。
+
+    - ``anthropic`` → ``GET {base}/v1/models``，使用 ``x-api-key`` + ``anthropic-version``；
+    - 其余兼容 provider（openai / openai_compatible / azure_openai / copilot /
+      ollama / lmstudio / vllm） → ``GET {base}/models``，使用 ``Authorization: Bearer``；
+
+    未识别的 provider 回退走 OpenAI 兼容路径，以保持 S1 之前单一 ``[llm]`` 的行为。
+    """
+    active_id = getattr(settings, "active_profile_id", None)
+    active_profile: Profile | None = None
+    for p in getattr(settings, "profiles", ()) or ():
+        if getattr(p, "id", None) == active_id:
+            active_profile = p
+            break
+
+    provider = (
+        (active_profile.provider if active_profile else None)
+        or getattr(settings, "provider", None)
+        or ""
     )
-    with httpx.Client(timeout=timeout, trust_env=settings.http_trust_env) as client:
+    provider = str(provider).strip().lower()
+
+    base = str(getattr(settings, "base_url", "") or "").rstrip("/")
+    api_key = getattr(settings, "api_key", "") or ""
+
+    if provider == "anthropic":
+        url = f"{base}/v1/models"
+        anth_ver = (
+            getattr(settings, "anthropic_version", None)
+            or (active_profile.anthropic_version if active_profile else None)
+            or "2023-06-01"
+        )
+        headers = {
+            "x-api-key": api_key,
+            "anthropic-version": anth_ver,
+            "content-type": "application/json",
+        }
+    else:
+        url = f"{base}/models"
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+        }
+
+    timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
+    client_kwargs: dict[str, Any] = {
+        "timeout": timeout,
+        "trust_env": getattr(settings, "http_trust_env", False),
+    }
+    if transport is not None:
+        client_kwargs["transport"] = transport
+    with httpx.Client(**client_kwargs) as client:
         r = client.get(url, headers=headers)
     if r.status_code >= 400:
         raise RuntimeError(f"/models 请求失败: HTTP {r.status_code} body={r.text!r}")

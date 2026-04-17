@@ -95,16 +95,32 @@ def resolve_role_profile(settings: Any, role: str) -> Profile:
 
 
 def _project_settings_for_profile(settings: Any, profile: Profile) -> Any:
-    """把 settings 字段投影到指定 profile（返回新对象，原对象不改）。"""
+    """把 settings 字段投影到指定 profile（返回新对象，原对象不改）。
+
+    注意 ``model`` 字段的特殊语义：``Settings.model`` 在加载期已由 active profile
+    投影过一次；若当前值与 active profile 的 ``model`` 不一致，则说明上层（CLI
+    ``--model`` / workflow step ``model``）用 :func:`dataclasses.replace` 做了
+    一次运行期 override，不应被再次的 role projection 静默覆盖。
+    """
     base_url = project_base_url(profile)
     resolved = profile.resolve_api_key()
     api_key = resolved or getattr(settings, "api_key", "") or ""
+
+    effective_model = profile.model
+    active_id = getattr(settings, "active_profile_id", None)
+    cur_model = getattr(settings, "model", None)
+    if cur_model and active_id:
+        for ap in getattr(settings, "profiles", ()) or ():
+            if getattr(ap, "id", None) == active_id:
+                if cur_model != getattr(ap, "model", None):
+                    effective_model = cur_model
+                break
 
     is_anthropic = profile.provider == "anthropic"
     updates: dict[str, Any] = {
         "provider": profile.provider,
         "base_url": base_url,
-        "model": profile.model,
+        "model": effective_model,
         "api_key": api_key,
         "temperature": max(0.0, min(2.0, float(profile.temperature))),
         "llm_timeout_sec": max(5.0, min(3600.0, float(profile.timeout_sec))),

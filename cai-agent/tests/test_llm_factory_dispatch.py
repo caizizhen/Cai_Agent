@@ -401,6 +401,46 @@ class ChatCompletionByRoleTests(_AdapterStubMixin, unittest.TestCase):
         self.assertEqual(settings.model, original_model)
         self.assertEqual(settings.base_url, original_base_url)
 
+    def test_cli_model_override_passes_through_projection(self) -> None:
+        """`cai-agent run --model X` (→ replace(settings, model=X)) must not
+        be silently eaten by ``_project_settings_for_profile``; otherwise we
+        regress a documented S1 DoD ("legacy --model behaviour unchanged")."""
+        base = _make_settings(
+            (_OPENAI_P, _ANTHROPIC_P, _LOCAL_P),
+            active="oai",
+            subagent="local",
+            planner="anthro",
+        )
+        from dataclasses import replace as _dc_replace
+
+        overridden = _dc_replace(base, model="gpt-4o-mini-override")
+
+        llm_factory.chat_completion_by_role(overridden, [], role="active")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.model, "gpt-4o-mini-override")
+        self.assertEqual(projected.provider, "openai")
+
+        llm_factory.chat_completion_by_role(overridden, [], role="subagent")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.model, "gpt-4o-mini-override")
+
+        llm_factory.chat_completion_by_role(overridden, [], role="planner")
+        projected, _ = self._anthropic_calls[-1]
+        self.assertEqual(projected.model, "gpt-4o-mini-override")
+        self.assertEqual(projected.provider, "anthropic")
+
+    def test_no_override_still_picks_role_profile_model(self) -> None:
+        """Without an explicit override, role projection should still swap
+        ``model`` to the role-specific profile."""
+        settings = _make_settings(
+            (_OPENAI_P, _ANTHROPIC_P, _LOCAL_P),
+            active="oai",
+            subagent="local",
+        )
+        llm_factory.chat_completion_by_role(settings, [], role="subagent")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.model, _LOCAL_P.model)
+
 
 if __name__ == "__main__":
     unittest.main()

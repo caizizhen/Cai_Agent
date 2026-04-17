@@ -248,5 +248,101 @@ class PingProfileTests(unittest.TestCase):
         self.assertEqual(out["http_status"], 401)
 
 
+class FetchModelsTests(unittest.TestCase):
+    """`cai-agent models fetch` contract: must pick the endpoint/headers
+    based on the *active profile*'s provider, not a hardcoded OpenAI shape.
+    """
+
+    def _make_settings(
+        self,
+        profile: "Profile",  # noqa: F821
+        *,
+        anth_version: str | None = None,
+    ) -> "Settings":  # noqa: F821
+        from dataclasses import replace
+        from cai_agent.config import Settings
+        from cai_agent.profiles import project_base_url
+
+        base = Settings.from_env()
+        return replace(
+            base,
+            provider=profile.provider,
+            base_url=project_base_url(profile),
+            model=profile.model,
+            api_key=profile.resolve_api_key() or "k",
+            profiles=(profile,),
+            profiles_explicit=True,
+            active_profile_id=profile.id,
+            active_api_key_env=profile.api_key_env,
+            anthropic_version=anth_version or profile.anthropic_version or "2023-06-01",
+        )
+
+    def test_openai_compat_path(self) -> None:
+        from cai_agent.profiles import Profile
+
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(
+                200, json={"data": [{"id": "a"}, {"id": "b"}]},
+            )
+
+        p = Profile(
+            id="oai",
+            provider="openai_compatible",
+            base_url="http://localhost:1234/v1",
+            model="x",
+            api_key="tok",
+            temperature=0.2,
+            timeout_sec=60.0,
+        )
+        settings = self._make_settings(p)
+        out = cai_models.fetch_models(
+            settings, transport=httpx.MockTransport(handler),
+        )
+        self.assertEqual(out, ["a", "b"])
+        self.assertEqual(str(captured[0].url), "http://localhost:1234/v1/models")
+        self.assertEqual(captured[0].headers.get("Authorization"), "Bearer tok")
+
+    def test_anthropic_path_uses_v1_models_and_x_api_key(self) -> None:
+        from cai_agent.profiles import Profile
+
+        captured: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured.append(request)
+            return httpx.Response(
+                200,
+                json={"data": [{"id": "claude-sonnet-4"}, {"id": "claude-haiku-4"}]},
+            )
+
+        p = Profile(
+            id="anth",
+            provider="anthropic",
+            base_url="https://api.anthropic.com",
+            model="claude-sonnet-4",
+            api_key="sk-anth-xxxxxxxxxxxxxxxx",
+            temperature=0.2,
+            timeout_sec=60.0,
+            anthropic_version="2023-06-01",
+        )
+        settings = self._make_settings(p, anth_version="2023-06-01")
+        out = cai_models.fetch_models(
+            settings, transport=httpx.MockTransport(handler),
+        )
+        self.assertEqual(out, ["claude-haiku-4", "claude-sonnet-4"])
+        self.assertEqual(
+            str(captured[0].url), "https://api.anthropic.com/v1/models",
+        )
+        self.assertIsNone(captured[0].headers.get("Authorization"))
+        self.assertEqual(
+            captured[0].headers.get("x-api-key"), "sk-anth-xxxxxxxxxxxxxxxx",
+        )
+        self.assertEqual(
+            captured[0].headers.get("anthropic-version"), "2023-06-01",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
