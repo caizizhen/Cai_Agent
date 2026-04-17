@@ -52,9 +52,12 @@ def run_doctor(settings: Settings) -> int:
     print("MCP 超时:", settings.mcp_timeout_sec, "s")
     print("fetch_url:", "启用" if settings.fetch_url_enabled else "关闭", end="")
     if settings.fetch_url_enabled:
-        print(
-            f" | 白名单 {len(settings.fetch_url_allowed_hosts)} 项 | 权限={settings.permission_fetch_url}",
+        mode = (
+            "无主机白名单(unrestricted)"
+            if settings.fetch_url_unrestricted
+            else f"白名单 {len(settings.fetch_url_allowed_hosts)} 项"
         )
+        print(f" | {mode} | 权限={settings.permission_fetch_url}")
     else:
         print()
     print()

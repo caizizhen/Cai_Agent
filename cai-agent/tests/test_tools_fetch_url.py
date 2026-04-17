@@ -172,3 +172,86 @@ class FetchUrlToolTests(unittest.TestCase):
         self.assertIn("HTTP 200", out)
         self.assertIn("hello", out)
         inst.get.assert_called_once()
+
+    @patch("cai_agent.tools.httpx.Client")
+    def test_unrestricted_skips_allow_hosts(self, client_cls: MagicMock) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [fetch_url]
+                enabled = true
+                unrestricted = true
+                [permissions]
+                fetch_url = "allow"
+                """,
+            ),
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://news.example.org/"
+        mock_resp.headers = {"content-type": "text/plain"}
+        mock_resp.content = b"ok"
+        inst = MagicMock()
+        inst.get.return_value = mock_resp
+        inst.__enter__.return_value = inst
+        inst.__exit__.return_value = None
+        client_cls.return_value = inst
+
+        out = tool_fetch_url(s, {"url": "https://news.example.org/p"})
+        self.assertIn("HTTP 200", out)
+        self.assertIn("ok", out)
+
+    @patch("cai_agent.tools.httpx.Client")
+    def test_unrestricted_allows_http(self, client_cls: MagicMock) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [fetch_url]
+                enabled = true
+                unrestricted = true
+                [permissions]
+                fetch_url = "allow"
+                """,
+            ),
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "http://example.com/x"
+        mock_resp.headers = {"content-type": "text/plain"}
+        mock_resp.content = b"h"
+        inst = MagicMock()
+        inst.get.return_value = mock_resp
+        inst.__enter__.return_value = inst
+        inst.__exit__.return_value = None
+        client_cls.return_value = inst
+
+        out = tool_fetch_url(s, {"url": "http://example.com/x"})
+        self.assertIn("HTTP 200", out)
+
+    def test_unrestricted_still_rejects_localhost(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [fetch_url]
+                enabled = true
+                unrestricted = true
+                [permissions]
+                fetch_url = "allow"
+                """,
+            ),
+        )
+        with self.assertRaises(SandboxError) as ctx:
+            tool_fetch_url(s, {"url": "https://localhost/"})
+        self.assertIn("拒绝", str(ctx.exception))

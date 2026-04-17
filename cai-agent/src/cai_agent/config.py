@@ -107,6 +107,7 @@ class Settings:
     permission_run_command: str
     permission_fetch_url: str
     fetch_url_enabled: bool
+    fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
     fetch_url_max_bytes: int
     fetch_url_timeout_sec: float
@@ -366,6 +367,14 @@ class Settings:
                 bool(raw_fu_en) if isinstance(raw_fu_en, bool) else False
             )
 
+        if os.getenv("CAI_FETCH_URL_UNRESTRICTED") is not None:
+            fetch_url_unrestricted = _env_bool("CAI_FETCH_URL_UNRESTRICTED", False)
+        else:
+            raw_fu_ur = fu.get("unrestricted")
+            fetch_url_unrestricted = (
+                bool(raw_fu_ur) if isinstance(raw_fu_ur, bool) else False
+            )
+
         raw_hosts_env = os.getenv("CAI_FETCH_URL_ALLOW_HOSTS")
         if raw_hosts_env is not None and raw_hosts_env.strip():
             fetch_url_allowed_hosts = tuple(
@@ -536,6 +545,7 @@ class Settings:
             permission_run_command=permission_run_command,
             permission_fetch_url=permission_fetch_url,
             fetch_url_enabled=fetch_url_enabled,
+            fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,
             fetch_url_max_bytes=fetch_url_max_bytes,
             fetch_url_timeout_sec=fetch_url_timeout_sec,

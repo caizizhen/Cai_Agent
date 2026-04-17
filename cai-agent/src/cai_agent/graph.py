@@ -52,7 +52,7 @@ def _core_system_prompt(workspace: str) -> str:
         + tools_spec_markdown()
         + "\n建议：先用 list_tree / list_dir / glob_search / search_text / git_status 了解代码；"
         "如需外部能力可先 mcp_list_tools 再 mcp_call_tool；"
-        "若配置已启用 fetch_url 且主机在白名单内，可用 fetch_url 拉取只读 HTTPS 文本。"
+        "若配置已启用 fetch_url，可用 fetch_url 拉取只读网页文本（默认 HTTPS + 主机白名单；unrestricted 时无白名单并允许 http）。"
         "read_file 可用 line_start/line_end 分段读取大文件，需要时再 write_file 或 run_command。"
     )
 

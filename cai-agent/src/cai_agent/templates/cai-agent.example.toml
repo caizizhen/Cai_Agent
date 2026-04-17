@@ -79,9 +79,10 @@ exclude_globs = [
 # openai_like_key = false
 
 # 受控 HTTPS 只读拉取（可选）。默认关闭；启用后必须配置 allow_hosts；字面 IP 若为私网/保留地址会被拒绝。
-# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
+# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
 [fetch_url]
 enabled = false
+# unrestricted = false  # true：不要求 allow_hosts、不按白名单过滤，并允许 http（仍拒绝 localhost/元数据主机/字面私网 IP）
 # allow_hosts = ["github.com", "*.example.com"]
 # max_bytes = 500000
 # timeout_sec = 30

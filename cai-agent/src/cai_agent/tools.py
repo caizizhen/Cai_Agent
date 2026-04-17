@@ -460,22 +460,29 @@ def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
         raise SandboxError(
             "fetch_url 未启用（配置 [fetch_url].enabled=true 或 CAI_FETCH_URL_ENABLED=1）"
         )
-    if not settings.fetch_url_allowed_hosts:
+    if not settings.fetch_url_unrestricted and not settings.fetch_url_allowed_hosts:
         raise SandboxError(
-            "fetch_url 需要配置主机白名单 [fetch_url].allow_hosts 或 CAI_FETCH_URL_ALLOW_HOSTS"
+            "fetch_url 需要配置主机白名单 [fetch_url].allow_hosts 或 CAI_FETCH_URL_ALLOW_HOSTS；"
+            "或设置 [fetch_url].unrestricted=true / CAI_FETCH_URL_UNRESTRICTED=1 跳过白名单（仍禁止本机/私网字面 IP）"
         )
     url_raw = str(args.get("url", "")).strip()
     if not url_raw:
         raise SandboxError("fetch_url 需要参数 url")
     parsed = urlparse(url_raw)
-    if parsed.scheme.lower() != "https":
+    scheme = parsed.scheme.lower()
+    if settings.fetch_url_unrestricted:
+        if scheme not in ("http", "https"):
+            raise SandboxError("fetch_url 仅允许 http 或 https")
+    elif scheme != "https":
         raise SandboxError("fetch_url 仅允许 https")
     host = parsed.hostname
     if not host:
         raise SandboxError("fetch_url URL 无效：缺少主机名")
     _reject_blocked_fetch_hostname(host)
     _reject_private_ip_literal(host)
-    if not _hostname_matches_fetch_allowlist(host, settings.fetch_url_allowed_hosts):
+    if not settings.fetch_url_unrestricted and not _hostname_matches_fetch_allowlist(
+        host, settings.fetch_url_allowed_hosts
+    ):
         raise SandboxError(f"fetch_url 主机不在白名单: {host!r}")
 
     headers = {
@@ -626,7 +633,7 @@ def tools_spec_markdown() -> str:
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
-- fetch_url: {"url": "https://..."} — 仅 HTTPS GET；须在配置中启用 [fetch_url] 并设置 allow_hosts 白名单；受 permissions.fetch_url 约束
+- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；受 permissions.fetch_url 约束
 - write_file: {"path": "相对路径", "content": "文件全文"}
 - run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符
 """
