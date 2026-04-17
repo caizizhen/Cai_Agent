@@ -16,6 +16,9 @@
 - **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
 - **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
 - **对标双参考源的本版功能清单（Dev/QA/用户）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)（[claude-code](https://github.com/anthropics/claude-code) + [everything-claude-code](https://github.com/affaan-m/everything-claude-code)）。
+- **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）。
+- **开发计划（Sprint 1–3，含 Alpha/Beta/GA 节奏）**：[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（分工、时间片、DoD、QA 回归矩阵、内测公告模板）。
+- **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（28 条：add/edit/rm/ping/switch 五子动作 + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。

@@ -56,6 +56,8 @@ Do not commit real API keys.
 | `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
 | `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
+| `docs/MODEL_SWITCHER_BACKLOG.zh-CN.md` | Feature pack: in-UI model switcher + profile management + routing |
+| `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA) |
 | `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
 | `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
@@ -63,6 +65,7 @@ Do not commit real API keys.
 | `docs/MCP_WEB_RECIPE.zh-CN.md` | MCP-only web/search alternative to `fetch_url` |
 | `docs/QA_REGRESSION_LOGGING.md` | QA: where regression Markdown logs go; `QA_LOG_DIR` / `QA_SKIP_LOG` |
 | `docs/qa/runs/` | Auto-generated per-run reports (`regression-YYYYMMDD-HHmmss.md`) |
+| `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (28 cases: add/edit/rm/ping/switch + empty state + `/compact` prompt) |
 | `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
 
 ---
