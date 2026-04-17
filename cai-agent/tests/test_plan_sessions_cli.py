@@ -91,7 +91,7 @@ class PlanJsonSchemaTests(unittest.TestCase):
             os.environ["CAI_CONFIG"] = cfg
             buf = io.StringIO()
             with patch(
-                "cai_agent.__main__.chat_completion",
+                "cai_agent.__main__.chat_completion_by_role",
                 side_effect=RuntimeError("boom"),
             ):
                 with redirect_stdout(buf):
