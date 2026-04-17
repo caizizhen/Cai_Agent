@@ -6,7 +6,7 @@
 [llm]
 provider = "openai_compatible" # openai_compatible | copilot
 base_url = "http://localhost:1234/v1"
-model = "google/gemma-4-31b"
+model = "qwen/qwen3.6-35b-a3b"
 api_key = "lm-studio"
 http_trust_env = false
 # 采样温度（0~2，视模型支持而定）
