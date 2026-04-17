@@ -8,7 +8,8 @@ provider = "openai_compatible" # openai_compatible | copilot
 base_url = "http://localhost:1234/v1"
 model = "qwen/qwen3.6-35b-a3b"
 api_key = "lm-studio"
-http_trust_env = false
+# 为 true 时 LLM / fetch_url 会读取系统代理（HTTP_PROXY 等）；访问本机 LM Studio 请在环境中设 NO_PROXY=localhost,127.0.0.1
+http_trust_env = true
 # 采样温度（0~2，视模型支持而定）
 temperature = 0.2
 # 单次 Chat Completions HTTP 超时（秒）
@@ -101,8 +102,14 @@ allow_hosts = [
   "*.stackexchange.com",
   "readthedocs.io",
   "*.readthedocs.io",
-  # google
-  "www.google.com"
+  # Google（首页常 302 到 google.com / 地区域名如 *.google.com.hk，仅填 www.google.com 会白名单失败）
+  "google.com",
+  "*.google.com",
+  "www.google.com",
+  "google.com.hk",
+  "*.google.com.hk",
+  "google.co.jp",
+  "*.google.co.jp",
 ]
 # 单次响应体截断上限（字节）与单次请求超时（秒）：默认够用，需要更大的包再放开
 # max_bytes = 500000
