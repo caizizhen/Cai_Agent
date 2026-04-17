@@ -1,0 +1,60 @@
+{
+  "schema_version": "1.0",
+  "saved_at": "2026-04-17T06:51:10.682211+00:00",
+  "workflow_file": "C:\\Users\\win11\\AppData\\Local\\Temp\\tmpqbqlg22k\\workflow.json",
+  "task": {
+    "task_id": "workflow-9cacdc81f6",
+    "type": "workflow",
+    "status": "completed",
+    "started_at": 1776408670.6293364,
+    "ended_at": 1776408670.681976,
+    "elapsed_ms": 52,
+    "error": null
+  },
+  "summary": {
+    "steps_count": 1,
+    "elapsed_ms_total": 51,
+    "elapsed_ms_avg": 51,
+    "tool_calls_total": 0,
+    "tool_errors_total": 0,
+    "conflicts": [],
+    "merge_decision": "auto_merge",
+    "merge_strategy": "require_manual"
+  },
+  "steps": [
+    {
+      "index": 1,
+      "name": "s1",
+      "goal": "test workflow",
+      "elapsed_ms": 51,
+      "finished": true,
+      "error_count": 0,
+      "total_tokens": 0
+    }
+  ],
+  "events": [
+    {
+      "event": "workflow.step.started",
+      "workflow_task_id": "workflow-9cacdc81f6",
+      "step_index": 1,
+      "name": "s1"
+    },
+    {
+      "event": "workflow.step.completed",
+      "workflow_task_id": "workflow-9cacdc81f6",
+      "step_index": 1,
+      "name": "s1",
+      "elapsed_ms": 51,
+      "tool_calls_count": 0,
+      "error_count": 0
+    },
+    {
+      "event": "workflow.finished",
+      "workflow_task_id": "workflow-9cacdc81f6",
+      "steps_count": 1,
+      "merge_decision": "auto_merge",
+      "merge_strategy": "require_manual",
+      "tool_errors_total": 0
+    }
+  ]
+}

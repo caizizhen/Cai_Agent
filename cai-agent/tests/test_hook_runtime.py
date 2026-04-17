@@ -82,7 +82,7 @@ class HookRuntimeTests(unittest.TestCase):
                         "event": "observe_start",
                         "enabled": True,
                         "command": [sys.executable, "-c", "print(1)"],
-                    ],
+                    },
                 ],
             )
             s = _settings_for_root(root, hooks_profile="standard", hooks_timeout_sec=10.0)
