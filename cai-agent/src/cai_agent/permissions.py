@@ -17,6 +17,8 @@ def enforce_tool_permission(settings: Settings, tool_name: str) -> None:
         mode = settings.permission_write_file
     elif tool_name == "run_command":
         mode = settings.permission_run_command
+    elif tool_name == "fetch_url":
+        mode = settings.permission_fetch_url
     else:
         return
     if mode == "allow":

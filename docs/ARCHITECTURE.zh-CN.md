@@ -83,6 +83,7 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
   - 工作区路径与命令超时；
   - 项目/Git 上下文开关；
   - MCP Bridge 配置；
+  - `[quality_gate]`（含可选 mypy 路径与 `[[quality_gate.extra]]`）、`[context]`（可选对话压缩提示阈值）；
   - 从哪个 TOML 读取配置（`config_loaded_from`）。
 - 加载顺序：**默认值 → TOML → 环境变量**，环境变量优先。
 
@@ -101,7 +102,8 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
   - `messages`：对话历史（system/user/assistant）；
   - `iteration`：迭代次数；
   - `pending`：待执行工具请求；
-  - `finished` / `answer`：结束标志与最终回答。
+  - `finished` / `answer`：结束标志与最终回答；
+  - `compact_hint_sent`：是否已注入过长对话的「建议收尾」提示（见 `[context]`）。
 - 节点：
   - `llm`：调用 `chat_completion`，要求模型输出 JSON（`finish` 或 `tool`）；
   - `tools`：调用 `tools.dispatch` 执行对应工具并将结果编码为 JSON 附加到 `messages`。
@@ -133,7 +135,8 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
 
 - `session.py`：
   - 读写会话 JSON（包含 messages/answer/配置/工作区等信息）；
-  - 列出最近会话文件（支持 pattern/limit），供 CLI 与 TUI 复用。
+  - 列出最近会话文件（支持 pattern/limit），供 CLI 与 TUI 复用；
+  - `build_observe_payload`：`cai-agent observe --json` 输出 `schema_version`（当前 **1.1**）、`task`（`observe` 任务 ID）、`events` 与会话聚合，便于与 `workflow` 的 `events` 统一消费。
 - Textual TUI：
   - 顶栏 + 对话区 + 底部输入；
   - 内置斜杠命令：`/status`、`/models`、`/mcp`、`/save`、`/load`、`/sessions`、`/use-model`、`/reload`、`/clear` 等；
@@ -185,7 +188,7 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
 
 ### 阶段 5：工作流与多 Agent / 子任务编排
 
-- 当前已实现基础版 workflow：`cai-agent workflow <file> [--json]`，按 JSON 文件中的 `steps` 顺序依次运行多个 `goal`，并汇总每步的耗时与工具调用统计；
+- 当前已实现基础版 workflow：`cai-agent workflow <file> [--json]`，按 JSON 文件中的 `steps` 顺序依次运行多个 `goal`，并汇总每步的耗时与工具调用统计；JSON 中含顶层 `task` 与 `events`（步骤起止与结束事件）；
 - 后续可以在此基础上扩展为更复杂的工作流描述（如带条件、重试或分支），以及多 Agent 协调（在同一进程内维护多个独立的 `AgentState` 并汇总结果）。
 
 ### 阶段 6：规则执行与安全扫描深化

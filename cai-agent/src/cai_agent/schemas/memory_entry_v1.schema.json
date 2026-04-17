@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/memory_entry_v1.schema.json",
+  "title": "MemoryEntryV1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "category", "text", "confidence", "created_at"],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "category": { "type": "string", "minLength": 1 },
+    "text": { "type": "string" },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "expires_at": { "type": ["string", "null"] },
+    "created_at": { "type": "string", "minLength": 1 }
+  }
+}

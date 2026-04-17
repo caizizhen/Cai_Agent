@@ -49,4 +49,11 @@ class ObserveCliTests(unittest.TestCase):
             rc = main(["observe", "--json", "--limit", "5"])
         self.assertEqual(rc, 0)
         payload = json.loads(buf.getvalue().strip())
-        self.assertIn("schema_version", payload)
+        self.assertEqual(payload.get("schema_version"), "1.1")
+        self.assertIn("task", payload)
+        self.assertEqual(payload["task"].get("type"), "observe")
+        self.assertIn("events", payload)
+        self.assertTrue(isinstance(payload["events"], list))
+        ag = payload.get("aggregates") or {}
+        self.assertIn("run_events_total", ag)
+        self.assertIn("sessions_with_events", ag)

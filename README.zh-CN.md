@@ -8,11 +8,17 @@
 ## 文档导航
 
 - **[English README（默认）](README.md)**：仓库根目录英文说明。
+- **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run` 与流水线权限说明。
+- **[上下文压缩与成本](docs/CONTEXT_AND_COMPACT.zh-CN.md)**：`[context]` 压缩提示与 `observe` / `cost` 联动建议。
 - **快速上手**：先看“环境要求”+“安装”+“5 分钟跑通”。
-- **能力边界**：看“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
+- **产品愿景（完全体）**：[docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)（三源融合、统一运行时、L1/L2/L3 验收）。
+- **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
+- **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
+- **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。
 - **演进历史**：**[CHANGELOG.md](CHANGELOG.md)**（默认英文）、**[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)**（中文全文）。
+- **QA 回归记录**：每次跑 `python scripts/run_regression.py` 会在 `docs/qa/runs/` 生成带时间戳的 Markdown 报告；策略与变量见 **[docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)**（英文镜像：[docs/QA_REGRESSION_LOGGING.md](docs/QA_REGRESSION_LOGGING.md)）。
 
 ## 5 分钟跑通（推荐）
 
@@ -91,9 +97,10 @@ cai-agent workflow workflow.json --json
 
 ## 与 Claude Code / Everything Claude Code 的功能对齐
 
+- **北极星（完全体）**：在 **单一运行时**（本仓库的 Python / LangGraph / OpenAI 兼容路径）内融合三类参考——官方 `anthropics/claude-code` 的能力环、`ComeOnOliver/claude-code-analysis` 的架构子系统清单、`affaan-m/everything-claude-code` 的治理与跨 harness 资产；不复制官方 TS/Bun/Ink 栈，默认也不采用「多 CLI 套件」编排。详见 [docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)、[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)、[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)。
 - **整体定位**：`cai-agent` 对标官方 `anthropics/claude-code` 的「终端内智能代码 Agent」，并参考 `affaan-m/everything-claude-code` 的「性能优化 + 安全护栏 + 规则/技能」设计思路。
 - **当前已对齐的子系统**（概念层级）：
-  - **工具系统（Tools）**：`cai_agent.tools` 提供只读/写入/搜索/Git/MCP 等工具，并通过沙箱 `cai_agent.sandbox` 实现工作区越界防护和命令白名单，类似 Claude Code 的 Tool + 权限模型。
+  - **工具系统（Tools）**：`cai_agent.tools` 提供只读/写入/搜索/Git/MCP、可选 **`fetch_url`（HTTPS 白名单）** 等工具，并通过沙箱 `cai_agent.sandbox` 实现工作区越界防护和命令白名单，类似 Claude Code 的 Tool + 权限模型。
   - **会话与编排（Query/Tasks）**：`cai_agent.graph` 使用 LangGraph 状态机驱动「LLM ↔ 工具」循环，与 Claude Code 的 QueryEngine 思路一致；CLI 的 `run` / `continue` + `sessions` 子命令承担最小会话/任务管理角色。
   - **终端 UI（TUI）**：`cai_agent.tui` 使用 Textual 提供类似 Claude Code REPL 的对话界面和内置斜杠命令（`/status`、`/models`、`/mcp`、`/save`、`/load` 等）。
   - **安全模型（Sandbox & MCP）**：`cai_agent.sandbox` + `run_command` 白名单 + Git 只读工具 + MCP Bridge 的超时/鉴权，与 Everything Claude Code 中的 Agent 安全与沙箱策略保持同类防护思路。
@@ -109,10 +116,14 @@ cai-agent workflow workflow.json --json
 完整架构说明与后续 Roadmap 见：
 
 - `docs/ARCHITECTURE.zh-CN.md`
-- `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（Claude 生态能力对比与缺口）
+- `docs/PRODUCT_VISION_FUSION.zh-CN.md`（三源融合愿景与 L1/L2/L3）
+- `docs/PARITY_MATRIX.zh-CN.md`（子系统 parity 与发版约定）
+- `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（能力对比、缺口与发布门禁）
 - `docs/ROADMAP_EXECUTION.zh-CN.md`（P0/P1/P2 落地清单）
 - `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`（记忆与成本治理方案）
 - `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`（跨工具兼容映射）
+- `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`（补齐总册 backlog）
+- `docs/MCP_WEB_RECIPE.zh-CN.md`（Web 能力 MCP 配方）
 
 ## 高层架构示意
 
@@ -415,6 +426,8 @@ cai-agent run "请梳理当前仓库目录结构，并给出三条重构建议"
 cai-agent plan "为本项目补充 CI，并分阶段给出落地步骤"
 ```
 
+**`plan --json`**：输出一行 JSON，含稳定字段 `plan_schema_version`、`generated_at`、`task`（`plan-*` 任务 id）、`usage`（token 计数）及 `goal` / `plan` 正文等，便于流水线归档。
+
 ### `cai-agent run --json`
 
 用途：给自动化脚本消费；适合 CI / 机器人流水线。
@@ -430,6 +443,15 @@ cai-agent run --json "检查最近改动是否存在高风险点"
 - `provider` / `model`：实际使用模型
 - `elapsed_ms`：总耗时
 - `tool_calls_count` / `used_tools` / `error_count`：工具执行统计
+- `run_schema_version` / `events`：与落盘会话对齐的轻量事件信封
+
+### `cai-agent sessions --json`
+
+在未加 `--details` 时也会尝试解析每个会话文件并附带 `events_count`、`run_schema_version`、`task_id`、`total_tokens` 等摘要字段（解析失败则带 `parse_error`）。
+
+### `cai-agent stats --json`
+
+汇总当前目录下匹配 `*.cai-session*.json` 的会话：除原有 `sessions_count`、工具调用均值等外，增加 **`stats_schema_version`**（`1.0`）、**`run_events_total`**、**`sessions_with_events`**、**`parse_skipped`** 以及 **`session_summaries`**（逐文件 `events_count` / `task_id` / `total_tokens` / `file_error_count` / `tool_calls_count` / `message_tool_errors`）。**不加 `--json`** 时也会在最后一行摘要中打印 `run_events_total` / `sessions_with_events` / `parse_skipped`。
 
 ## Demo：从零到一完成一次“分析 -> 计划 -> 执行 -> 验证”
 
@@ -654,6 +676,8 @@ py scripts/run_regression.py
 
   `run_regression.py` 会调用已安装的 `cai-agent`；`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
 
+  **回归审计留痕**：每次执行结束会在 `docs/qa/runs/` 写入 `regression-YYYYMMDD-HHmmss.md`（可用 `QA_LOG_DIR` 改目录，`QA_SKIP_LOG=1` 关闭写文件）。说明见 [docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)。
+
 - 更新文档建议：
   - 使用说明同步更新 `README.md`（英文）与 `README.zh-CN.md`（中文）；
   - 版本变化同步更新 `CHANGELOG.md`（英文）与 `CHANGELOG.zh-CN.md`（中文）。
@@ -668,6 +692,7 @@ py scripts/run_regression.py
 - **git_diff**：只读 `git diff`（支持 staged 与 path 参数）。
 - **mcp_list_tools**：读取 MCP Bridge 工具清单（需启用）。
 - **mcp_call_tool**：调用 MCP Bridge 工具（需启用）。
+- **fetch_url**：仅 HTTPS GET；默认关闭，需在 `cai-agent.toml` 的 `[fetch_url]` 启用并配置 `allow_hosts` 主机白名单；受 `[permissions].fetch_url` 约束（`allow` / `ask` / `deny`，与 `write_file` 相同可用 `CAI_AUTO_APPROVE` / `--auto-approve`）。详见示例配置与 [docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)（MCP 替代方案）。
 - **run_command**：仅允许白名单中的可执行文件名，禁止路径形式与常见 shell 元字符；支持 `cwd` 指定工作区内子目录（默认 `.`）。
 
 实现见 `cai-agent/src/cai_agent/tools.py` 与 `cai-agent/src/cai_agent/sandbox.py`。

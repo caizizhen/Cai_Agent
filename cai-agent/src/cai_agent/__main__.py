@@ -6,8 +6,10 @@ import os
 import sys
 import time
 from dataclasses import replace
+from datetime import UTC, datetime
 from importlib import resources
 from pathlib import Path
+from typing import Any
 
 from cai_agent import __version__
 from cai_agent.agent_registry import list_agent_names, load_agent_text
@@ -42,6 +44,27 @@ from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.task_state import new_task
 from cai_agent.tools import dispatch, tools_spec_markdown
 from cai_agent.workflow import run_workflow
+
+
+def _session_file_json_extra(sess: dict[str, Any]) -> dict[str, Any]:
+    """从已解析的会话 JSON 提取稳定字段（供 `sessions --json` 等使用）。"""
+    ev = sess.get("events")
+    events_count = len(ev) if isinstance(ev, list) else 0
+    td = sess.get("task")
+    task_id: str | None = None
+    if isinstance(td, dict):
+        tid = str(td.get("task_id") or "").strip()
+        task_id = tid or None
+    rs = sess.get("run_schema_version")
+    tt = sess.get("total_tokens")
+    ec = sess.get("error_count")
+    return {
+        "events_count": events_count,
+        "run_schema_version": rs if isinstance(rs, str) else None,
+        "task_id": task_id,
+        "total_tokens": int(tt) if isinstance(tt, int) else None,
+        "error_count": int(ec) if isinstance(ec, int) else None,
+    }
 
 
 def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
@@ -121,6 +144,8 @@ def _cmd_init(*, force: bool) -> int:
         return 1
     dest.write_bytes(data)
     print(f"已生成 {dest.resolve()}")
+    print("下一步: 编辑其中 [llm] 指向你的 API；然后执行 cai-agent doctor 与 cai-agent run \"…\"。")
+    print("说明: docs/ONBOARDING.zh-CN.md（含 CI / CAI_AUTO_APPROVE）。")
     return 0
 
 
@@ -576,7 +601,7 @@ def main(argv: list[str] | None = None) -> int:
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
-        help="执行最小质量门禁（编译检查 + pytest）",
+        help="质量门禁：compile、pytest、可选 ruff/mypy/extra/security（见 [quality_gate]）",
     )
     qg_p.add_argument(
         "--json",
@@ -584,9 +609,20 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 输出质量门禁结果",
     )
+    qg_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
     qg_p.add_argument("--no-compile", action="store_true", help="跳过 compile 检查")
     qg_p.add_argument("--no-test", action="store_true", help="跳过 test 检查")
     qg_p.add_argument("--lint", action="store_true", help="启用 lint 检查（ruff）")
+    qg_p.add_argument(
+        "--typecheck",
+        action="store_true",
+        help="启用静态类型检查（python -m mypy，路径见 [quality_gate] typecheck_paths）",
+    )
     qg_p.add_argument("--security-scan", action="store_true", help="在质量门禁中启用安全扫描")
     qg_p.add_argument(
         "--report-dir",
@@ -668,6 +704,12 @@ def main(argv: list[str] | None = None) -> int:
 
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
+    export_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
 
     obs_p = sub.add_parser("observe", help="输出可观测聚合 JSON")
     obs_p.add_argument("--pattern", default=".cai-session*.json")
@@ -732,7 +774,21 @@ def main(argv: list[str] | None = None) -> int:
         try:
             settings = Settings.from_env(config_path=args.config)
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            if bool(getattr(args, "json_output", False)):
+                print(
+                    json.dumps(
+                        {
+                            "plan_schema_version": "1.0",
+                            "ok": False,
+                            "error": "config_not_found",
+                            "message": str(e),
+                            "generated_at": datetime.now(UTC).isoformat(),
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print(str(e), file=sys.stderr)
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -743,7 +799,21 @@ def main(argv: list[str] | None = None) -> int:
             )
         goal = " ".join(args.goal).strip()
         if not goal:
-            print("goal 不能为空", file=sys.stderr)
+            if bool(getattr(args, "json_output", False)):
+                print(
+                    json.dumps(
+                        {
+                            "plan_schema_version": "1.0",
+                            "ok": False,
+                            "error": "goal_empty",
+                            "message": "goal 不能为空",
+                            "generated_at": datetime.now(UTC).isoformat(),
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print("goal 不能为空", file=sys.stderr)
             return 2
 
         rules_text = load_rule_text(settings)
@@ -771,16 +841,48 @@ def main(argv: list[str] | None = None) -> int:
             {"role": "user", "content": goal},
         ]
         reset_usage_counters()
+        plan_task = new_task("plan")
+        plan_task.status = "running"
         started = time.perf_counter()
         try:
             plan_text = chat_completion(settings, messages)
         except Exception as e:
-            print(f"生成计划失败: {e}", file=sys.stderr)
+            plan_task.status = "failed"
+            plan_task.ended_at = time.time()
+            plan_task.elapsed_ms = int((time.perf_counter() - started) * 1000)
+            plan_task.error = str(e)[:800]
+            if bool(getattr(args, "json_output", False)):
+                print(
+                    json.dumps(
+                        {
+                            "plan_schema_version": "1.0",
+                            "ok": False,
+                            "error": "llm_error",
+                            "message": str(e),
+                            "generated_at": datetime.now(UTC).isoformat(),
+                            "goal": goal,
+                            "workspace": settings.workspace,
+                            "provider": settings.provider,
+                            "model": settings.model,
+                            "task": plan_task.to_dict(),
+                            "usage": get_usage_counters(),
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print(f"生成计划失败: {e}", file=sys.stderr)
             return 2
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         usage = get_usage_counters()
+        plan_task.ended_at = time.time()
+        plan_task.elapsed_ms = elapsed_ms
+        plan_task.status = "completed"
         if args.json_output:
             payload = {
+                "plan_schema_version": "1.0",
+                "ok": True,
+                "generated_at": datetime.now(UTC).isoformat(),
                 "goal": goal,
                 "plan": plan_text.strip(),
                 "workspace": settings.workspace,
@@ -788,6 +890,7 @@ def main(argv: list[str] | None = None) -> int:
                 "model": settings.model,
                 "elapsed_ms": elapsed_ms,
                 "usage": usage,
+                "task": plan_task.to_dict(),
             }
             print(json.dumps(payload, ensure_ascii=False))
         else:
@@ -978,18 +1081,18 @@ def main(argv: list[str] | None = None) -> int:
                 ans_preview = ""
                 if isinstance(ans, str) and ans.strip():
                     ans_preview = ans.strip()[:120] + ("…" if len(ans.strip()) > 120 else "")
-                details.append(
-                    {
-                        "name": p.name,
-                        "path": str(p),
-                        "messages_count": len(msg_list),
-                        "tool_calls_count": tc,
-                        "used_tools": used,
-                        "last_tool": last_tool,
-                        "error_count": err_count,
-                        "answer_preview": ans_preview,
-                    },
-                )
+                row: dict[str, object] = {
+                    "name": p.name,
+                    "path": str(p),
+                    "messages_count": len(msg_list),
+                    "tool_calls_count": tc,
+                    "used_tools": used,
+                    "last_tool": last_tool,
+                    "error_count": err_count,
+                    "answer_preview": ans_preview,
+                }
+                row.update(_session_file_json_extra(sess))
+                details.append(row)
         if args.json_output:
             arr = []
             for i, p in enumerate(files):
@@ -1001,6 +1104,12 @@ def main(argv: list[str] | None = None) -> int:
                 }
                 if args.details and i < len(details) and isinstance(details[i], dict):
                     item.update(details[i])
+                elif not args.details:
+                    try:
+                        sess = load_session(str(p))
+                        item.update(_session_file_json_extra(sess))
+                    except Exception:
+                        item["parse_error"] = True
                 arr.append(item)
             print(json.dumps(arr, ensure_ascii=False))
         else:
@@ -1019,6 +1128,7 @@ def main(argv: list[str] | None = None) -> int:
                             f"messages={d.get('messages_count')} "
                             f"tool_calls={d.get('tool_calls_count')} "
                             f"errors={d.get('error_count')} "
+                            f"events={d.get('events_count')} "
                             f"last_tool={d.get('last_tool')}",
                         )
                         ap = d.get("answer_preview")
@@ -1037,11 +1147,16 @@ def main(argv: list[str] | None = None) -> int:
         total_tool_calls = 0
         total_errors = 0
         by_model: dict[str, int] = {}
+        run_events_total = 0
+        sessions_with_events = 0
+        parse_skipped = 0
+        session_summaries: list[dict[str, Any]] = []
 
         for p in files:
             try:
                 sess = load_session(str(p))
             except Exception:
+                parse_skipped += 1
                 continue
             total += 1
             elapsed = sess.get("elapsed_ms")
@@ -1057,6 +1172,22 @@ def main(argv: list[str] | None = None) -> int:
             )
             total_tool_calls += tc
             total_errors += err_count
+            extra = _session_file_json_extra(sess)
+            evc = int(extra.get("events_count") or 0)
+            run_events_total += evc
+            if evc > 0:
+                sessions_with_events += 1
+            session_summaries.append(
+                {
+                    "name": p.name,
+                    "events_count": evc,
+                    "task_id": extra.get("task_id"),
+                    "total_tokens": extra.get("total_tokens"),
+                    "file_error_count": extra.get("error_count"),
+                    "tool_calls_count": tc,
+                    "message_tool_errors": err_count,
+                },
+            )
 
         summary = {
             "sessions_count": total,
@@ -1069,7 +1200,15 @@ def main(argv: list[str] | None = None) -> int:
             "models_distribution": by_model,
         }
         if args.json_output:
-            print(json.dumps(summary, ensure_ascii=False))
+            summary_json = {
+                **summary,
+                "stats_schema_version": "1.0",
+                "run_events_total": run_events_total,
+                "sessions_with_events": sessions_with_events,
+                "parse_skipped": parse_skipped,
+                "session_summaries": session_summaries,
+            }
+            print(json.dumps(summary_json, ensure_ascii=False))
         else:
             print(f"sessions_count={summary['sessions_count']}")
             print(f"elapsed_ms_total={summary['elapsed_ms_total']}")
@@ -1078,6 +1217,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"tool_calls_avg={summary['tool_calls_avg']:.2f}")
             print(f"tool_errors_total={summary['tool_errors_total']}")
             print(f"tool_errors_avg={summary['tool_errors_avg']:.2f}")
+            print(
+                f"run_events_total={run_events_total} "
+                f"sessions_with_events={sessions_with_events} "
+                f"parse_skipped={parse_skipped}",
+            )
             if by_model:
                 print("models_distribution:")
                 for m, cnt in by_model.items():
@@ -1092,14 +1236,35 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
-        result = run_quality_gate(
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        _print_hook_status(
             settings,
-            enable_compile=settings.quality_gate_compile and not bool(args.no_compile),
-            enable_test=settings.quality_gate_test and not bool(args.no_test),
-            enable_lint=bool(args.lint) or settings.quality_gate_lint,
-            enable_security_scan=bool(args.security_scan) or settings.quality_gate_security_scan,
-            report_dir=getattr(args, "report_dir", None),
+            event="quality_gate_start",
+            json_output=bool(args.json_output),
         )
+        try:
+            result = run_quality_gate(
+                settings,
+                enable_compile=settings.quality_gate_compile
+                and not bool(args.no_compile),
+                enable_test=settings.quality_gate_test and not bool(args.no_test),
+                enable_lint=bool(args.lint) or settings.quality_gate_lint,
+                enable_typecheck=bool(args.typecheck)
+                or settings.quality_gate_typecheck,
+                enable_security_scan=bool(args.security_scan)
+                or settings.quality_gate_security_scan,
+                report_dir=getattr(args, "report_dir", None),
+            )
+        finally:
+            _print_hook_status(
+                settings,
+                event="quality_gate_end",
+                json_output=bool(args.json_output),
+            )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -1150,7 +1315,26 @@ def main(argv: list[str] | None = None) -> int:
             rule_flags["openai_like_key"] = False
         if bool(args.disable_private_key):
             rule_flags["private_key_header"] = False
-        result = run_security_scan(settings, exclude_globs=ex_arg, rule_flags=rule_flags)
+        _print_hook_status(
+            settings,
+            event="security_scan_start",
+            json_output=bool(args.json_output),
+        )
+        try:
+            result = run_security_scan(
+                settings,
+                exclude_globs=ex_arg,
+                rule_flags=rule_flags,
+            )
+        except Exception as e:
+            print(f"安全扫描失败: {e}", file=sys.stderr)
+            return 2
+        finally:
+            _print_hook_status(
+                settings,
+                event="security_scan_end",
+                json_output=bool(args.json_output),
+            )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -1169,109 +1353,162 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if bool(result.get("ok")) else 2
 
     if args.command == "memory":
-        root = Path.cwd().resolve()
-        mem_dir = root / "memory" / "instincts"
-        mem_dir.mkdir(parents=True, exist_ok=True)
-        if args.memory_action == "extract":
-            files = list_session_files(cwd=str(root), pattern=str(args.pattern), limit=int(args.limit))
-            written: list[str] = []
-            entries_appended = 0
-            for p in files:
-                try:
-                    sess = load_session(str(p))
-                except Exception:
-                    continue
-                instincts = extract_basic_instincts_from_session(sess)
-                out = save_instincts(root, instincts)
-                if out:
-                    written.append(str(out))
-                if extract_memory_entries_from_session(root, sess) is not None:
-                    entries_appended += 1
-            print(
-                json.dumps(
-                    {"written": written, "entries_appended": entries_appended},
-                    ensure_ascii=False,
-                ),
+        settings_mem = Settings.from_env(config_path=None)
+        mem_json = bool(getattr(args, "json_output", False))
+        _print_hook_status(
+            settings_mem,
+            event="memory_start",
+            json_output=mem_json,
+        )
+        try:
+            root = Path.cwd().resolve()
+            mem_dir = root / "memory" / "instincts"
+            mem_dir.mkdir(parents=True, exist_ok=True)
+            if args.memory_action == "extract":
+                files = list_session_files(
+                    cwd=str(root),
+                    pattern=str(args.pattern),
+                    limit=int(args.limit),
+                )
+                written: list[str] = []
+                entries_appended = 0
+                for p in files:
+                    try:
+                        sess = load_session(str(p))
+                    except Exception:
+                        continue
+                    instincts = extract_basic_instincts_from_session(sess)
+                    out = save_instincts(root, instincts)
+                    if out:
+                        written.append(str(out))
+                    if extract_memory_entries_from_session(root, sess) is not None:
+                        entries_appended += 1
+                print(
+                    json.dumps(
+                        {"written": written, "entries_appended": entries_appended},
+                        ensure_ascii=False,
+                    ),
+                )
+                return 0
+            if args.memory_action == "list":
+                rows = load_memory_entries(root)[: int(args.limit)]
+                if args.json_output:
+                    print(json.dumps(rows, ensure_ascii=False))
+                else:
+                    for row in rows:
+                        tid = row.get("id", "")
+                        cat = row.get("category", "")
+                        snippet = str(row.get("text", ""))[:120].replace("\n", " ")
+                        print(f"{tid}\t{cat}\t{snippet}")
+                return 0
+            if args.memory_action == "instincts":
+                files = sorted(
+                    mem_dir.glob("instincts-*.md"),
+                    key=lambda p: p.stat().st_mtime,
+                    reverse=True,
+                )
+                arr = [str(p) for p in files[: int(args.limit)]]
+                if args.json_output:
+                    print(json.dumps(arr, ensure_ascii=False))
+                else:
+                    for p in arr:
+                        print(p)
+                return 0
+            if args.memory_action == "search":
+                hits = search_memory_entries(
+                    root,
+                    str(args.query),
+                    limit=int(args.limit),
+                )
+                if args.json_output:
+                    print(json.dumps(hits, ensure_ascii=False))
+                else:
+                    for row in hits:
+                        print(
+                            f"{row.get('id')}\t{row.get('category')}\t{row.get('text', '')[:200]}",
+                        )
+                return 0
+            if args.memory_action == "prune":
+                n = prune_expired_memory_entries(root)
+                if args.json_output:
+                    print(json.dumps({"removed": n}, ensure_ascii=False))
+                else:
+                    print(f"removed={n}")
+                return 0
+            if args.memory_action == "export":
+                target = Path(args.file).expanduser().resolve()
+                files = sorted(
+                    mem_dir.glob("instincts-*.md"),
+                    key=lambda p: p.stat().st_mtime,
+                )
+                payload = [
+                    {"path": str(p), "content": p.read_text(encoding="utf-8")}
+                    for p in files
+                ]
+                target.write_text(
+                    json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
+                    encoding="utf-8",
+                )
+                print(str(target))
+                return 0
+            if args.memory_action == "import":
+                src = Path(args.file).expanduser().resolve()
+                arr = json.loads(src.read_text(encoding="utf-8"))
+                if not isinstance(arr, list):
+                    raise ValueError("memory import file must be array")
+                count = 0
+                for i, item in enumerate(arr, start=1):
+                    if not isinstance(item, dict):
+                        continue
+                    content = item.get("content")
+                    if not isinstance(content, str):
+                        continue
+                    p = mem_dir / f"instincts-import-{i:04d}.md"
+                    p.write_text(content, encoding="utf-8")
+                    count += 1
+                print(json.dumps({"imported": count}, ensure_ascii=False))
+                return 0
+        finally:
+            _print_hook_status(
+                settings_mem,
+                event="memory_end",
+                json_output=mem_json,
             )
-            return 0
-        if args.memory_action == "list":
-            rows = load_memory_entries(root)[: int(args.limit)]
-            if args.json_output:
-                print(json.dumps(rows, ensure_ascii=False))
-            else:
-                for row in rows:
-                    tid = row.get("id", "")
-                    cat = row.get("category", "")
-                    snippet = str(row.get("text", ""))[:120].replace("\n", " ")
-                    print(f"{tid}\t{cat}\t{snippet}")
-            return 0
-        if args.memory_action == "instincts":
-            files = sorted(mem_dir.glob("instincts-*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
-            arr = [str(p) for p in files[: int(args.limit)]]
-            if args.json_output:
-                print(json.dumps(arr, ensure_ascii=False))
-            else:
-                for p in arr:
-                    print(p)
-            return 0
-        if args.memory_action == "search":
-            hits = search_memory_entries(root, str(args.query), limit=int(args.limit))
-            if args.json_output:
-                print(json.dumps(hits, ensure_ascii=False))
-            else:
-                for row in hits:
-                    print(f"{row.get('id')}\t{row.get('category')}\t{row.get('text', '')[:200]}")
-            return 0
-        if args.memory_action == "prune":
-            n = prune_expired_memory_entries(root)
-            if args.json_output:
-                print(json.dumps({"removed": n}, ensure_ascii=False))
-            else:
-                print(f"removed={n}")
-            return 0
-        if args.memory_action == "export":
-            target = Path(args.file).expanduser().resolve()
-            files = sorted(mem_dir.glob("instincts-*.md"), key=lambda p: p.stat().st_mtime)
-            payload = [{"path": str(p), "content": p.read_text(encoding="utf-8")} for p in files]
-            target.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-            print(str(target))
-            return 0
-        if args.memory_action == "import":
-            src = Path(args.file).expanduser().resolve()
-            arr = json.loads(src.read_text(encoding="utf-8"))
-            if not isinstance(arr, list):
-                raise ValueError("memory import file must be array")
-            count = 0
-            for i, item in enumerate(arr, start=1):
-                if not isinstance(item, dict):
-                    continue
-                content = item.get("content")
-                if not isinstance(content, str):
-                    continue
-                p = mem_dir / f"instincts-import-{i:04d}.md"
-                p.write_text(content, encoding="utf-8")
-                count += 1
-            print(json.dumps({"imported": count}, ensure_ascii=False))
-            return 0
 
     if args.command == "cost":
         if args.cost_action == "budget":
+            settings_cost = Settings.from_env(config_path=None)
+            _print_hook_status(
+                settings_cost,
+                event="cost_budget_start",
+                json_output=True,
+            )
             try:
-                st_cost = Settings.from_env(config_path=None)
-            except FileNotFoundError:
-                st_cost = None
-            cfg_max = int(st_cost.cost_budget_max_tokens) if st_cost is not None else 50_000
-            max_tokens = int(args.max_tokens) if args.max_tokens is not None else cfg_max
-            agg = aggregate_sessions(cwd=os.getcwd(), limit=200)
-            total_tokens = int(agg.get("total_tokens", 0))
-            state = "pass"
-            if total_tokens > max_tokens:
-                state = "fail"
-            elif total_tokens > int(max_tokens * 0.8):
-                state = "warn"
-            payload = {"state": state, "total_tokens": total_tokens, "max_tokens": max_tokens}
-            print(json.dumps(payload, ensure_ascii=False))
-            return 0 if state != "fail" else 2
+                cfg_max = int(settings_cost.cost_budget_max_tokens)
+                max_tokens = (
+                    int(args.max_tokens) if args.max_tokens is not None else cfg_max
+                )
+                agg = aggregate_sessions(cwd=os.getcwd(), limit=200)
+                total_tokens = int(agg.get("total_tokens", 0))
+                state = "pass"
+                if total_tokens > max_tokens:
+                    state = "fail"
+                elif total_tokens > int(max_tokens * 0.8):
+                    state = "warn"
+                payload = {
+                    "state": state,
+                    "total_tokens": total_tokens,
+                    "max_tokens": max_tokens,
+                }
+                print(json.dumps(payload, ensure_ascii=False))
+                rc = 0 if state != "fail" else 2
+            finally:
+                _print_hook_status(
+                    settings_cost,
+                    event="cost_budget_end",
+                    json_output=True,
+                )
+            return rc
 
     if args.command == "export":
         try:
@@ -1279,23 +1516,57 @@ def main(argv: list[str] | None = None) -> int:
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
-        result = export_target(settings, str(args.target))
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        _print_hook_status(
+            settings,
+            event="export_start",
+            json_output=True,
+        )
+        try:
+            result = export_target(settings, str(args.target))
+        finally:
+            _print_hook_status(
+                settings,
+                event="export_end",
+                json_output=True,
+            )
         print(json.dumps(result, ensure_ascii=False))
         return 0
 
     if args.command == "observe":
-        obs = build_observe_payload(
-            cwd=os.getcwd(),
-            pattern=str(args.pattern),
-            limit=int(args.limit),
+        settings_obs = Settings.from_env(config_path=None)
+        obs_json = bool(getattr(args, "json_output", False))
+        _print_hook_status(
+            settings_obs,
+            event="observe_start",
+            json_output=obs_json,
         )
-        if args.json_output:
-            print(json.dumps(obs, ensure_ascii=False))
-        else:
-            ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
-            print(
-                f"schema={obs.get('schema_version')} sessions={obs.get('sessions_count')} "
-                f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')}",
+        try:
+            obs = build_observe_payload(
+                cwd=os.getcwd(),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+            )
+            if args.json_output:
+                print(json.dumps(obs, ensure_ascii=False))
+            else:
+                ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+                print(
+                    f"schema={obs.get('schema_version')} sessions={obs.get('sessions_count')} "
+                    f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
+                    f"run_events_total={ag.get('run_events_total', 0)}",
+                )
+        finally:
+            _print_hook_status(
+                settings_obs,
+                event="observe_end",
+                json_output=obs_json,
             )
         return 0
 
@@ -1312,11 +1583,26 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
+        _print_hook_status(
+            settings,
+            event="workflow_start",
+            json_output=bool(args.json_output),
+        )
         try:
             result = run_workflow(settings, args.file)
         except Exception as e:
             print(f"运行 workflow 失败: {e}", file=sys.stderr)
+            _print_hook_status(
+                settings,
+                event="workflow_end",
+                json_output=bool(args.json_output),
+            )
             return 2
+        _print_hook_status(
+            settings,
+            event="workflow_end",
+            json_output=bool(args.json_output),
+        )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -1458,7 +1744,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("--- messages (last assistant) ---", file=sys.stderr)
                 for m in final["messages"][-6:]:
                     role = m.get("role", "")
-                    content = (m.get("content") or "")[:2000]
+                    content = (m.get("content", "") or "")[:2000]
                     print(f"[{role}]\n{content}\n", file=sys.stderr)
 
             usage = get_usage_counters()
@@ -1471,12 +1757,29 @@ def main(argv: list[str] | None = None) -> int:
                     enable_compile=settings.quality_gate_compile,
                     enable_test=settings.quality_gate_test,
                     enable_lint=settings.quality_gate_lint,
+                    enable_typecheck=settings.quality_gate_typecheck,
                     enable_security_scan=settings.quality_gate_security_scan,
                 )
+            msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
+            tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
+            cmd = str(getattr(args, "command", "run"))
+            run_events: list[dict[str, object]] = [
+                {
+                    "event": "run.started",
+                    "command": cmd,
+                    "task_id": task.task_id,
+                },
+                {
+                    "event": "run.finished",
+                    "command": cmd,
+                    "task_id": task.task_id,
+                    "finished": bool(final.get("finished")),
+                    "status": task.status,
+                },
+            ]
             if args.json_output:
-                msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
-                tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
                 payload = {
+                    "run_schema_version": "1.0",
                     "answer": (final.get("answer") or "").strip(),
                     "iteration": final.get("iteration"),
                     "finished": final.get("finished"),
@@ -1495,6 +1798,7 @@ def main(argv: list[str] | None = None) -> int:
                     "error_count": error_count,
                     "task": task.to_dict(),
                     "post_gate": gate_result,
+                    "events": run_events,
                 }
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -1509,6 +1813,7 @@ def main(argv: list[str] | None = None) -> int:
             if save_session_path:
                 payload = {
                     "version": 2,
+                    "run_schema_version": "1.0",
                     "goal": goal,
                     "workspace": settings.workspace,
                     "config": settings.config_loaded_from,
@@ -1519,9 +1824,15 @@ def main(argv: list[str] | None = None) -> int:
                     "total_tokens": usage.get("total_tokens", 0),
                     "prompt_tokens": usage.get("prompt_tokens", 0),
                     "completion_tokens": usage.get("completion_tokens", 0),
+                    "tool_calls_count": tool_calls_count,
+                    "used_tools": used_tools,
+                    "last_tool": last_tool,
+                    "error_count": error_count,
                     "messages": final.get("messages") or [],
                     "answer": final.get("answer"),
                     "task": task.to_dict(),
+                    "events": run_events,
+                    "post_gate": gate_result,
                 }
                 try:
                     save_session(str(save_session_path), payload)

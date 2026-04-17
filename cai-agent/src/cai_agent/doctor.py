@@ -37,6 +37,13 @@ def run_doctor(settings: Settings) -> int:
     print("MCP 开关:", settings.mcp_enabled)
     print("MCP URL: ", settings.mcp_base_url or "(未配置)")
     print("MCP 超时:", settings.mcp_timeout_sec, "s")
+    print("fetch_url:", "启用" if settings.fetch_url_enabled else "关闭", end="")
+    if settings.fetch_url_enabled:
+        print(
+            f" | 白名单 {len(settings.fetch_url_allowed_hosts)} 项 | 权限={settings.permission_fetch_url}",
+        )
+    else:
+        print()
     print()
 
     if root.is_dir():
@@ -62,4 +69,10 @@ def run_doctor(settings: Settings) -> int:
         inside = False
 
     print("Git:     ", "在工作树内" if inside else "非 Git 目录或未安装 git")
+    print()
+    print("建议下一步:")
+    print("  1) 若尚未生成配置: cai-agent init")
+    print("  2) 编辑 cai-agent.toml 中 [llm]（base_url / model / api_key）")
+    print("  3) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
+    print("  4) 新用户与 CI 说明见仓库 docs/ONBOARDING.zh-CN.md")
     return 0

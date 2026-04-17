@@ -1,6 +1,6 @@
 # Cai_Agent P0-P2 开发落地清单
 
-本清单对应“功能对比后进一步开发列表”，用于工程执行与验收。
+本清单对应「功能对比后的工程执行与验收」，并与产品北极星对齐：**在单一运行时（Python / LangGraph / OpenAI 兼容）内实现三源融合「完全体」**——详见 [PRODUCT_VISION_FUSION.zh-CN.md](PRODUCT_VISION_FUSION.zh-CN.md)；发版前 parity 勾选约定见 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)；维度级缺口与发布门禁见 [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md)。
 
 ## P0（2-4 周）可用性底座
 
@@ -52,11 +52,11 @@
 
 ### 4) 质量门禁
 - 已落地：
-  - `cai-agent quality-gate`（编译检查 + pytest）
+  - `cai-agent quality-gate`（compileall、pytest、可选 ruff、可选 mypy、可选 `[[quality_gate.extra]]`、可选内嵌 security-scan）
   - 模块：`cai-agent/src/cai_agent/quality_gate.py`
 - 下一步：
-  - 增加 typecheck/lint/security 扫描项
-  - 支持仓库自定义 gate 清单（TOML 配置）
+  - 按仓库语言栈扩展默认 gate 模板（如前端 monorepo）
+  - 报告与 CI 徽章消费示例
 
 ## P2（8-12 周）生态与平台化
 

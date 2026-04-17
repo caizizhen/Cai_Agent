@@ -1,6 +1,6 @@
 [project]
 name = "cai-agent"
-version = "0.5.2"
+version = "0.5.7"
 description = "Local LM Studio agent with LangGraph and sandboxed tools"
 requires-python = ">=3.11"
 dependencies = [
@@ -29,4 +29,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cai_agent = ["templates/*.toml"]
+cai_agent = ["templates/*.toml", "schemas/*.json"]

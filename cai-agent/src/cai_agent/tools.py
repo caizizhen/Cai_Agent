@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import glob
+import ipaddress
 import json
 import os
 import subprocess
 import time
 from dataclasses import dataclass
-from urllib.parse import quote
 from pathlib import Path
+from urllib.parse import quote, urlparse
 from typing import Any, Callable
 
 import httpx
@@ -407,6 +408,115 @@ def _mcp_cache_key(settings: Settings) -> str:
     return f"{settings.mcp_base_url}|{settings.mcp_api_key or ''}"
 
 
+def _hostname_matches_fetch_allowlist(host: str, patterns: tuple[str, ...]) -> bool:
+    h = host.lower().strip().rstrip(".")
+    for raw in patterns:
+        pat = raw.lower().strip().rstrip(".")
+        if not pat:
+            continue
+        if pat.startswith("*."):
+            suf = pat[2:]
+            if h == suf or h.endswith("." + suf):
+                return True
+        else:
+            if h == pat or h.endswith("." + pat):
+                return True
+    return False
+
+
+_BLOCKED_FETCH_HOSTNAMES = frozenset(
+    {
+        "localhost",
+        "metadata.google.internal",
+        "metadata.goog",
+        "metadata",
+    },
+)
+
+
+def _reject_blocked_fetch_hostname(host: str) -> None:
+    h = host.lower().strip(".")
+    if h in _BLOCKED_FETCH_HOSTNAMES:
+        raise SandboxError(f"fetch_url 拒绝访问主机名: {host!r}")
+
+
+def _reject_private_ip_literal(host: str) -> None:
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return
+    if (
+        addr.is_private
+        or addr.is_loopback
+        or addr.is_link_local
+        or addr.is_reserved
+        or addr.is_multicast
+    ):
+        raise SandboxError("fetch_url 拒绝访问保留/私网/组播地址")
+
+
+def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
+    if not settings.fetch_url_enabled:
+        raise SandboxError(
+            "fetch_url 未启用（配置 [fetch_url].enabled=true 或 CAI_FETCH_URL_ENABLED=1）"
+        )
+    if not settings.fetch_url_allowed_hosts:
+        raise SandboxError(
+            "fetch_url 需要配置主机白名单 [fetch_url].allow_hosts 或 CAI_FETCH_URL_ALLOW_HOSTS"
+        )
+    url_raw = str(args.get("url", "")).strip()
+    if not url_raw:
+        raise SandboxError("fetch_url 需要参数 url")
+    parsed = urlparse(url_raw)
+    if parsed.scheme.lower() != "https":
+        raise SandboxError("fetch_url 仅允许 https")
+    host = parsed.hostname
+    if not host:
+        raise SandboxError("fetch_url URL 无效：缺少主机名")
+    _reject_blocked_fetch_hostname(host)
+    _reject_private_ip_literal(host)
+    if not _hostname_matches_fetch_allowlist(host, settings.fetch_url_allowed_hosts):
+        raise SandboxError(f"fetch_url 主机不在白名单: {host!r}")
+
+    headers = {
+        "User-Agent": "cai-agent-fetch_url/1",
+        "Accept": "text/html,text/plain,application/json;q=0.9,*/*;q=0.1",
+    }
+    timeout = httpx.Timeout(settings.fetch_url_timeout_sec)
+    max_b = settings.fetch_url_max_bytes
+    with httpx.Client(
+        timeout=timeout,
+        trust_env=settings.http_trust_env,
+        follow_redirects=True,
+    ) as client:
+        try:
+            r = client.get(url_raw, headers=headers)
+        except httpx.TooManyRedirects as e:
+            return f"[fetch_url 失败] 重定向过多: {e}"
+        except httpx.HTTPError as e:
+            return f"[fetch_url 失败] {e}"
+    ct = (r.headers.get("content-type") or "").split(";")[0].strip()
+    body_bytes = r.content or b""
+    truncated = len(body_bytes) > max_b
+    chunk = body_bytes[:max_b]
+    try:
+        text = chunk.decode("utf-8")
+    except UnicodeDecodeError:
+        try:
+            text = chunk.decode("latin-1")
+        except UnicodeDecodeError:
+            text = f"[非 UTF-8 响应，显示十六进制前缀 {chunk[:200]!r}…]"
+    if len(text) > 120_000:
+        text = text[:120_000] + "\n...[已截断]"
+    head = (
+        f"[fetch_url] HTTP {r.status_code} url={r.url!s} "
+        f"content-type={ct or '(none)'} bytes={len(body_bytes)}"
+    )
+    if truncated:
+        head += f" truncated_to={max_b}"
+    return f"{head}\n\n{text}"
+
+
 def tool_mcp_list_tools(settings: Settings, args: dict[str, Any]) -> str:
     force = bool(args.get("force", False))
     base = _mcp_base(settings)
@@ -500,6 +610,8 @@ def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
         return tool_mcp_list_tools(settings, args)
     if name == "mcp_call_tool":
         return tool_mcp_call_tool(settings, args)
+    if name == "fetch_url":
+        return tool_fetch_url(settings, args)
     raise SandboxError(f"未知工具: {name}")
 
 
@@ -514,6 +626,7 @@ def tools_spec_markdown() -> str:
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
+- fetch_url: {"url": "https://..."} — 仅 HTTPS GET；须在配置中启用 [fetch_url] 并设置 allow_hosts 白名单；受 permissions.fetch_url 约束
 - write_file: {"path": "相对路径", "content": "文件全文"}
 - run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符
 """

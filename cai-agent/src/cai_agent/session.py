@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from cai_agent.task_state import new_task
 
 
 def save_session(path: str, payload: dict[str, Any]) -> None:
@@ -86,6 +89,8 @@ def build_observe_payload(
     limit: int = 100,
 ) -> dict[str, Any]:
     """稳定顶层键集合，供 dashboard / CI 消费。"""
+    obs_task = new_task("observe")
+    obs_task.status = "running"
     files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     base = Path(cwd or ".").expanduser().resolve()
     sessions: list[dict[str, Any]] = []
@@ -111,6 +116,10 @@ def build_observe_payload(
         em = int(s["elapsed_ms"]) if isinstance(s.get("elapsed_ms"), int) else 0
         total_elapsed += em
         model = s.get("model")
+        ev = s.get("events")
+        events_count = len(ev) if isinstance(ev, list) else 0
+        td = s.get("task")
+        task_id = str(td.get("task_id", "")) if isinstance(td, dict) else None
         try:
             rel_path = str(p.relative_to(base))
         except ValueError:
@@ -124,23 +133,50 @@ def build_observe_payload(
                 "error_count": ec,
                 "elapsed_ms": em,
                 "model": model if isinstance(model, str) else None,
+                "task_id": task_id,
+                "events_count": events_count,
+                "run_schema_version": s.get("run_schema_version")
+                if isinstance(s.get("run_schema_version"), str)
+                else None,
             },
         )
     n = len(sessions)
+    run_events_total = sum(int(s.get("events_count") or 0) for s in sessions)
+    sessions_with_events = sum(
+        1 for s in sessions if int(s.get("events_count") or 0) > 0
+    )
+    ended = time.time()
+    obs_task.ended_at = ended
+    obs_task.elapsed_ms = int((ended - obs_task.started_at) * 1000)
+    obs_task.status = "completed"
+    ag = {
+        "total_tokens": total_tokens,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "elapsed_ms_total": total_elapsed,
+        "failed_count": failed_count,
+        "failure_rate": (float(failed_count) / n) if n else 0.0,
+        "run_events_total": run_events_total,
+        "sessions_with_events": sessions_with_events,
+    }
+    events: list[dict[str, Any]] = [
+        {
+            "event": "observe.summarized",
+            "task_id": obs_task.task_id,
+            "sessions_count": n,
+            "workspace": str(base),
+            "aggregates": ag,
+        },
+    ]
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": datetime.now(UTC).isoformat(),
+        "task": obs_task.to_dict(),
+        "events": events,
         "workspace": str(base),
         "pattern": pattern,
         "limit": limit,
         "sessions_count": n,
         "sessions": sessions,
-        "aggregates": {
-            "total_tokens": total_tokens,
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "elapsed_ms_total": total_elapsed,
-            "failed_count": failed_count,
-            "failure_rate": (float(failed_count) / n) if n else 0.0,
-        },
+        "aggregates": ag,
     }

@@ -7,7 +7,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 ## Documentation map
 
 - **Quick start**: Requirements → Install → Five-minute path.
-- **Design / parity**: Claude Code & Everything Claude Code alignment, tools & security (sections below).
+- **Design / parity**: Three-source fusion vision (Chinese PRD) + parity matrix + gap analysis; Claude Code & ECC alignment in implementation (sections below).
 - **Configuration**: TOML keys, env overrides, sample config.
 - **CLI & TUI**: Command reference and slash commands.
 - **Changelog**: `CHANGELOG.md` (English default); `CHANGELOG.zh-CN.md` (Chinese).
@@ -17,6 +17,8 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Goal | Example |
 |------|---------|
 | Plan only (no tools) | `cai-agent plan "Add auth; outline steps and risks"` |
+| Plan JSON (stable schema) | `cai-agent plan "..." --json` → `plan_schema_version`, `ok`, `generated_at`, `task`, `usage` (errors: `config_not_found` / `goal_empty` / `llm_error`) |
+| Session stats JSON | `cai-agent stats --json` → `stats_schema_version`, `run_events_total`, `session_summaries`, etc. |
 | Save plan to disk | `cai-agent plan "..." --write-plan ./PLAN.md` |
 | Run with an existing plan | `cai-agent run --plan-file ./PLAN.md "Implement step 1"` |
 | Machine-readable run | `cai-agent run --json "List open risks in the diff"` |
@@ -26,13 +28,13 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
 | Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts` |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
-| Observability | `cai-agent observe --json` (stable `schema_version` and aggregates) |
-| Cross-tool export | `cai-agent export --target cursor` or `codex` (manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
+| Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
+| Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
 | Plugin surface | `cai-agent plugins --json` (`health_score` heuristic) |
 
 ### Permissions (tools)
 
-In `cai-agent.toml`, `[permissions]` supports `write_file` and `run_command` with `allow`, `ask`, or `deny`. For `ask` in non-interactive mode, set **`CAI_AUTO_APPROVE=1`** or pass **`--auto-approve`** on `run` / `continue` / `command` / `agent` / `fix-build`.
+In `cai-agent.toml`, `[permissions]` supports `write_file`, `run_command`, and `fetch_url` with `allow`, `ask`, or `deny`. For `ask` in non-interactive mode, set **`CAI_AUTO_APPROVE=1`** or pass **`--auto-approve`** on `run` / `continue` / `command` / `agent` / `fix-build`.
 
 ### Configuration priority
 
@@ -47,10 +49,18 @@ Do not commit real API keys.
 | File | Topic |
 |------|--------|
 | `docs/ARCHITECTURE.zh-CN.md` | Architecture |
-| `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem |
+| `docs/ONBOARDING.zh-CN.md` | First-run path and CI (`init` → `doctor` → `run`) |
+| `docs/CONTEXT_AND_COMPACT.zh-CN.md` | Context compact hints vs cost / observe |
+| `docs/PRODUCT_VISION_FUSION.zh-CN.md` | Product vision: fused “full stack” on unified runtime (L1/L2/L3) |
+| `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
+| `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
 | `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
 | `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
+| `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md` | Long-form backlog vs fusion vision |
+| `docs/MCP_WEB_RECIPE.zh-CN.md` | MCP-only web/search alternative to `fetch_url` |
+| `docs/QA_REGRESSION_LOGGING.md` | QA: where regression Markdown logs go; `QA_LOG_DIR` / `QA_SKIP_LOG` |
+| `docs/qa/runs/` | Auto-generated per-run reports (`regression-YYYYMMDD-HHmmss.md`) |
 | `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
 
 ---
@@ -124,15 +134,16 @@ cai-agent workflow workflow.json --json
 
 ## Alignment with Claude Code / Everything Claude Code
 
+- **North star**: A **fused “full product”** on a **single runtime** (this repo): maximize parity with `anthropics/claude-code` and harness governance patterns from `affaan-m/everything-claude-code`, using `ComeOnOliver/claude-code-analysis` as an **architecture checklist**—without adopting the official TS/Bun/Ink stack and without multi-CLI suite orchestration as the default. See `docs/PRODUCT_VISION_FUSION.zh-CN.md`, `docs/PARITY_MATRIX.zh-CN.md`, and `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`.
 - **Positioning**: Terminal agent similar in spirit to `anthropics/claude-code`, with rules/skills/safety influenced by harness-style workflows (e.g. Everything Claude Code).
 - **Subsystems**:
-  - **Tools** (`cai_agent.tools`): read/write/search/git/MCP; workspace sandbox in `cai_agent.sandbox` and allowlisted `run_command`.
+  - **Tools** (`cai_agent.tools`): read/write/search/git/MCP; optional gated **`fetch_url`** (HTTPS GET + host allowlist); workspace sandbox in `cai_agent.sandbox` and allowlisted `run_command`.
   - **Orchestration** (`cai_agent.graph`): LangGraph loop; `run` / `continue` / `sessions` for minimal session management.
   - **TUI** (`cai_agent.tui`): Textual REPL with `/status`, `/models`, `/mcp`, `/save`, `/load`, etc.
   - **Safety**: path confinement, command allowlist, read-only git tools, MCP timeouts/auth.
 - **Content**: `rules/common`, `rules/python`, `skills/`, plus `commands/`, `agents/`, `hooks/` as the extensibility surface.
 
-See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/ROADMAP_EXECUTION.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`.
+See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/ROADMAP_EXECUTION.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
 
 ## Architecture (high level)
 
@@ -373,11 +384,11 @@ Goal → tools → final answer.
 
 ### `cai-agent plan`
 
-Read-only plan text; use `--write-plan path.md` to persist.
+Read-only plan text; use `--write-plan path.md` to persist. **`plan --json`** adds stable keys: `plan_schema_version`, `generated_at`, `task`, `usage`, plus `goal` / `plan` / `workspace` / `model`.
 
 ### `cai-agent run --json`
 
-Machine-readable payload: `answer`, `iteration`, `finished`, `provider`, `model`, `elapsed_ms`, tool stats, tokens, etc.
+Machine-readable payload: `answer`, `iteration`, `finished`, `provider`, `model`, `elapsed_ms`, tool stats, tokens, `run_schema_version`, `events`, etc.
 
 ## End-to-end demo (analyze → plan → workflow → sessions)
 
@@ -491,6 +502,8 @@ py scripts/run_regression.py
 ```
 
 `scripts/run_regression.py` shells out to the installed `cai-agent`. `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
+
+**Regression audit trail**: each successful or failed run writes a timestamped Markdown report under `docs/qa/runs/` (override with `QA_LOG_DIR`; disable with `QA_SKIP_LOG=1`). See `docs/QA_REGRESSION_LOGGING.md` (English) and `docs/QA_REGRESSION_LOGGING.zh-CN.md` (Chinese).
 
 Keep **`README.md` / `README.zh-CN.md`** and **`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** in sync when user-facing behavior changes.
 

@@ -32,3 +32,11 @@ jobs:
 
       - name: CLI regression script
         run: python scripts/run_regression.py
+
+      - name: Upload QA regression Markdown log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-regression-logs-py${{ matrix.python-version }}
+          path: docs/qa/runs/regression-*.md
+          if-no-files-found: ignore

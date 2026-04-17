@@ -8,6 +8,17 @@
 - `session-start.md`：会话开始时建议动作。
 - `session-end.md`：会话结束时建议动作。
 
+## CLI 识别的 `event` 取值（`hooks.json` 中 `event` 字段）
+
+- `session_start` / `session_end`：`cai-agent run` / `continue` / `command` / `agent` / `fix-build` 包裹一次模型调用。
+- `workflow_start` / `workflow_end`：`cai-agent workflow` 整次多步执行前后（失败时仍会在返回前触发 `workflow_end`）。
+- `quality_gate_start` / `quality_gate_end`：包裹独立子命令 `cai-agent quality-gate` 的一次执行（`fix-build` 内嵌调用的门禁不触发这两项，以免重复刷屏）。
+- `security_scan_start` / `security_scan_end`：包裹 `cai-agent security-scan`；扫描抛错时仍会在 `return` 前触发 `security_scan_end`。
+- `memory_start` / `memory_end`：包裹 `cai-agent memory` 各子命令整段执行（子命令 `return` 前会先跑 `memory_end`）。
+- `export_start` / `export_end`：包裹 `cai-agent export`（该命令 stdout 恒为 JSON，钩子 stderr 在非交互脚本中通常关闭）。
+- `observe_start` / `observe_end`：包裹 `cai-agent observe`；人类可读一行摘要末尾会带 `run_events_total=…`（与 JSON 中 `aggregates` 对齐）。
+- `cost_budget_start` / `cost_budget_end`：包裹 `cai-agent cost budget`（stdout 恒为一行 JSON）。
+
 ## 设计原则
 
 - 可控：所有 hook 支持开关或按环境禁用。

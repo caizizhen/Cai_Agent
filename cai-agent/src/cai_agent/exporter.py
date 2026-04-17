@@ -23,6 +23,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
     manifest_core = {
         "exporter": "cai-agent",
         "schema": "export-v2",
+        "manifest_version": "2.1.0",
         "target": t,
     }
 

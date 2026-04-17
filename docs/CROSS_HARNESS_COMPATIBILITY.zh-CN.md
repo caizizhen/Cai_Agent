@@ -34,6 +34,12 @@
   - `.codex/`
   - `.opencode/`
 
+## Manifest 版本（`cai-export-manifest.json`）
+
+- `schema`：固定为 `export-v2`，表示本仓库导出器的 JSON 外形代际。
+- `manifest_version`：语义化版本（当前 **2.1.0**），仅在增加字段、改变 `copied` 语义或目标目录约定时递增；与 ECC 等多 harness 生态对齐时，消费方可按 `manifest_version` 做兼容分支。
+- `target`：`cursor` | `codex` | `opencode`。
+
 ## 验收条件（P2）
 
 - 同一仓库可导出至少两种 harness 配置

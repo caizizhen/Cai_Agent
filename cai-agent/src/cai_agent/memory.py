@@ -7,6 +7,35 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Iterable, List
 
+MEMORY_ENTRY_V1_FIELDS = frozenset(
+    {"id", "category", "text", "confidence", "expires_at", "created_at"},
+)
+
+
+def validate_memory_entry_row(row: dict[str, Any]) -> list[str]:
+    """校验与 memory_entry_v1.schema.json 一致的 JSONL 行（不依赖 jsonschema 运行时）。"""
+    errs: list[str] = []
+    extra = set(row.keys()) - MEMORY_ENTRY_V1_FIELDS
+    if extra:
+        errs.append(f"不允许的字段: {sorted(extra)}")
+    for key in ("id", "category", "created_at"):
+        v = row.get(key)
+        if not isinstance(v, str) or not v.strip():
+            errs.append(f"{key} 必须为非空字符串")
+    if "text" not in row or not isinstance(row["text"], str):
+        errs.append("text 必须为 string")
+    conf = row.get("confidence")
+    if isinstance(conf, bool) or not isinstance(conf, int | float):
+        errs.append("confidence 必须为数字")
+    else:
+        c = float(conf)
+        if c < 0.0 or c > 1.0:
+            errs.append("confidence 须在 0~1")
+    exp = row.get("expires_at")
+    if exp is not None and exp != "" and not isinstance(exp, str):
+        errs.append("expires_at 须为 string 或 null")
+    return errs
+
 
 @dataclass(frozen=True)
 class Instinct:
@@ -59,6 +88,10 @@ def append_memory_entry(
         "expires_at": expires_at,
         "created_at": created,
     }
+    bad = validate_memory_entry_row(row)
+    if bad:
+        msg = "; ".join(bad)
+        raise ValueError(msg)
     path = _entries_path(root)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")

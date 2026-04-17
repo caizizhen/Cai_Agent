@@ -36,6 +36,10 @@ class WorkflowCliTests(unittest.TestCase):
                     rc = main(["workflow", str(wf_path), "--json"])
                 payload = json.loads(buf.getvalue().strip())
                 self.assertIn("steps", payload)
+                self.assertIn("events", payload)
+                self.assertTrue(isinstance(payload["events"], list))
+                self.assertIn("task", payload)
+                self.assertEqual(payload["task"].get("type"), "workflow")
             finally:
                 if old_mock is None:
                     os.environ.pop("CAI_MOCK", None)

@@ -85,10 +85,21 @@ class Settings:
     quality_gate_security_scan: bool
     quality_gate_test_policy: str
     quality_gate_lint_policy: str
+    quality_gate_typecheck: bool
+    quality_gate_typecheck_policy: str
+    quality_gate_typecheck_paths: tuple[str, ...]
+    quality_gate_extra_commands: tuple[tuple[str, ...], ...]
+    context_compact_after_iterations: int
+    context_compact_min_messages: int
     security_scan_exclude_globs: tuple[str, ...]
     security_scan_rule_overrides: tuple[tuple[str, bool], ...]
     permission_write_file: str
     permission_run_command: str
+    permission_fetch_url: str
+    fetch_url_enabled: bool
+    fetch_url_allowed_hosts: tuple[str, ...]
+    fetch_url_max_bytes: int
+    fetch_url_timeout_sec: float
     cost_budget_max_tokens: int
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
@@ -249,6 +260,48 @@ class Settings:
             lint_pol = "skip"
         quality_gate_lint_policy = lint_pol
 
+        quality_gate_typecheck = bool(qg.get("typecheck", False))
+        tcp = str(qg.get("typecheck_policy", "skip")).strip().lower()
+        if tcp not in ("skip", "fail_if_missing"):
+            tcp = "skip"
+        quality_gate_typecheck_policy = tcp
+        tpaths = qg.get("typecheck_paths")
+        tplist: list[str] = []
+        if isinstance(tpaths, list):
+            tplist = [str(x).strip() for x in tpaths if str(x).strip()]
+        elif isinstance(tpaths, str) and tpaths.strip():
+            tplist = [tpaths.strip()]
+        quality_gate_typecheck_paths = tuple(tplist)
+
+        extra_cmds: list[tuple[str, ...]] = []
+        raw_extra = qg.get("extra")
+        if isinstance(raw_extra, list):
+            for it in raw_extra:
+                if not isinstance(it, dict):
+                    continue
+                av = it.get("argv")
+                if isinstance(av, list) and av and all(isinstance(x, str) for x in av):
+                    tup = tuple(str(x) for x in av)
+                    if tup:
+                        extra_cmds.append(tup)
+        quality_gate_extra_commands = tuple(extra_cmds)
+
+        ctx = _section(file_data, "context")
+        cic = ctx.get("compact_after_iterations", 0)
+        if isinstance(cic, bool):
+            context_compact_after_iterations = int(cic)
+        elif isinstance(cic, int) and not isinstance(cic, bool):
+            context_compact_after_iterations = max(0, int(cic))
+        else:
+            context_compact_after_iterations = 0
+        cmm = ctx.get("compact_min_messages", 8)
+        if isinstance(cmm, bool):
+            context_compact_min_messages = int(cmm)
+        elif isinstance(cmm, int) and not isinstance(cmm, bool):
+            context_compact_min_messages = max(0, int(cmm))
+        else:
+            context_compact_min_messages = 8
+
         sec_ex = sec.get("exclude_globs")
         if isinstance(sec_ex, list):
             security_scan_exclude_globs = tuple(str(x).strip() for x in sec_ex if str(x).strip())
@@ -277,6 +330,54 @@ class Settings:
 
         permission_write_file = _perm_mode(perm.get("write_file"), "allow")
         permission_run_command = _perm_mode(perm.get("run_command"), "allow")
+        permission_fetch_url = _perm_mode(perm.get("fetch_url"), "deny")
+
+        fu = _section(file_data, "fetch_url")
+        if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
+            fetch_url_enabled = _env_bool("CAI_FETCH_URL_ENABLED", False)
+        else:
+            raw_fu_en = fu.get("enabled")
+            fetch_url_enabled = (
+                bool(raw_fu_en) if isinstance(raw_fu_en, bool) else False
+            )
+
+        raw_hosts_env = os.getenv("CAI_FETCH_URL_ALLOW_HOSTS")
+        if raw_hosts_env is not None and raw_hosts_env.strip():
+            fetch_url_allowed_hosts = tuple(
+                x.strip().lower()
+                for x in raw_hosts_env.split(",")
+                if x.strip()
+            )
+        else:
+            ah = fu.get("allow_hosts")
+            if isinstance(ah, list):
+                fetch_url_allowed_hosts = tuple(
+                    str(x).strip().lower() for x in ah if str(x).strip()
+                )
+            else:
+                fetch_url_allowed_hosts = ()
+
+        if os.getenv("CAI_FETCH_URL_MAX_BYTES") is not None:
+            fetch_url_max_bytes = max(1024, int(os.environ["CAI_FETCH_URL_MAX_BYTES"]))
+        else:
+            raw_mb = fu.get("max_bytes")
+            if isinstance(raw_mb, int) and not isinstance(raw_mb, bool):
+                fetch_url_max_bytes = max(1024, int(raw_mb))
+            elif isinstance(raw_mb, float):
+                fetch_url_max_bytes = max(1024, int(raw_mb))
+            else:
+                fetch_url_max_bytes = 500_000
+        fetch_url_max_bytes = min(fetch_url_max_bytes, 5_000_000)
+
+        if os.getenv("CAI_FETCH_URL_TIMEOUT_SEC") is not None:
+            fetch_url_timeout_sec = float(os.environ["CAI_FETCH_URL_TIMEOUT_SEC"])
+        else:
+            raw_ft = fu.get("timeout_sec")
+            if isinstance(raw_ft, int | float) and not isinstance(raw_ft, bool):
+                fetch_url_timeout_sec = float(raw_ft)
+            else:
+                fetch_url_timeout_sec = 30.0
+        fetch_url_timeout_sec = max(3.0, min(120.0, fetch_url_timeout_sec))
 
         cost_sec = _section(file_data, "cost")
         raw_max = cost_sec.get("budget_max_tokens")
@@ -313,10 +414,21 @@ class Settings:
             quality_gate_security_scan=quality_gate_security_scan,
             quality_gate_test_policy=quality_gate_test_policy,
             quality_gate_lint_policy=quality_gate_lint_policy,
+            quality_gate_typecheck=quality_gate_typecheck,
+            quality_gate_typecheck_policy=quality_gate_typecheck_policy,
+            quality_gate_typecheck_paths=quality_gate_typecheck_paths,
+            quality_gate_extra_commands=quality_gate_extra_commands,
+            context_compact_after_iterations=context_compact_after_iterations,
+            context_compact_min_messages=context_compact_min_messages,
             security_scan_exclude_globs=security_scan_exclude_globs,
             security_scan_rule_overrides=security_scan_rule_overrides,
             permission_write_file=permission_write_file,
             permission_run_command=permission_run_command,
+            permission_fetch_url=permission_fetch_url,
+            fetch_url_enabled=fetch_url_enabled,
+            fetch_url_allowed_hosts=fetch_url_allowed_hosts,
+            fetch_url_max_bytes=fetch_url_max_bytes,
+            fetch_url_timeout_sec=fetch_url_timeout_sec,
             cost_budget_max_tokens=cost_budget_max_tokens,
             config_loaded_from=config_loaded_from,
         )

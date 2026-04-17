@@ -4,6 +4,25 @@
 
 ### 0.5.0 (in development)
 
+- **`plan --json` + missing config**: `--config` pointing at a non-existent file now prints a JSON error (`error: config_not_found`) instead of only stderr.
+- **`stats` (text mode)**: One-line summary adds `run_events_total`, `sessions_with_events`, and `parse_skipped`.
+- **Hooks**: `observe_start` / `observe_end` wrap `observe`; `cost_budget_start` / `cost_budget_end` wrap `cost budget`; human `observe` line includes `run_events_total`.
+- **`stats --json`**: Adds `stats_schema_version` (`1.0`), `run_events_total`, `sessions_with_events`, `parse_skipped`, and `session_summaries` (per-file `events_count`, `task_id`, tokens, tool stats).
+- **`plan --json` errors**: Empty goal or LLM failure returns a JSON line with `ok: false`, `error` (`goal_empty` / `llm_error`), and `task` marked `failed` when applicable; success payloads include `ok: true`.
+- **Hooks**: `memory_start` / `memory_end` wrap `cai-agent memory`; `export_start` / `export_end` wrap `cai-agent export` (adds `-w` / `--workspace` on export).
+- **`plan --json`**: Stable envelope with `plan_schema_version` (`1.0`), `generated_at` (UTC ISO), and `task` (`plan-*` id via `new_task`).
+- **`sessions --json`**: Without `--details`, each row still tries to parse the session file and adds `events_count`, `run_schema_version`, `task_id`, `total_tokens`, and `error_count` when possible (`parse_error` on failure). `--details` text lines now include `events=…`.
+- **`security-scan` hooks**: `security_scan_start` / `security_scan_end` wrap `cai-agent security-scan` (stderr hook id listing; `security_scan_end` still runs if the scan raises).
+- **Session files**: `--save-session` now persists `run_schema_version`, `events`, tool stats (`tool_calls_count`, `used_tools`, `last_tool`, `error_count`), and `post_gate` when applicable—aligned with `run --json`.
+- **observe**: Per-session rows include `task_id`, `events_count`, and `run_schema_version`; aggregates add `run_events_total` and `sessions_with_events`.
+- **workflow hooks**: `workflow_start` / `workflow_end` hook events (stderr hook id listing, same as session hooks) wrap `cai-agent workflow`.
+- **quality-gate hooks**: `quality_gate_start` / `quality_gate_end` wrap the standalone `cai-agent quality-gate` command; `quality-gate` also honors `-w` / `--workspace` when passed via the shared parser.
+- **fetch_url**: Block common SSRF hostnames (`localhost`, GCP metadata hosts) before allowlist checks.
+- **fetch_url tool**: Opt-in HTTPS GET with host allowlist, size cap, and timeout; gated by `[fetch_url]` and `[permissions].fetch_url` (default deny). See `templates/cai-agent.example.toml` and `docs/MCP_WEB_RECIPE.zh-CN.md`.
+- **Run JSON envelope**: `run --json` / `continue --json` (and shared path for `command` / `agent` / `fix-build`) include `run_schema_version` and `events` (`run.started` / `run.finished`) aligned with `workflow` telemetry style.
+- **Memory entries**: Validate each `memory/entries.jsonl` row before append (v1 shape; JSON Schema file under `cai_agent/schemas/` for external tooling).
+- **Doctor**: Prints `fetch_url` enablement and allowlist count when enabled.
+- **QA regression logs**: `scripts/run_regression.py` writes a timestamped Markdown report under `docs/qa/runs/` (see `docs/QA_REGRESSION_LOGGING.md`); CI uploads those files as workflow artifacts.
 - **Changelog split**: `CHANGELOG.md` is now English by default; the previous Chinese text lives in `CHANGELOG.zh-CN.md`.
 - **Readme split**: `README.md` is English by default; the previous Chinese readme is in `README.zh-CN.md`, with cross-links at the top of each file.
 - **JSON diagnostics**: `run --json` / `continue --json` add `last_tool` and `error_count`.

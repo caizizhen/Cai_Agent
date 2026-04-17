@@ -1,0 +1,82 @@
+# 补齐方案总册（执行清单与长期 backlog）
+
+本文档在「三源融合完全体」愿景下，给出 **尽可能长的可执行补齐面**：已在本轮落地的条目会标明 **[本轮已落地]**，其余按优先级供后续迭代勾选。
+
+## 0. 文档与产品基线
+
+- [本轮已落地] 愿景与分层验收：[PRODUCT_VISION_FUSION.zh-CN.md](PRODUCT_VISION_FUSION.zh-CN.md)
+- [本轮已落地] Parity 矩阵与发版约定：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)
+- [ ] 每个版本更新 CHANGELOG（中英）与矩阵同步
+- [ ] ONBOARDING 增加「读愿景 → 配 fetch_url / MCP → doctor → run」路径图
+
+## L1 — 官方能力环（体验）
+
+### 网络与只读 HTTP
+
+- [x] 内置 **`fetch_url`**：HTTPS GET、主机白名单、响应体大小上限、超时；默认关闭 + 权限默认 `deny`；配置见 `cai-agent.toml` `[fetch_url]`、`[permissions].fetch_url`
+- [ ] 可选：跟随重定向次数可配置、响应仅 `text/*` 硬拒绝二进制（当前为截断文本提示）
+- [ ] 可选：DNS 解析后 SSRF 深度防护（当前：字面 IP 私网段拒绝 + 依赖白名单）
+- [x] MCP 替代路径说明：[MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md)
+
+### 工具与 Notebook
+
+- [ ] Notebook 单元读写工具或 MCP 认证路径
+- [ ] 与官方工具分类对齐的 **工具注册表文档**（自动生成自 `tools.py`）
+
+### 任务与 UI
+
+- [x] `run` / `continue` 等 JSON 输出增加 **`run_schema_version`** 与 **`events`** 信封（与 `workflow` 的 `events` 风格对齐）
+- [x] `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 默认附带 `events_count` / `task_id` 等摘要（无需 `--details`）
+- [ ] 任务看板或 TUI 只读面板（P1）
+
+### 计划与子 Agent
+
+- [x] `plan --json` 稳定 schema（含成功 `ok: true` 与失败 `goal_empty` / `llm_error`）
+- [x] `stats --json` 与 `observe` 对齐的 `run_events_total` 及 `session_summaries`
+- [ ] 子 Agent 标准 IO schema（与 `agents/` 模板字段对齐）
+
+## L2 — 架构完备度
+
+### 状态与观测
+
+- [ ] 会话文件 `version` 字段与 `run_schema_version` 对齐策略
+- [ ] 结构化进度流：`graph` 中 `progress` 回调写入 ring buffer 供 `observe` 聚合
+
+### 上下文与成本
+
+- [ ] compact 触发与 `cost budget` 联动自动化（规则表）
+- [ ] 模型路由建议（配置或启发式）
+
+### 钩子
+
+- [x] `hooks.json` 的 `event` 与 CLI 对齐：`session_*`、`workflow_*`、`quality_gate_*`、`security_scan_*`、`memory_*`、`export_*`、`observe_*`、`cost_budget_*`（见 [hooks/README.md](../hooks/README.md)）；自动执行 hook 脚本仍待办
+
+## L3 — 治理与跨 harness
+
+### 记忆
+
+- [x] `memory/entries.jsonl` 行级 **schema v1** 校验（`cai_agent/schemas/memory_entry_v1.schema.json` + 写入前 Python 校验）
+- [ ] 记忆 TTL/置信度策略与 `memory prune` 规则文档化
+- [ ] `memory extract` 可选 LLM 结构化抽取
+
+### 质量与安全
+
+- [ ] `quality-gate` 多语言栈模板（前端 monorepo）
+- [ ] `security-scan` 规则与 CI 徽章示例
+
+### 导出与生态
+
+- [ ] `export` 维度与 ECC 目录结构 diff 报告
+- [ ] 选择性安装或「技能包」manifest（参考 ECC install-plan 思路）
+
+## 验收习惯（与发布门禁一致）
+
+每版本至少：
+
+1. 更新 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 一行状态或备注；
+2. 本表对应小节勾选或注明延期原因；
+3. 运行 `pytest`（`cai-agent` 包）与 `cai-agent doctor`。
+
+---
+
+**说明**：本总册刻意保留大量未勾选项作为 backlog；工程节奏仍以 [ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) 的 P0–P2 为 sprint 单位，避免无边界并行。

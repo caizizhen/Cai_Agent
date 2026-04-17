@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 
@@ -53,6 +54,22 @@ def _skipped(name: str, reason: str) -> dict[str, object]:
         "skipped": True,
         "skip_reason": reason,
     }
+
+
+def _mypy_cli_available() -> bool:
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-m", "mypy", "--version"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=15.0,
+            shell=False,
+        )
+        return proc.returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        return False
 
 
 def _fail_missing(name: str, detail: str) -> dict[str, object]:
@@ -114,6 +131,7 @@ def run_quality_gate(
     enable_compile: bool = True,
     enable_test: bool = True,
     enable_lint: bool = False,
+    enable_typecheck: bool = False,
     enable_security_scan: bool = False,
     report_dir: Path | str | None = None,
 ) -> dict[str, object]:
@@ -163,6 +181,32 @@ def run_quality_gate(
     else:
         results.append(_skipped("python -m ruff check .", "disabled_by_flag"))
 
+    if enable_typecheck:
+        paths = [p for p in settings.quality_gate_typecheck_paths if p.strip()]
+        if not paths:
+            results.append(_skipped("python -m mypy", "no_typecheck_paths"))
+        elif not _mypy_cli_available():
+            if settings.quality_gate_typecheck_policy == "fail_if_missing":
+                results.append(
+                    _fail_missing(
+                        "python -m mypy",
+                        "mypy 未就绪且 quality_gate.typecheck_policy=fail_if_missing",
+                    ),
+                )
+            else:
+                results.append(_skipped("python -m mypy", "mypy_not_available"))
+        else:
+            argv = [sys.executable, "-m", "mypy", *paths]
+            results.append(_run(argv, root, timeout_sec))
+    else:
+        results.append(_skipped("python -m mypy", "disabled_by_flag"))
+
+    for extra in settings.quality_gate_extra_commands:
+        if not extra:
+            continue
+        label = " ".join(extra)
+        results.append(_run(list(extra), root, timeout_sec))
+
     if enable_security_scan:
         sec = run_security_scan(settings)
         sec_ok = bool(sec.get("ok"))
@@ -192,9 +236,13 @@ def run_quality_gate(
             "compile": enable_compile,
             "test": enable_test,
             "lint": enable_lint,
+            "typecheck": enable_typecheck,
+            "typecheck_paths": list(settings.quality_gate_typecheck_paths),
+            "extra_commands": [list(x) for x in settings.quality_gate_extra_commands],
             "security_scan": enable_security_scan,
             "test_policy": test_pol,
             "lint_policy": lint_pol,
+            "typecheck_policy": settings.quality_gate_typecheck_policy,
         },
         "checks": results,
         "ok": not failed,

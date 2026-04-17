@@ -45,14 +45,27 @@ project_context = true
 # 是否附加 git 分支与简短 status（只读）
 git_context = true
 
+# 对话轮次较长时注入一次「建议收尾」提示（0 表示关闭）；见 docs/CONTEXT_AND_COMPACT.zh-CN.md
+[context]
+# compact_after_iterations = 10
+# compact_min_messages = 8
+
 [quality_gate]
 compile = true
 test = true
 lint = false
+typecheck = false
 security_scan = false
 # test_policy: skip | fail_if_missing（CI 无 pytest 时是否失败）
 test_policy = "skip"
 lint_policy = "skip"
+# typecheck_policy: skip | fail_if_missing（未安装 mypy 时）
+typecheck_policy = "skip"
+# typecheck_paths = ["cai-agent/src"]
+
+# 追加任意门禁命令（在工作区根目录执行）
+# [[quality_gate.extra]]
+# argv = ["python", "-c", "print('gate-extra-ok')"]
 
 [security_scan]
 exclude_globs = [
@@ -65,10 +78,19 @@ exclude_globs = [
 # [security_scan.rule_overrides]
 # openai_like_key = false
 
+# 受控 HTTPS 只读拉取（可选）。默认关闭；启用后必须配置 allow_hosts；字面 IP 若为私网/保留地址会被拒绝。
+# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
+[fetch_url]
+enabled = false
+# allow_hosts = ["github.com", "*.example.com"]
+# max_bytes = 500000
+# timeout_sec = 30
+
 [permissions]
-# write_file / run_command: allow | ask | deny
+# write_file / run_command / fetch_url: allow | ask | deny
 write_file = "allow"
 run_command = "allow"
+fetch_url = "deny"
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）

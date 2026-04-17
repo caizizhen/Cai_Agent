@@ -148,6 +148,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     """
     wf_task = new_task("workflow")
     wf_task.status = "running"
+    events: List[Dict[str, Any]] = []
     data = _load_workflow_file(path)
     steps_data = data["steps"]
     merge_strategy = str(data.get("merge_strategy", "require_manual")).strip().lower()
@@ -168,6 +169,15 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         if not goal:
             raise ValueError(f"workflow.steps[{idx - 1}] 缺少非空 goal")
         name = str(raw_step.get("name") or f"step-{idx}").strip()
+
+        events.append(
+            {
+                "event": "workflow.step.started",
+                "workflow_task_id": wf_task.task_id,
+                "step_index": idx,
+                "name": name,
+            },
+        )
 
         ws_raw = raw_step.get("workspace")
         if isinstance(ws_raw, str) and ws_raw.strip():
@@ -223,6 +233,18 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         }
         results.append(step_result)
 
+        events.append(
+            {
+                "event": "workflow.step.completed",
+                "workflow_task_id": wf_task.task_id,
+                "step_index": idx,
+                "name": name,
+                "elapsed_ms": elapsed_ms,
+                "tool_calls_count": int(stats.get("tool_calls_count", 0)),
+                "error_count": int(stats.get("error_count", 0)),
+            },
+        )
+
         total_elapsed += elapsed_ms
         total_tool_calls += int(stats.get("tool_calls_count", 0))
         total_errors += int(stats.get("error_count", 0))
@@ -259,4 +281,19 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     wf_task.elapsed_ms = int((wf_task.ended_at - wf_task.started_at) * 1000)
     wf_task.status = "completed" if total_errors == 0 else "failed"
     wf_task.error = None if total_errors == 0 else "workflow_has_step_errors"
-    return {"task": wf_task.to_dict(), "steps": results, "summary": summary}
+    events.append(
+        {
+            "event": "workflow.finished",
+            "workflow_task_id": wf_task.task_id,
+            "steps_count": len(results),
+            "merge_decision": merge_decision,
+            "merge_strategy": merge_strategy,
+            "tool_errors_total": total_errors,
+        },
+    )
+    return {
+        "task": wf_task.to_dict(),
+        "steps": results,
+        "summary": summary,
+        "events": events,
+    }

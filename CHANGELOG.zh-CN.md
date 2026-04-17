@@ -6,6 +6,25 @@
 
 ### 0.5.0（当前开发）
 
+- **`plan --json` + 缺失配置**：`--config` 指向不存在文件时输出 JSON 错误体（`error: config_not_found`），不再仅 stderr。
+- **`stats`（非 JSON）**：文本摘要增加 `run_events_total`、`sessions_with_events`、`parse_skipped` 一行。
+- **钩子**：`observe_start` / `observe_end` 包裹 `observe`；`cost_budget_start` / `cost_budget_end` 包裹 `cost budget`；人类可读 `observe` 行末附带 `run_events_total`。
+- **`stats --json`**：增加 `stats_schema_version`（`1.0`）、`run_events_total`、`sessions_with_events`、`parse_skipped` 与 `session_summaries`（逐文件的 `events_count` / `task_id` / token 与工具统计摘要）。
+- **`plan --json` 错误路径**：`goal` 为空或 LLM 抛错时仍输出一行 JSON（`ok: false`，`error` 为 `goal_empty` 或 `llm_error`；失败时 `task.status=failed`）；成功体含 `ok: true`。
+- **钩子**：`memory_start` / `memory_end` 包裹 `cai-agent memory`；`export_start` / `export_end` 包裹 `cai-agent export`；`export` 子命令增加 `-w` / `--workspace`。
+- **`plan --json`**：稳定信封字段 `plan_schema_version`（`1.0`）、`generated_at`（UTC ISO）、`task`（`plan-*` 任务 id）及 `usage` 等。
+- **`sessions --json`**：即使未加 `--details`，也会尝试解析会话文件并附带 `events_count`、`run_schema_version`、`task_id`、`total_tokens`、`error_count`；失败时标记 `parse_error`；`--details` 文本行增加 `events=`。
+- **`security-scan` 钩子**：`security_scan_start` / `security_scan_end` 包裹 `cai-agent security-scan`（扫描抛错时仍会在退出前触发 `security_scan_end`）。
+- **会话落盘**：`--save-session` 现写入 `run_schema_version`、`events`、工具统计（`tool_calls_count` / `used_tools` / `last_tool` / `error_count`）及适用的 `post_gate`，与 `run --json` 对齐。
+- **observe**：每条会话摘要增加 `task_id`、`events_count`、`run_schema_version`；聚合增加 `run_events_total` 与 `sessions_with_events`。
+- **workflow 钩子**：`cai-agent workflow` 前后触发 `workflow_start` / `workflow_end`（失败退出前仍会触发 `workflow_end`），行为与 `session_*` 钩子一致（非 JSON 模式下 stderr 列出已启用 hook id）。
+- **quality-gate 钩子**：独立子命令 `cai-agent quality-gate` 前后触发 `quality_gate_start` / `quality_gate_end`；`quality-gate` 现与共用解析器一致，支持 `-w` / `--workspace`。
+- **fetch_url**：在白名单校验前先拒绝常见 SSRF 主机名（如 `localhost`、GCP metadata 域名）。
+- **fetch_url 工具**：可选 HTTPS GET，主机白名单、响应体上限与超时；由 `[fetch_url]` 与 `[permissions].fetch_url` 控制（默认关闭且权限为 `deny`）。示例见 `cai-agent/src/cai_agent/templates/cai-agent.example.toml`；纯 MCP 方案见 `docs/MCP_WEB_RECIPE.zh-CN.md`。
+- **Run JSON 事件信封**：`run --json` / `continue --json`（及 `command` / `agent` / `fix-build` 共用路径）增加 `run_schema_version` 与 `events`（`run.started` / `run.finished`），与 `workflow` 的 `events` 风格对齐。
+- **记忆条目校验**：写入 `memory/entries.jsonl` 前按 v1 形状校验；JSON Schema 见 `cai-agent/src/cai_agent/schemas/memory_entry_v1.schema.json`。
+- **doctor**：启用 `fetch_url` 时打印白名单项数与权限模式。
+- **QA 回归留痕**：`scripts/run_regression.py` 每次执行后在 `docs/qa/runs/` 生成带时间戳的 Markdown 报告（见 `docs/QA_REGRESSION_LOGGING.zh-CN.md`）；CI 工作流将该目录下的报告作为 artifact 上传。
 - **变更记录拆分**：默认 `CHANGELOG.md` 改为英文；原中文全文迁至 `CHANGELOG.zh-CN.md`。
 - **文档拆分**：默认 `README.md` 改为英文；原中文全文迁至 `README.zh-CN.md`，两文件顶部互相链接。
 - **JSON 诊断补强**：`run --json` / `continue --json` 新增 `last_tool` 与 `error_count` 字段。

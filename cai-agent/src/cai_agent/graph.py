@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
@@ -38,6 +38,7 @@ class AgentState(TypedDict, total=False):
     pending: dict[str, Any] | None
     finished: bool
     answer: str
+    compact_hint_sent: NotRequired[bool]
 
 
 def _core_system_prompt(workspace: str) -> str:
@@ -49,7 +50,8 @@ def _core_system_prompt(workspace: str) -> str:
         '2) 调工具：{"type":"tool","name":"工具名","args":{...}}\n\n'
         + tools_spec_markdown()
         + "\n建议：先用 list_tree / list_dir / glob_search / search_text / git_status 了解代码；"
-        "如需外部能力可先 mcp_list_tools 再 mcp_call_tool。"
+        "如需外部能力可先 mcp_list_tools 再 mcp_call_tool；"
+        "若配置已启用 fetch_url 且主机在白名单内，可用 fetch_url 拉取只读 HTTPS 文本。"
         "read_file 可用 line_start/line_end 分段读取大文件，需要时再 write_file 或 run_command。"
     )
 
@@ -83,7 +85,29 @@ def build_app(
                 "finished": True,
                 "answer": ans,
                 "pending": None,
+                "compact_hint_sent": bool(state.get("compact_hint_sent")),
             }
+
+        prior_compact = bool(state.get("compact_hint_sent"))
+        compact_hint_sent = prior_compact
+        if (
+            not prior_compact
+            and settings.context_compact_after_iterations > 0
+            and iteration >= settings.context_compact_after_iterations
+        ):
+            n_non_sys = sum(1 for m in messages if m.get("role") != "system")
+            if n_non_sys >= settings.context_compact_min_messages:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "[对话已较长] 若当前信息已足够回答用户，请优先使用 "
+                            '{"type":"finish","message":"..."} 给出阶段性摘要或最终结论，'
+                            "避免继续无明确收益的工具调用。"
+                        ),
+                    },
+                )
+                compact_hint_sent = True
 
         _emit(
             progress,
@@ -120,6 +144,7 @@ def build_app(
                 "messages": messages,
                 "iteration": iteration,
                 "pending": None,
+                "compact_hint_sent": compact_hint_sent,
             }
 
         t = obj.get("type")
@@ -134,6 +159,7 @@ def build_app(
                 "finished": True,
                 "answer": str(obj.get("message", "")),
                 "pending": None,
+                "compact_hint_sent": compact_hint_sent,
             }
         if t == "tool":
             name = str(obj.get("name", ""))
@@ -153,6 +179,7 @@ def build_app(
                 "messages": messages,
                 "iteration": iteration,
                 "pending": {"name": name, "args": args},
+                "compact_hint_sent": compact_hint_sent,
             }
 
         messages.append(
@@ -163,7 +190,12 @@ def build_app(
                 ),
             },
         )
-        return {"messages": messages, "iteration": iteration, "pending": None}
+        return {
+            "messages": messages,
+            "iteration": iteration,
+            "pending": None,
+            "compact_hint_sent": compact_hint_sent,
+        }
 
     def tools_node(state: AgentState) -> dict[str, Any]:
         pending = state.get("pending")
