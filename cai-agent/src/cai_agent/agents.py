@@ -61,10 +61,15 @@ class Agent:
         return state
 
     def run(self, goal: str) -> dict[str, Any]:
-        """执行单轮任务并返回最终状态字典。"""
+        """执行单轮任务并返回最终状态字典。
+
+        非 default 角色默认走 ``subagent`` profile 路由；若未配置 subagent，
+        ``llm_factory`` 会回退到 active，和历史行为等价。
+        """
 
         effective = self._effective_settings()
-        app = build_app(effective, progress=self.progress)
+        role_route = "subagent" if self.config.role != "default" else "active"
+        app = build_app(effective, progress=self.progress, role=role_route)
         state = self._build_state(goal)
         final = app.invoke(state)
         return final

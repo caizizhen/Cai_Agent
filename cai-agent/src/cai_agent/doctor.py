@@ -25,7 +25,20 @@ def run_doctor(settings: Settings) -> int:
     print("工作区:  ", root)
     print("API:     ", settings.base_url)
     print("模型:    ", settings.model)
-    print("API Key: ", _mask_api_key(settings.api_key))
+    key_line = _mask_api_key(settings.api_key)
+    env_name = settings.active_api_key_env
+    if env_name:
+        key_line += f" | env={env_name}"
+        if not settings.api_key:
+            key_line += " (AUTH_FAIL: env not set)"
+    print("API Key: ", key_line)
+    print("Profile: ", settings.active_profile_id, f"(共 {len(settings.profiles)} 个)")
+    if settings.subagent_profile_id or settings.planner_profile_id:
+        print(
+            "路由:    ",
+            f"subagent={settings.subagent_profile_id or '-'} "
+            f"planner={settings.planner_profile_id or '-'}",
+        )
     print("温度:    ", settings.temperature)
     print("HTTP 超时:", settings.llm_timeout_sec, "s")
     print("信任代理:", settings.http_trust_env)

@@ -8,7 +8,8 @@ from langgraph.graph import END, START, StateGraph
 
 from cai_agent.config import Settings
 from cai_agent.context import augment_system_prompt
-from cai_agent.llm import chat_completion, extract_json_object
+from cai_agent.llm import extract_json_object
+from cai_agent.llm_factory import chat_completion_by_role
 from cai_agent.tools import dispatch, tools_spec_markdown
 
 
@@ -65,7 +66,15 @@ def build_app(
     *,
     progress: Callable[[dict[str, Any]], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
+    role: str = "active",
 ):
+    """构建主循环图。
+
+    ``role``：调用 LLM 时走 :func:`cai_agent.llm_factory.chat_completion_by_role`
+    传入的角色，决定使用 active / subagent / planner 哪一个 profile。
+    workflow 的子代理步骤会传 ``role="subagent"``。
+    """
+    role_name = (role or "active").strip().lower() or "active"
     def _is_stopped() -> bool:
         if not should_stop:
             return False
@@ -134,7 +143,7 @@ def build_app(
                 "step": "请求模型",
             },
         )
-        text = chat_completion(settings, messages)
+        text = chat_completion_by_role(settings, messages, role=role_name)
         if _is_stopped():
             _emit(progress, {"phase": "stopped"})
             return {

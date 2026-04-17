@@ -1,0 +1,149 @@
+"""Provider 调度工厂（M11 骨架）。
+
+三个入口：
+
+1. :func:`resolve_provider` —— 把 ``settings.active_profile_provider``（优先）
+   或 ``settings.provider`` 规范化为 canonical key（``anthropic / openai /
+   openai_compatible`` 等）。``claude*`` 系列别名归并为 ``anthropic``；未知
+   值回退 ``openai_compatible``。
+2. :func:`chat_completion` —— 纯派发：按 :func:`resolve_provider` 的返回值，
+   交给 ``_openai_adapter.chat_completion`` 或 ``_anthropic_adapter.chat_completion``。
+3. :func:`chat_completion_by_role` —— 组合：按 ``active / subagent / planner``
+   选 profile，再用 :func:`dataclasses.replace` 把 settings 投影到该 profile，
+   最后派发适配器。graph.py / workflow.py 在 Sprint 2 会切到这个入口。
+
+测试通过重绑定 ``_openai_adapter.chat_completion`` / ``_anthropic_adapter.chat_completion``
+来 stub 底层 HTTP，避免实网调用。
+"""
+from __future__ import annotations
+
+from dataclasses import replace
+from typing import Any, Callable
+
+from cai_agent import llm as _openai_adapter
+from cai_agent import llm_anthropic as _anthropic_adapter
+from cai_agent.profiles import Profile, project_base_url
+
+
+ChatFn = Callable[[Any, list[dict[str, Any]]], str]
+
+
+def resolve_provider(settings: Any) -> str:
+    """把 settings.provider（或 active_profile_provider）映射为 canonical 值。
+
+    - 优先读 ``active_profile_provider``（主循环已选中某 profile 后用它通告 provider）；
+    - 空值 / 未知值 → ``openai_compatible``；
+    - ``anthropic`` / ``claude`` / ``claude-*`` → ``anthropic``；
+    - ``openai / openai_compatible / azure_openai / copilot / ollama / lmstudio / vllm`` 透传。
+    """
+    val = (
+        getattr(settings, "active_profile_provider", None)
+        or getattr(settings, "provider", None)
+    )
+    s = str(val or "").strip().lower()
+    if not s:
+        return "openai_compatible"
+    if s == "anthropic" or s == "claude" or s.startswith("claude-"):
+        return "anthropic"
+    if s in {
+        "openai",
+        "openai_compatible",
+        "azure_openai",
+        "copilot",
+        "ollama",
+        "lmstudio",
+        "vllm",
+    }:
+        return s
+    return "openai_compatible"
+
+
+def _adapter_for(provider_canonical: str) -> ChatFn:
+    if provider_canonical == "anthropic":
+        return _anthropic_adapter.chat_completion
+    return _openai_adapter.chat_completion
+
+
+def chat_completion(settings: Any, messages: list[dict[str, Any]]) -> str:
+    """按 ``resolve_provider(settings)`` 直接派发到底层适配器，不做 profile 投影。"""
+    return _adapter_for(resolve_provider(settings))(settings, messages)
+
+
+# ---------------------------------------------------------------------------
+# Role-based 路由（Sprint 2 会接入 graph.py / workflow.py）
+# ---------------------------------------------------------------------------
+
+def resolve_role_profile(settings: Any, role: str) -> Profile:
+    """按 ``active / subagent / planner`` 返回 profile；未配置时回退 active。"""
+    profiles = list(getattr(settings, "profiles", ()) or ())
+    if not profiles:
+        raise RuntimeError("settings.profiles 为空，无法定位 profile")
+
+    role_l = (role or "active").strip().lower()
+    active_id = getattr(settings, "active_profile_id", None)
+    if role_l == "subagent":
+        target_id = getattr(settings, "subagent_profile_id", None) or active_id
+    elif role_l == "planner":
+        target_id = getattr(settings, "planner_profile_id", None) or active_id
+    else:
+        target_id = active_id
+
+    for p in profiles:
+        if getattr(p, "id", None) == target_id:
+            return p
+    return profiles[0]
+
+
+def _project_settings_for_profile(settings: Any, profile: Profile) -> Any:
+    """把 settings 字段投影到指定 profile（返回新对象，原对象不改）。"""
+    base_url = project_base_url(profile)
+    resolved = profile.resolve_api_key()
+    api_key = resolved or getattr(settings, "api_key", "") or ""
+
+    is_anthropic = profile.provider == "anthropic"
+    updates: dict[str, Any] = {
+        "provider": profile.provider,
+        "base_url": base_url,
+        "model": profile.model,
+        "api_key": api_key,
+        "temperature": max(0.0, min(2.0, float(profile.temperature))),
+        "llm_timeout_sec": max(5.0, min(3600.0, float(profile.timeout_sec))),
+    }
+    if hasattr(settings, "active_profile_id"):
+        updates["active_profile_id"] = profile.id
+    if hasattr(settings, "active_api_key_env"):
+        updates["active_api_key_env"] = profile.api_key_env
+    if hasattr(settings, "anthropic_version"):
+        updates["anthropic_version"] = (
+            profile.anthropic_version or "2023-06-01"
+            if is_anthropic
+            else getattr(settings, "anthropic_version", "2023-06-01")
+        )
+    if hasattr(settings, "anthropic_max_tokens"):
+        updates["anthropic_max_tokens"] = int(
+            profile.max_tokens
+            if is_anthropic and profile.max_tokens
+            else getattr(settings, "anthropic_max_tokens", 4096),
+        )
+    return replace(settings, **updates)
+
+
+def chat_completion_by_role(
+    settings: Any,
+    messages: list[dict[str, Any]],
+    *,
+    role: str = "active",
+) -> str:
+    """按 role 选 profile → 投影 settings → 派发到对应适配器。"""
+    profile = resolve_role_profile(settings, role)
+    projected = _project_settings_for_profile(settings, profile)
+    return _adapter_for(resolve_provider(projected))(projected, messages)
+
+
+__all__ = [
+    "ChatFn",
+    "chat_completion",
+    "chat_completion_by_role",
+    "resolve_provider",
+    "resolve_role_profile",
+]

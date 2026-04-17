@@ -21,6 +21,18 @@ _RULES: list[tuple[str, re.Pattern[str], str, str]] = [
         "medium",
     ),
     (
+        "anthropic_api_key",
+        re.compile(r"\bsk-ant-[A-Za-z0-9_\-]{20,}\b"),
+        "high",
+        "high",
+    ),
+    (
+        "openrouter_api_key",
+        re.compile(r"\bsk-or-(?:v\d+-)?[A-Za-z0-9_\-]{20,}\b"),
+        "high",
+        "high",
+    ),
+    (
         "openai_like_key",
         re.compile(r"\bsk-[A-Za-z0-9]{20,}\b"),
         "high",
@@ -32,13 +44,27 @@ _RULES: list[tuple[str, re.Pattern[str], str, str]] = [
         "high",
         "low",
     ),
+    # M13：模型 profile / [llm] 段里把 api_key 以明文写死的高危告警。
+    # 只匹配 `api_key = "..."` / `api_key: "..."`（非 api_key_env），避免误报
+    # `api_key_env = "OPENAI_API_KEY"` 等安全写法。
+    (
+        "cai_profile_plaintext_api_key",
+        re.compile(
+            r"""(?ix)^\s*api_key\s*[:=]\s*['"][^'"\s]{1,}['"]""",
+        ),
+        "high",
+        "high",
+    ),
 ]
 
 _DEFAULT_RULE_FLAGS = {
     "aws_access_key": True,
     "github_pat": True,
+    "anthropic_api_key": True,
+    "openrouter_api_key": True,
     "openai_like_key": True,
     "private_key_header": True,
+    "cai_profile_plaintext_api_key": True,
 }
 
 
@@ -61,6 +87,37 @@ def _should_skip(rel: str, exclude_globs: list[str]) -> bool:
     return False
 
 
+_PROFILE_APIKEY_VALUE_RE = re.compile(
+    r"""(?ix)api_key\s*[:=]\s*(['"])(?P<val>[^'"]*)\1""",
+)
+
+# 高风险供应商 key 前缀：若出现这些前缀，明文落盘就是真实泄漏。
+_HIGH_RISK_PREFIXES = ("sk-ant-", "sk-or-", "sk-", "ghp_", "AKIA")
+
+# 已知的本地/占位型值：LM Studio / Ollama / vLLM 等网关通常随便填，
+# 这类值即使在 TOML 里出现也不算真实密钥泄漏。
+_PLACEHOLDER_VALUES = frozenset(
+    {
+        "",
+        "-",
+        "none",
+        "null",
+        "empty",
+        "placeholder",
+        "local",
+        "local-key",
+        "lm-studio",
+        "lmstudio",
+        "ollama",
+        "vllm",
+        "dummy",
+        "test",
+        "optional-token",
+        "your-copilot-proxy-token",
+    },
+)
+
+
 def _line_context(line: str) -> str:
     s = line.lstrip()
     if s.startswith("#"):
@@ -70,12 +127,67 @@ def _line_context(line: str) -> str:
     return "code"
 
 
-def _effective_severity(rule_id: str, ctx: str, base_sev: str, base_conf: str) -> tuple[str, str, str | None]:
+def _classify_profile_apikey_value(line: str) -> tuple[bool, str | None]:
+    """按 ``api_key = "<v>"`` 的值判定是否真实泄漏。
+
+    Returns ``(is_real_leak, suppressed_reason_or_None)``。
+    - 真实供应商前缀（``sk-ant- / sk-or- / sk- / ghp_ / AKIA``）→ 真实泄漏；
+    - 已知占位符 / 空值 → 不算泄漏，`suppressed_reason=placeholder_value`；
+    - 短（<20）且仅含 ``[a-zA-Z_-]`` → 视为占位符；
+    - 其它 → 当作真实泄漏（保守）。
+    """
+    m = _PROFILE_APIKEY_VALUE_RE.search(line)
+    if not m:
+        return (True, None)
+    val = (m.group("val") or "").strip()
+    low = val.lower()
+    for pref in _HIGH_RISK_PREFIXES:
+        if val.startswith(pref):
+            return (True, None)
+    if low in _PLACEHOLDER_VALUES:
+        return (False, "placeholder_value")
+    if len(val) < 20 and re.fullmatch(r"[A-Za-z0-9_\-]*", val) and not any(c.isdigit() for c in val):
+        return (False, "placeholder_value")
+    return (True, None)
+
+
+# 仅让 profile/[llm] 明文规则作用在这些扩展名上，避免对 Python 源码里
+# 的普通 `api_key="k"` 字面量误报（它们不是用户的真实配置）。
+_PROFILE_APIKEY_RULE_ALLOWED_EXTS = frozenset({".toml", ".yaml", ".yml", ".ini", ".conf"})
+
+
+def _rule_applies_to_file(rule_id: str, rel_path: str) -> bool:
+    if rule_id != "cai_profile_plaintext_api_key":
+        return True
+    rel_low = rel_path.lower()
+    if any(rel_low.endswith(ext) for ext in _PROFILE_APIKEY_RULE_ALLOWED_EXTS):
+        return True
+    return False
+
+
+def _effective_severity(
+    rule_id: str,
+    ctx: str,
+    base_sev: str,
+    base_conf: str,
+    *,
+    line: str | None = None,
+) -> tuple[str, str, str | None]:
     """Return (severity, confidence, suppressed_reason or None)."""
     if ctx == "comment":
         return ("info", "low", f"suppressed_context_{ctx}")
-    if ctx == "help_literal" and rule_id in ("aws_access_key", "github_pat", "openai_like_key"):
+    if ctx == "help_literal" and rule_id in (
+        "aws_access_key",
+        "github_pat",
+        "openai_like_key",
+        "anthropic_api_key",
+        "openrouter_api_key",
+    ):
         return ("info", "low", f"suppressed_context_{ctx}")
+    if rule_id == "cai_profile_plaintext_api_key" and line is not None:
+        is_real, reason = _classify_profile_apikey_value(line)
+        if not is_real:
+            return ("info", "low", reason or "placeholder_value")
     return (base_sev, base_conf, None)
 
 
@@ -124,10 +236,14 @@ def run_security_scan(
             for rule_id, pattern, base_sev, base_conf in _RULES:
                 if not bool(flags.get(rule_id, True)):
                     continue
+                if not _rule_applies_to_file(rule_id, rel):
+                    continue
                 m = pattern.search(line)
                 if not m:
                     continue
-                sev, conf, suppressed = _effective_severity(rule_id, ctx, base_sev, base_conf)
+                sev, conf, suppressed = _effective_severity(
+                    rule_id, ctx, base_sev, base_conf, line=line,
+                )
                 if suppressed and sev == "info":
                     continue
                 findings.append(

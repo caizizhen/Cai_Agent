@@ -34,6 +34,21 @@ def get_usage_counters() -> dict[str, int]:
     }
 
 
+def add_usage(
+    prompt_tokens: int = 0,
+    completion_tokens: int = 0,
+    total_tokens: int = 0,
+) -> None:
+    """Accumulate usage counters from any adapter (e.g. Anthropic)."""
+    global _USAGE_PROMPT_TOKENS, _USAGE_COMPLETION_TOKENS, _USAGE_TOTAL_TOKENS
+    if isinstance(prompt_tokens, int) and prompt_tokens > 0:
+        _USAGE_PROMPT_TOKENS += prompt_tokens
+    if isinstance(completion_tokens, int) and completion_tokens > 0:
+        _USAGE_COMPLETION_TOKENS += completion_tokens
+    if isinstance(total_tokens, int) and total_tokens > 0:
+        _USAGE_TOTAL_TOKENS += total_tokens
+
+
 def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     if settings.mock:
         fixed = os.getenv("CAI_MOCK_REPLY")

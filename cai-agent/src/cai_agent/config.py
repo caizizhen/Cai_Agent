@@ -6,6 +6,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from cai_agent.profiles import (
+    KNOWN_PROVIDERS,
+    Profile,
+    ProfilesError,
+    parse_models_section,
+    pick_active,
+    project_base_url,
+    synthesize_default_profile,
+)
+
 
 def _env_bool(name: str, default: bool = False) -> bool:
     v = os.getenv(name)
@@ -104,6 +114,18 @@ class Settings:
     hooks_profile: str
     hooks_disabled_ids: tuple[str, ...]
     hooks_timeout_sec: float
+    # 模型 Profile（M1/M2）：所有已定义 profile；`active/subagent/planner` 是 id 字符串。
+    # 当 TOML 未显式声明 [[models.profile]] 时，会从 [llm] 合成 id="default" 的单条 profile。
+    profiles: tuple[Profile, ...]
+    # True 表示 profiles 来自 TOML 的 [[models.profile]]；False 表示从 [llm] 合成。
+    # 写回 TOML 时仅持久化真实 profile，避免落盘一个合成的 "default" 条目。
+    profiles_explicit: bool
+    active_profile_id: str
+    subagent_profile_id: str | None
+    planner_profile_id: str | None
+    active_api_key_env: str | None
+    anthropic_version: str
+    anthropic_max_tokens: int
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
 
@@ -420,6 +442,64 @@ class Settings:
 
         config_loaded_from = str(resolved) if resolved is not None else None
 
+        # ---- Model Profiles（M1/M2） -------------------------------------------------
+        # 语义：显式 [[models.profile]] 优先；否则从 [llm] 合成一个 id="default" 的隐式 profile。
+        # 激活顺序：CAI_ACTIVE_MODEL env > [models].active > 列表首个。
+        profiles_parsed, active_id, subagent_id, planner_id = parse_models_section(file_data)
+        profiles_explicit = bool(profiles_parsed)
+        if profiles_parsed:
+            all_profiles: tuple[Profile, ...] = profiles_parsed
+        else:
+            synth = synthesize_default_profile(
+                provider=provider,
+                base_url=base_url,
+                model=model,
+                api_key=api_key,
+                temperature=temperature,
+                timeout_sec=llm_timeout_sec,
+            )
+            all_profiles = (synth,)
+            active_id = active_id or "default"
+
+        env_active = os.getenv("CAI_ACTIVE_MODEL")
+        env_active = env_active.strip() if isinstance(env_active, str) and env_active.strip() else None
+        active_profile = pick_active(all_profiles, active_id, env_override=env_active)
+        active_profile_id = active_profile.id
+
+        # 有显式 profile 时：active profile 为权威，覆盖旧字段。
+        if profiles_parsed:
+            provider = active_profile.provider
+            base_url = project_base_url(active_profile)
+            model = active_profile.model
+            temperature = max(0.0, min(2.0, float(active_profile.temperature)))
+            llm_timeout_sec = max(5.0, min(3600.0, float(active_profile.timeout_sec)))
+            resolved_key = active_profile.resolve_api_key()
+            if active_profile.api_key_env:
+                # env 模式：未设置时保留空字符串，由 doctor / 运行期给出可读错误；
+                # 绝不回落到 [llm] 以免用户误以为已认证。
+                api_key = resolved_key
+            else:
+                api_key = resolved_key or api_key or ""
+
+        active_api_key_env = active_profile.api_key_env
+
+        anthropic_version = (
+            active_profile.anthropic_version
+            if active_profile.provider == "anthropic" and active_profile.anthropic_version
+            else "2023-06-01"
+        )
+        anthropic_max_tokens = int(active_profile.max_tokens or 4096)
+
+        # 校正 subagent/planner：若 profile 不存在于集合，降级为 None 并允许启动。
+        def _validate_route(pid: str | None) -> str | None:
+            if not pid:
+                return None
+            if any(p.id == pid for p in all_profiles):
+                return pid
+            return None
+        subagent_profile_id = _validate_route(subagent_id)
+        planner_profile_id = _validate_route(planner_id)
+
         return cls(
             provider=provider,
             workspace=workspace,
@@ -463,5 +543,13 @@ class Settings:
             hooks_profile=hooks_profile,
             hooks_disabled_ids=tuple(disabled_ids),
             hooks_timeout_sec=hooks_timeout_sec,
+            profiles=all_profiles,
+            profiles_explicit=profiles_explicit,
+            active_profile_id=active_profile_id,
+            subagent_profile_id=subagent_profile_id,
+            planner_profile_id=planner_profile_id,
+            active_api_key_env=active_api_key_env,
+            anthropic_version=anthropic_version,
+            anthropic_max_tokens=anthropic_max_tokens,
             config_loaded_from=config_loaded_from,
         )
