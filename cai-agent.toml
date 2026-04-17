@@ -102,7 +102,7 @@ allow_hosts = [
   "readthedocs.io",
   "*.readthedocs.io",
   # google
-  "*.google.com/",
+  "www.google.com"
 ]
 # 单次响应体截断上限（字节）与单次请求超时（秒）：默认够用，需要更大的包再放开
 # max_bytes = 500000
