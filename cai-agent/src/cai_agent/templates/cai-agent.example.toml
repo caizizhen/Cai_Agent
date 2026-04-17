@@ -50,6 +50,9 @@ compile = true
 test = true
 lint = false
 security_scan = false
+# test_policy: skip | fail_if_missing（CI 无 pytest 时是否失败）
+test_policy = "skip"
+lint_policy = "skip"
 
 [security_scan]
 exclude_globs = [
@@ -58,3 +61,15 @@ exclude_globs = [
   "skills/security-scan-light.md",
   "docs/**",
 ]
+# 按规则名覆盖启用/禁用，例如：aws_access_key = false
+# [security_scan.rule_overrides]
+# openai_like_key = false
+
+[permissions]
+# write_file / run_command: allow | ask | deny
+write_file = "allow"
+run_command = "allow"
+
+[cost]
+# cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）
+budget_max_tokens = 50000

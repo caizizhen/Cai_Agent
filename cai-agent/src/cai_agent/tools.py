@@ -13,6 +13,7 @@ from typing import Any, Callable
 import httpx
 
 from cai_agent.config import Settings
+from cai_agent.permissions import enforce_tool_permission
 from cai_agent.sandbox import SandboxError, resolve_workspace_path
 
 
@@ -476,6 +477,7 @@ def tool_mcp_call_tool(settings: Settings, args: dict[str, Any]) -> str:
 
 def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     ws = settings.workspace
+    enforce_tool_permission(settings, name)
     if name == "read_file":
         return tool_read_file(ws, args)
     if name == "list_dir":

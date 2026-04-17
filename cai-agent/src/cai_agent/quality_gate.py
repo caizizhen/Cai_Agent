@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import shutil
 import subprocess
 import time
@@ -54,6 +55,59 @@ def _skipped(name: str, reason: str) -> dict[str, object]:
     }
 
 
+def _fail_missing(name: str, detail: str) -> dict[str, object]:
+    return {
+        "name": name,
+        "exit_code": 1,
+        "elapsed_ms": 0,
+        "stdout": "",
+        "stderr": detail,
+        "skipped": False,
+        "skip_reason": "tool_missing",
+    }
+
+
+def _write_reports(report_dir: Path | None, result: dict[str, object]) -> None:
+    if report_dir is None:
+        return
+    report_dir = report_dir.expanduser().resolve()
+    report_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = report_dir / "quality-gate.json"
+    summary_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    jl_path = report_dir / "quality-gate.jsonl"
+    with jl_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(result, ensure_ascii=False) + "\n")
+    checks = result.get("checks")
+    if not isinstance(checks, list):
+        checks = []
+    failures = sum(1 for c in checks if isinstance(c, dict) and int(c.get("exit_code", 0)) != 0)
+    tests = len(checks)
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        f'<testsuite name="quality-gate" tests="{tests}" failures="{failures}" skipped="0">',
+    ]
+    for c in checks:
+        if not isinstance(c, dict):
+            continue
+        nm = str(c.get("name", "check")).replace("&", "&amp;").replace('"', "&quot;")
+        ec = int(c.get("exit_code", 0))
+        skipped = bool(c.get("skipped"))
+        lines.append(f'  <testcase name="{nm}" classname="cai_agent.quality_gate">')
+        if skipped:
+            reason = str(c.get("skip_reason", "")).replace("&", "&amp;").replace('"', "&quot;")
+            lines.append(f'    <skipped message="{reason}"/>')
+        elif ec != 0:
+            err = str(c.get("stderr", "") or c.get("stdout", ""))[:2000]
+            err = err.replace("&", "&amp;").replace("<", "&lt;").replace("]]>", "]]&gt;")
+            lines.append(f"    <failure message=\"exit {ec}\"><![CDATA[{err}]]></failure>")
+        lines.append("  </testcase>")
+    lines.append("</testsuite>")
+    (report_dir / "quality-gate-junit.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def run_quality_gate(
     settings: Settings,
     *,
@@ -61,12 +115,16 @@ def run_quality_gate(
     enable_test: bool = True,
     enable_lint: bool = False,
     enable_security_scan: bool = False,
+    report_dir: Path | str | None = None,
 ) -> dict[str, object]:
     task = new_task("quality-gate")
     task.status = "running"
     root = Path(settings.workspace).resolve()
     timeout_sec = min(max(settings.command_timeout_sec, 5.0), 300.0)
     results: list[dict[str, object]] = []
+    test_pol = settings.quality_gate_test_policy
+    lint_pol = settings.quality_gate_lint_policy
+    rd = Path(report_dir) if report_dir else None
 
     if enable_compile:
         results.append(_run(["python", "-m", "compileall", "-q", "cai-agent/src"], root, timeout_sec))
@@ -75,7 +133,15 @@ def run_quality_gate(
 
     if enable_test:
         if shutil.which("pytest") is None:
-            results.append(_skipped("python -m pytest -q", "pytest_not_installed"))
+            if test_pol == "fail_if_missing":
+                results.append(
+                    _fail_missing(
+                        "python -m pytest -q",
+                        "pytest 未安装且 quality_gate.test_policy=fail_if_missing",
+                    ),
+                )
+            else:
+                results.append(_skipped("python -m pytest -q", "pytest_not_installed"))
         else:
             results.append(_run(["python", "-m", "pytest", "-q"], root, timeout_sec))
     else:
@@ -83,7 +149,15 @@ def run_quality_gate(
 
     if enable_lint:
         if shutil.which("ruff") is None:
-            results.append(_skipped("python -m ruff check .", "ruff_not_installed"))
+            if lint_pol == "fail_if_missing":
+                results.append(
+                    _fail_missing(
+                        "python -m ruff check .",
+                        "ruff 未安装且 quality_gate.lint_policy=fail_if_missing",
+                    ),
+                )
+            else:
+                results.append(_skipped("python -m ruff check .", "ruff_not_installed"))
         else:
             results.append(_run(["python", "-m", "ruff", "check", "."], root, timeout_sec))
     else:
@@ -91,16 +165,16 @@ def run_quality_gate(
 
     if enable_security_scan:
         sec = run_security_scan(settings)
-        findings_count = int(sec.get("findings_count", 0))
+        sec_ok = bool(sec.get("ok"))
         results.append(
             {
                 "name": "security-scan",
-                "exit_code": 0 if findings_count == 0 else 2,
+                "exit_code": 0 if sec_ok else 2,
                 "elapsed_ms": 0,
                 "stdout": "",
                 "stderr": "",
                 "skipped": False,
-                "findings_count": findings_count,
+                "findings_count": int(sec.get("findings_count", 0)),
             },
         )
     else:
@@ -111,7 +185,7 @@ def run_quality_gate(
     task.elapsed_ms = int((task.ended_at - task.started_at) * 1000)
     task.status = "completed" if not failed else "failed"
     task.error = None if not failed else "one_or_more_checks_failed"
-    return {
+    result: dict[str, object] = {
         "task": task.to_dict(),
         "workspace": str(root),
         "config": {
@@ -119,8 +193,12 @@ def run_quality_gate(
             "test": enable_test,
             "lint": enable_lint,
             "security_scan": enable_security_scan,
+            "test_policy": test_pol,
+            "lint_policy": lint_pol,
         },
         "checks": results,
         "ok": not failed,
         "failed_count": len(failed),
     }
+    _write_reports(rd, result)
+    return result

@@ -30,7 +30,10 @@
 
 ```text
 Cai_Agent/
-├── README.md
+├── README.md              # 默认英文说明
+├── README.zh-CN.md        # 中文说明
+├── CHANGELOG.md           # 默认英文变更记录
+├── CHANGELOG.zh-CN.md     # 中文变更记录
 ├── rules/                 # 规则目录骨架（common/python 等）
 ├── skills/                # 技能目录骨架（可复用工作流模版）
 ├── docs/

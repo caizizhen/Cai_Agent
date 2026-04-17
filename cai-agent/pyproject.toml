@@ -12,6 +12,15 @@ dependencies = [
 [project.scripts]
 cai-agent = "cai_agent.__main__:main"
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
 [build-system]
 requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"

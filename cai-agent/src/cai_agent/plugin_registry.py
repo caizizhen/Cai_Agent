@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from cai_agent.config import Settings
@@ -22,6 +23,37 @@ def _project_root(settings: Settings) -> Path:
     return Path.cwd().resolve()
 
 
+def _compute_health_score(root: Path, components: dict[str, dict[str, object]]) -> int:
+    score = 100
+    hooks_dir = root / "hooks"
+    hooks_json = hooks_dir / "hooks.json"
+    if hooks_json.is_file():
+        try:
+            data = json.loads(hooks_json.read_text(encoding="utf-8"))
+            if not isinstance(data, dict) and not isinstance(data, list):
+                score -= 15
+        except (OSError, json.JSONDecodeError):
+            score -= 40
+    elif hooks_dir.is_dir():
+        score -= 8
+
+    readme = root / "README.md"
+    if not readme.is_file():
+        score -= 12
+
+    for name, meta in components.items():
+        if not isinstance(meta, dict):
+            continue
+        exists = bool(meta.get("exists"))
+        fc = int(meta.get("files_count", 0))
+        if exists and fc == 0:
+            score -= 5
+        if name in ("skills", "commands") and not exists:
+            score -= 3
+
+    return max(0, min(100, score))
+
+
 def list_plugin_surface(settings: Settings) -> dict[str, object]:
     root = _project_root(settings)
     components: dict[str, dict[str, object]] = {}
@@ -35,6 +67,7 @@ def list_plugin_surface(settings: Settings) -> dict[str, object]:
             "path": str(p),
             "files_count": files_count,
         }
+    health = _compute_health_score(root, components)
     return {
         "project_root": str(root),
         "plugin_version": PLUGIN_VERSION,
@@ -43,6 +76,6 @@ def list_plugin_surface(settings: Settings) -> dict[str, object]:
             "codex": "partial",
             "opencode": "partial",
         },
-        "health_score": 72,
+        "health_score": health,
         "components": components,
     }

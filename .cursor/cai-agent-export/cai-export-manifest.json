@@ -1,0 +1,11 @@
+{
+  "exporter": "cai-agent",
+  "schema": "export-v2",
+  "target": "cursor",
+  "copied": [
+    "rules",
+    "skills",
+    "agents",
+    "commands"
+  ]
+}

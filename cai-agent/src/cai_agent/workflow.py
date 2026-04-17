@@ -17,6 +17,8 @@ from cai_agent.memory import (
 )
 from cai_agent.task_state import new_task
 
+ROLE_RANK = {"default": 1, "explorer": 2, "reviewer": 3, "security": 4}
+
 
 def _load_workflow_file(path: str) -> Dict[str, Any]:
     p = Path(path).expanduser().resolve()
@@ -72,12 +74,72 @@ def _collect_tool_stats(messages: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _detect_conflicts(results: List[Dict[str, Any]]) -> list[dict[str, Any]]:
+    by_name: dict[str, str] = {}
+    conflicts: list[dict[str, Any]] = []
+    for r in results:
+        n = str(r.get("name", ""))
+        a = str(r.get("answer", "")).strip()
+        if not n:
+            continue
+        prev = by_name.get(n)
+        if prev is None:
+            by_name[n] = a
+        elif prev != a:
+            conflicts.append({"name": n, "type": "answer_mismatch"})
+    return conflicts
+
+
+def _answers_by_name(results: List[Dict[str, Any]]) -> dict[str, list[tuple[str, str, int]]]:
+    """name -> [(answer, role, index), ...] 按步骤顺序."""
+    m: dict[str, list[tuple[str, str, int]]] = {}
+    for r in results:
+        n = str(r.get("name", "")).strip()
+        if not n:
+            continue
+        a = str(r.get("answer", "")).strip()
+        role = str(r.get("role") or "default").strip().lower()
+        idx = int(r.get("index") or 0)
+        m.setdefault(n, []).append((a, role, idx))
+    return m
+
+
+def _merge_decision_for_strategy(
+    strategy: str,
+    conflicts: list[dict[str, Any]],
+    results: List[Dict[str, Any]],
+) -> str:
+    if not conflicts:
+        return "auto_merge"
+    s = strategy.strip().lower()
+    if s == "last_wins":
+        return "last_wins"
+    if s == "role_priority":
+        by_n = _answers_by_name(results)
+        for c in conflicts:
+            name = str(c.get("name", ""))
+            lst = by_n.get(name) or []
+            scores: dict[str, int] = {}
+            for ans, role, _ in lst:
+                rk = ROLE_RANK.get(role, 1)
+                scores[ans] = max(scores.get(ans, 0), rk)
+            if len(scores) < 2:
+                continue
+            mx = max(scores.values())
+            tops = [a for a, sc in scores.items() if sc == mx]
+            if len(tops) != 1:
+                return "manual_review_role_tie"
+        return "role_priority"
+    return "manual_review"
+
+
 def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     """
     运行基于 JSON 描述的多步骤 workflow。
 
     JSON 结构示例：
     {
+      "merge_strategy": "require_manual",
       "steps": [
         {"name": "analyze", "goal": "分析当前项目结构"},
         {"name": "plan", "goal": "为登录功能生成实现计划", "workspace": ".", "model": "gpt-4o-mini"}
@@ -88,6 +150,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     wf_task.status = "running"
     data = _load_workflow_file(path)
     steps_data = data["steps"]
+    merge_strategy = str(data.get("merge_strategy", "require_manual")).strip().lower()
+    if merge_strategy not in ("require_manual", "last_wins", "role_priority"):
+        merge_strategy = "require_manual"
 
     results: List[Dict[str, Any]] = []
     total_elapsed = 0
@@ -162,21 +227,10 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         total_tool_calls += int(stats.get("tool_calls_count", 0))
         total_errors += int(stats.get("error_count", 0))
 
-        # 记录所有参与 workflow 的工作区，后续分别落盘 instinct。
         instincts_roots.add(step_settings.workspace)
 
-    conflicts: list[dict[str, Any]] = []
-    by_name: dict[str, str] = {}
-    for r in results:
-        n = str(r.get("name", ""))
-        a = str(r.get("answer", "")).strip()
-        if not n:
-            continue
-        prev = by_name.get(n)
-        if prev is None:
-            by_name[n] = a
-        elif prev != a:
-            conflicts.append({"name": n, "type": "answer_mismatch"})
+    conflicts = _detect_conflicts(results)
+    merge_decision = _merge_decision_for_strategy(merge_strategy, conflicts, results)
 
     summary = {
         "steps_count": len(results),
@@ -185,21 +239,20 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "tool_calls_total": total_tool_calls,
         "tool_errors_total": total_errors,
         "conflicts": conflicts,
-        "merge_decision": "manual_review" if conflicts else "auto_merge",
+        "merge_decision": merge_decision,
+        "merge_strategy": merge_strategy,
     }
 
-    # 在 workflow 级别落盘一次 Instinct 快照，形成最小持续学习闭环。
     try:
         if instincts_roots:
             sess_like = {
-                "goal": " ; ".join(r.get("goal", "") for r in results),
-                "answer": "\n\n".join(r.get("answer", "") for r in results),
+                "goal": " ; ".join(str(r.get("goal", "")) for r in results),
+                "answer": "\n\n".join(str(r.get("answer", "")) for r in results),
             }
             instincts = extract_basic_instincts_from_session(sess_like)
             for root in instincts_roots:
                 save_instincts(root, instincts)
     except Exception:
-        # Instinct 失败不影响主流程。
         pass
 
     wf_task.ended_at = time.time()
@@ -207,4 +260,3 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     wf_task.status = "completed" if total_errors == 0 else "failed"
     wf_task.error = None if total_errors == 0 else "workflow_has_step_errors"
     return {"task": wf_task.to_dict(), "steps": results, "summary": summary}
-

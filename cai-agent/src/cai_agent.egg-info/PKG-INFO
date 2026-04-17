@@ -6,3 +6,5 @@ Requires-Python: >=3.11
 Requires-Dist: langgraph>=0.2
 Requires-Dist: httpx>=0.27
 Requires-Dist: textual>=0.85
+Provides-Extra: dev
+Requires-Dist: pytest>=8; extra == "dev"

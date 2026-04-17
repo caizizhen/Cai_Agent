@@ -19,12 +19,25 @@ from cai_agent.hook_runtime import enabled_hook_ids
 from cai_agent.llm import chat_completion, get_usage_counters, reset_usage_counters
 from cai_agent.models import fetch_models
 from cai_agent.exporter import export_target
-from cai_agent.memory import extract_basic_instincts_from_session, save_instincts
+from cai_agent.memory import (
+    extract_basic_instincts_from_session,
+    extract_memory_entries_from_session,
+    load_memory_entries,
+    prune_expired_memory_entries,
+    save_instincts,
+    search_memory_entries,
+)
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
 from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_security_scan
-from cai_agent.session import aggregate_sessions, list_session_files, load_session, save_session
+from cai_agent.session import (
+    aggregate_sessions,
+    build_observe_payload,
+    list_session_files,
+    load_session,
+    save_session,
+)
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.task_state import new_task
 from cai_agent.tools import dispatch, tools_spec_markdown
@@ -78,6 +91,18 @@ def _print_hook_status(
     if not ids:
         return
     print(f"[hook:{event}] " + ", ".join(ids), file=sys.stderr)
+
+
+def _inject_plan_file(goal: str, plan_path: str) -> str:
+    p = Path(plan_path).expanduser().resolve()
+    if not p.is_file():
+        msg = f"计划文件不存在: {p}"
+        raise FileNotFoundError(msg)
+    body = p.read_text(encoding="utf-8").strip()
+    return (
+        "下列为已保存的实现计划，请在执行时遵循：\n\n"
+        f"{body}\n\n---\n\n用户任务：\n{goal}"
+    )
 
 
 def _cmd_init(*, force: bool) -> int:
@@ -154,6 +179,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以一行 JSON 输出规划结果（便于脚本或其他 Agent 调用）",
     )
+    plan_p.add_argument(
+        "--write-plan",
+        default=None,
+        metavar="PATH",
+        help="将计划写入文件（.md 文本）；与控制台输出内容相同",
+    )
 
     run_p = sub.add_parser(
         "run",
@@ -194,6 +225,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="PATH",
         help="先从 JSON 会话恢复 messages，再追加本次 goal 继续运行",
+    )
+    run_p.add_argument(
+        "--plan-file",
+        default=None,
+        metavar="PATH",
+        help="将计划文件内容注入到本次 goal 之前（最小 run 联动）",
+    )
+    run_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="permissions=ask 时等价于设置 CAI_AUTO_APPROVE=1（本进程内）",
     )
 
     doctor_p = sub.add_parser(
@@ -245,6 +287,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="PATH",
         help="将继续运行后的会话写入 JSON 文件",
+    )
+    cont_p.add_argument(
+        "--plan-file",
+        default=None,
+        metavar="PATH",
+        help="将计划文件内容注入到本次 goal 之前",
+    )
+    cont_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="permissions=ask 时设置 CAI_AUTO_APPROVE=1（本进程内）",
     )
 
     models_p = sub.add_parser(
@@ -318,6 +371,17 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="将本轮运行后的会话写入 JSON 文件",
     )
+    cmd_run_p.add_argument(
+        "--plan-file",
+        default=None,
+        metavar="PATH",
+        help="将计划文件内容注入到本次 goal 之前",
+    )
+    cmd_run_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="permissions=ask 时设置 CAI_AUTO_APPROVE=1（本进程内）",
+    )
     fix_build_p = sub.add_parser(
         "fix-build",
         parents=[common],
@@ -351,6 +415,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="PATH",
         help="将本轮运行后的会话写入 JSON 文件",
+    )
+    fix_build_p.add_argument(
+        "--plan-file",
+        default=None,
+        metavar="PATH",
+        help="将计划文件内容注入到本次 goal 之前",
+    )
+    fix_build_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="permissions=ask 时设置 CAI_AUTO_APPROVE=1（本进程内）",
     )
     fix_build_p.add_argument(
         "--no-gate",
@@ -405,6 +480,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="PATH",
         help="将本轮运行后的会话写入 JSON 文件",
+    )
+    ag_run_p.add_argument(
+        "--plan-file",
+        default=None,
+        metavar="PATH",
+        help="将计划文件内容注入到本次 goal 之前",
+    )
+    ag_run_p.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="permissions=ask 时设置 CAI_AUTO_APPROVE=1（本进程内）",
     )
     mcp_p = sub.add_parser(
         "mcp-check",
@@ -502,6 +588,12 @@ def main(argv: list[str] | None = None) -> int:
     qg_p.add_argument("--no-test", action="store_true", help="跳过 test 检查")
     qg_p.add_argument("--lint", action="store_true", help="启用 lint 检查（ruff）")
     qg_p.add_argument("--security-scan", action="store_true", help="在质量门禁中启用安全扫描")
+    qg_p.add_argument(
+        "--report-dir",
+        default=None,
+        metavar="DIR",
+        help="写入 quality-gate.json / quality-gate.jsonl / quality-gate-junit.xml",
+    )
     sec_p = sub.add_parser(
         "security-scan",
         parents=[common],
@@ -536,8 +628,28 @@ def main(argv: list[str] | None = None) -> int:
     memory_extract = memory_sub.add_parser("extract", help="从会话提取记忆")
     memory_extract.add_argument("--pattern", default=".cai-session*.json")
     memory_extract.add_argument("--limit", type=int, default=10)
-    memory_list = memory_sub.add_parser("list", help="列出记忆快照")
-    memory_list.add_argument("--limit", type=int, default=20)
+    memory_list = memory_sub.add_parser("list", help="列出结构化记忆条目（entries.jsonl）")
+    memory_list.add_argument("--limit", type=int, default=50)
+    memory_list.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 JSON 数组（含 id/category/confidence/expires_at）",
+    )
+    memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
+    memory_instincts.add_argument("--limit", type=int, default=20)
+    memory_instincts.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 数组输出路径",
+    )
+    memory_search = memory_sub.add_parser("search", help="按子串搜索记忆条目")
+    memory_search.add_argument("query", help="搜索子串")
+    memory_search.add_argument("--limit", type=int, default=50)
+    memory_search.add_argument("--json", action="store_true", dest="json_output")
+    memory_prune = memory_sub.add_parser("prune", help="删除已过期的记忆条目")
+    memory_prune.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
@@ -547,7 +659,12 @@ def main(argv: list[str] | None = None) -> int:
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
     cost_budget = cost_sub.add_parser("budget", help="预算检查")
     cost_budget.add_argument("--check", action="store_true")
-    cost_budget.add_argument("--max-tokens", type=int, default=50000)
+    cost_budget.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help="覆盖 [cost] budget_max_tokens；未指定时读配置",
+    )
 
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
@@ -681,6 +798,11 @@ def main(argv: list[str] | None = None) -> int:
                 f"tokens={usage.get('total_tokens', 0)}",
                 file=sys.stderr,
             )
+        wp = getattr(args, "write_plan", None)
+        if wp:
+            out_p = Path(str(wp)).expanduser().resolve()
+            out_p.parent.mkdir(parents=True, exist_ok=True)
+            out_p.write_text(plan_text.strip() + "\n", encoding="utf-8")
         return 0
 
     if args.command == "models":
@@ -976,6 +1098,7 @@ def main(argv: list[str] | None = None) -> int:
             enable_test=settings.quality_gate_test and not bool(args.no_test),
             enable_lint=bool(args.lint) or settings.quality_gate_lint,
             enable_security_scan=bool(args.security_scan) or settings.quality_gate_security_scan,
+            report_dir=getattr(args, "report_dir", None),
         )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
@@ -1013,11 +1136,20 @@ def main(argv: list[str] | None = None) -> int:
         ]
         ex_arg = exclude_globs if exclude_globs else None
         rule_flags = {
-            "aws_access_key": not bool(args.disable_aws),
-            "github_pat": not bool(args.disable_github),
-            "openai_like_key": not bool(args.disable_openai),
-            "private_key_header": not bool(args.disable_private_key),
+            "aws_access_key": True,
+            "github_pat": True,
+            "openai_like_key": True,
+            "private_key_header": True,
         }
+        rule_flags.update(dict(settings.security_scan_rule_overrides))
+        if bool(args.disable_aws):
+            rule_flags["aws_access_key"] = False
+        if bool(args.disable_github):
+            rule_flags["github_pat"] = False
+        if bool(args.disable_openai):
+            rule_flags["openai_like_key"] = False
+        if bool(args.disable_private_key):
+            rule_flags["private_key_header"] = False
         result = run_security_scan(settings, exclude_globs=ex_arg, rule_flags=rule_flags)
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
@@ -1043,6 +1175,7 @@ def main(argv: list[str] | None = None) -> int:
         if args.memory_action == "extract":
             files = list_session_files(cwd=str(root), pattern=str(args.pattern), limit=int(args.limit))
             written: list[str] = []
+            entries_appended = 0
             for p in files:
                 try:
                     sess = load_session(str(p))
@@ -1052,12 +1185,49 @@ def main(argv: list[str] | None = None) -> int:
                 out = save_instincts(root, instincts)
                 if out:
                     written.append(str(out))
-            print(json.dumps({"written": written}, ensure_ascii=False))
+                if extract_memory_entries_from_session(root, sess) is not None:
+                    entries_appended += 1
+            print(
+                json.dumps(
+                    {"written": written, "entries_appended": entries_appended},
+                    ensure_ascii=False,
+                ),
+            )
             return 0
         if args.memory_action == "list":
+            rows = load_memory_entries(root)[: int(args.limit)]
+            if args.json_output:
+                print(json.dumps(rows, ensure_ascii=False))
+            else:
+                for row in rows:
+                    tid = row.get("id", "")
+                    cat = row.get("category", "")
+                    snippet = str(row.get("text", ""))[:120].replace("\n", " ")
+                    print(f"{tid}\t{cat}\t{snippet}")
+            return 0
+        if args.memory_action == "instincts":
             files = sorted(mem_dir.glob("instincts-*.md"), key=lambda p: p.stat().st_mtime, reverse=True)
             arr = [str(p) for p in files[: int(args.limit)]]
-            print(json.dumps(arr, ensure_ascii=False))
+            if args.json_output:
+                print(json.dumps(arr, ensure_ascii=False))
+            else:
+                for p in arr:
+                    print(p)
+            return 0
+        if args.memory_action == "search":
+            hits = search_memory_entries(root, str(args.query), limit=int(args.limit))
+            if args.json_output:
+                print(json.dumps(hits, ensure_ascii=False))
+            else:
+                for row in hits:
+                    print(f"{row.get('id')}\t{row.get('category')}\t{row.get('text', '')[:200]}")
+            return 0
+        if args.memory_action == "prune":
+            n = prune_expired_memory_entries(root)
+            if args.json_output:
+                print(json.dumps({"removed": n}, ensure_ascii=False))
+            else:
+                print(f"removed={n}")
             return 0
         if args.memory_action == "export":
             target = Path(args.file).expanduser().resolve()
@@ -1086,8 +1256,13 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "cost":
         if args.cost_action == "budget":
+            try:
+                st_cost = Settings.from_env(config_path=None)
+            except FileNotFoundError:
+                st_cost = None
+            cfg_max = int(st_cost.cost_budget_max_tokens) if st_cost is not None else 50_000
+            max_tokens = int(args.max_tokens) if args.max_tokens is not None else cfg_max
             agg = aggregate_sessions(cwd=os.getcwd(), limit=200)
-            max_tokens = int(args.max_tokens)
             total_tokens = int(agg.get("total_tokens", 0))
             state = "pass"
             if total_tokens > max_tokens:
@@ -1109,11 +1284,19 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "observe":
-        agg = aggregate_sessions(cwd=os.getcwd(), pattern=str(args.pattern), limit=int(args.limit))
+        obs = build_observe_payload(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+        )
         if args.json_output:
-            print(json.dumps(agg, ensure_ascii=False))
+            print(json.dumps(obs, ensure_ascii=False))
         else:
-            print(f"sessions={agg.get('sessions_count')} failed={agg.get('failed_count')} tokens={agg.get('total_tokens')}")
+            ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+            print(
+                f"schema={obs.get('schema_version')} sessions={obs.get('sessions_count')} "
+                f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')}",
+            )
         return 0
 
     if args.command == "workflow":
@@ -1215,128 +1398,148 @@ def main(argv: list[str] | None = None) -> int:
                 f"用户原始目标：{goal}"
             )
 
-        reset_usage_counters()
-        task = new_task(args.command)
-        task.status = "running"
-        _print_hook_status(
-            settings,
-            event="session_start",
-            json_output=bool(args.json_output),
-        )
-        app = build_app(settings)
-        if args.command == "run":
-            load_session_path = args.load_session
-        elif args.command == "continue":
-            load_session_path = args.session
-        else:
-            load_session_path = None
-        if load_session_path:
+        pf = getattr(args, "plan_file", None)
+        if pf:
             try:
-                sess = load_session(load_session_path)
-            except Exception as e:
-                print(f"读取会话失败: {e}", file=sys.stderr)
+                goal = _inject_plan_file(goal, str(pf))
+            except OSError as e:
+                print(f"读取计划文件失败: {e}", file=sys.stderr)
                 return 2
-            messages = sess.get("messages")
-            if not isinstance(messages, list) or not messages:
-                print("会话文件不合法：messages 必须是非空数组", file=sys.stderr)
-                return 2
-            state = {
-                "messages": list(messages) + [{"role": "user", "content": goal}],
-                "iteration": 0,
-                "pending": None,
-                "finished": False,
-            }
-        else:
-            state = initial_state(settings, goal)
-        started = time.perf_counter()
-        final = app.invoke(state)
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        task.ended_at = time.time()
-        task.elapsed_ms = elapsed_ms
 
-        if (
-            not args.quiet
-            and not args.json_output
-            and final.get("messages")
-        ):
-            print("--- messages (last assistant) ---", file=sys.stderr)
-            for m in final["messages"][-6:]:
-                role = m.get("role", "")
-                content = (m.get("content") or "")[:2000]
-                print(f"[{role}]\n{content}\n", file=sys.stderr)
-
-        usage = get_usage_counters()
-        task.status = "completed" if bool(final.get("finished")) else "failed"
-        task.error = None if task.status == "completed" else "unfinished"
-        gate_result = None
-        if args.command == "fix-build" and not bool(getattr(args, "no_gate", False)):
-            gate_result = run_quality_gate(
+        auto_on = bool(getattr(args, "auto_approve", False))
+        prev_auto = os.environ.get("CAI_AUTO_APPROVE")
+        if auto_on:
+            os.environ["CAI_AUTO_APPROVE"] = "1"
+        try:
+            reset_usage_counters()
+            task = new_task(args.command)
+            task.status = "running"
+            _print_hook_status(
                 settings,
-                enable_compile=settings.quality_gate_compile,
-                enable_test=settings.quality_gate_test,
-                enable_lint=settings.quality_gate_lint,
-                enable_security_scan=settings.quality_gate_security_scan,
+                event="session_start",
+                json_output=bool(args.json_output),
             )
-        if args.json_output:
-            msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
-            tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
-            payload = {
-                "answer": (final.get("answer") or "").strip(),
-                "iteration": final.get("iteration"),
-                "finished": final.get("finished"),
-                "config": settings.config_loaded_from,
-                "workspace": settings.workspace,
-                "provider": settings.provider,
-                "model": settings.model,
-                "mcp_enabled": settings.mcp_enabled,
-                "elapsed_ms": elapsed_ms,
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-                "total_tokens": usage.get("total_tokens", 0),
-                "tool_calls_count": tool_calls_count,
-                "used_tools": used_tools,
-                "last_tool": last_tool,
-                "error_count": error_count,
-                "task": task.to_dict(),
-                "post_gate": gate_result,
-            }
-            print(json.dumps(payload, ensure_ascii=False))
-        else:
-            print(final.get("answer", "").strip())
-            if gate_result is not None:
-                print(
-                    f"\n[fix-build] quality-gate ok={gate_result.get('ok')} failed_count={gate_result.get('failed_count')}",
-                    file=sys.stderr,
-                )
+            app = build_app(settings)
+            if args.command == "run":
+                load_session_path = args.load_session
+            elif args.command == "continue":
+                load_session_path = args.session
+            else:
+                load_session_path = None
+            if load_session_path:
+                try:
+                    sess = load_session(load_session_path)
+                except Exception as e:
+                    print(f"读取会话失败: {e}", file=sys.stderr)
+                    return 2
+                messages = sess.get("messages")
+                if not isinstance(messages, list) or not messages:
+                    print("会话文件不合法：messages 必须是非空数组", file=sys.stderr)
+                    return 2
+                state = {
+                    "messages": list(messages) + [{"role": "user", "content": goal}],
+                    "iteration": 0,
+                    "pending": None,
+                    "finished": False,
+                }
+            else:
+                state = initial_state(settings, goal)
+            started = time.perf_counter()
+            final = app.invoke(state)
+            elapsed_ms = int((time.perf_counter() - started) * 1000)
+            task.ended_at = time.time()
+            task.elapsed_ms = elapsed_ms
 
-        save_session_path = getattr(args, "save_session", None)
-        if save_session_path:
-            payload = {
-                "version": 2,
-                "workspace": settings.workspace,
-                "config": settings.config_loaded_from,
-                "provider": settings.provider,
-                "model": settings.model,
-                "mcp_enabled": settings.mcp_enabled,
-                "elapsed_ms": elapsed_ms,
-                "total_tokens": usage.get("total_tokens", 0),
-                "prompt_tokens": usage.get("prompt_tokens", 0),
-                "completion_tokens": usage.get("completion_tokens", 0),
-                "messages": final.get("messages") or [],
-                "answer": final.get("answer"),
-                "task": task.to_dict(),
-            }
-            try:
-                save_session(str(save_session_path), payload)
-            except Exception as e:
-                print(f"写入会话失败: {e}", file=sys.stderr)
-                return 2
-        _print_hook_status(
-            settings,
-            event="session_end",
-            json_output=bool(args.json_output),
-        )
-        return 0
+            if (
+                not args.quiet
+                and not args.json_output
+                and final.get("messages")
+            ):
+                print("--- messages (last assistant) ---", file=sys.stderr)
+                for m in final["messages"][-6:]:
+                    role = m.get("role", "")
+                    content = (m.get("content") or "")[:2000]
+                    print(f"[{role}]\n{content}\n", file=sys.stderr)
+
+            usage = get_usage_counters()
+            task.status = "completed" if bool(final.get("finished")) else "failed"
+            task.error = None if task.status == "completed" else "unfinished"
+            gate_result = None
+            if args.command == "fix-build" and not bool(getattr(args, "no_gate", False)):
+                gate_result = run_quality_gate(
+                    settings,
+                    enable_compile=settings.quality_gate_compile,
+                    enable_test=settings.quality_gate_test,
+                    enable_lint=settings.quality_gate_lint,
+                    enable_security_scan=settings.quality_gate_security_scan,
+                )
+            if args.json_output:
+                msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
+                tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(msgs)
+                payload = {
+                    "answer": (final.get("answer") or "").strip(),
+                    "iteration": final.get("iteration"),
+                    "finished": final.get("finished"),
+                    "config": settings.config_loaded_from,
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "mcp_enabled": settings.mcp_enabled,
+                    "elapsed_ms": elapsed_ms,
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "total_tokens": usage.get("total_tokens", 0),
+                    "tool_calls_count": tool_calls_count,
+                    "used_tools": used_tools,
+                    "last_tool": last_tool,
+                    "error_count": error_count,
+                    "task": task.to_dict(),
+                    "post_gate": gate_result,
+                }
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(final.get("answer", "").strip())
+                if gate_result is not None:
+                    print(
+                        f"\n[fix-build] quality-gate ok={gate_result.get('ok')} failed_count={gate_result.get('failed_count')}",
+                        file=sys.stderr,
+                    )
+
+            save_session_path = getattr(args, "save_session", None)
+            if save_session_path:
+                payload = {
+                    "version": 2,
+                    "goal": goal,
+                    "workspace": settings.workspace,
+                    "config": settings.config_loaded_from,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "mcp_enabled": settings.mcp_enabled,
+                    "elapsed_ms": elapsed_ms,
+                    "total_tokens": usage.get("total_tokens", 0),
+                    "prompt_tokens": usage.get("prompt_tokens", 0),
+                    "completion_tokens": usage.get("completion_tokens", 0),
+                    "messages": final.get("messages") or [],
+                    "answer": final.get("answer"),
+                    "task": task.to_dict(),
+                }
+                try:
+                    save_session(str(save_session_path), payload)
+                except Exception as e:
+                    print(f"写入会话失败: {e}", file=sys.stderr)
+                    return 2
+            _print_hook_status(
+                settings,
+                event="session_end",
+                json_output=bool(args.json_output),
+            )
+            return 0
+        finally:
+            if auto_on:
+                if prev_auto is None:
+                    os.environ.pop("CAI_AUTO_APPROVE", None)
+                else:
+                    os.environ["CAI_AUTO_APPROVE"] = prev_auto
 
     if args.command == "ui":
         from cai_agent.tui import run_tui

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
 import json
 import os
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 from cai_agent.__main__ import main
@@ -29,7 +31,11 @@ class WorkflowCliTests(unittest.TestCase):
             old_mock = os.environ.get("CAI_MOCK")
             os.environ["CAI_MOCK"] = "1"
             try:
-                rc = main(["workflow", str(wf_path), "--json"])
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["workflow", str(wf_path), "--json"])
+                payload = json.loads(buf.getvalue().strip())
+                self.assertIn("steps", payload)
             finally:
                 if old_mock is None:
                     os.environ.pop("CAI_MOCK", None)

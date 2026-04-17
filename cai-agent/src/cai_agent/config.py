@@ -83,7 +83,13 @@ class Settings:
     quality_gate_test: bool
     quality_gate_lint: bool
     quality_gate_security_scan: bool
+    quality_gate_test_policy: str
+    quality_gate_lint_policy: str
     security_scan_exclude_globs: tuple[str, ...]
+    security_scan_rule_overrides: tuple[tuple[str, bool], ...]
+    permission_write_file: str
+    permission_run_command: str
+    cost_budget_max_tokens: int
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
 
@@ -234,11 +240,52 @@ class Settings:
         quality_gate_test = bool(qg.get("test", True))
         quality_gate_lint = bool(qg.get("lint", False))
         quality_gate_security_scan = bool(qg.get("security_scan", False))
+        test_pol = str(qg.get("test_policy", "skip")).strip().lower()
+        if test_pol not in ("skip", "fail_if_missing"):
+            test_pol = "skip"
+        quality_gate_test_policy = test_pol
+        lint_pol = str(qg.get("lint_policy", "skip")).strip().lower()
+        if lint_pol not in ("skip", "fail_if_missing"):
+            lint_pol = "skip"
+        quality_gate_lint_policy = lint_pol
+
         sec_ex = sec.get("exclude_globs")
         if isinstance(sec_ex, list):
             security_scan_exclude_globs = tuple(str(x).strip() for x in sec_ex if str(x).strip())
         else:
             security_scan_exclude_globs = ()
+
+        ro = sec.get("rule_overrides")
+        pairs: list[tuple[str, bool]] = []
+        if isinstance(ro, dict):
+            for k, v in ro.items():
+                key = str(k).strip()
+                if not key:
+                    continue
+                if isinstance(v, bool):
+                    pairs.append((key, v))
+                elif isinstance(v, int):
+                    pairs.append((key, bool(v)))
+        security_scan_rule_overrides = tuple(sorted(pairs))
+
+        perm = _section(file_data, "permissions")
+        def _perm_mode(raw: object, default: str) -> str:
+            s = str(raw or default).strip().lower()
+            if s not in ("allow", "ask", "deny"):
+                return default
+            return s
+
+        permission_write_file = _perm_mode(perm.get("write_file"), "allow")
+        permission_run_command = _perm_mode(perm.get("run_command"), "allow")
+
+        cost_sec = _section(file_data, "cost")
+        raw_max = cost_sec.get("budget_max_tokens")
+        if isinstance(raw_max, int) and not isinstance(raw_max, bool):
+            cost_budget_max_tokens = max(0, int(raw_max))
+        elif isinstance(raw_max, float):
+            cost_budget_max_tokens = max(0, int(raw_max))
+        else:
+            cost_budget_max_tokens = 50_000
 
         config_loaded_from = str(resolved) if resolved is not None else None
 
@@ -264,6 +311,12 @@ class Settings:
             quality_gate_test=quality_gate_test,
             quality_gate_lint=quality_gate_lint,
             quality_gate_security_scan=quality_gate_security_scan,
+            quality_gate_test_policy=quality_gate_test_policy,
+            quality_gate_lint_policy=quality_gate_lint_policy,
             security_scan_exclude_globs=security_scan_exclude_globs,
+            security_scan_rule_overrides=security_scan_rule_overrides,
+            permission_write_file=permission_write_file,
+            permission_run_command=permission_run_command,
+            cost_budget_max_tokens=cost_budget_max_tokens,
             config_loaded_from=config_loaded_from,
         )

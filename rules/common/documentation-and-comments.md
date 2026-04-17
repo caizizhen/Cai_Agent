@@ -4,8 +4,9 @@
 
 ### 1. README 与架构文档
 
-- 顶层 `README.md` 需保持与实际实现一致：
-  - 修改核心模块/CLI 子命令后，应评估是否需要同步更新 README；
+- 顶层 **`README.md`（默认英文）** 与 **`README.zh-CN.md`（中文）** 需与实际实现一致：
+  - 修改核心模块/CLI 子命令后，应评估是否需同步更新两份说明；
+  - 版本与用户可见行为变更时，同步更新 **`CHANGELOG.md`（英文默认）** 与 **`CHANGELOG.zh-CN.md`（中文）**；
   - 大型架构调整后，优先更新 `docs/ARCHITECTURE.zh-CN.md` 等架构说明。
 - 文档以「对齐 Claude Code / Everything Claude Code」为核心主线，清晰标注：
   - 已实现能力；

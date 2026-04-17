@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="quality-gate" tests="4" failures="0" skipped="0">
+  <testcase name="python -m compileall -q cai-agent/src" classname="cai_agent.quality_gate">
+  </testcase>
+  <testcase name="python -m pytest -q" classname="cai_agent.quality_gate">
+    <skipped message="disabled_by_flag"/>
+  </testcase>
+  <testcase name="python -m ruff check ." classname="cai_agent.quality_gate">
+    <skipped message="disabled_by_flag"/>
+  </testcase>
+  <testcase name="security-scan" classname="cai_agent.quality_gate">
+    <skipped message="disabled_by_flag"/>
+  </testcase>
+</testsuite>

@@ -1,0 +1,58 @@
+{
+  "task": {
+    "task_id": "quality-gate-5a178ddb18",
+    "type": "quality-gate",
+    "status": "completed",
+    "started_at": 1776386451.8409228,
+    "ended_at": 1776386451.8759031,
+    "elapsed_ms": 34,
+    "error": null
+  },
+  "workspace": "D:\\gitrepo\\Cai_Agent",
+  "config": {
+    "compile": true,
+    "test": false,
+    "lint": false,
+    "security_scan": false,
+    "test_policy": "skip",
+    "lint_policy": "skip"
+  },
+  "checks": [
+    {
+      "name": "python -m compileall -q cai-agent/src",
+      "exit_code": 0,
+      "elapsed_ms": 34,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "python -m pytest -q",
+      "exit_code": 0,
+      "elapsed_ms": 0,
+      "stdout": "",
+      "stderr": "",
+      "skipped": true,
+      "skip_reason": "disabled_by_flag"
+    },
+    {
+      "name": "python -m ruff check .",
+      "exit_code": 0,
+      "elapsed_ms": 0,
+      "stdout": "",
+      "stderr": "",
+      "skipped": true,
+      "skip_reason": "disabled_by_flag"
+    },
+    {
+      "name": "security-scan",
+      "exit_code": 0,
+      "elapsed_ms": 0,
+      "stdout": "",
+      "stderr": "",
+      "skipped": true,
+      "skip_reason": "disabled_by_flag"
+    }
+  ],
+  "ok": true,
+  "failed_count": 0
+}

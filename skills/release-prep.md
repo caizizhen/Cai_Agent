@@ -13,11 +13,11 @@
 ### 二、对话提示模版
 
 > 「请帮我做一次发布前检查。  
-> 请覆盖：README、CHANGELOG、配置示例、关键 CLI/TUI 能力、规则/技能文档与基本验证步骤。」
+> 请覆盖：README（中英文）、CHANGELOG（中英文）、配置示例、关键 CLI/TUI 能力、规则/技能文档与基本验证步骤。」
 
 ### 三、典型步骤
 
-1. 对照最近改动，核对 `README.md` 与 `CHANGELOG.md`；
+1. 对照最近改动，核对 `README.md`、`README.zh-CN.md` 与 `CHANGELOG.md`、`CHANGELOG.zh-CN.md`；
 2. 检查示例配置与命令示例是否仍然有效；
 3. 选择若干关键命令进行验证建议；
 4. 汇总发布说明与已知限制。
