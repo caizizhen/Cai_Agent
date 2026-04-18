@@ -1,0 +1,119 @@
+# 由 `cai-agent init --preset starter` 复制（勿提交含真实 Key 的文件）
+#
+# 预置：本机 LM Studio / Ollama / vLLM、云端 OpenRouter、自建 OpenAI 兼容网关。
+# 切换：`cai-agent models use <profile-id>` 或 TUI `/models`。
+# 优先级：环境变量 > 本文件 > 内置默认
+
+[llm]
+provider = "openai_compatible"
+base_url = "http://localhost:1234/v1"
+model = "google/gemma-4-31b"
+api_key = "lm-studio"
+http_trust_env = false
+temperature = 0.2
+timeout_sec = 120
+
+[copilot]
+# base_url = "http://localhost:4141/v1"
+# model = "gpt-4o-mini"
+# api_key = "ghu_or_proxy_token"
+
+[mcp]
+timeout_sec = 20
+
+[agent]
+max_iterations = 16
+command_timeout_sec = 120
+mock = false
+mcp_enabled = false
+project_context = true
+git_context = true
+
+[context]
+
+[quality_gate]
+compile = false
+test = false
+lint = false
+typecheck = false
+security_scan = false
+test_policy = "skip"
+lint_policy = "skip"
+typecheck_policy = "skip"
+
+[security_scan]
+exclude_globs = [
+  "cai-agent/src/cai_agent/security_scan.py",
+  "commands/security-scan.md",
+  "skills/security-scan-light.md",
+  "docs/**",
+]
+
+[fetch_url]
+enabled = true
+unrestricted = true
+
+[permissions]
+write_file = "allow"
+run_command = "allow"
+fetch_url = "allow"
+
+[cost]
+budget_max_tokens = 50000
+
+# ---------------------------------------------------------------------------
+# 显式 profile：启用后以上 [llm] 仅作兼容回退，实际以 [models].active 为准。
+# ---------------------------------------------------------------------------
+
+[models]
+active = "local-lmstudio"
+
+[[models.profile]]
+id = "local-lmstudio"
+provider = "openai_compatible"
+base_url = "http://localhost:1234/v1"
+model = "google/gemma-4-31b"
+api_key = "lm-studio"
+temperature = 0.2
+timeout_sec = 120.0
+notes = "LM Studio local server default port 1234; set model to match a loaded model."
+
+[[models.profile]]
+id = "local-ollama"
+provider = "openai_compatible"
+base_url = "http://localhost:11434/v1"
+model = "qwen2.5-coder:7b"
+api_key = "ollama"
+temperature = 0.2
+timeout_sec = 120.0
+notes = "Ollama OpenAI API; run ollama pull <model> first. Use api_key_env OLLAMA_API_KEY if your server requires it."
+
+[[models.profile]]
+id = "local-vllm"
+provider = "openai_compatible"
+base_url = "http://localhost:8000/v1"
+model = "replace-with-your-served-model-name"
+api_key = "EMPTY"
+temperature = 0.2
+timeout_sec = 120.0
+notes = "vLLM OpenAI server default port 8000; align model with --served-model-name. Switch to api_key_env if you enabled --api-key."
+
+[[models.profile]]
+id = "openrouter"
+provider = "openai_compatible"
+base_url = "https://openrouter.ai/api/v1"
+model = "openai/gpt-4o-mini"
+api_key_env = "OPENROUTER_API_KEY"
+temperature = 0.2
+timeout_sec = 120.0
+notes = "OpenRouter: one key, many models. See https://openrouter.ai/models"
+
+[[models.profile]]
+id = "compat-gateway"
+provider = "openai_compatible"
+base_url = "http://127.0.0.1:8080/v1"
+model = "gpt-4o-mini"
+api_key_env = "OPENAI_API_KEY"
+temperature = 0.2
+timeout_sec = 120.0
+notes = "Self-hosted OpenAI-compatible proxy (One API, LiteLLM, etc.); change base_url and model to your route id."

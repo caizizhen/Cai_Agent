@@ -5,6 +5,7 @@ import json
 import os
 import signal
 import sys
+
 import threading
 import time
 from dataclasses import replace
@@ -436,27 +437,71 @@ def _cmd_models(args: argparse.Namespace) -> int:
     return 0
 
 
-def _cmd_init(*, force: bool) -> int:
-    dest = Path.cwd() / "cai-agent.toml"
+def _default_global_config_path() -> Path:
+    """`cai-agent init --global` 写入的默认用户级配置位置。
+
+    Windows 优先 ``%APPDATA%\\cai-agent\\cai-agent.toml``（更符合 Windows 习惯，
+    也能被 :func:`cai_agent.config._user_config_candidates` 最先命中）；
+    其它平台使用 ``~/.config/cai-agent/cai-agent.toml``。
+    """
+    if os.name == "nt":
+        appdata = os.getenv("APPDATA")
+        if isinstance(appdata, str) and appdata.strip():
+            return Path(appdata).expanduser() / "cai-agent" / "cai-agent.toml"
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if isinstance(xdg, str) and xdg.strip():
+        return Path(xdg).expanduser() / "cai-agent" / "cai-agent.toml"
+    return Path.home() / ".config" / "cai-agent" / "cai-agent.toml"
+
+
+def _cmd_init(*, force: bool, is_global: bool = False, preset: str = "default") -> int:
+    if is_global:
+        dest = _default_global_config_path()
+    else:
+        dest = Path.cwd() / "cai-agent.toml"
     if dest.exists() and not force:
+        label = "用户级全局" if is_global else "当前目录"
         print(
-            "当前目录已存在 cai-agent.toml；若需覆盖请添加 --force",
+            f"{label} 配置已存在: {dest}；若需覆盖请添加 --force",
             file=sys.stderr,
         )
         return 1
+    tpl_name = (
+        "templates/cai-agent.starter.toml"
+        if (preset or "").strip().lower() == "starter"
+        else "templates/cai-agent.example.toml"
+    )
     try:
-        tpl = resources.files("cai_agent").joinpath("templates/cai-agent.example.toml")
+        tpl = resources.files("cai_agent").joinpath(tpl_name)
         data = tpl.read_bytes()
     except Exception as e:
         print(f"读取内置配置模板失败: {e}", file=sys.stderr)
         return 1
+    try:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as e:
+        print(f"创建目录失败 {dest.parent}: {e}", file=sys.stderr)
+        return 1
     dest.write_bytes(data)
     print(f"已生成 {dest.resolve()}")
+    if is_global:
+        print(
+            "[--global] 任意目录运行 `cai-agent ui` 在没有项目级 cai-agent.toml 时都会读它；"
+            "项目级 ./cai-agent.toml（或 --config / CAI_CONFIG）仍具有更高优先级。",
+        )
     print(
         "下一步: 编辑其中 [llm] 或 [[models.profile]] 指向你的 API；"
         "然后执行 cai-agent doctor 与 cai-agent run \"…\"。",
     )
-    print("多模型: cai-agent models list / models add --preset lmstudio …")
+    print(
+        "多模型: cai-agent models list；新增条目: "
+        "cai-agent models add --preset lmstudio|ollama|vllm|openrouter|gateway …",
+    )
+    if (preset or "").strip().lower() == "starter":
+        print(
+            "starter 模板已启用多条 profile；设置密钥后可用 "
+            "`cai-agent models use local-lmstudio`（或其它 id）切换。",
+        )
     print("说明: docs/ONBOARDING.zh-CN.md（含 CI / CAI_AUTO_APPROVE）。")
     return 0
 
@@ -486,12 +531,32 @@ def main(argv: list[str] | None = None) -> int:
 
     init_p = sub.add_parser(
         "init",
-        help="在当前目录生成 cai-agent.toml（来自内置示例）",
+        help="在当前目录生成 cai-agent.toml（来自内置示例），或用 --global 写到用户目录",
     )
     init_p.add_argument(
         "--force",
         action="store_true",
         help="覆盖已存在的 cai-agent.toml",
+    )
+    init_p.add_argument(
+        "--global",
+        action="store_true",
+        dest="global_flag",
+        help=(
+            "写入用户级全局位置（Windows: %%APPDATA%%\\cai-agent\\cai-agent.toml；"
+            "其它: ~/.config/cai-agent/cai-agent.toml）；"
+            "项目级 ./cai-agent.toml 优先级仍更高"
+        ),
+    )
+    init_p.add_argument(
+        "--preset",
+        default="default",
+        dest="init_preset",
+        choices=["default", "starter"],
+        help=(
+            "default: 仅 [llm]，默认指向本机 LM Studio。"
+            "starter: 预置 LM Studio / Ollama / vLLM / OpenRouter / 自建 OpenAI 兼容网关等多条 [[models.profile]]"
+        ),
     )
 
     plan_p = sub.add_parser(
@@ -663,7 +728,9 @@ def main(argv: list[str] | None = None) -> int:
     _ma.add_argument("--id", required=True, dest="pid")
     _ma.add_argument(
         "--preset", default=None,
-        choices=sorted(["openai", "anthropic", "openrouter", "lmstudio", "ollama"]),
+        choices=sorted(
+            ["openai", "anthropic", "openrouter", "lmstudio", "ollama", "vllm", "gateway"],
+        ),
     )
     _ma.add_argument("--provider", default=None)
     _ma.add_argument("--base-url", default=None, dest="base_url")
@@ -1191,7 +1258,11 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "init":
-        return _cmd_init(force=args.force)
+        return _cmd_init(
+            force=args.force,
+            is_global=bool(getattr(args, "global_flag", False)),
+            preset=str(getattr(args, "init_preset", "default") or "default"),
+        )
 
     if args.command == "doctor":
         try:

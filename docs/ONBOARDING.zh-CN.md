@@ -8,11 +8,12 @@
    `pip install -e .`
 
 2. **生成配置**（在项目根或工作区目录）  
-   `cai-agent init`  
-   若已存在 `cai-agent.toml`，使用 `cai-agent init --force` 覆盖。
+   - 最小单端点：`cai-agent init`（默认 `[llm]`，本机 LM Studio）。  
+   - 多后端 + OpenRouter + 自建网关模板：`cai-agent init --preset starter`（预置多条 `[[models.profile]]`，再用 `cai-agent models use <id>` 切换）。  
+   若已存在 `cai-agent.toml`，使用 `cai-agent init --force`（可加 `--preset starter`）覆盖。
 
 3. **编辑 `cai-agent.toml`**  
-   至少设置 `[llm]` 的 `base_url`、`model`、`api_key`，使其指向你的 OpenAI 兼容端点（如 LM Studio）。
+   至少设置 `[llm]` 或当前激活 profile 的 `base_url`、`model`、`api_key` / `api_key_env`，使其指向你的 OpenAI 兼容端点（如 LM Studio、Ollama、vLLM、OpenRouter 或自建代理）。
 
 4. **健康检查**  
    `cai-agent doctor`  

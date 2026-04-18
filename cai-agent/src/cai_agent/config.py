@@ -31,6 +31,60 @@ def _normalize_base_url(base: str) -> str:
     return base
 
 
+def _user_config_candidates() -> list[Path]:
+    """返回用户级全局配置候选路径（按优先级从高到低）。
+
+    类似 git 的 ``~/.gitconfig``：从 cwd / workspace 找不到项目级 TOML 时，
+    用这里列出的**用户目录**路径作为兜底，解决「从任意目录启动 ui，想读
+    固定那份个人配置」的诉求。
+
+    Windows / macOS / Linux 覆盖：
+
+    - ``%APPDATA%\\cai-agent\\cai-agent.toml``（Windows 专属，最先查）
+    - ``~/.config/cai-agent/cai-agent.toml``（XDG 风格；受 ``XDG_CONFIG_HOME``）
+    - ``~/.cai-agent.toml``（点文件，最兼容）
+    - ``~/cai-agent.toml``（非隐藏，方便 Windows 用户 Explorer 里直接看）
+    """
+    out: list[Path] = []
+
+    appdata = os.getenv("APPDATA")
+    if isinstance(appdata, str) and appdata.strip():
+        try:
+            out.append(Path(appdata).expanduser().resolve() / "cai-agent" / "cai-agent.toml")
+        except OSError:
+            pass
+
+    xdg = os.getenv("XDG_CONFIG_HOME")
+    if isinstance(xdg, str) and xdg.strip():
+        try:
+            out.append(Path(xdg).expanduser().resolve() / "cai-agent" / "cai-agent.toml")
+        except OSError:
+            pass
+    else:
+        try:
+            out.append(Path.home().resolve() / ".config" / "cai-agent" / "cai-agent.toml")
+        except (OSError, RuntimeError):
+            pass
+
+    try:
+        home = Path.home().resolve()
+        out.append(home / ".cai-agent.toml")
+        out.append(home / "cai-agent.toml")
+    except (OSError, RuntimeError):
+        pass
+
+    # 去重但保序
+    seen: set[str] = set()
+    uniq: list[Path] = []
+    for p in out:
+        key = str(p)
+        if key in seen:
+            continue
+        seen.add(key)
+        uniq.append(p)
+    return uniq
+
+
 def _resolve_config_file(
     explicit: str | None,
     *,
@@ -41,7 +95,8 @@ def _resolve_config_file(
     查找顺序：``CAI_CONFIG`` → 当前目录 ``cai-agent.toml`` / ``.cai-agent.toml`` →
     沿父目录向上最多 12 级（便于「配置在仓库根、在子目录里跑 ``ui``」）→
     若仍未找到：再沿 ``CAI_WORKSPACE`` 环境变量目录及其父目录查找 →
-    最后沿 ``workspace_hint``（通常为 CLI ``--workspace``）同样查找。
+    沿 ``workspace_hint``（通常为 CLI ``--workspace``）同样查找 →
+    最后尝试用户级全局配置（见 :func:`_user_config_candidates`）。
 
     解决从任意目录启动（尤其跨盘符）时读不到项目根 ``cai-agent.toml``、
     导致 ``context_window`` 等回落到内置默认 8192 的问题。
@@ -112,6 +167,13 @@ def _resolve_config_file(
     hit = _try_extra_root(workspace_hint)
     if hit is not None:
         return hit
+
+    for cand in _user_config_candidates():
+        try:
+            if cand.is_file():
+                return cand
+        except OSError:
+            continue
     return None
 
 

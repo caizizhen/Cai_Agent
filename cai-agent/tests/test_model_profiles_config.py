@@ -186,6 +186,17 @@ class ProfilesParsingTests(unittest.TestCase):
         self.assertEqual(merged["api_key_env"], "ANTHROPIC_API_KEY")
         self.assertEqual(merged["model"], "claude-sonnet-4-5")
 
+    def test_apply_preset_vllm_and_gateway(self) -> None:
+        v = apply_preset({"id": "v1"}, "vllm")
+        self.assertEqual(v["provider"], "openai_compatible")
+        self.assertIn("8000", v["base_url"])
+        self.assertEqual(v["api_key_env"], "VLLM_API_KEY")
+        self.assertIn("model", v)
+        g = apply_preset({"id": "g1", "base_url": "http://proxy.internal:9000/v1"}, "gateway")
+        self.assertEqual(g["base_url"], "http://proxy.internal:9000/v1")
+        self.assertEqual(g["api_key_env"], "OPENAI_API_KEY")
+        self.assertEqual(g["model"], "gpt-4o-mini")
+
     def test_project_base_url_anthropic_strips_v1(self) -> None:
         p = Profile(
             id="c",
@@ -366,6 +377,129 @@ class ConfigDiscoveryTests(unittest.TestCase):
         self.assertEqual(s.context_window, 44000)
         self.assertEqual(s.context_window_source, "llm")
         self.assertEqual(s.config_loaded_from, str(cfg_path.resolve()))
+
+    def test_user_home_global_config_is_loaded_when_no_project_toml(self) -> None:
+        """cwd / CAI_WORKSPACE / workspace_hint 都找不到项目级 TOML 时，
+        应当回退到用户级全局配置（模拟 Windows 下 %APPDATA% 的位置）。"""
+        prev_cfg = os.environ.pop("CAI_CONFIG", None)
+        prev_ws = os.environ.pop("CAI_WORKSPACE", None)
+        prev_appdata = os.environ.get("APPDATA")
+        prev_xdg = os.environ.get("XDG_CONFIG_HOME")
+        prev_home = os.environ.get("HOME")
+        prev_userprofile = os.environ.get("USERPROFILE")
+        prev_cwd = os.getcwd()
+        cfg_path: Path | None = None
+        try:
+            with tempfile.TemporaryDirectory() as base:
+                appdata = Path(base) / "AppData"
+                fake_home = Path(base) / "home"
+                elsewhere = Path(base) / "elsewhere"
+                appdata.mkdir()
+                fake_home.mkdir()
+                elsewhere.mkdir()
+                cfg_dir = appdata / "cai-agent"
+                cfg_dir.mkdir()
+                cfg_path = cfg_dir / "cai-agent.toml"
+                cfg_path.write_text(
+                    "[llm]\n"
+                    'base_url = "http://x/v1"\n'
+                    'model = "m"\n'
+                    'api_key = "k"\n'
+                    "context_window = 60000\n",
+                    encoding="utf-8",
+                )
+                os.environ["APPDATA"] = str(appdata)
+                os.environ["HOME"] = str(fake_home)
+                os.environ["USERPROFILE"] = str(fake_home)
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                os.chdir(elsewhere)
+                try:
+                    s = Settings.from_env()
+                finally:
+                    os.chdir(prev_cwd)
+        finally:
+            if prev_cfg is not None:
+                os.environ["CAI_CONFIG"] = prev_cfg
+            if prev_ws is not None:
+                os.environ["CAI_WORKSPACE"] = prev_ws
+            if prev_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = prev_appdata
+            if prev_xdg is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = prev_xdg
+            if prev_home is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = prev_home
+            if prev_userprofile is None:
+                os.environ.pop("USERPROFILE", None)
+            else:
+                os.environ["USERPROFILE"] = prev_userprofile
+        self.assertIsNotNone(cfg_path)
+        self.assertEqual(s.context_window, 60000)
+        self.assertEqual(s.context_window_source, "llm")
+        self.assertEqual(s.config_loaded_from, str(cfg_path.resolve()))
+
+    def test_project_toml_wins_over_user_home_global(self) -> None:
+        """项目级 cai-agent.toml 优先于用户级全局配置，不能被覆盖。"""
+        prev_cfg = os.environ.pop("CAI_CONFIG", None)
+        prev_ws = os.environ.pop("CAI_WORKSPACE", None)
+        prev_appdata = os.environ.get("APPDATA")
+        prev_xdg = os.environ.get("XDG_CONFIG_HOME")
+        prev_home = os.environ.get("HOME")
+        prev_userprofile = os.environ.get("USERPROFILE")
+        prev_cwd = os.getcwd()
+        try:
+            with tempfile.TemporaryDirectory() as base:
+                appdata = Path(base) / "AppData"
+                fake_home = Path(base) / "home"
+                project = Path(base) / "project"
+                for d in (appdata, fake_home, project, appdata / "cai-agent"):
+                    d.mkdir()
+                global_cfg = appdata / "cai-agent" / "cai-agent.toml"
+                global_cfg.write_text(
+                    "[llm]\nbase_url=\"http://x/v1\"\nmodel=\"m\"\napi_key=\"k\"\ncontext_window=60000\n",
+                    encoding="utf-8",
+                )
+                proj_cfg = project / "cai-agent.toml"
+                proj_cfg.write_text(
+                    "[llm]\nbase_url=\"http://x/v1\"\nmodel=\"m\"\napi_key=\"k\"\ncontext_window=12345\n",
+                    encoding="utf-8",
+                )
+                os.environ["APPDATA"] = str(appdata)
+                os.environ["HOME"] = str(fake_home)
+                os.environ["USERPROFILE"] = str(fake_home)
+                os.environ.pop("XDG_CONFIG_HOME", None)
+                os.chdir(project)
+                try:
+                    s = Settings.from_env()
+                finally:
+                    os.chdir(prev_cwd)
+        finally:
+            if prev_cfg is not None:
+                os.environ["CAI_CONFIG"] = prev_cfg
+            if prev_ws is not None:
+                os.environ["CAI_WORKSPACE"] = prev_ws
+            if prev_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = prev_appdata
+            if prev_xdg is None:
+                os.environ.pop("XDG_CONFIG_HOME", None)
+            else:
+                os.environ["XDG_CONFIG_HOME"] = prev_xdg
+            if prev_home is None:
+                os.environ.pop("HOME", None)
+            else:
+                os.environ["HOME"] = prev_home
+            if prev_userprofile is None:
+                os.environ.pop("USERPROFILE", None)
+            else:
+                os.environ["USERPROFILE"] = prev_userprofile
+        self.assertEqual(s.context_window, 12345)
 
     def test_context_window_string_in_llm(self) -> None:
         with tempfile.TemporaryDirectory() as d:

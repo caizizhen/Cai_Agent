@@ -85,7 +85,13 @@ pip install -e .
 cai-agent init
 ```
 
-Edit `cai-agent.toml` `[llm]` or use environment variables.
+For a **single file** that already lists **LM Studio, Ollama, vLLM, OpenRouter, and a self-hosted OpenAI-compatible gateway** as separate `[[models.profile]]` entries, run:
+
+```bash
+cai-agent init --preset starter
+```
+
+Edit `cai-agent.toml` `[llm]` and/or switch `[models].active`, or use environment variables. You can also add one-off profiles with `cai-agent models add --preset vllm --id my-vllm --model <served-model-id>` or `models add --preset gateway --id corp --base-url http://internal:8080/v1`.
 
 3. Health check and one task:
 
@@ -286,7 +292,7 @@ set COPILOT_API_KEY=your-token
 
 ## Configuration file
 
-1. Run **`cai-agent init`** (writes `cai-agent.toml`).
+1. Run **`cai-agent init`** (writes `cai-agent.toml` with a minimal `[llm]` aimed at local LM Studio). Use **`cai-agent init --preset starter`** when you want multiple ready-made profiles (local backends + OpenRouter + a placeholder self-hosted gateway); set `OPENROUTER_API_KEY` / `OPENAI_API_KEY` as needed and `cai-agent models use <id>` to switch.
 2. Place `cai-agent.toml` in the working directory, or use **`CAI_CONFIG`** / **`--config`**.
 3. **Priority**: environment variables > TOML > defaults. Do not commit real API keys.
 
@@ -500,6 +506,32 @@ cai-agent workflow path/to/workflow.json --json
 ```
 
 **TUI slash commands**: `/help`, `/status`, `/models`, `/mcp`, `/mcp refresh`, `/mcp call …`, `/save`, `/load`, `/sessions`, `/use-model`, `/reload`, `/clear`.
+
+**TUI key bindings and copy/paste:**
+
+- `Ctrl+M` chat LLM profiles · `Ctrl+C` stop current run · `Ctrl+Q` quit.
+- **Copy** the chat area: drag-select with the mouse, then press `Ctrl+Shift+C` (Textual's `ALLOW_SELECT=True` is enabled explicitly so `RichLog` is selectable). A toast confirms how many characters were copied.
+- **Select all** the chat area with `Ctrl+Shift+A`, then `Ctrl+Shift+C` to copy it wholesale; press `Esc` or click elsewhere to clear the selection.
+- On **Windows Terminal** you can also hold **Shift** while drag-selecting to fall back to the terminal's native selection and press `Ctrl+C` to copy there.
+
+**Config discovery order (highest to lowest, stops at the first hit):**
+
+1. `--config <path>` (most explicit; emits a JSON error envelope when missing).
+2. `CAI_CONFIG` environment variable.
+3. Walk up the current working directory up to 12 levels looking for `cai-agent.toml` / `.cai-agent.toml`.
+4. If still not found: walk from `CAI_WORKSPACE` and then from the CLI `-w/--workspace` hint. This covers "I `cd` somewhere else but pointed `-w` back to my project root".
+5. Finally fall back to a **user-level global config** (so `cai-agent ui` from any directory still finds your settings):
+   - Windows: `%APPDATA%\cai-agent\cai-agent.toml`
+   - Linux / macOS: `$XDG_CONFIG_HOME/cai-agent/cai-agent.toml` (default `~/.config/cai-agent/cai-agent.toml`)
+   - Compatibility fallbacks: `~/.cai-agent.toml`, `~/cai-agent.toml`
+
+One-shot seeding:
+
+```powershell
+cai-agent init --global    # writes %APPDATA%\cai-agent\cai-agent.toml (or the XDG path)
+```
+
+Then edit the generated TOML — in particular uncomment and set `context_window = <your model's window>`. The template leaves it commented on purpose, so a fresh `init --global` will still show `source=default` / 8192 until you do.
 
 ## FAQ
 

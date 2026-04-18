@@ -110,10 +110,11 @@ def run_doctor(settings: Settings) -> int:
     print("Git:     ", "在工作树内" if inside else "非 Git 目录或未安装 git")
     print()
     print("建议下一步:")
-    print("  1) 若尚未生成配置: cai-agent init")
+    print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")
     print("  2) 编辑 cai-agent.toml 中 [llm] 或 [[models.profile]]（base_url / model / api_key_env）")
     print("  3) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
     print(
-        "  4) 多模型: cai-agent models list；新用户/CI 见 docs/ONBOARDING.zh-CN.md",
+        "  4) 多模型: cai-agent models list；新增: models add --preset vllm|gateway|openrouter …；"
+        "新用户/CI 见 docs/ONBOARDING.zh-CN.md",
     )
     return 0

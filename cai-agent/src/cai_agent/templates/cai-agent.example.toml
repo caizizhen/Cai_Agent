@@ -1,4 +1,4 @@
-# 由 `cai-agent init` 复制到当前目录的 cai-agent.toml（勿提交含真实 Key 的文件）
+# 由 `cai-agent init`（默认）或 `cai-agent init --preset starter` 复制到当前目录的 cai-agent.toml（勿提交含真实 Key 的文件）
 #
 # 优先级：环境变量 > 本文件 > 内置默认
 # 也可通过环境变量 CAI_CONFIG 或命令行 --config 指定其他路径
@@ -166,4 +166,22 @@ budget_max_tokens = 50000
 # base_url = "http://localhost:11434/v1"
 # model = "qwen2.5-coder:7b"
 # api_key_env = "OLLAMA_API_KEY"
+# temperature = 0.2
+#
+# # 本地 vLLM（OpenAI 兼容，默认端口 8000）
+# [[models.profile]]
+# id = "local-vllm"
+# provider = "openai_compatible"
+# base_url = "http://localhost:8000/v1"
+# model = "replace-with-your-served-model-name"
+# api_key_env = "VLLM_API_KEY"
+# temperature = 0.2
+#
+# # 自建 OpenAI 兼容网关（One API / LiteLLM 等）
+# [[models.profile]]
+# id = "compat-gateway"
+# provider = "openai_compatible"
+# base_url = "http://127.0.0.1:8080/v1"
+# model = "gpt-4o-mini"
+# api_key_env = "OPENAI_API_KEY"
 # temperature = 0.2

@@ -128,9 +128,11 @@ _CONTEXT_WINDOW_SOURCE_LABELS: dict[str, str] = {
     "llm": "来自 TOML：llm.context_window",
     "env": "来自环境变量 CAI_CONTEXT_WINDOW",
     "default": (
-        "内置 8192（未在已加载的 TOML 中读到 llm.context_window）。"
-        "若已写入 cai-agent.toml：请从含该文件的目录启动、设置 CAI_CONFIG，"
-        "或依赖程序向上级目录查找配置文件。"
+        "内置 8192（没找到任何 cai-agent.toml）。可用以下任一方式让 TUI 读到你的配置："
+        " ① 从含 cai-agent.toml 的目录启动；"
+        " ② 运行 cai-agent init --global 写一份全局配置到用户目录；"
+        " ③ 设置环境变量 CAI_CONFIG 指向已有 TOML；"
+        " ④ 启动时用 cai-agent ui --config <path> 或 -w <项目根>。"
     ),
 }
 
@@ -373,10 +375,29 @@ class CaiAgentApp(App[None]):
     }
     """
 
+    # Textual 原生支持鼠标拖选文本 + Ctrl+C 触发 screen.copy_text；但本应用把
+    # Ctrl+C 绑为「停止任务」（终端惯例），所以在这里显式开启 ALLOW_SELECT，
+    # 并把复制/全选改绑到 Ctrl+Shift+C / Ctrl+Shift+A，避免与 stop_run 冲突。
+    ALLOW_SELECT = True
+
     BINDINGS = [
         Binding("ctrl+q", "quit", "退出", show=True),
         Binding("ctrl+c", "stop_run", "停止任务", show=True),
-        Binding("ctrl+m", "open_model_panel", "模型面板", show=True),
+        Binding("ctrl+m", "open_model_panel", "聊天模型", show=True),
+        Binding(
+            "ctrl+shift+c",
+            "copy_selected_text",
+            "复制",
+            show=True,
+            tooltip="复制鼠标拖选的文本（聊天区）",
+        ),
+        Binding(
+            "ctrl+shift+a",
+            "select_all_chat",
+            "全选",
+            show=False,
+            tooltip="选中整段聊天记录，方便 Ctrl+Shift+C 复制",
+        ),
     ]
 
     WORKER_NAME = "cai-agent-invoke"
@@ -473,7 +494,7 @@ class CaiAgentApp(App[None]):
     def action_open_model_panel(self) -> None:
         if self._agent_busy:
             self.notify(
-                "上一轮任务仍在运行，请稍候再打开模型面板。",
+                "上一轮任务仍在运行，请稍候再打开聊天模型面板。",
                 severity="warning",
                 timeout=3.5,
             )
@@ -609,7 +630,7 @@ class CaiAgentApp(App[None]):
                 yield LoadingIndicator(id="loader")
                 yield Static("", id="activity-status")
             yield SlashAwareInput(
-                placeholder="输入任务或 /命令 · Tab/→ 接受补全 · /help · Ctrl+M 模型",
+                placeholder="输入任务或 /命令 · Tab/→ 补全 · /help · Ctrl+M 聊天模型",
                 id="user-input",
                 suggester=self._slash_suggester,
             )
@@ -679,7 +700,9 @@ class CaiAgentApp(App[None]):
             f"配置: [dim]{cfg_path}[/]\n"
             f"上下文窗口: [cyan]{cw:,}[/] tokens  [dim]({src_label})[/]\n"
             f"{mock_line}"
-            "[dim]Ctrl+M 模型面板 · Ctrl+C 停止任务 · Ctrl+Q 退出 · 运行中可滚动上方记录[/]\n",
+            "[dim]Ctrl+M 聊天模型 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
+            "[dim]复制：鼠标拖选聊天区 → Ctrl+Shift+C 复制；Ctrl+Shift+A 全选。"
+            "Windows Terminal 里也可按住 Shift 用鼠标拖选走系统原生选择。[/]\n",
         )
 
     def _format_phase_line(self, p: dict[str, Any]) -> str:
@@ -707,6 +730,48 @@ class CaiAgentApp(App[None]):
         if phase == "stopped":
             return "[red]停止[/] 用户手动中断"
         return ""
+
+    def action_copy_selected_text(self) -> None:
+        """复制当前屏幕上的文本选区到剪贴板。
+
+        优先级：屏幕级 ``get_selected_text``（含 Input / 聊天区混合）→
+        若没有选区则给用户一个提示。
+        """
+        try:
+            selection = self.screen.get_selected_text()
+        except Exception:
+            selection = None
+        if not selection:
+            self.notify(
+                "没有选中文本。用鼠标拖选聊天区内容，或按 Ctrl+Shift+A 全选，再 Ctrl+Shift+C 复制。",
+                severity="information",
+                timeout=3.5,
+            )
+            return
+        try:
+            self.copy_to_clipboard(selection)
+        except Exception as e:
+            self.notify(f"复制失败：{e!r}", severity="error", timeout=3.5)
+            return
+        n = len(selection)
+        self.notify(f"已复制 {n:,} 个字符到剪贴板", severity="information", timeout=2.0)
+
+    def action_select_all_chat(self) -> None:
+        """全选聊天区（RichLog）所有可见文本，便于一键整段拷走。"""
+        try:
+            log = self.query_one("#chat", RichLog)
+        except Exception:
+            return
+        try:
+            log.text_select_all()
+        except Exception as e:
+            self.notify(f"全选失败：{e!r}", severity="error", timeout=3.5)
+            return
+        self.notify(
+            "已全选聊天区，按 Ctrl+Shift+C 复制；Esc 或点击其它区域取消选区。",
+            severity="information",
+            timeout=2.5,
+        )
 
     def action_stop_run(self) -> None:
         if not self._agent_busy:
@@ -833,7 +898,7 @@ class CaiAgentApp(App[None]):
                 "[dim]/use-model 、 /mcp call 、 /load 、 /save：profile / MCP / 会话基名；路径里含 / 或 \\ 时用路径补全（限 workspace 与 cwd，不可跳出根目录）。[/]\n"
                 "/help — 本帮助\n"
                 "/status — 当前模型、工作区与配置来源\n"
-                "/models — 打开模型 profile 面板（Enter 切换，不写 TOML）\n"
+                "/models — 打开聊天 LLM profile 面板（Ctrl+M；不写 TOML）\n"
                 "/models refresh — 拉取当前代理 GET /v1/models 列表到聊天区\n"
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
@@ -845,7 +910,11 @@ class CaiAgentApp(App[None]):
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
-                "其他以 / 开头会提示未知命令。\n",
+                "其他以 / 开头会提示未知命令。\n"
+                "\n[bold]快捷键[/]\n"
+                "[dim]Ctrl+M 聊天模型 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
+                "[dim]复制：鼠标拖选聊天区 → Ctrl+Shift+C；Ctrl+Shift+A 全选当前聊天区。[/]\n"
+                "[dim]Windows Terminal：按住 Shift + 鼠标拖选可走系统原生选择并 Ctrl+C 复制。[/]\n",
             )
             return
 
@@ -873,7 +942,7 @@ class CaiAgentApp(App[None]):
                 f"  source=[cyan]{src}[/] — [dim]{_CONTEXT_WINDOW_SOURCE_LABELS.get(src, src)}[/]\n"
                 f"配置: [dim]{cfg}[/]\n"
                 f"project_context={s.project_context}  git_context={s.git_context}\n"
-                f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n",
+                f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n"
             )
             return
 

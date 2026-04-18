@@ -40,7 +40,13 @@ pip install -e .
 cai-agent init
 ```
 
-编辑 `cai-agent.toml` 的 `[llm]`（或使用环境变量）。
+若希望**一次拿到**「本机 LM Studio / Ollama / vLLM + OpenRouter + 自建 OpenAI 兼容网关」多条 `[[models.profile]]`，可用：
+
+```bash
+cai-agent init --preset starter
+```
+
+编辑 `cai-agent.toml` 的 `[llm]` 或切换 `[models].active`（或使用环境变量）。单条 profile 也可用 CLI：`cai-agent models add --preset vllm --id my-vllm --model <与 vLLM 一致的模型名>`；自建网关：`models add --preset gateway --id corp --base-url http://内网:8080/v1`。
 
 3. 先做健康检查，再执行一次任务：
 
@@ -295,7 +301,7 @@ cai-agent init
 
 ## 配置文件
 
-1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`。
+1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` 等并用 `cai-agent models use <id>` 切换。
 2. 将 `cai-agent.toml` 放在运行命令时的当前工作目录，或使用 **`CAI_CONFIG`** / **`--config`**。
 3. **优先级**：环境变量 **高于** TOML **高于** 内置默认值。勿将含真实 API Key 的配置提交到版本库。
 
@@ -658,6 +664,32 @@ cai-agent workflow path/to/workflow.json --json
 - `/use-model <id>`
 - `/reload`
 - `/clear`
+
+**TUI 快捷键与文本复制：**
+
+- `Ctrl+M` 打开模型面板 · `Ctrl+C` 停止当前任务 · `Ctrl+Q` 退出。
+- **复制聊天区**：鼠标拖选要拷贝的片段 → 按 `Ctrl+Shift+C` 复制到系统剪贴板；没有选中时会在状态区提示。
+- **全选**：`Ctrl+Shift+A` 全选当前聊天区内容，随后 `Ctrl+Shift+C` 一键整段拷走；`Esc` 或点击其它区域取消选区。
+- Textual 的文本选择默认开启（`ALLOW_SELECT=True`），因此也可在 **Windows Terminal** 里按住 **Shift** + 鼠标拖选走系统原生选择，再 `Ctrl+C` 复制。
+
+**配置发现顺序（从高到低，找到就停止）：**
+
+1. `--config <path>`（最显式，出错时给出 JSON 报错体）。
+2. 环境变量 `CAI_CONFIG`。
+3. 从当前工作目录沿父目录向上最多 12 级查找 `cai-agent.toml` / `.cai-agent.toml`。
+4. 若仍未命中：沿环境变量 `CAI_WORKSPACE` 指向的目录（及其父目录）继续查找；再沿 CLI 的 `-w/--workspace`（即 `workspace_hint`）查找——这让「`cd` 到别处但 `-w` 指回项目根」也能正确读到配置。
+5. 最后回退到**用户级全局配置**（任意目录启动都能读到）：
+   - Windows：`%APPDATA%\cai-agent\cai-agent.toml`
+   - Linux / macOS：`$XDG_CONFIG_HOME/cai-agent/cai-agent.toml`（默认 `~/.config/cai-agent/cai-agent.toml`）
+   - 兼容兜底：`~/.cai-agent.toml`、`~/cai-agent.toml`
+
+一键生成全局配置：
+
+```powershell
+cai-agent init --global    # 写入 %APPDATA%\cai-agent\cai-agent.toml（或 XDG 路径）
+```
+
+生成后记得编辑其中 `context_window`（模板里默认是**被注释**的），否则 TUI 欢迎页 `source=default` 会回退到内置 8192。
 
 ## 常见问题（FAQ）
 

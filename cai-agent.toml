@@ -17,7 +17,7 @@ timeout_sec = 120
 # 模型的上下文窗口（tokens）。仅用于 TUI 上下文占用进度条的分母，不会作为请求参数发给服务端。
 # 常见值：LM Studio / Qwen / Gemma 本地通常 32768；gpt-4o 128000；claude-sonnet 200000。
 # 也可用环境变量 CAI_CONTEXT_WINDOW 临时覆盖；[[models.profile]].context_window 优先级更高。
-context_window = 32768
+context_window = 60000
 
 # Copilot 集成（重要）
 # 说明：Copilot 官方不提供稳定公开的 chat/completions 接口。

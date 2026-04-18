@@ -100,6 +100,24 @@ PRESETS: dict[str, dict[str, Any]] = {
         "temperature": 0.2,
         "timeout_sec": 120.0,
     },
+    # vLLM OpenAI server: `vllm serve ... --port 8000` exposes /v1/chat/completions
+    "vllm": {
+        "provider": "openai_compatible",
+        "base_url": "http://localhost:8000/v1",
+        "model": "replace-with-served-model-id",
+        "api_key_env": "VLLM_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
+    # One API / LiteLLM / 自建网关等：改 base_url 与 model 即可；密钥常用 OPENAI_API_KEY
+    "gateway": {
+        "provider": "openai_compatible",
+        "base_url": "http://127.0.0.1:8080/v1",
+        "model": "gpt-4o-mini",
+        "api_key_env": "OPENAI_API_KEY",
+        "temperature": 0.2,
+        "timeout_sec": 120.0,
+    },
 }
 
 

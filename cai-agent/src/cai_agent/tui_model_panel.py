@@ -1,4 +1,4 @@
-"""TUI：模型 profile 列表面板（M4 最小可用版）。"""
+"""TUI：模型 profile 列表面板（仅本会话聊天 LLM）。"""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ def _profile_row(p: Profile, *, active_id: str) -> str:
 
 
 class ModelPanelScreen(ModalScreen[str | None]):
-    """列出 ``Settings.profiles``；Enter 选中一条 profile id 并 ``dismiss``；Esc 放弃。"""
+    """列出 ``Settings.profiles``；Enter 选中 **profile id** 并 ``dismiss``。"""
 
     BINDINGS = [
         Binding("escape", "dismiss", "关闭", show=True),
@@ -44,12 +44,18 @@ class ModelPanelScreen(ModalScreen[str | None]):
         pln = getattr(s, "planner_profile_id", None) or "-"
         return (
             f"active={s.active_profile_id}  subagent={sub}  planner={pln}\n"
-            "Enter 切换（仅内存，不写 cai-agent.toml） · t 连通测试 · Esc 关闭"
+            "Enter 切换聊天 profile · t 连通测试 · Esc 关闭"
         )
 
     def compose(self) -> ComposeResult:
-        yield Static(self._header_text(), id="model-panel-header")
-        opts = [
+        chat_api = (getattr(self._settings, "base_url", "") or "").strip() or "(未知)"
+        yield Static(
+            f"[dim]聊天请求发往[/] [cyan]{chat_api}[/] [dim]（由当前 profile 的 base_url 决定）。[/]",
+            id="model-panel-hint",
+            markup=True,
+        )
+        yield Static(self._header_text(), id="model-panel-header", markup=True)
+        opts: list[Option] = [
             Option(_profile_row(p, active_id=self._settings.active_profile_id), id=p.id)
             for p in self._settings.profiles
         ]
@@ -80,8 +86,10 @@ class ModelPanelScreen(ModalScreen[str | None]):
             self.app.notify("无法读取当前选项", severity="warning")
             return
         if opt is None or not opt.id:
+            self.app.notify("当前项不可测试", severity="information", timeout=2.5)
             return
-        prof = next((p for p in self._settings.profiles if p.id == opt.id), None)
+        oid = str(opt.id)
+        prof = next((p for p in self._settings.profiles if p.id == oid), None)
         if prof is None:
             return
         r = ping_profile(
@@ -94,4 +102,4 @@ class ModelPanelScreen(ModalScreen[str | None]):
         http = r.get("http_status")
         extra = f" http={http}" if http is not None else ""
         tail = f" {msg}" if msg else ""
-        self.app.notify(f"{opt.id}: {status}{extra}{tail}", timeout=8.0)
+        self.app.notify(f"{oid}: {status}{extra}{tail}", timeout=8.0)

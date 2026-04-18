@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: cai-agent
-Version: 0.5.2
+Version: 0.5.7
 Summary: Local LM Studio agent with LangGraph and sandboxed tools
 Requires-Python: >=3.11
 Requires-Dist: langgraph>=0.2
