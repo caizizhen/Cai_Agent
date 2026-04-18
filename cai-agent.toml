@@ -13,7 +13,7 @@ http_trust_env = true
 # 采样温度（0~2，视模型支持而定）
 temperature = 0.2
 # 单次 Chat Completions HTTP 超时（秒）
-timeout_sec = 120
+timeout_sec = 500
 # 模型的上下文窗口（tokens）。仅用于 TUI 上下文占用进度条的分母，不会作为请求参数发给服务端。
 # 常见值：LM Studio / Qwen / Gemma 本地通常 32768；gpt-4o 128000；claude-sonnet 200000。
 # 也可用环境变量 CAI_CONTEXT_WINDOW 临时覆盖；[[models.profile]].context_window 优先级更高。
