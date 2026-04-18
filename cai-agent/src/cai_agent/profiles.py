@@ -47,6 +47,9 @@ class Profile:
     timeout_sec: float = 120.0
     anthropic_version: str | None = None
     max_tokens: int | None = None
+    # 模型的上下文窗口大小（tokens）。仅用于 UI 显示上下文占用进度条，
+    # 不会作为请求参数发给服务端；None 表示"未知 / 交给上层使用默认值"。
+    context_window: int | None = None
     notes: str | None = None
 
     def resolve_api_key(self) -> str:
@@ -191,6 +194,9 @@ def build_profile(raw: dict[str, Any], *, hint: str = "") -> Profile:
     max_tokens = _as_int(raw.get("max_tokens"), None)
     if max_tokens is not None:
         max_tokens = max(1, min(1_000_000, int(max_tokens)))
+    context_window = _as_int(raw.get("context_window"), None)
+    if context_window is not None:
+        context_window = max(256, min(10_000_000, int(context_window)))
 
     if provider == "anthropic":
         # Anthropic 需要这两项；给个合理默认，避免调用时报错。
@@ -211,6 +217,7 @@ def build_profile(raw: dict[str, Any], *, hint: str = "") -> Profile:
         timeout_sec=timeout_sec,
         anthropic_version=anthropic_version,
         max_tokens=max_tokens,
+        context_window=context_window,
         notes=notes,
     )
 
@@ -281,6 +288,7 @@ def synthesize_default_profile(
         timeout_sec=timeout_sec,
         anthropic_version=None,
         max_tokens=None,
+        context_window=None,
         notes=None,
     )
 
@@ -356,6 +364,8 @@ def _serialize_profile(p: Profile) -> str:
         lines.append(f"anthropic_version = {_toml_str(p.anthropic_version)}")
     if p.max_tokens is not None:
         lines.append(f"max_tokens = {int(p.max_tokens)}")
+    if p.context_window is not None:
+        lines.append(f"context_window = {int(p.context_window)}")
     if p.notes:
         lines.append(f"notes = {_toml_str(p.notes)}")
     return "\n".join(lines) + "\n"
@@ -530,6 +540,7 @@ def edit_profile(
         "timeout_sec": found.timeout_sec,
         "anthropic_version": found.anthropic_version,
         "max_tokens": found.max_tokens,
+        "context_window": found.context_window,
         "notes": found.notes,
     }
     for k, v in updates.items():
@@ -559,6 +570,8 @@ def profile_to_public_dict(p: Profile, *, include_resolved_key: bool = False) ->
         out["anthropic_version"] = p.anthropic_version
     if p.max_tokens is not None:
         out["max_tokens"] = p.max_tokens
+    if p.context_window is not None:
+        out["context_window"] = p.context_window
     if p.notes:
         out["notes"] = p.notes
     if include_resolved_key:

@@ -166,6 +166,14 @@ def _resolve_active_after_mutation(
     return profiles[0].id if profiles else None
 
 
+def _settings_workspace_hint(args: argparse.Namespace) -> str | None:
+    """供 ``Settings.from_env`` 在 cwd 链上找不到 TOML 时，沿工作区目录继续查找。"""
+    w = getattr(args, "workspace", None)
+    if isinstance(w, str) and w.strip():
+        return w.strip()
+    return None
+
+
 def _load_settings_for_models(config_path: str | None) -> Settings | int:
     try:
         return Settings.from_env(config_path=config_path)
@@ -203,9 +211,14 @@ def _cmd_models_list(settings: Settings, *, json_output: bool) -> int:
         env_note = ""
         if env:
             env_note = f" env={env}" + ("" if r.get("api_key_env_present") else "(未导出)")
+        notes_raw = (r.get("notes") or "")
+        notes = str(notes_raw).strip().replace("\n", " ")
+        if len(notes) > 40:
+            notes = notes[:37] + "…"
+        notes_note = f" | {notes}" if notes else ""
         print(
             f"{mark} {r['id']:<20} provider={r['provider']:<18} model={r['model']} "
-            f"base_url={r['base_url']}{env_note}",
+            f"base_url={r['base_url']}{env_note}{notes_note}",
         )
     return 0
 
@@ -284,6 +297,75 @@ def _cmd_models(args: argparse.Namespace) -> int:
                 print(f"{r.get('profile_id')}: {status}{extra}")
         fail = any(r.get("status") != "OK" for r in results)
         return 1 if fail else 0
+
+    if action == "route":
+        if not settings.profiles_explicit:
+            print(
+                "当前仅有从 [llm] 合成的隐式 profile；请先用 "
+                "`cai-agent models add` 创建显式 [[models.profile]] 后再配置路由。",
+                file=sys.stderr,
+            )
+            return 2
+        us = bool(getattr(args, "unset_subagent", False))
+        up = bool(getattr(args, "unset_planner", False))
+        arg_sub = getattr(args, "subagent", None)
+        arg_pln = getattr(args, "planner", None)
+        if us and arg_sub is not None:
+            print("不能同时指定 --subagent 与 --unset-subagent", file=sys.stderr)
+            return 2
+        if up and arg_pln is not None:
+            print("不能同时指定 --planner 与 --unset-planner", file=sys.stderr)
+            return 2
+        if not (us or up or arg_sub is not None or arg_pln is not None):
+            print(
+                "请至少指定 --subagent、--planner、--unset-subagent、--unset-planner 之一",
+                file=sys.stderr,
+            )
+            return 2
+
+        base_route_profiles: tuple[Profile, ...] = settings.profiles
+        target = _resolve_config_target(settings)
+        ids = {p.id for p in base_route_profiles}
+        new_sub = settings.subagent_profile_id
+        new_pln = settings.planner_profile_id
+
+        if us:
+            new_sub = None
+        elif arg_sub is not None:
+            s = str(arg_sub).strip()
+            if s not in ids:
+                print(f"profile 不存在: {s}", file=sys.stderr)
+                return 2
+            new_sub = s
+
+        if up:
+            new_pln = None
+        elif arg_pln is not None:
+            pl = str(arg_pln).strip()
+            if pl not in ids:
+                print(f"profile 不存在: {pl}", file=sys.stderr)
+                return 2
+            new_pln = pl
+
+        try:
+            write_models_to_toml(
+                target,
+                base_route_profiles,
+                active=settings.active_profile_id,
+                subagent=new_sub,
+                planner=new_pln,
+            )
+        except Exception as e:
+            print(f"写入 {target} 失败: {e}", file=sys.stderr)
+            return 2
+        print(
+            "[models] route ok | "
+            f"active={settings.active_profile_id} "
+            f"subagent={new_sub or '-'} "
+            f"planner={new_pln or '-'} "
+            f"file={target}",
+        )
+        return 0
 
     # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
     target = _resolve_config_target(settings)
@@ -370,7 +452,11 @@ def _cmd_init(*, force: bool) -> int:
         return 1
     dest.write_bytes(data)
     print(f"已生成 {dest.resolve()}")
-    print("下一步: 编辑其中 [llm] 指向你的 API；然后执行 cai-agent doctor 与 cai-agent run \"…\"。")
+    print(
+        "下一步: 编辑其中 [llm] 或 [[models.profile]] 指向你的 API；"
+        "然后执行 cai-agent doctor 与 cai-agent run \"…\"。",
+    )
+    print("多模型: cai-agent models list / models add --preset lmstudio …")
     print("说明: docs/ONBOARDING.zh-CN.md（含 CI / CAI_AUTO_APPROVE）。")
     return 0
 
@@ -563,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
     models_p = sub.add_parser(
         "models",
         parents=[models_parent],
-        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch",
+        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/route",
     )
     models_sub = models_p.add_subparsers(dest="models_action", required=False)
 
@@ -620,6 +706,35 @@ def main(argv: list[str] | None = None) -> int:
         help="调用当前激活 profile 的 /v1/models 端点列出模型（原 `cai-agent models` 行为）",
     )
     _mf.add_argument("--json", action="store_true", dest="json_output")
+
+    _mrt = models_sub.add_parser(
+        "route",
+        help="写回 [models] 的 subagent / planner 路由（不改 active、不改 profile 表体）",
+    )
+    _mrt.add_argument(
+        "--subagent",
+        default=None,
+        metavar="ID",
+        help="子代理使用的 profile id；与 --unset-subagent 互斥",
+    )
+    _mrt.add_argument(
+        "--planner",
+        default=None,
+        metavar="ID",
+        help="规划器使用的 profile id；与 --unset-planner 互斥",
+    )
+    _mrt.add_argument(
+        "--unset-subagent",
+        action="store_true",
+        dest="unset_subagent",
+        help="清除 subagent 路由（子代理回退到 active）",
+    )
+    _mrt.add_argument(
+        "--unset-planner",
+        action="store_true",
+        dest="unset_planner",
+        help="清除 planner 路由",
+    )
 
     # 顶层兼容：不带子命令时等价于 list。
     models_p.add_argument("--json", action="store_true", dest="json_output")
@@ -1080,7 +1195,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "doctor":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1095,7 +1213,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "plan":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             if bool(getattr(args, "json_output", False)):
                 print(
@@ -1263,7 +1384,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "plugins":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1286,7 +1410,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "commands":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1304,7 +1431,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "agents":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1322,7 +1452,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "mcp-check":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1560,7 +1693,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "quality-gate":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1613,7 +1749,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "security-scan":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1876,7 +2015,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "export":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -1993,7 +2135,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "workflow":
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -2066,7 +2211,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command in ("run", "continue", "command", "agent", "fix-build"):
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2
@@ -2368,7 +2516,10 @@ def main(argv: list[str] | None = None) -> int:
         from cai_agent.tui import run_tui
 
         try:
-            settings = Settings.from_env(config_path=args.config)
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
             return 2

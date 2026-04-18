@@ -50,7 +50,7 @@ UC-XX-Y | PASS/FAIL/BLOCKED | 耗时 / 截图路径 / 详情
 
 ## 2. 用例矩阵
 
-总计 **28 条**，分七组：入口、add、edit、rm、ping、switch、集成（空态 / `/compact` / `/status` / session）。
+总计 **40 条**，分八组：入口、add、edit、rm、ping、switch、**上下文进度条（0.5.0 新增）**、集成（空态 / `/compact` / `/status` / session）。
 
 ### 2.1 入口与面板骨架（UC-ENTRY-*）
 
@@ -115,6 +115,25 @@ UC-XX-Y | PASS/FAIL/BLOCKED | 耗时 / 截图路径 / 详情
 | UC-SWITCH-7 | 切换后首条消息路由 | UC-SWITCH-1 后发一句 `hello` | 抓包/mock 命中的 base_url 为新 profile；首条无延迟错配 | P0 |
 | UC-SWITCH-8 | `CAI_ACTIVE_MODEL` 覆盖 | 退出 TUI → `export CAI_ACTIVE_MODEL=c` → 重进 TUI | 面板顶部 `active=c`；磁盘 `[models] active` 保持原值（env 仅运行时覆盖） | P1 |
 
+### 2.7a 上下文使用进度条（UC-CTX-*） — **0.5.0 新增**
+
+| # | 用例 | 步骤 | 预期 | 严重级上限 |
+|---|------|------|------|-----------|
+| UC-CTX-1 | 启动即显 | 用 `.cai-qa/legacy`（只有 `[llm]`，无 `context_window`）进 TUI | 进度条立即显示，分母 = `8192`，值为 `~N`（估算，带 `·估算` 字样） | P1（缺失即不可见） |
+| UC-CTX-2 | `[llm].context_window` 生效 | 在 `cai-agent.toml` 设 `[llm] context_window = 32768` 后进 TUI | 启动进度条分母 = `32,768` | P0（分母错） |
+| UC-CTX-3 | profile 覆盖 `[llm]` | `.cai-qa/trio` + 给 `local` 加 `context_window = 16384`，其它不设；active=`local` | 分母 = `16,384`（profile 优先） | P1 |
+| UC-CTX-4 | 环境变量兜底 | 删除 `[llm].context_window`；`export CAI_CONTEXT_WINDOW=12345` | 分母 = `12,345` | P2 |
+| UC-CTX-5 | 首条响应后切真 | 估算态下发一次 `hello` | 一次响应回来后，`~` 与 `估算` 字样消失；条上分子 = 服务端 `usage.prompt_tokens`（可用 mock / 开发者工具核对） | P0（不切真 = 永远估算 = 误导） |
+| UC-CTX-6 | 颜色阈值 | 准备能塞满 context 的长对话（或 `[llm] context_window = 1024` 故意调小）发几轮 | < 70% 绿，70–89% 黄，≥ 90% 红；阈值与实际百分比一致 | P1 |
+| UC-CTX-7 | `/clear` 回落估算 | 任意对话后 `/clear` | 进度条回到 `~N 估算`，并按空对话重新估算；下一次响应再切真 | P2 |
+| UC-CTX-8 | `/use-model` 切换重置 | 发过一次消息后 `/use-model c`（跨 provider） | 进度条 **分母立即更新** 为新 profile 的 `context_window`（若有），数字回落估算；跨 provider 确认框与 UC-SWITCH-4 叠加不冲突 | P1 |
+| UC-CTX-9 | 空响应兜底 | 用 Qwen3 / DeepSeek-R1 等 reasoning 模型跑一段复杂问题，故意让 `content=""`、`reasoning_content` 很大 | 对话区出现 `{"type":"finish","message":"[empty-completion] ..."}` envelope；不崩溃、不空转到 `max_iterations`；进度条仍按服务端 `prompt_tokens` 正常刷新 | P0（回归崩溃即 No-Go） |
+| UC-CTX-10 | 不泄露到网络 | 抓包 / mock 看请求 body | 任何请求体都 **不含** `context_window` 字段（该字段仅 TUI 显示，禁止随请求发送） | P0（合规） |
+| UC-CTX-11 | 欢迎页诊断 | 进 TUI 看首屏 | 含 `配置:` 绝对路径、`上下文窗口: N tokens` 及来源说明（profile / llm / env / default 之一）；与 `/status` 的 `source=` 一致 | P1 |
+| UC-CTX-12 | Enter 即时重估 | 首轮响应很慢时，输入长 user 按 Enter | 在模型返回前，进度条分子已更新为带 `~` 的估算（含刚提交内容）；响应后切真 | P2 |
+
+> **关联代码路径**：`cai_agent.config.Settings.context_window` / `context_window_source`、`cai_agent.llm.get_last_usage() / estimate_tokens_from_messages()`、`cai_agent.graph.llm_node` 的 `phase="usage"` 事件、`cai_agent.tui.CaiAgentApp._refresh_context_bar`。自动化覆盖见 `cai-agent/tests/test_context_usage_bar.py`（21+ 条）与 `test_llm_empty_content_guard.py`（7 条）。
+
 ### 2.7 集成项（UC-INT-*）
 
 | # | 用例 | 步骤 | 预期 | DoD |
@@ -134,7 +153,7 @@ UC-XX-Y | PASS/FAIL/BLOCKED | 耗时 / 截图路径 / 详情
 ### 3.1 回归节奏
 
 - **T+14d 上午**：冻结前预演，跑 `py -m pytest -q cai-agent/tests`（阈值 ≥ 100 passed） + 本计划 UC-ADD-* / UC-RM-* / UC-SWITCH-1/2/4 共 ~12 条。
-- **T+15d 上午**：冻结日正式跑全部 28 条 + `scripts/run_regression.py`。
+- **T+15d 上午**：冻结日正式跑全部 40 条 + `scripts/run_regression.py`。
 - **T+15d 下午**：报告产出 + Go/No-Go 评审。
 
 ### 3.2 产出物

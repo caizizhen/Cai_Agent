@@ -65,7 +65,7 @@ Do not commit real API keys.
 | `docs/MCP_WEB_RECIPE.zh-CN.md` | MCP-only web/search alternative to `fetch_url` |
 | `docs/QA_REGRESSION_LOGGING.md` | QA: where regression Markdown logs go; `QA_LOG_DIR` / `QA_SKIP_LOG` |
 | `docs/qa/runs/` | Auto-generated per-run reports (`regression-YYYYMMDD-HHmmss.md`) |
-| `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (28 cases: add/edit/rm/ping/switch + empty state + `/compact` prompt) |
+| `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (40 cases: add/edit/rm/ping/switch + context-bar UC-CTX-* + empty state + `/compact` prompt) |
 | `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
 
 ---
@@ -301,6 +301,7 @@ set COPILOT_API_KEY=your-token
 | `http_trust_env` | Use system HTTP proxy settings |
 | `temperature` | Sampling temperature (clamped) |
 | `timeout_sec` | HTTP timeout for chat completions |
+| `context_window` | Model context window in tokens; **display-only** (drives the TUI context bar denominator, never sent to the server). Default `8192`. Override via env `CAI_CONTEXT_WINDOW` or per-profile `[[models.profile]].context_window` (preferred). Common values: LM Studio/Qwen/Gemma local 32768, gpt-4o 128000, claude-sonnet 200000. |
 
 ### `[agent]`
 
@@ -332,6 +333,7 @@ api_key = "your-copilot-proxy-token"
 |----------|------|
 | `CAI_CONFIG` | Path to TOML config |
 | `CAI_WORKSPACE` | Workspace root |
+| `CAI_CONTEXT_WINDOW` | Override the TUI context-bar denominator (tokens) |
 | `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY` | LLM endpoint |
 | `LM_PROVIDER` | `openai_compatible` or `copilot` |
 | `COPILOT_*` | Copilot-mode overrides |
@@ -349,6 +351,7 @@ api_key = "lm-studio"
 temperature = 0.2
 timeout_sec = 120
 http_trust_env = false
+context_window = 32768  # TUI progress-bar denominator; display-only
 
 [agent]
 workspace = "."
@@ -442,6 +445,20 @@ cai-agent ui -w "$PWD"
 ```
 
 Suggested order: `/status` → `/models` → `/use-model <id>` → type a task → `/save` → `/load latest`.
+
+### Context usage bar
+
+Above the input you'll see a one-line progress bar:
+
+```
+ctx ███░░░░░░░░░░░░░░░░░ ~512 / 32,768 (1.6%) · 估算
+```
+
+- The number on the left is the **actual `prompt_tokens`** of the last request the model saw (what's currently in the context window).
+- The denominator is `Settings.context_window` — set it per-profile (`[[models.profile]].context_window`), via `[llm].context_window`, or with the env var `CAI_CONTEXT_WINDOW`. Default is `8192` (intentionally conservative; set it to your model's real window for accurate percentages). The welcome banner and `/status` print `context_window` plus `context_window_source` (`profile` / `llm` / `env` / `default`) so you can tell at a glance whether the TOML you expect was actually loaded (e.g. wrong `-w` cwd → `default` and 8k).
+- Color thresholds: **green < 70%**, **yellow 70–89%**, **red ≥ 90%** — when it goes red, consider `/clear` or starting a new session to avoid truncation.
+- The `~` prefix and "估算" tag indicate an estimate before the authoritative server count arrives: **CJK-heavy text uses ~1.5 chars/token**, ASCII uses ~4 chars/token (better than a flat `chars/4` for Chinese). After you press **Enter**, the bar re-estimates immediately with the new user message (still `~` until the response returns).
+- Switching model (`/use-model`), `/clear`, or `/load` resets the bar to estimate mode until the next response.
 
 ## Workflow JSON schema
 

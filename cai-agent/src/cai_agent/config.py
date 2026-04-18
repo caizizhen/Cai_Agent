@@ -31,25 +31,87 @@ def _normalize_base_url(base: str) -> str:
     return base
 
 
-def _resolve_config_file(explicit: str | None) -> Path | None:
-    """返回要加载的 TOML 路径；显式路径缺失时抛错；未配置则自动查找当前目录。"""
+def _resolve_config_file(
+    explicit: str | None,
+    *,
+    workspace_hint: str | None = None,
+) -> Path | None:
+    """返回要加载的 TOML 路径；显式路径缺失时抛错；未配置则自动查找。
+
+    查找顺序：``CAI_CONFIG`` → 当前目录 ``cai-agent.toml`` / ``.cai-agent.toml`` →
+    沿父目录向上最多 12 级（便于「配置在仓库根、在子目录里跑 ``ui``」）→
+    若仍未找到：再沿 ``CAI_WORKSPACE`` 环境变量目录及其父目录查找 →
+    最后沿 ``workspace_hint``（通常为 CLI ``--workspace``）同样查找。
+
+    解决从任意目录启动（尤其跨盘符）时读不到项目根 ``cai-agent.toml``、
+    导致 ``context_window`` 等回落到内置默认 8192 的问题。
+    """
     if explicit:
         p = Path(explicit).expanduser().resolve()
         if not p.is_file():
-            msg = f"配置文件不存在: {p}"
+            msg = (
+                f"配置文件不存在: {p}\n"
+                "提示: 检查路径与文件名；或在项目根执行 `cai-agent init`；"
+                "也可设置环境变量 CAI_CONFIG 指向有效 TOML。"
+            )
             raise FileNotFoundError(msg)
         return p
     env_path = os.getenv("CAI_CONFIG")
     if env_path:
         p = Path(env_path).expanduser().resolve()
         if not p.is_file():
-            msg = f"CAI_CONFIG 指向的文件不存在: {p}"
+            msg = (
+                f"CAI_CONFIG 指向的文件不存在: {p}\n"
+                "提示: 修正 CAI_CONFIG 路径，或取消该变量以使用当前目录及上级目录中的 cai-agent.toml。"
+            )
             raise FileNotFoundError(msg)
         return p
-    for name in ("cai-agent.toml", ".cai-agent.toml"):
-        p = (Path.cwd() / name).resolve()
-        if p.is_file():
-            return p
+
+    def _pick_in(dir_path: Path) -> Path | None:
+        for name in ("cai-agent.toml", ".cai-agent.toml"):
+            cand = (dir_path / name).resolve()
+            if cand.is_file():
+                return cand
+        return None
+
+    def _walk_from(anchor: Path) -> Path | None:
+        hit = _pick_in(anchor)
+        if hit is not None:
+            return hit
+        for parent in list(anchor.parents)[:12]:
+            hit = _pick_in(parent)
+            if hit is not None:
+                return hit
+        return None
+
+    here = Path.cwd().resolve()
+    hit = _walk_from(here)
+    if hit is not None:
+        return hit
+
+    seen_roots: set[str] = {str(here)}
+
+    def _try_extra_root(raw: str | None) -> Path | None:
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        try:
+            root = Path(raw).expanduser().resolve()
+        except OSError:
+            return None
+        if not root.is_dir():
+            return None
+        key = str(root)
+        if key in seen_roots:
+            return None
+        seen_roots.add(key)
+        return _walk_from(root)
+
+    hit = _try_extra_root(os.getenv("CAI_WORKSPACE"))
+    if hit is not None:
+        return hit
+    hit = _try_extra_root(workspace_hint)
+    if hit is not None:
+        return hit
     return None
 
 
@@ -127,18 +189,39 @@ class Settings:
     active_api_key_env: str | None
     anthropic_version: str
     anthropic_max_tokens: int
+    # 当前 active profile 的上下文窗口（tokens）。UI 用来计算进度条百分比。
+    # 优先级：active_profile.context_window > [llm].context_window > 内置默认 8192。
+    context_window: int
+    # 解析来源标签，仅用于 UI 诊断："profile" | "llm" | "env" | "default"
+    context_window_source: str
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
 
     @classmethod
-    def from_env(cls, *, config_path: str | None = None) -> Settings:
+    def from_env(
+        cls,
+        *,
+        config_path: str | None = None,
+        workspace_hint: str | None = None,
+    ) -> Settings:
         """加载顺序：默认值 → TOML 文件 → 环境变量（环境变量优先）。"""
-        return cls.from_sources(config_path=config_path)
+        return cls.from_sources(
+            config_path=config_path,
+            workspace_hint=workspace_hint,
+        )
 
     @classmethod
-    def from_sources(cls, *, config_path: str | None = None) -> Settings:
+    def from_sources(
+        cls,
+        *,
+        config_path: str | None = None,
+        workspace_hint: str | None = None,
+    ) -> Settings:
         file_data: dict[str, Any] = {}
-        resolved = _resolve_config_file(config_path)
+        resolved = _resolve_config_file(
+            config_path,
+            workspace_hint=workspace_hint,
+        )
         if resolved is not None:
             file_data = _read_toml(resolved)
 
@@ -501,6 +584,43 @@ class Settings:
         )
         anthropic_max_tokens = int(active_profile.max_tokens or 4096)
 
+        llm_context_window_raw = llm.get("context_window")
+        llm_context_window: int | None = None
+        if isinstance(llm_context_window_raw, bool):
+            llm_context_window = None
+        elif isinstance(llm_context_window_raw, int) and llm_context_window_raw > 0:
+            llm_context_window = int(llm_context_window_raw)
+        elif isinstance(llm_context_window_raw, float) and llm_context_window_raw > 0:
+            llm_context_window = int(llm_context_window_raw)
+        elif isinstance(llm_context_window_raw, str):
+            raw_s = llm_context_window_raw.strip()
+            if raw_s.isdigit() and int(raw_s) > 0:
+                llm_context_window = int(raw_s)
+        llm_context_window_from_toml = llm_context_window is not None
+        env_ctx = os.getenv("CAI_CONTEXT_WINDOW")
+        env_ctx_applied = False
+        if isinstance(env_ctx, str) and env_ctx.strip().isdigit():
+            llm_context_window = int(env_ctx.strip())
+            env_ctx_applied = True
+        profile_ctx = (
+            active_profile.context_window
+            if active_profile and active_profile.context_window
+            else 0
+        )
+        if profile_ctx:
+            context_window = int(profile_ctx)
+            context_window_source = "profile"
+        elif env_ctx_applied:
+            context_window = int(llm_context_window or 8192)
+            context_window_source = "env"
+        elif llm_context_window_from_toml:
+            context_window = int(llm_context_window or 8192)
+            context_window_source = "llm"
+        else:
+            context_window = 8192
+            context_window_source = "default"
+        context_window = max(256, min(10_000_000, context_window))
+
         # 校正 subagent/planner：若 profile 不存在于集合，降级为 None 并允许启动。
         def _validate_route(pid: str | None) -> str | None:
             if not pid:
@@ -563,5 +683,7 @@ class Settings:
             active_api_key_env=active_api_key_env,
             anthropic_version=anthropic_version,
             anthropic_max_tokens=anthropic_max_tokens,
+            context_window=context_window,
+            context_window_source=context_window_source,
             config_loaded_from=config_loaded_from,
         )

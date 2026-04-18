@@ -148,6 +148,82 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertEqual(data["models"]["active"], "p1")
         self.assertEqual(data["models"]["profile"][0]["id"], "p1")
 
+    def test_route_requires_explicit_profiles(self) -> None:
+        rc, _ = self._cli("models", "--config", str(self.cfg), "route", "--unset-subagent")
+        self.assertEqual(rc, 2)
+
+    def test_route_sets_and_unsets_subagent_planner(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pa", "--preset", "lmstudio", "--model", "m1", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pb", "--preset", "lmstudio", "--model", "m2",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "route",
+            "--subagent",
+            "pb",
+            "--planner",
+            "pa",
+        )
+        self.assertEqual(rc, 0)
+        data = tomllib.loads(self.cfg.read_text(encoding="utf-8"))
+        self.assertEqual(data["models"]["subagent"], "pb")
+        self.assertEqual(data["models"]["planner"], "pa")
+
+        rc, _ = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "route",
+            "--unset-subagent",
+            "--unset-planner",
+        )
+        self.assertEqual(rc, 0)
+        data = tomllib.loads(self.cfg.read_text(encoding="utf-8"))
+        self.assertNotIn("subagent", data["models"])
+        self.assertNotIn("planner", data["models"])
+
+    def test_route_rejects_unknown_profile_id(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "only", "--preset", "lmstudio", "--model", "m", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc2, _ = self._cli(
+            "models", "--config", str(self.cfg), "route", "--subagent", "nope",
+        )
+        self.assertEqual(rc2, 2)
+
+    def test_route_subagent_unset_mutually_exclusive(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pa", "--preset", "lmstudio", "--model", "m1", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pb", "--preset", "lmstudio", "--model", "m2",
+        )
+        self.assertEqual(rc, 0)
+        rc2, _ = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "route",
+            "--subagent",
+            "pb",
+            "--unset-subagent",
+        )
+        self.assertEqual(rc2, 2)
+
 
 class PingProfileTests(unittest.TestCase):
     def test_env_missing_short_circuits(self) -> None:

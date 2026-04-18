@@ -100,8 +100,15 @@ def _accumulate_usage(usage: dict[str, Any]) -> None:
         _usage_mod._USAGE_PROMPT_TOKENS += pt
     if isinstance(ct, int) and ct >= 0:
         _usage_mod._USAGE_COMPLETION_TOKENS += ct
+    total = 0
     if isinstance(pt, int) and isinstance(ct, int) and pt >= 0 and ct >= 0:
-        _usage_mod._USAGE_TOTAL_TOKENS += int(pt) + int(ct)
+        total = int(pt) + int(ct)
+        _usage_mod._USAGE_TOTAL_TOKENS += total
+    _usage_mod._record_last_usage(
+        prompt_tokens=pt if isinstance(pt, int) else 0,
+        completion_tokens=ct if isinstance(ct, int) else 0,
+        total_tokens=total,
+    )
 
 
 def _max_tokens_from_settings(settings: Any) -> int:

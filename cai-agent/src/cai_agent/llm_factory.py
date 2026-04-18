@@ -94,27 +94,36 @@ def resolve_role_profile(settings: Any, role: str) -> Profile:
     return profiles[0]
 
 
-def _project_settings_for_profile(settings: Any, profile: Profile) -> Any:
+def _project_settings_for_profile(
+    settings: Any,
+    profile: Profile,
+    *,
+    force_profile_model: bool = False,
+) -> Any:
     """把 settings 字段投影到指定 profile（返回新对象，原对象不改）。
 
     注意 ``model`` 字段的特殊语义：``Settings.model`` 在加载期已由 active profile
     投影过一次；若当前值与 active profile 的 ``model`` 不一致，则说明上层（CLI
     ``--model`` / workflow step ``model``）用 :func:`dataclasses.replace` 做了
     一次运行期 override，不应被再次的 role projection 静默覆盖。
+
+    ``force_profile_model=True`` 时始终使用 ``profile.model``（TUI ``/use-model``
+    按 profile id 切换、模型面板 Enter 等场景）。
     """
     base_url = project_base_url(profile)
     resolved = profile.resolve_api_key()
     api_key = resolved or getattr(settings, "api_key", "") or ""
 
     effective_model = profile.model
-    active_id = getattr(settings, "active_profile_id", None)
-    cur_model = getattr(settings, "model", None)
-    if cur_model and active_id:
-        for ap in getattr(settings, "profiles", ()) or ():
-            if getattr(ap, "id", None) == active_id:
-                if cur_model != getattr(ap, "model", None):
-                    effective_model = cur_model
-                break
+    if not force_profile_model:
+        active_id = getattr(settings, "active_profile_id", None)
+        cur_model = getattr(settings, "model", None)
+        if cur_model and active_id:
+            for ap in getattr(settings, "profiles", ()) or ():
+                if getattr(ap, "id", None) == active_id:
+                    if cur_model != getattr(ap, "model", None):
+                        effective_model = cur_model
+                    break
 
     is_anthropic = profile.provider == "anthropic"
     updates: dict[str, Any] = {
@@ -141,7 +150,28 @@ def _project_settings_for_profile(settings: Any, profile: Profile) -> Any:
             if is_anthropic and profile.max_tokens
             else getattr(settings, "anthropic_max_tokens", 4096),
         )
+    if hasattr(settings, "context_window"):
+        updates["context_window"] = int(
+            profile.context_window
+            if profile.context_window
+            else getattr(settings, "context_window", 8192) or 8192,
+        )
+    if hasattr(settings, "context_window_source"):
+        updates["context_window_source"] = (
+            "profile"
+            if profile.context_window
+            else getattr(settings, "context_window_source", "default")
+        )
     return replace(settings, **updates)
+
+
+def activate_profile_in_memory(settings: Any, profile: Profile) -> Any:
+    """将运行期 LLM 相关字段切到 ``profile``（不写 TOML）。
+
+    与 :func:`chat_completion_by_role` 内的投影规则一致，但强制采用该
+    profile 的 ``model``，避免把其它 profile 的运行期 model override 带过来。
+    """
+    return _project_settings_for_profile(settings, profile, force_profile_model=True)
 
 
 def chat_completion_by_role(
@@ -158,6 +188,7 @@ def chat_completion_by_role(
 
 __all__ = [
     "ChatFn",
+    "activate_profile_in_memory",
     "chat_completion",
     "chat_completion_by_role",
     "resolve_provider",

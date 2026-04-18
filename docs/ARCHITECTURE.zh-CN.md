@@ -84,6 +84,7 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
   - 项目/Git 上下文开关；
   - MCP Bridge 配置；
   - `[quality_gate]`（含可选 mypy 路径与 `[[quality_gate.extra]]`）、`[context]`（可选对话压缩提示阈值）；
+  - `context_window`（0.5.0 新增）：TUI 上下文进度条分母；优先级 `active profile.context_window` > `[llm].context_window` > `CAI_CONTEXT_WINDOW` > 默认 `8192`；**仅用于显示，不会发送给服务端**；
   - 从哪个 TOML 读取配置（`config_loaded_from`）。
 - 加载顺序：**默认值 → TOML → 环境变量**，环境变量优先。
 
@@ -95,6 +96,12 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
   - 从响应中提取 `usage` 字段，将 prompt/完成/总 token 数累加到进程级计数器。
 - `reset_usage_counters()` / `get_usage_counters()`：
   - 供 CLI 在一次调用前清零，结束后读出本次会话的 token 使用。
+- `get_last_usage()` / `_record_last_usage()` / `estimate_tokens_from_messages()`（0.5.0 新增）：
+  - 每次成功响应 **覆盖** 一份"最近一次快照"，与累计计数器解耦，供 TUI 上下文进度条读取；
+  - 字符数 ÷ 4 的启发式估算供首次响应前的 UI 兜底；
+  - Anthropic 适配器（`llm_anthropic.py`）同步写入同一份快照。
+- **空输出兜底**（`normalize_assistant_text` / `_empty_content_finish`）：
+  - 当服务端回 `content=""` 且 `reasoning_content` 很大（Qwen3 / DeepSeek-R1 / LM Studio reasoning 模型），或只包含 `<think>…</think>` 块时，合成 `{"type":"finish","message":"[empty-completion] …"}` envelope 防止 `extract_json_object("")` 崩溃。
 
 ### 5.3 LangGraph 状态机（`graph.py`）
 
@@ -139,6 +146,7 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
   - `build_observe_payload`：`cai-agent observe --json` 输出 `schema_version`（当前 **1.1**）、`task`（`observe` 任务 ID）、`events` 与会话聚合，便于与 `workflow` 的 `events` 统一消费。
 - Textual TUI：
   - 顶栏 + 对话区 + 底部输入；
+  - **输入框上方新增上下文进度条**（0.5.0）：消费 `graph.llm_node` 的 `phase="usage"` 进度事件，实时展示 `prompt_tokens / context_window` 与百分比（70% 黄、90% 红）；首次响应前用 `estimate_tokens_from_messages` 估算。详见 [`CONTEXT_AND_COMPACT.zh-CN.md`](CONTEXT_AND_COMPACT.zh-CN.md)。
   - 内置斜杠命令：`/status`、`/models`、`/mcp`、`/save`、`/load`、`/sessions`、`/use-model`、`/reload`、`/clear` 等；
   - 通过后台线程调用 `graph.build_app(...).invoke`，并实时更新进度提示。
 

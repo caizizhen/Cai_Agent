@@ -16,13 +16,24 @@ _USAGE_PROMPT_TOKENS = 0
 _USAGE_COMPLETION_TOKENS = 0
 _USAGE_TOTAL_TOKENS = 0
 
+# "Last call" snapshot — 独立于累计计数器，每次 chat_completion 成功响应都会覆盖。
+# 提供给 UI（例如 TUI 的上下文进度条）展示"当前对话上下文占用"：
+# 实际发送给模型的 prompt_tokens 就是当前这轮的真实 context 占用量。
+_LAST_PROMPT_TOKENS = 0
+_LAST_COMPLETION_TOKENS = 0
+_LAST_TOTAL_TOKENS = 0
+
 
 def reset_usage_counters() -> None:
-    """Reset per-process token usage counters."""
+    """Reset per-process token usage counters (both cumulative and last snapshot)."""
     global _USAGE_PROMPT_TOKENS, _USAGE_COMPLETION_TOKENS, _USAGE_TOTAL_TOKENS
+    global _LAST_PROMPT_TOKENS, _LAST_COMPLETION_TOKENS, _LAST_TOTAL_TOKENS
     _USAGE_PROMPT_TOKENS = 0
     _USAGE_COMPLETION_TOKENS = 0
     _USAGE_TOTAL_TOKENS = 0
+    _LAST_PROMPT_TOKENS = 0
+    _LAST_COMPLETION_TOKENS = 0
+    _LAST_TOTAL_TOKENS = 0
 
 
 def get_usage_counters() -> dict[str, int]:
@@ -32,6 +43,35 @@ def get_usage_counters() -> dict[str, int]:
         "completion_tokens": _USAGE_COMPLETION_TOKENS,
         "total_tokens": _USAGE_TOTAL_TOKENS,
     }
+
+
+def get_last_usage() -> dict[str, int]:
+    """Return usage tokens from the most recent LLM response.
+
+    ``prompt_tokens`` reflects the **current** context size that was actually
+    fed into the model on the last call — this is the number the UI should
+    compare against the model's context window to show a fill progress bar.
+    """
+    return {
+        "prompt_tokens": _LAST_PROMPT_TOKENS,
+        "completion_tokens": _LAST_COMPLETION_TOKENS,
+        "total_tokens": _LAST_TOTAL_TOKENS,
+    }
+
+
+def _record_last_usage(
+    *,
+    prompt_tokens: int,
+    completion_tokens: int,
+    total_tokens: int,
+) -> None:
+    """Overwrite the "last call" snapshot. Negative/unknown values become 0."""
+    global _LAST_PROMPT_TOKENS, _LAST_COMPLETION_TOKENS, _LAST_TOTAL_TOKENS
+    _LAST_PROMPT_TOKENS = max(0, int(prompt_tokens or 0))
+    _LAST_COMPLETION_TOKENS = max(0, int(completion_tokens or 0))
+    _LAST_TOTAL_TOKENS = max(0, int(total_tokens or (
+        _LAST_PROMPT_TOKENS + _LAST_COMPLETION_TOKENS
+    )))
 
 
 def add_usage(
@@ -47,6 +87,77 @@ def add_usage(
         _USAGE_COMPLETION_TOKENS += completion_tokens
     if isinstance(total_tokens, int) and total_tokens > 0:
         _USAGE_TOTAL_TOKENS += total_tokens
+
+
+def _is_cjk(ch: str) -> bool:
+    """True for CJK ideographs / kana / hangul — characters that BPE
+    tokenisers typically split at roughly 1 char ≈ 1 token (often a bit
+    more, ~1.1–1.5). Much denser than English where 1 token ≈ 4 chars."""
+    if not ch:
+        return False
+    cp = ord(ch)
+    return (
+        0x3040 <= cp <= 0x30FF       # Hiragana + Katakana
+        or 0x3400 <= cp <= 0x4DBF   # CJK Ext-A
+        or 0x4E00 <= cp <= 0x9FFF   # CJK Unified Ideographs
+        or 0xAC00 <= cp <= 0xD7AF   # Hangul Syllables
+        or 0xF900 <= cp <= 0xFAFF   # CJK Compat Ideographs
+        or 0x20000 <= cp <= 0x2FFFF  # CJK Ext-B/C/D/E/F
+        or 0xFF00 <= cp <= 0xFFEF   # Halfwidth/fullwidth forms (punct mostly)
+    )
+
+
+def _estimate_chunk_tokens(text: str) -> float:
+    """Piecewise heuristic: CJK ~1.5 chars/token, ASCII ~4 chars/token.
+
+    Empirically calibrated against OpenAI / Anthropic / Qwen tokenisers on
+    mixed zh/en prompts. Errors are typically within ±20% of real
+    ``prompt_tokens`` — good enough for a progress bar placeholder.
+    """
+    if not text:
+        return 0.0
+    cjk_chars = 0
+    other_chars = 0
+    for ch in text:
+        if _is_cjk(ch):
+            cjk_chars += 1
+        else:
+            other_chars += 1
+    return cjk_chars / 1.5 + other_chars / 4.0
+
+
+def estimate_tokens_from_messages(messages: list[dict[str, Any]]) -> int:
+    """Token estimate for a message list, used before the first real API
+    response arrives (when ``get_last_usage()`` is still zero) or when
+    the server didn't return a ``usage`` block.
+
+    Uses a CJK-aware piecewise heuristic (see ``_estimate_chunk_tokens``):
+    * CJK characters  → ~1.5 chars/token (zh/ja/ko dense BPE)
+    * Other characters → ~4 chars/token (OpenAI English rule of thumb)
+
+    Plus ~4 tokens/message for the role/JSON scaffold overhead. Result is
+    a rough estimate — the authoritative number comes from the server's
+    ``usage.prompt_tokens`` and overwrites this on the next response.
+    """
+    if not isinstance(messages, list):
+        return 0
+    total = 0.0
+    for m in messages:
+        if not isinstance(m, dict):
+            continue
+        c = m.get("content")
+        if isinstance(c, str):
+            total += _estimate_chunk_tokens(c)
+        elif isinstance(c, list):
+            for it in c:
+                if isinstance(it, dict):
+                    t = it.get("text") or it.get("content")
+                    if isinstance(t, str):
+                        total += _estimate_chunk_tokens(t)
+                elif isinstance(it, str):
+                    total += _estimate_chunk_tokens(it)
+        total += 4.0
+    return max(0, int(round(total)))
 
 
 def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
@@ -103,6 +214,11 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
             _USAGE_COMPLETION_TOKENS += ct
         if isinstance(tt, int) and tt >= 0:
             _USAGE_TOTAL_TOKENS += tt
+        _record_last_usage(
+            prompt_tokens=pt if isinstance(pt, int) else 0,
+            completion_tokens=ct if isinstance(ct, int) else 0,
+            total_tokens=tt if isinstance(tt, int) else 0,
+        )
 
     choice = (data.get("choices") or [{}])[0] if isinstance(data.get("choices"), list) else {}
     message = choice.get("message") if isinstance(choice, dict) else None

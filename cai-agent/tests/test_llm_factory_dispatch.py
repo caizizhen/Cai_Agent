@@ -21,7 +21,7 @@ module aliases that the factory imported (``_openai_adapter`` /
 from __future__ import annotations
 
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace as dc_replace
 from types import SimpleNamespace
 from typing import Any
 
@@ -49,6 +49,8 @@ class _MockSettings:
     active_api_key_env: str | None
     anthropic_version: str
     anthropic_max_tokens: int
+    context_window: int = 8192
+    context_window_source: str = "llm"
 
 
 _ANTHROPIC_P = Profile(
@@ -95,6 +97,8 @@ def _make_settings(
     planner: str | None = None,
 ) -> _MockSettings:
     active_profile = next(p for p in profiles if p.id == active)
+    cw = int(active_profile.context_window or 8192)
+    cws = "profile" if active_profile.context_window else "llm"
     return _MockSettings(
         provider=active_profile.provider,
         base_url=active_profile.base_url,
@@ -111,6 +115,8 @@ def _make_settings(
         active_api_key_env=active_profile.api_key_env,
         anthropic_version=active_profile.anthropic_version or "2023-06-01",
         anthropic_max_tokens=int(active_profile.max_tokens or 4096),
+        context_window=cw,
+        context_window_source=cws,
     )
 
 
@@ -440,6 +446,35 @@ class ChatCompletionByRoleTests(_AdapterStubMixin, unittest.TestCase):
         llm_factory.chat_completion_by_role(settings, [], role="subagent")
         projected, _ = self._openai_calls[-1]
         self.assertEqual(projected.model, _LOCAL_P.model)
+
+    def test_projection_context_window_source_when_profile_pins_window(self) -> None:
+        """Role projection must carry context_window + context_window_source."""
+        p = dc_replace(_OPENAI_P, context_window=65536)
+        settings = _make_settings((p, _LOCAL_P), active="oai")
+        llm_factory.chat_completion_by_role(settings, [], role="active")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.context_window, 65536)
+        self.assertEqual(projected.context_window_source, "profile")
+
+
+class ActivateProfileInMemoryTests(unittest.TestCase):
+    def test_replaces_runtime_model_override_with_profile_model(self) -> None:
+        """TUI / 面板显式切 profile 时必须用该 profile 的 model，而不是旧的 --model override。"""
+        base = _make_settings(
+            (_OPENAI_P, _ANTHROPIC_P, _LOCAL_P),
+            active="oai",
+        )
+        overridden = dc_replace(base, model="gpt-4o-mini-override")
+        out = llm_factory.activate_profile_in_memory(overridden, _LOCAL_P)
+        self.assertEqual(out.model, _LOCAL_P.model)
+        self.assertEqual(out.active_profile_id, "local")
+        self.assertEqual(out.provider, "openai_compatible")
+
+    def test_switch_without_prior_override(self) -> None:
+        base = _make_settings((_OPENAI_P, _LOCAL_P), active="oai")
+        out = llm_factory.activate_profile_in_memory(base, _LOCAL_P)
+        self.assertEqual(out.model, _LOCAL_P.model)
+        self.assertEqual(out.base_url.rstrip("/"), _LOCAL_P.base_url.rstrip("/"))
 
 
 if __name__ == "__main__":

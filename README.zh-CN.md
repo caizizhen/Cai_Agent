@@ -18,7 +18,7 @@
 - **对标双参考源的本版功能清单（Dev/QA/用户）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)（[claude-code](https://github.com/anthropics/claude-code) + [everything-claude-code](https://github.com/affaan-m/everything-claude-code)）。
 - **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）。
 - **开发计划（Sprint 1–3，含 Alpha/Beta/GA 节奏）**：[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（分工、时间片、DoD、QA 回归矩阵、内测公告模板）。
-- **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（28 条：add/edit/rm/ping/switch 五子动作 + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
+- **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。
@@ -310,6 +310,7 @@ cai-agent init
 | `http_trust_env` | 是否使用系统代理 |
 | `temperature` | 采样温度，默认 `0.2`，范围会裁剪到 `0~2` |
 | `timeout_sec` | 单次 Chat Completions 请求超时（秒），默认 `120`，范围约 `5~3600` |
+| `context_window` | 模型上下文窗口 token 数，**仅用于 TUI 显示**（决定进度条分母），**不会发送给服务端**。默认 `8192`；建议按模型真实窗口设置。支持环境变量 `CAI_CONTEXT_WINDOW` 覆盖，也可在 `[[models.profile]]` 下按 profile 单独设置（优先级更高）。常见值：LM Studio/Qwen/Gemma 本地 32768，gpt-4o 128000，claude-sonnet 200000 |
 
 ### `[agent]` 常用项
 
@@ -341,6 +342,7 @@ api_key = "your-copilot-proxy-token"
 |------|------|
 | `CAI_CONFIG` | TOML 配置文件路径 |
 | `CAI_WORKSPACE` | 工作区根目录 |
+| `CAI_CONTEXT_WINDOW` | 覆盖 TUI 上下文进度条分母（token 数） |
 | `LM_BASE_URL` | API 根 URL |
 | `LM_MODEL` | 模型名 |
 | `LM_API_KEY` | Bearer Token |
@@ -366,6 +368,7 @@ api_key = "lm-studio"
 temperature = 0.2
 timeout_sec = 120
 http_trust_env = false
+context_window = 32768  # TUI 上下文进度条分母；仅用于显示，不会发送给服务端
 
 [agent]
 workspace = "."
@@ -561,9 +564,24 @@ cai-agent ui -w "$PWD"
 
 ### TUI 里常用任务模版
 
-- “请先只做调研，不改文件，列出你要看的文件清单”
-- “请基于当前改动给出 code review，按严重级别排序”
-- “请生成可执行测试清单，并说明每条如何验证”
+- "请先只做调研，不改文件，列出你要看的文件清单"
+- "请基于当前改动给出 code review，按严重级别排序"
+- "请生成可执行测试清单，并说明每条如何验证"
+
+### 上下文使用进度条
+
+输入框上方有一行进度条，实时显示当前已用上下文长度：
+
+```
+ctx ███░░░░░░░░░░░░░░░░░ ~512 / 32,768 (1.6%) · 估算
+```
+
+- 数字含义：**左 = 上次请求实际 `prompt_tokens`**（LM Studio / OpenAI / Anthropic 都会回传），**右 = `Settings.context_window`**。
+- 分母来源优先级：`active profile.context_window` > `[llm].context_window` > 环境变量 `CAI_CONTEXT_WINDOW` > 默认 `8192`。把它调成你当前模型的真实窗口才能拿到准确百分比。
+- 颜色阈值：**< 70% 绿**、**70–89% 黄**、**≥ 90% 红**。红色出现时建议 `/clear` 或新开 session，避免服务端自动截断。
+- 首次响应前（以及每次按 **Enter** 提交后、等模型返回前）用 **CJK 加权估算**：中日韩字符约 1.5 字/token，其它字符约 4 字/token（比整段 `÷4` 更接近中文 tokenizer）；显示 `~` 前缀与"估算"字样；收到响应后用服务端真实 `prompt_tokens` 覆盖。
+- 欢迎页与 `/status` 会打印 `context_window` 及 `source=profile|llm|env|default`，便于排查「LM Studio 里设了 35k 但条上仍是 8k」——常见原因是 TUI 从错误工作区启动未读到 `cai-agent.toml`（`source=default`）。
+- `/clear` / `/load` / `/use-model` 会重置为估算态，直到下次响应回来。
 
 ## JSON workflow 规范（详细）
 

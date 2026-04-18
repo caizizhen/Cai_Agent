@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
 from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
+from cai_agent.models import ping_profile
 
 
 def _mask_api_key(key: str) -> str:
@@ -62,6 +64,27 @@ def run_doctor(settings: Settings) -> int:
         print()
     print()
 
+    ping_on = os.getenv("CAI_DOCTOR_PING", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    if ping_on:
+        print("Profile 健康检查 (GET …/models，不消耗 chat token):")
+        for p in settings.profiles:
+            r = ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=8.0)
+            status = r.get("status", "?")
+            msg = (r.get("message") or "").strip()
+            http = r.get("http_status")
+            extra = f" http={http}" if http is not None else ""
+            tail = f" | {msg}" if msg else ""
+            print(f"  {p.id}: {status}{extra}{tail}")
+        print()
+    else:
+        print(
+            "Profile 健康检查: 已跳过（避免默认 doctor 触网变慢）。"
+            "需要探测时请设置环境变量 CAI_DOCTOR_PING=1 后重跑 doctor。",
+        )
+        print()
+
     if root.is_dir():
         print("工作区根目录说明文件:")
         for name in INSTRUCTION_FILE_NAMES:
@@ -88,7 +111,9 @@ def run_doctor(settings: Settings) -> int:
     print()
     print("建议下一步:")
     print("  1) 若尚未生成配置: cai-agent init")
-    print("  2) 编辑 cai-agent.toml 中 [llm]（base_url / model / api_key）")
+    print("  2) 编辑 cai-agent.toml 中 [llm] 或 [[models.profile]]（base_url / model / api_key_env）")
     print("  3) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
-    print("  4) 新用户与 CI 说明见仓库 docs/ONBOARDING.zh-CN.md")
+    print(
+        "  4) 多模型: cai-agent models list；新用户/CI 见 docs/ONBOARDING.zh-CN.md",
+    )
     return 0

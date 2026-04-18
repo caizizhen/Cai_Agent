@@ -65,8 +65,11 @@ base_url = "https://api.example.com/v1"
 model = "gpt-4o"
 api_key_env = "REMOTE_OPENAI_KEY"
 temperature = 0.3
+context_window = 128000   # 可选：仅用于 TUI 上下文进度条分母，不随请求发送
 notes = "高推理/规划"
 ```
+
+> **字段补充（0.5.0）**：`context_window` 为可选字段，单位 token，**仅用于 TUI 显示**（决定上下文进度条分母）。缺省时回落到 `[llm].context_window` / `CAI_CONTEXT_WINDOW` / 默认 `8192`。该字段 **不会** 以任何形式包含在发往服务端的请求体里。
 
 ### 2.2 兼容性
 

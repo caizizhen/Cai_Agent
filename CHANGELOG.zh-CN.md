@@ -6,6 +6,8 @@
 
 ### 0.5.0（当前开发）
 
+- **TUI 上下文进度条**：输入框上方新增一行 `ctx ███░░ prompt_tokens / context_window (pct%)`，< 70% 绿、70–89% 黄、≥ 90% 红。每次模型响应后自动取服务端 `prompt_tokens` 刷新；首次响应前用 **CJK 加权估算器**（中日韩字符按 ~1.5 chars/token，其它按 ~4 chars/token，避免中文场景低估 2–3 倍）并加 `~` 前缀与"估算"字样。可配置项：`[llm].context_window`（兜底）、`[[models.profile]].context_window`（优先）、环境变量 `CAI_CONTEXT_WINDOW`；默认 `8192`。`Settings` 新增 `context_window_source`（`profile|llm|env|default`），TUI 欢迎页 + `/status` 都会打印解析值与来源，一眼看出"为啥分母是 8k"。按 Enter 后即刻用估算器重算（不等服务端 round-trip）。新增 Python API：`cai_agent.llm.get_last_usage()` / `estimate_tokens_from_messages()`；`graph.llm_node` 每次 LLM 调用后发 `phase="usage"` 进度事件。
+- **空输出兜底**（Qwen3 / DeepSeek-R1 / LM Studio reasoning 模型）：服务端返回 `content=""` 且把所有 token 塞进 `reasoning_content`（推理预算耗尽）时，OpenAI-compat 与 Anthropic 适配器会合成 `{"type":"finish","message":"[empty-completion] …"}` 带诊断信息的 envelope，而不是在 `extract_json_object("")` 崩溃或空转到 `max_iterations`。`<think>…</think>` 前缀也会被透明剥离。Anthropic 两个"空 content 抛异常"的老契约反转为返回 envelope —— 见 `test_llm_empty_content_guard.py`。
 - **`plan --json` + 缺失配置**：`--config` 指向不存在文件时输出 JSON 错误体（`error: config_not_found`），不再仅 stderr。
 - **`stats`（非 JSON）**：文本摘要增加 `run_events_total`、`sessions_with_events`、`parse_skipped` 一行。
 - **钩子**：`observe_start` / `observe_end` 包裹 `observe`；`cost_budget_start` / `cost_budget_end` 包裹 `cost budget`；人类可读 `observe` 行末附带 `run_events_total`。

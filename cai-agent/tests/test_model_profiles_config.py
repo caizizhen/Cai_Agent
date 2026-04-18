@@ -263,5 +263,125 @@ class PickActiveTests(unittest.TestCase):
         self.assertEqual(got.id, "a")
 
 
+class ConfigDiscoveryTests(unittest.TestCase):
+    def test_finds_toml_in_parent_directory(self) -> None:
+        prev_cfg = os.environ.pop("CAI_CONFIG", None)
+        prev_cwd = os.getcwd()
+        cfg_path: Path | None = None
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                root = Path(d)
+                sub = root / "pkg" / "nested"
+                sub.mkdir(parents=True)
+                cfg_path = root / "cai-agent.toml"
+                cfg_path.write_text(
+                    "[llm]\n"
+                    'base_url = "http://x/v1"\n'
+                    'model = "m"\n'
+                    'api_key = "k"\n'
+                    "context_window = 40000\n",
+                    encoding="utf-8",
+                )
+                os.chdir(sub)
+                s = Settings.from_env()
+                os.chdir(prev_cwd)
+        finally:
+            if prev_cfg is not None:
+                os.environ["CAI_CONFIG"] = prev_cfg
+        self.assertIsNotNone(cfg_path)
+        self.assertEqual(s.context_window, 40000)
+        self.assertEqual(s.context_window_source, "llm")
+        self.assertEqual(s.config_loaded_from, str(cfg_path.resolve()))
+
+    def test_finds_toml_via_cai_workspace_when_cwd_unrelated(self) -> None:
+        """cwd 与项目不在同一目录树（例如跨盘）时，用 CAI_WORKSPACE 仍能加载 [llm].context_window。"""
+        prev_cfg = os.environ.pop("CAI_CONFIG", None)
+        prev_ws = os.environ.pop("CAI_WORKSPACE", None)
+        prev_cwd = os.getcwd()
+        cfg_path: Path | None = None
+        try:
+            with tempfile.TemporaryDirectory() as base:
+                root = Path(base) / "project"
+                elsewhere = Path(base) / "elsewhere"
+                root.mkdir()
+                elsewhere.mkdir()
+                cfg_path = root / "cai-agent.toml"
+                cfg_path.write_text(
+                    "[llm]\n"
+                    'base_url = "http://x/v1"\n'
+                    'model = "m"\n'
+                    'api_key = "k"\n'
+                    "context_window = 50000\n",
+                    encoding="utf-8",
+                )
+                os.chdir(elsewhere)
+                os.environ["CAI_WORKSPACE"] = str(root)
+                try:
+                    s = Settings.from_env()
+                finally:
+                    os.chdir(prev_cwd)
+        finally:
+            if prev_cfg is not None:
+                os.environ["CAI_CONFIG"] = prev_cfg
+            if prev_ws is not None:
+                os.environ["CAI_WORKSPACE"] = prev_ws
+            else:
+                os.environ.pop("CAI_WORKSPACE", None)
+        self.assertIsNotNone(cfg_path)
+        self.assertEqual(s.context_window, 50000)
+        self.assertEqual(s.context_window_source, "llm")
+        self.assertEqual(s.config_loaded_from, str(cfg_path.resolve()))
+
+    def test_finds_toml_via_workspace_hint_when_cwd_unrelated(self) -> None:
+        prev_cfg = os.environ.pop("CAI_CONFIG", None)
+        prev_ws = os.environ.pop("CAI_WORKSPACE", None)
+        prev_cwd = os.getcwd()
+        cfg_path: Path | None = None
+        try:
+            with tempfile.TemporaryDirectory() as base:
+                root = Path(base) / "project"
+                elsewhere = Path(base) / "elsewhere"
+                root.mkdir()
+                elsewhere.mkdir()
+                cfg_path = root / "cai-agent.toml"
+                cfg_path.write_text(
+                    "[llm]\n"
+                    'base_url = "http://x/v1"\n'
+                    'model = "m"\n'
+                    'api_key = "k"\n'
+                    "context_window = 44000\n",
+                    encoding="utf-8",
+                )
+                os.chdir(elsewhere)
+                try:
+                    s = Settings.from_env(workspace_hint=str(root))
+                finally:
+                    os.chdir(prev_cwd)
+        finally:
+            if prev_cfg is not None:
+                os.environ["CAI_CONFIG"] = prev_cfg
+            if prev_ws is not None:
+                os.environ["CAI_WORKSPACE"] = prev_ws
+        self.assertIsNotNone(cfg_path)
+        self.assertEqual(s.context_window, 44000)
+        self.assertEqual(s.context_window_source, "llm")
+        self.assertEqual(s.config_loaded_from, str(cfg_path.resolve()))
+
+    def test_context_window_string_in_llm(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = Path(d) / "cai-agent.toml"
+            cfg.write_text(
+                "[llm]\n"
+                'base_url = "http://x/v1"\n'
+                'model = "m"\n'
+                'api_key = "k"\n'
+                'context_window = "32000"\n',
+                encoding="utf-8",
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.context_window, 32000)
+        self.assertEqual(s.context_window_source, "llm")
+
+
 if __name__ == "__main__":
     unittest.main()

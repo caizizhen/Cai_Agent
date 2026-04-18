@@ -8,7 +8,7 @@ from langgraph.graph import END, START, StateGraph
 
 from cai_agent.config import Settings
 from cai_agent.context import augment_system_prompt
-from cai_agent.llm import extract_json_object
+from cai_agent.llm import extract_json_object, get_last_usage
 from cai_agent.llm_factory import chat_completion_by_role
 from cai_agent.tools import dispatch, tools_spec_markdown
 
@@ -144,6 +144,18 @@ def build_app(
             },
         )
         text = chat_completion_by_role(settings, messages, role=role_name)
+        usage_snapshot = get_last_usage()
+        _emit(
+            progress,
+            {
+                "phase": "usage",
+                "iteration": iteration,
+                "prompt_tokens": int(usage_snapshot.get("prompt_tokens", 0)),
+                "completion_tokens": int(usage_snapshot.get("completion_tokens", 0)),
+                "total_tokens": int(usage_snapshot.get("total_tokens", 0)),
+                "context_window": int(getattr(settings, "context_window", 0) or 0),
+            },
+        )
         if _is_stopped():
             _emit(progress, {"phase": "stopped"})
             return {
