@@ -23,7 +23,7 @@ context_window = 200000
 # 在 PowerShell 中设置密钥：  $env:ZAI_API_KEY = "你的 API Key"
 [models]
 active = "zhipu-glm51"
-
+ 
 [[models.profile]]
 id = "zhipu-glm51"
 provider = "openai_compatible"
@@ -39,7 +39,7 @@ notes = "Zhipu GLM-5.1; requires ZAI_API_KEY. Switch back to local: cai-agent mo
 id = "local-lmstudio"
 provider = "openai_compatible"
 base_url = "http://localhost:1234/v1"
-model = "google/gemma-4-31b"
+model = "google/gemma-4-31b"  
 api_key = "lm-studio"
 temperature = 0.2
 timeout_sec = 500.0

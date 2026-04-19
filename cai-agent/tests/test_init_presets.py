@@ -42,12 +42,13 @@ class InitPresetTests(unittest.TestCase):
                     "local-ollama",
                     "local-vllm",
                     "openrouter",
+                    "zhipu-glm51",
                     "compat-gateway",
                 },
             )
             raw = tomllib.loads(cfg.read_text(encoding="utf-8"))
             profs = raw["models"]["profile"]
-            self.assertEqual(len(profs), 5)
+            self.assertEqual(len(profs), 6)
 
 
 if __name__ == "__main__":
