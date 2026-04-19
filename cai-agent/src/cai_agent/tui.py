@@ -499,22 +499,64 @@ class CaiAgentApp(App[None]):
                 timeout=3.5,
             )
             return
-        self.push_screen(ModelPanelScreen(self._settings), self._on_model_panel_closed)
+        self.push_screen(
+            ModelPanelScreen(
+                self._settings,
+                reload_settings=lambda: Settings.from_env(
+                    config_path=self._settings.config_loaded_from,
+                    workspace_hint=self._settings.workspace,
+                ),
+            ),
+            self._on_model_panel_closed,
+        )
 
     def _on_model_panel_closed(self, result: str | None) -> None:
-        if not result:
+        """关闭面板后从磁盘重载配置（拾取面板内 add/edit/rm），Enter 选中则切到该 profile。"""
+        log = self.query_one("#chat", RichLog)
+        prev_active = self._settings.active_profile_id
+        try:
+            new_s = Settings.from_env(
+                config_path=self._settings.config_loaded_from,
+                workspace_hint=self._settings.workspace,
+            )
+        except Exception:
+            new_s = None
+        if new_s is not None:
+            target = (
+                result.strip()
+                if isinstance(result, str) and result.strip()
+                else prev_active
+            )
+            prof = next((p for p in new_s.profiles if p.id == target), None)
+            if prof is None:
+                prof = next(
+                    (p for p in new_s.profiles if p.id == new_s.active_profile_id),
+                    None,
+                )
+            if prof is None and new_s.profiles:
+                prof = new_s.profiles[0]
+            if prof is None:
+                return
+            self._settings = new_s
+            self._apply_profile_switch(prof)
+            if isinstance(result, str) and result.strip():
+                log.write(
+                    f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
+                    f"（{prof.provider} / {prof.model}）\n",
+                )
             return
-        prof = next((p for p in self._settings.profiles if p.id == result), None)
-        if prof is None:
-            return
-        self._apply_profile_switch(prof)
-        self.query_one("#chat", RichLog).write(
-            f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
-            f"（{prof.provider} / {prof.model}）\n",
-        )
+        if isinstance(result, str) and result.strip():
+            prof = next((p for p in self._settings.profiles if p.id == result.strip()), None)
+            if prof is not None:
+                self._apply_profile_switch(prof)
+                log.write(
+                    f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
+                    f"（{prof.provider} / {prof.model}）\n",
+                )
 
     def _apply_profile_switch(self, prof: Profile) -> None:
         """内存中切换到指定 profile（不写 TOML），并重建 graph / 系统提示。"""
+        old_provider = self._settings.provider
         self._settings = activate_profile_in_memory(self._settings, prof)
         self._rebuild_runtime()
         self.sub_title = self._settings.workspace
@@ -527,6 +569,10 @@ class CaiAgentApp(App[None]):
         self._ctx_is_estimate = True
         self._refresh_context_bar()
         self._sync_slash_completion_sources()
+        if old_provider != self._settings.provider:
+            self.query_one("#chat", RichLog).write(
+                "\n[yellow]提示[/]：provider 已变更，若上下文异常建议执行 /compact 或 /clear。\n",
+            )
 
     def _apply_session_profile_metadata(self, data: dict[str, Any], log: RichLog) -> None:
         """若会话 JSON 含 ``active_profile_id`` / 路由字段且与当前 profiles 一致，则恢复运行时设置。"""
@@ -537,6 +583,10 @@ class CaiAgentApp(App[None]):
 
         switched_active = False
         aid = data.get("active_profile_id")
+        if not (isinstance(aid, str) and aid.strip()):
+            prof_alias = data.get("profile")
+            if isinstance(prof_alias, str) and prof_alias.strip():
+                aid = prof_alias.strip()
         if isinstance(aid, str) and aid.strip():
             s = aid.strip()
             prof = next((p for p in profs if p.id == s), None)
@@ -898,7 +948,7 @@ class CaiAgentApp(App[None]):
                 "[dim]/use-model 、 /mcp call 、 /load 、 /save：profile / MCP / 会话基名；路径里含 / 或 \\ 时用路径补全（限 workspace 与 cwd，不可跳出根目录）。[/]\n"
                 "/help — 本帮助\n"
                 "/status — 当前模型、工作区与配置来源\n"
-                "/models — 打开聊天 LLM profile 面板（Ctrl+M；不写 TOML）\n"
+                "/models — 打开聊天 LLM profile 面板（Ctrl+M；Enter 切换、a/e/d/t 子动作写回 TOML 见面板说明）\n"
                 "/models refresh — 拉取当前代理 GET /v1/models 列表到聊天区\n"
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
@@ -926,6 +976,7 @@ class CaiAgentApp(App[None]):
             sub = getattr(s, "subagent_profile_id", None)
             pln = getattr(s, "planner_profile_id", None)
             route_lines = (
+                f"profile: [cyan]{s.active_profile_id}[/]\n"
                 f"profile(active): [cyan]{s.active_profile_id}[/]\n"
                 f"subagent: [cyan]{sub or '（未设置，沿用 active）'}[/]\n"
                 f"planner: [cyan]{pln or '（未设置，沿用 active）'}[/]\n"
@@ -1083,6 +1134,7 @@ class CaiAgentApp(App[None]):
                 "config": self._settings.config_loaded_from,
                 "provider": self._settings.provider,
                 "model": self._settings.model,
+                "profile": self._settings.active_profile_id,
                 "active_profile_id": self._settings.active_profile_id,
                 "subagent_profile_id": self._settings.subagent_profile_id,
                 "planner_profile_id": self._settings.planner_profile_id,

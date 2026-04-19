@@ -10,6 +10,7 @@ from cai_agent.profiles import (
     KNOWN_PROVIDERS,
     Profile,
     ProfilesError,
+    normalize_openai_chat_base_url,
     parse_models_section,
     pick_active,
     project_base_url,
@@ -25,10 +26,7 @@ def _env_bool(name: str, default: bool = False) -> bool:
 
 
 def _normalize_base_url(base: str) -> str:
-    base = base.strip().rstrip("/")
-    if not base.endswith("/v1"):
-        return base + "/v1"
-    return base
+    return normalize_openai_chat_base_url(base)
 
 
 def _user_config_candidates() -> list[Path]:

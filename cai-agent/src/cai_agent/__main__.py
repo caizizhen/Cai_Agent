@@ -495,7 +495,7 @@ def _cmd_init(*, force: bool, is_global: bool = False, preset: str = "default") 
     )
     print(
         "多模型: cai-agent models list；新增条目: "
-        "cai-agent models add --preset lmstudio|ollama|vllm|openrouter|gateway …",
+        "cai-agent models add --preset lmstudio|ollama|vllm|openrouter|gateway|zhipu …",
     )
     if (preset or "").strip().lower() == "starter":
         print(
@@ -555,7 +555,7 @@ def main(argv: list[str] | None = None) -> int:
         choices=["default", "starter"],
         help=(
             "default: 仅 [llm]，默认指向本机 LM Studio。"
-            "starter: 预置 LM Studio / Ollama / vLLM / OpenRouter / 自建 OpenAI 兼容网关等多条 [[models.profile]]"
+            "starter: 预置 LM Studio / Ollama / vLLM / OpenRouter / 智谱 GLM / 自建 OpenAI 兼容网关等多条 [[models.profile]]"
         ),
     )
 
@@ -729,7 +729,16 @@ def main(argv: list[str] | None = None) -> int:
     _ma.add_argument(
         "--preset", default=None,
         choices=sorted(
-            ["openai", "anthropic", "openrouter", "lmstudio", "ollama", "vllm", "gateway"],
+            [
+                "openai",
+                "anthropic",
+                "openrouter",
+                "lmstudio",
+                "ollama",
+                "vllm",
+                "gateway",
+                "zhipu",
+            ],
         ),
     )
     _ma.add_argument("--provider", default=None)
@@ -2550,6 +2559,10 @@ def main(argv: list[str] | None = None) -> int:
                     "config": settings.config_loaded_from,
                     "provider": settings.provider,
                     "model": settings.model,
+                    "profile": settings.active_profile_id,
+                    "active_profile_id": settings.active_profile_id,
+                    "subagent_profile_id": settings.subagent_profile_id,
+                    "planner_profile_id": settings.planner_profile_id,
                     "mcp_enabled": settings.mcp_enabled,
                     "elapsed_ms": elapsed_ms,
                     "total_tokens": usage.get("total_tokens", 0),

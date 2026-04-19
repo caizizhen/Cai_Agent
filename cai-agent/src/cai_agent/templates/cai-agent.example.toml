@@ -8,6 +8,7 @@ provider = "openai_compatible" # openai_compatible | copilot
 base_url = "http://localhost:1234/v1"
 model = "google/gemma-4-31b"
 api_key = "lm-studio"
+# 为 true 时读取系统代理；对 localhost/127.* 的 LLM/MCP/ping 会自动不走代理，避免本地 LM Studio 被代理成 HTTP 503。
 http_trust_env = false
 # 采样温度（0~2，视模型支持而定）
 temperature = 0.2
@@ -176,6 +177,19 @@ budget_max_tokens = 50000
 # model = "replace-with-your-served-model-name"
 # api_key_env = "VLLM_API_KEY"
 # temperature = 0.2
+#
+# # 智谱 AI（OpenAI 兼容，GLM-5.1）
+# # 文档：https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
+# # 密钥建议：export ZAI_API_KEY=...（与官方文档一致）
+# [[models.profile]]
+# id = "zhipu-glm51"
+# provider = "openai_compatible"
+# base_url = "https://open.bigmodel.cn/api/paas/v4"
+# model = "glm-5.1"
+# api_key_env = "ZAI_API_KEY"
+# temperature = 0.6
+# timeout_sec = 120.0
+# context_window = 200000
 #
 # # 自建 OpenAI 兼容网关（One API / LiteLLM 等）
 # [[models.profile]]

@@ -1,6 +1,6 @@
 # 由 `cai-agent init --preset starter` 复制（勿提交含真实 Key 的文件）
 #
-# 预置：本机 LM Studio / Ollama / vLLM、云端 OpenRouter、自建 OpenAI 兼容网关。
+# 预置：本机 LM Studio / Ollama / vLLM、云端 OpenRouter / 智谱 GLM、自建 OpenAI 兼容网关。
 # 切换：`cai-agent models use <profile-id>` 或 TUI `/models`。
 # 优先级：环境变量 > 本文件 > 内置默认
 
@@ -107,6 +107,17 @@ api_key_env = "OPENROUTER_API_KEY"
 temperature = 0.2
 timeout_sec = 120.0
 notes = "OpenRouter: one key, many models. See https://openrouter.ai/models"
+
+[[models.profile]]
+id = "zhipu-glm51"
+provider = "openai_compatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-5.1"
+api_key_env = "ZAI_API_KEY"
+temperature = 0.6
+timeout_sec = 120.0
+context_window = 200000
+notes = "Zhipu OpenAI-compatible API; set ZAI_API_KEY. See https://docs.bigmodel.cn/cn/guide/develop/openai/introduction"
 
 [[models.profile]]
 id = "compat-gateway"

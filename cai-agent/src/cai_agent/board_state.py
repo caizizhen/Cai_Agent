@@ -86,6 +86,9 @@ def build_board_payload(
         "schema_version": "board_v1",
         "generated_at": datetime.now(UTC).isoformat(),
         "workspace": str(base),
+        # 与 `observe --json` 根对象同源：`observe` 键内嵌完整 `build_observe_payload` 结果，
+        # 任务看板 / CI 只解析 `board_v1` 时可用本字段快速读取 observe 代际。
+        "observe_schema_version": obs.get("schema_version"),
         "observe": obs,
         "last_workflow": wf,
     }

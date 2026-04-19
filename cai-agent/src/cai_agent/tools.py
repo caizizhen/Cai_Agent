@@ -14,6 +14,7 @@ from typing import Any, Callable
 import httpx
 
 from cai_agent.config import Settings
+from cai_agent.http_trust import effective_http_trust_env
 from cai_agent.permissions import enforce_tool_permission
 from cai_agent.sandbox import SandboxError, resolve_workspace_path
 
@@ -552,8 +553,15 @@ def tool_mcp_list_tools(settings: Settings, args: dict[str, Any]) -> str:
             return "\n".join(tools[:300]) + "\n[cache]"
 
     timeout = httpx.Timeout(settings.mcp_timeout_sec)
-    with httpx.Client(timeout=timeout, trust_env=settings.http_trust_env) as client:
-        r = client.get(f"{base}/tools", headers=_mcp_headers(settings))
+    mcp_url = f"{base}/tools"
+    with httpx.Client(
+        timeout=timeout,
+        trust_env=effective_http_trust_env(
+            trust_env=bool(settings.http_trust_env),
+            request_url=mcp_url,
+        ),
+    ) as client:
+        r = client.get(mcp_url, headers=_mcp_headers(settings))
     if r.status_code >= 400:
         return f"[mcp_list_tools 失败] HTTP {r.status_code} body={r.text!r}"
     data: Any = r.json()
@@ -589,9 +597,16 @@ def tool_mcp_call_tool(settings: Settings, args: dict[str, Any]) -> str:
         targs = {}
     timeout = httpx.Timeout(settings.mcp_timeout_sec)
     body = {"args": targs}
-    with httpx.Client(timeout=timeout, trust_env=settings.http_trust_env) as client:
+    mcp_post = f"{base}/tools/{quote(name, safe='')}"
+    with httpx.Client(
+        timeout=timeout,
+        trust_env=effective_http_trust_env(
+            trust_env=bool(settings.http_trust_env),
+            request_url=mcp_post,
+        ),
+    ) as client:
         r = client.post(
-            f"{base}/tools/{quote(name, safe='')}",
+            mcp_post,
             json=body,
             headers=_mcp_headers(settings),
         )

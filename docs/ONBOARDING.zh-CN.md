@@ -9,11 +9,11 @@
 
 2. **生成配置**（在项目根或工作区目录）  
    - 最小单端点：`cai-agent init`（默认 `[llm]`，本机 LM Studio）。  
-   - 多后端 + OpenRouter + 自建网关模板：`cai-agent init --preset starter`（预置多条 `[[models.profile]]`，再用 `cai-agent models use <id>` 切换）。  
+   - 多后端 + OpenRouter + **智谱 GLM** + 自建网关模板：`cai-agent init --preset starter`（预置多条 `[[models.profile]]`，再用 `cai-agent models use <id>` 切换）。  
    若已存在 `cai-agent.toml`，使用 `cai-agent init --force`（可加 `--preset starter`）覆盖。
 
 3. **编辑 `cai-agent.toml`**  
-   至少设置 `[llm]` 或当前激活 profile 的 `base_url`、`model`、`api_key` / `api_key_env`，使其指向你的 OpenAI 兼容端点（如 LM Studio、Ollama、vLLM、OpenRouter 或自建代理）。
+   至少设置 `[llm]` 或当前激活 profile 的 `base_url`、`model`、`api_key` / `api_key_env`，使其指向你的 OpenAI 兼容端点（如 LM Studio、Ollama、vLLM、OpenRouter、**智谱** `https://open.bigmodel.cn/api/paas/v4` + `ZAI_API_KEY`，或自建代理）。智谱说明见官方 [OpenAI 兼容](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)。
 
 4. **健康检查**  
    `cai-agent doctor`  
@@ -28,6 +28,7 @@
 | 现象 | 处理 |
 |------|------|
 | `配置文件不存在` | 指定 `--config` 或设置 `CAI_CONFIG`，或在当前目录执行 `init` |
+| 本机 LM Studio **HTTP 503**（`http_trust_env=true` 且系统有代理） | 升级至含「环回直连」的版本；或设 `NO_PROXY=localhost,127.0.0.1`；或将 `http_trust_env` 设为 `false` |
 | 连接超时 / 429 | 检查 `llm.timeout_sec`、端点负载与 `LM_BASE_URL` |
 | 工具写入/命令被拒绝 | 检查 `[permissions]` 中 `write_file` / `run_command` 是否为 `deny` |
 | 非交互环境卡在权限询问 | 见下文 CI |

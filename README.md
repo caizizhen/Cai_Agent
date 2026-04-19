@@ -57,7 +57,9 @@ Do not commit real API keys.
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
 | `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
 | `docs/MODEL_SWITCHER_BACKLOG.zh-CN.md` | Feature pack: in-UI model switcher + profile management + routing |
-| `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA) |
+| `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA); Sprint 3 acceptance is §4 |
+| `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` | P1 decision: MCP-first WebSearch/Notebook + how `board --json` aligns with `observe` |
+| `docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md` | Optimization backlog vs claude-code + ECC; Dev/QA sync |
 | `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
 | `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
@@ -85,13 +87,13 @@ pip install -e .
 cai-agent init
 ```
 
-For a **single file** that already lists **LM Studio, Ollama, vLLM, OpenRouter, and a self-hosted OpenAI-compatible gateway** as separate `[[models.profile]]` entries, run:
+For a **single file** that already lists **LM Studio, Ollama, vLLM, OpenRouter, Zhipu GLM, and a self-hosted OpenAI-compatible gateway** as separate `[[models.profile]]` entries, run:
 
 ```bash
 cai-agent init --preset starter
 ```
 
-Edit `cai-agent.toml` `[llm]` and/or switch `[models].active`, or use environment variables. You can also add one-off profiles with `cai-agent models add --preset vllm --id my-vllm --model <served-model-id>` or `models add --preset gateway --id corp --base-url http://internal:8080/v1`.
+Edit `cai-agent.toml` `[llm]` and/or switch `[models].active`, or use environment variables. You can also add one-off profiles with `cai-agent models add --preset vllm --id my-vllm --model <served-model-id>`, `models add --preset gateway --id corp --base-url http://internal:8080/v1`, or **`models add --preset zhipu --id my-glm`** (expects env **`ZAI_API_KEY`**; see [Zhipu OpenAI-compatible docs](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)).
 
 3. Health check and one task:
 
@@ -292,7 +294,7 @@ set COPILOT_API_KEY=your-token
 
 ## Configuration file
 
-1. Run **`cai-agent init`** (writes `cai-agent.toml` with a minimal `[llm]` aimed at local LM Studio). Use **`cai-agent init --preset starter`** when you want multiple ready-made profiles (local backends + OpenRouter + a placeholder self-hosted gateway); set `OPENROUTER_API_KEY` / `OPENAI_API_KEY` as needed and `cai-agent models use <id>` to switch.
+1. Run **`cai-agent init`** (writes `cai-agent.toml` with a minimal `[llm]` aimed at local LM Studio). Use **`cai-agent init --preset starter`** when you want multiple ready-made profiles (local backends + OpenRouter + **Zhipu GLM** + a placeholder self-hosted gateway); set `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** as needed and `cai-agent models use <id>` to switch.
 2. Place `cai-agent.toml` in the working directory, or use **`CAI_CONFIG`** / **`--config`**.
 3. **Priority**: environment variables > TOML > defaults. Do not commit real API keys.
 
@@ -300,14 +302,24 @@ set COPILOT_API_KEY=your-token
 
 | Key | Meaning |
 |-----|---------|
-| `base_url` | API base; `/v1` appended if missing |
+| `base_url` | API base; `/v1` is appended when missing **except** for Zhipu hosts under `open.bigmodel.cn/.../api/paas/...` (chat lives at `.../chat/completions` without an extra `/v1`). |
 | `model` | Model id |
 | `api_key` | Bearer token |
 | `provider` | `openai_compatible` or `copilot` |
-| `http_trust_env` | Use system HTTP proxy settings |
+| `http_trust_env` | When `true`, httpx reads `HTTP_PROXY` / `HTTPS_PROXY`. **Loopback** targets (`localhost`, `127.*`, `::1`) still use **direct connections** for LLM chat, `/models` / profile ping, and MCP so local LM Studio is not sent through a corporate proxy (which often yields HTTP **503**). |
 | `temperature` | Sampling temperature (clamped) |
 | `timeout_sec` | HTTP timeout for chat completions |
 | `context_window` | Model context window in tokens; **display-only** (drives the TUI context bar denominator, never sent to the server). Default `8192`. Override via env `CAI_CONTEXT_WINDOW` or per-profile `[[models.profile]].context_window` (preferred). Common values: LM Studio/Qwen/Gemma local 32768, gpt-4o 128000, claude-sonnet 200000. |
+
+### Zhipu AI (GLM, OpenAI-compatible)
+
+Use provider **`openai_compatible`** with:
+
+- **`base_url`**: `https://open.bigmodel.cn/api/paas/v4` (no trailing `/v1`; the runtime normalizes this correctly).
+- **`model`**: e.g. `glm-5.1` (see [model docs](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.1)).
+- **API key**: set env **`ZAI_API_KEY`** and reference it from a profile with `api_key_env = "ZAI_API_KEY"` (recommended), or use `cai-agent models add --preset zhipu --id <id> --set-active`.
+
+[Zhipu OpenAI-compatible guide](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction) · [LangChain + Zhipu example](https://docs.bigmodel.cn/cn/guide/develop/langchain/introduction) (this repo talks to the HTTP API directly; LangChain is optional elsewhere).
 
 ### `[agent]`
 
@@ -342,6 +354,7 @@ api_key = "your-copilot-proxy-token"
 | `CAI_CONTEXT_WINDOW` | Override the TUI context-bar denominator (tokens) |
 | `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY` | LLM endpoint |
 | `LM_PROVIDER` | `openai_compatible` or `copilot` |
+| `ZAI_API_KEY` | Zhipu / BigModel API key (used when a profile sets `api_key_env = "ZAI_API_KEY"`) |
 | `COPILOT_*` | Copilot-mode overrides |
 | `MCP_ENABLED` | `1` enables MCP tools |
 | `MCP_BASE_URL` / `MCP_API_KEY` / `MCP_TIMEOUT` | MCP bridge |
@@ -450,7 +463,9 @@ In TUI: `/mcp`, `/mcp refresh`, `/mcp call <name> <json_args>`.
 cai-agent ui -w "$PWD"
 ```
 
-Suggested order: `/status` → `/models` → `/use-model <id>` → type a task → `/save` → `/load latest`.
+Suggested order: `/status` → **`Ctrl+M` or `/models`** (model panel: **Enter** on a row switches the **current TUI session**; **`t`** pings; **`a`/`e`/`d`** manage profiles and write TOML) → optionally `/use-model <profile_id>` for a quick switch → type a task → `/save` → `/load latest`.
+
+To **persist** the default profile for the next CLI/TUI launch, run **`cai-agent models use <profile_id>`** (or edit `[models].active` in `cai-agent.toml`). **`/use-model`** and **Enter** in the panel only adjust the in-memory runtime unless a sub-action (e.g. add with “set active”) writes the file.
 
 ### Context usage bar
 
@@ -505,7 +520,7 @@ cai-agent ui -w "$PWD"
 cai-agent workflow path/to/workflow.json --json
 ```
 
-**TUI slash commands**: `/help`, `/status`, `/models`, `/mcp`, `/mcp refresh`, `/mcp call …`, `/save`, `/load`, `/sessions`, `/use-model`, `/reload`, `/clear`.
+**TUI slash commands**: `/help`, `/status`, `/models` (same as **Ctrl+M** model panel), `/mcp`, `/mcp refresh`, `/mcp call …`, `/save`, `/load`, `/sessions`, `/use-model`, `/reload`, `/clear`.
 
 **TUI key bindings and copy/paste:**
 
@@ -535,7 +550,7 @@ Then edit the generated TOML — in particular uncomment and set `context_window
 
 ## FAQ
 
-1. **`doctor` OK but `run` fails** — Check `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY`; confirm `/v1` and `http_trust_env`.
+1. **`doctor` OK but `run` fails** — Check `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY` (or the profile’s `api_key_env`); confirm OpenAI-compat **`/v1`** for most servers (Zhipu uses `…/api/paas/v4` without an extra `/v1`). If **local** LM Studio returns **503** while `http_trust_env=true`, ensure you are on a build with loopback proxy bypass, or set **`NO_PROXY=localhost,127.0.0.1`**.
 2. **Tool errors / path blocked** — Paths are workspace-relative; `..` blocked; `run_command` allowlist only — by design.
 3. **Non-deterministic answers** — Lower `temperature`; split work (`plan` then `run`); prefer `continue` over fresh sessions.
 

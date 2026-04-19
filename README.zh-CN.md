@@ -16,8 +16,10 @@
 - **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
 - **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
 - **对标双参考源的本版功能清单（Dev/QA/用户）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)（[claude-code](https://github.com/anthropics/claude-code) + [everything-claude-code](https://github.com/affaan-m/everything-claude-code)）。
-- **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）。
+- **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）；Sprint 3 验收以 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md) **§4** 为准。
+- **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP；`board`/`observe` schema 关系）。
 - **开发计划（Sprint 1–3，含 Alpha/Beta/GA 节奏）**：[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（分工、时间片、DoD、QA 回归矩阵、内测公告模板）。
+- **对标 Claude Code / ECC 的优化清单 + 开发/QA 同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)（可继续优化项、Parity `Next` 汇总、Sprint3 与后续 P1）。
 - **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
@@ -40,13 +42,13 @@ pip install -e .
 cai-agent init
 ```
 
-若希望**一次拿到**「本机 LM Studio / Ollama / vLLM + OpenRouter + 自建 OpenAI 兼容网关」多条 `[[models.profile]]`，可用：
+若希望**一次拿到**「本机 LM Studio / Ollama / vLLM + OpenRouter + **智谱 GLM** + 自建 OpenAI 兼容网关」多条 `[[models.profile]]`，可用：
 
 ```bash
 cai-agent init --preset starter
 ```
 
-编辑 `cai-agent.toml` 的 `[llm]` 或切换 `[models].active`（或使用环境变量）。单条 profile 也可用 CLI：`cai-agent models add --preset vllm --id my-vllm --model <与 vLLM 一致的模型名>`；自建网关：`models add --preset gateway --id corp --base-url http://内网:8080/v1`。
+编辑 `cai-agent.toml` 的 `[llm]` 或切换 `[models].active`（或使用环境变量）。单条 profile 也可用 CLI：`cai-agent models add --preset vllm --id my-vllm --model <与 vLLM 一致的模型名>`；自建网关：`models add --preset gateway --id corp --base-url http://内网:8080/v1`；智谱：`models add --preset zhipu --id my-glm`（需环境变量 **`ZAI_API_KEY`**，见[智谱 OpenAI 兼容说明](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)）。
 
 3. 先做健康检查，再执行一次任务：
 
@@ -301,7 +303,7 @@ cai-agent init
 
 ## 配置文件
 
-1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` 等并用 `cai-agent models use <id>` 切换。
+1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter、**智谱** 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** 等并用 `cai-agent models use <id>` 切换。
 2. 将 `cai-agent.toml` 放在运行命令时的当前工作目录，或使用 **`CAI_CONFIG`** / **`--config`**。
 3. **优先级**：环境变量 **高于** TOML **高于** 内置默认值。勿将含真实 API Key 的配置提交到版本库。
 
@@ -309,14 +311,23 @@ cai-agent init
 
 | 键 | 说明 |
 |----|------|
-| `base_url` | API 根地址；未以 `/v1` 结尾时会自动补全 |
+| `base_url` | API 根地址；未以 `/v1` 结尾时一般会**自动补 `/v1`**；**例外**：智谱 `open.bigmodel.cn/.../api/paas/...` 根路径不再拼额外 `/v1`（实际请求 `…/chat/completions`）。 |
 | `model` | 模型 ID |
 | `api_key` | Bearer Token |
 | `provider` | `openai_compatible`（默认）或 `copilot` |
-| `http_trust_env` | 是否使用系统代理 |
+| `http_trust_env` | 为 `true` 时 httpx 读取系统 `HTTP_PROXY`/`HTTPS_PROXY`；对 **环回地址**（`localhost`、`127.*`、`::1`）的 LLM 聊天、`/models` 与 profile **ping**、以及 **MCP** 仍会**直连**，避免本机 LM Studio 被代理转发后出现 **HTTP 503**。 |
 | `temperature` | 采样温度，默认 `0.2`，范围会裁剪到 `0~2` |
 | `timeout_sec` | 单次 Chat Completions 请求超时（秒），默认 `120`，范围约 `5~3600` |
 | `context_window` | 模型上下文窗口 token 数，**仅用于 TUI 显示**（决定进度条分母），**不会发送给服务端**。默认 `8192`；建议按模型真实窗口设置。支持环境变量 `CAI_CONTEXT_WINDOW` 覆盖，也可在 `[[models.profile]]` 下按 profile 单独设置（优先级更高）。常见值：LM Studio/Qwen/Gemma 本地 32768，gpt-4o 128000，claude-sonnet 200000 |
+
+### 智谱 AI（GLM，OpenAI 兼容）
+
+- **`provider`**：`openai_compatible`
+- **`base_url`**：`https://open.bigmodel.cn/api/paas/v4`（不要手动再拼一层 `/v1`）
+- **`model`**：例如 `glm-5.1`（见[模型说明](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.1)）
+- **密钥**：推荐环境变量 **`ZAI_API_KEY`**，在 profile 里写 `api_key_env = "ZAI_API_KEY"`；或用 CLI：`cai-agent models add --preset zhipu --id <id> --set-active`
+
+官方文档：[OpenAI 兼容接入](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)；[LangChain 集成示例](https://docs.bigmodel.cn/cn/guide/develop/langchain/introduction)（本程序直接走 HTTP，不依赖 LangChain）。
 
 ### `[agent]` 常用项
 
@@ -353,6 +364,7 @@ api_key = "your-copilot-proxy-token"
 | `LM_MODEL` | 模型名 |
 | `LM_API_KEY` | Bearer Token |
 | `LM_PROVIDER` | `openai_compatible` 或 `copilot` |
+| `ZAI_API_KEY` | 智谱开放平台 API Key（profile 使用 `api_key_env = "ZAI_API_KEY"` 时读取） |
 | `COPILOT_BASE_URL` | Copilot 模式代理 URL |
 | `COPILOT_MODEL` | Copilot 模式模型名 |
 | `COPILOT_API_KEY` | Copilot 模式 token |
@@ -562,11 +574,13 @@ cai-agent ui -w "$PWD"
 建议顺序：
 
 1. `/status` 看当前模型与工作区
-2. `/models` 看可切换模型
-3. `/use-model <id>` 切到目标模型
+2. **`Ctrl+M` 或 `/models`** 打开模型面板：方向键选中后 **`Enter`** 在本会话内切换 profile；**`t`** 做连通测试；**`a`/`e`/`d`** 增删改并写回 `cai-agent.toml`（与 CLI `cai-agent models` 语义一致）
+3. 或 **`/use-model <profile_id>`** 快速切到指定 profile（补全优先 profile id）
 4. 输入自然语言任务
 5. `/save` 保存会话
 6. `/load latest` 恢复最近会话
+
+**持久化默认模型**：下次启动仍要同一 profile，请执行 **`cai-agent models use <profile_id>`**，或编辑 `cai-agent.toml` 的 **`[models].active`**。面板 **`Enter`** 与 **`/use-model`** 主要改**当前进程**的运行时（除非在面板里执行会写盘的子操作）。
 
 ### TUI 里常用任务模版
 
@@ -654,7 +668,7 @@ cai-agent workflow path/to/workflow.json --json
 
 - `/help` 或 `/?`
 - `/status`
-- `/models`
+- `/models`（与 **Ctrl+M** 相同：打开模型 profile 面板）
 - `/mcp`
 - `/mcp refresh`
 - `/mcp call <name> <json_args>`
@@ -695,9 +709,9 @@ cai-agent init --global    # 写入 %APPDATA%\cai-agent\cai-agent.toml（或 XDG
 
 ### 1) `doctor` 正常，但 `run` 请求模型失败
 
-- 检查 `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY` 是否与当前网关一致。
-- 若代理地址没有 `/v1`，程序会自动补全；仍建议显式写完整，便于排查。
-- 若走系统代理，确认 `http_trust_env` 设置符合预期。
+- 检查 `LM_BASE_URL` / `LM_MODEL` / `LM_API_KEY`（或当前 profile 的 `api_key_env`）是否与网关一致。
+- 多数 OpenAI 兼容地址缺省会补 `/v1`；**智谱**为 `https://open.bigmodel.cn/api/paas/v4`，不要再叠一层 `/v1`。
+- **`http_trust_env=true` 时本机 503**：新版本对环回地址会直连；若仍异常可设 **`NO_PROXY=localhost,127.0.0.1`**，或将 `http_trust_env` 设为 `false`。
 
 ### 2) 为什么工具调用失败或提示越界
 

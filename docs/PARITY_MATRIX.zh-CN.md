@@ -22,10 +22,11 @@
 | 计划 → 执行 | claude-code | `Done` | `plan` / `plan --json`（`plan_schema_version`）/ `run --plan-file` |
 | 会话延续 | claude-code | `Done` | `run --save-session` / `continue` |
 | 多步工作流 | claude-code / ECC | `Done` | `workflow`；任务看板类 UI 见下行 |
+| 多模型 profile / TUI 面板 / `/use-model` / session `profile` 字段 | claude-code / ECC | `Done` | `[[models.profile]]` + `cai-agent models`；TUI `Ctrl+M` / `/models` 面板（列表、a/e/d/t）；`/status` 与 `--save-session` 含 `profile`；跨 provider 切换提示 `/compact`；见 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](MODEL_SWITCHER_DEVPLAN.zh-CN.md) §4 |
 | WebFetch（HTTPS 只读 GET） | claude-code | `Done` | 内置 `fetch_url` + `[fetch_url]` / `[permissions]`；见 [MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md) 作 MCP 并行方案 |
-| WebSearch / 结构化搜索 API | claude-code | `Next` / `MCP` | 建议 MCP 或后续专用工具 |
+| WebSearch / 结构化搜索 API | claude-code | `Next` / `MCP` | 定案见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP） |
 | Notebook 编辑 | claude-code | `Next` / `MCP` | 同上 |
-| 任务看板 / 富任务 UI | claude-code | `Next` | 当前以 JSON、`observe` 为主 |
+| 任务看板 / 富任务 UI | claude-code | `Next` | `board --json`（`board_v1`）内嵌 `observe` 与 `observe_schema_version`；与 `observe` 共用聚合 schema；见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md) |
 | 语音 / Bridge / 企业门控特性 | claude-code | `OOS` | 依赖官方封闭能力或单独商务 |
 
 ## L2 — 架构完备度（对照 analysis 文档骨架）

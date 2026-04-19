@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 
 from cai_agent.config import Settings
+from cai_agent.http_trust import effective_http_trust_env
 
 _RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
@@ -168,6 +169,10 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
         return '{"type":"finish","message":"CAI_MOCK=1（未设置 CAI_MOCK_REPLY）"}'
 
     url = f"{settings.base_url.rstrip('/')}/chat/completions"
+    trust = effective_http_trust_env(
+        trust_env=bool(getattr(settings, "http_trust_env", False)),
+        request_url=url,
+    )
     payload = {
         "model": settings.model,
         "messages": messages,
@@ -185,7 +190,7 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     )
 
     last: httpx.Response | None = None
-    with httpx.Client(timeout=timeout, trust_env=settings.http_trust_env) as client:
+    with httpx.Client(timeout=timeout, trust_env=trust) as client:
         for attempt in range(5):
             last = client.post(url, json=payload, headers=headers)
             if last.status_code < 400:

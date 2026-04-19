@@ -114,7 +114,7 @@ def run_doctor(settings: Settings) -> int:
     print("  2) 编辑 cai-agent.toml 中 [llm] 或 [[models.profile]]（base_url / model / api_key_env）")
     print("  3) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
     print(
-        "  4) 多模型: cai-agent models list；新增: models add --preset vllm|gateway|openrouter …；"
+        "  4) 多模型: cai-agent models list；新增: models add --preset vllm|gateway|openrouter|zhipu …；"
         "新用户/CI 见 docs/ONBOARDING.zh-CN.md",
     )
     return 0

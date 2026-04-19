@@ -32,6 +32,8 @@
 
 ## P1（4-8 周）效率引擎
 
+> **本月增量（与 Parity L1 对齐）**：WebSearch / Notebook 的 **MCP 优先**定案与 `board`/`observe` 共用事件模型说明见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)；Sprint 3 执行细节仍以 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](MODEL_SWITCHER_DEVPLAN.zh-CN.md) §4 与 [OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md) 为准。
+
 ### 1) 记忆与学习系统 v1
 - 目标：将会话经验沉淀为可检索“项目记忆”
 - 里程碑：

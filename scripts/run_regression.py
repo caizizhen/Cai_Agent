@@ -291,9 +291,12 @@ def main() -> int:
     if proc_board.returncode == 0:
         try:
             board_obj = json.loads((proc_board.stdout or "").strip())
+            obs = board_obj.get("observe")
             board_parse_ok = (
                 board_obj.get("schema_version") == "board_v1"
-                and isinstance(board_obj.get("observe"), dict)
+                and isinstance(obs, dict)
+                and board_obj.get("observe_schema_version")
+                == obs.get("schema_version")
             )
         except json.JSONDecodeError:
             board_parse_ok = False

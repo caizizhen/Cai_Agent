@@ -118,6 +118,16 @@ PRESETS: dict[str, dict[str, Any]] = {
         "temperature": 0.2,
         "timeout_sec": 120.0,
     },
+    # 智谱 AI OpenAI 兼容（见 https://docs.bigmodel.cn/cn/guide/develop/openai/introduction ）
+    "zhipu": {
+        "provider": "openai_compatible",
+        "base_url": "https://open.bigmodel.cn/api/paas/v4",
+        "model": "glm-5.1",
+        "api_key_env": "ZAI_API_KEY",
+        "temperature": 0.6,
+        "timeout_sec": 120.0,
+        "context_window": 200_000,
+    },
 }
 
 
@@ -311,6 +321,25 @@ def synthesize_default_profile(
     )
 
 
+def normalize_openai_chat_base_url(base: str) -> str:
+    """Strip and normalize base URL used as ``{base}/chat/completions``.
+
+    Most OpenAI-compatible servers use ``…/v1/chat/completions``. 智谱 OpenAI
+    兼容网关根路径为 ``…/api/paas/v4``（文档：
+    https://docs.bigmodel.cn/cn/guide/develop/openai/introduction ），不能再拼
+    ``/v1``，否则请求会落到错误路径。
+    """
+    raw = (base or "").strip().rstrip("/")
+    if not raw:
+        return raw
+    low = raw.lower()
+    if "open.bigmodel.cn" in low and "/api/paas/" in low:
+        return raw
+    if raw.endswith("/v1"):
+        return raw
+    return raw + "/v1"
+
+
 def pick_active(
     profiles: Sequence[Profile],
     active_id: str | None,
@@ -337,16 +366,15 @@ def project_base_url(profile: Profile) -> str:
     """按 provider 规则把 base_url 规整为「call-site 直接拼路径」的形式。
 
     - `anthropic`: 返回 **不含 /v1** 的根（llm_anthropic 拼 `/v1/messages`）；
-    - 其它 provider：统一补齐 `/v1` 后缀（llm 拼 `/chat/completions`）。
+    - 其它 provider：多数补齐 ``/v1``；智谱 ``open.bigmodel.cn/api/paas/…`` 除外
+      （见 :func:`normalize_openai_chat_base_url`）。
     """
     raw = (profile.base_url or "").strip().rstrip("/")
     if profile.provider == "anthropic":
         if raw.endswith("/v1"):
             raw = raw[: -len("/v1")]
         return raw
-    if not raw.endswith("/v1"):
-        return raw + "/v1"
-    return raw
+    return normalize_openai_chat_base_url(profile.base_url or "")
 
 
 # ---------------------------------------------------------------------------
@@ -606,6 +634,7 @@ __all__ = [
     "apply_preset",
     "build_profile",
     "edit_profile",
+    "normalize_openai_chat_base_url",
     "parse_models_section",
     "pick_active",
     "profile_to_public_dict",

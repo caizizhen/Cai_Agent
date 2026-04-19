@@ -14,6 +14,7 @@ from typing import Any
 import httpx
 
 from cai_agent.config import Settings
+from cai_agent.http_trust import effective_http_trust_env
 from cai_agent.profiles import Profile, project_base_url
 
 
@@ -69,7 +70,10 @@ def fetch_models(
     timeout = httpx.Timeout(connect=15.0, read=30.0, write=15.0, pool=15.0)
     client_kwargs: dict[str, Any] = {
         "timeout": timeout,
-        "trust_env": getattr(settings, "http_trust_env", False),
+        "trust_env": effective_http_trust_env(
+            trust_env=bool(getattr(settings, "http_trust_env", False)),
+            request_url=url,
+        ),
     }
     if transport is not None:
         client_kwargs["transport"] = transport
@@ -153,7 +157,10 @@ def ping_profile(
         write=min(15.0, timeout_sec),
         pool=min(15.0, timeout_sec),
     )
-    client_kwargs: dict[str, Any] = {"timeout": timeout, "trust_env": trust_env}
+    client_kwargs: dict[str, Any] = {
+        "timeout": timeout,
+        "trust_env": effective_http_trust_env(trust_env=trust_env, request_url=url),
+    }
     if transport is not None:
         client_kwargs["transport"] = transport
     try:

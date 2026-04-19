@@ -13,6 +13,7 @@ from cai_agent.profiles import (
     ProfilesError,
     apply_preset,
     build_profile,
+    normalize_openai_chat_base_url,
     parse_models_section,
     pick_active,
     project_base_url,
@@ -197,6 +198,20 @@ class ProfilesParsingTests(unittest.TestCase):
         self.assertEqual(g["api_key_env"], "OPENAI_API_KEY")
         self.assertEqual(g["model"], "gpt-4o-mini")
 
+    def test_apply_preset_zhipu(self) -> None:
+        z = apply_preset({"id": "z1"}, "zhipu")
+        self.assertEqual(z["provider"], "openai_compatible")
+        self.assertEqual(z["model"], "glm-5.1")
+        self.assertEqual(z["api_key_env"], "ZAI_API_KEY")
+        self.assertIn("open.bigmodel.cn", z["base_url"])
+        self.assertEqual(z.get("context_window"), 200_000)
+
+    def test_normalize_openai_chat_base_url_zhipu_no_v1_suffix(self) -> None:
+        self.assertEqual(
+            normalize_openai_chat_base_url("https://open.bigmodel.cn/api/paas/v4/"),
+            "https://open.bigmodel.cn/api/paas/v4",
+        )
+
     def test_project_base_url_anthropic_strips_v1(self) -> None:
         p = Profile(
             id="c",
@@ -220,6 +235,35 @@ class ProfilesParsingTests(unittest.TestCase):
             timeout_sec=120.0,
         )
         self.assertEqual(project_base_url(p), "http://localhost:1234/v1")
+
+    def test_project_base_url_zhipu_openai_compat(self) -> None:
+        p = Profile(
+            id="z",
+            provider="openai_compatible",
+            base_url="https://open.bigmodel.cn/api/paas/v4",
+            model="glm-5.1",
+            api_key_env="ZAI_API_KEY",
+            temperature=0.6,
+            timeout_sec=120.0,
+        )
+        self.assertEqual(project_base_url(p), "https://open.bigmodel.cn/api/paas/v4")
+
+    def test_settings_zhipu_legacy_llm_base_url(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _write(
+                Path(d),
+                """
+                [llm]
+                provider = "openai_compatible"
+                base_url = "https://open.bigmodel.cn/api/paas/v4/"
+                model = "glm-5.1"
+                api_key = "dummy"
+                temperature = 0.6
+                """,
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.base_url, "https://open.bigmodel.cn/api/paas/v4")
+        self.assertEqual(s.model, "glm-5.1")
 
     def test_strip_models_blocks_preserves_other_sections(self) -> None:
         src = textwrap.dedent(

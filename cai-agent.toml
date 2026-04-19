@@ -5,19 +5,46 @@
 
 [llm]
 provider = "openai_compatible" # openai_compatible | copilot
-base_url = "http://localhost:1234/v1"
-model = "google/gemma-4-31b"
-api_key = "lm-studio"
-# 为 true 时 LLM / fetch_url 会读取系统代理（HTTP_PROXY 等）；访问本机 LM Studio 请在环境中设 NO_PROXY=localhost,127.0.0.1
+# 与下方 [models] 中智谱 profile 对齐；若删除 [[models.profile]] 则仅本节生效，密钥用环境变量 LM_API_KEY。
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-5.1"
+api_key = ""
+# 为 true 时 LLM / fetch_url 会读取系统代理；localhost/127.* 的 LLM 与 MCP 请求会自动直连（避免本地 LM Studio 经代理出现 HTTP 503）。
 http_trust_env = true
-# 采样温度（0~2，视模型支持而定）
-temperature = 0.2
+# 智谱文档建议 temperature ∈ (0,1)，默认约 0.6
+temperature = 0.6
 # 单次 Chat Completions HTTP 超时（秒）
 timeout_sec = 500
 # 模型的上下文窗口（tokens）。仅用于 TUI 上下文占用进度条的分母，不会作为请求参数发给服务端。
-# 常见值：LM Studio / Qwen / Gemma 本地通常 32768；gpt-4o 128000；claude-sonnet 200000。
 # 也可用环境变量 CAI_CONTEXT_WINDOW 临时覆盖；[[models.profile]].context_window 优先级更高。
+context_window = 200000
+
+# 智谱 OpenAI 兼容：https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
+# 在 PowerShell 中设置密钥：  $env:ZAI_API_KEY = "你的 API Key"
+[models]
+active = "zhipu-glm51"
+
+[[models.profile]]
+id = "zhipu-glm51"
+provider = "openai_compatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-5.1"
+api_key_env = "ZAI_API_KEY"
+temperature = 0.6
+timeout_sec = 500.0
+context_window = 200000
+notes = "Zhipu GLM-5.1; requires ZAI_API_KEY. Switch back to local: cai-agent models use local-lmstudio"
+
+[[models.profile]]
+id = "local-lmstudio"
+provider = "openai_compatible"
+base_url = "http://localhost:1234/v1"
+model = "google/gemma-4-31b"
+api_key = "lm-studio"
+temperature = 0.2
+timeout_sec = 500.0
 context_window = 60000
+notes = "本机 LM Studio（原 [llm] 默认）；访问本机请在环境中设 NO_PROXY=localhost,127.0.0.1"
 
 # Copilot 集成（重要）
 # 说明：Copilot 官方不提供稳定公开的 chat/completions 接口。
