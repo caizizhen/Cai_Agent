@@ -1358,7 +1358,7 @@ def main(argv: list[str] | None = None) -> int:
 
     schedule_p = sub.add_parser(
         "schedule",
-        help="定时任务管理（轻量 cron：add/list/rm/run-due）",
+        help="定时任务管理（add/list/rm/run-due/daemon）",
     )
     schedule_sub = schedule_p.add_subparsers(dest="schedule_action", required=True)
 
@@ -1389,6 +1389,30 @@ def main(argv: list[str] | None = None) -> int:
         help="真正执行到点任务（默认 dry-run 仅预览）",
     )
     schedule_due.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_daemon = schedule_sub.add_parser(
+        "daemon",
+        help="轮询执行到点任务（默认 dry-run；加 --execute 才会真实执行）",
+    )
+    schedule_daemon.add_argument(
+        "--interval-sec",
+        type=float,
+        default=30.0,
+        help="轮询间隔秒数（默认 30）",
+    )
+    schedule_daemon.add_argument(
+        "--max-cycles",
+        type=int,
+        default=0,
+        help="最多轮询次数（0 表示无限直到 Ctrl+C）",
+    )
+    schedule_daemon.add_argument(
+        "--execute",
+        action="store_true",
+        default=False,
+        help="真实执行到点任务（默认仅预览）",
+    )
+    schedule_daemon.add_argument("--json", action="store_true", dest="json_output")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
@@ -2296,6 +2320,8 @@ def main(argv: list[str] | None = None) -> int:
             job = add_schedule_task(
                 goal=str(args.goal),
                 every_minutes=int(args.every_minutes),
+                workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
+                model=str(args.model) if getattr(args, "model", None) else None,
                 cwd=str(root),
             )
             if bool(args.disabled):
@@ -2326,6 +2352,7 @@ def main(argv: list[str] | None = None) -> int:
                 for j in jobs:
                     print(
                         f"{j.get('id')}\tevery={j.get('every_minutes')}m\tenabled={j.get('enabled')}\t"
+                        f"run_count={j.get('run_count', 0)} last_status={j.get('last_status')}\t"
                         f"goal={(str(j.get('goal') or '')[:80])}",
                     )
             return 0
@@ -2356,6 +2383,10 @@ def main(argv: list[str] | None = None) -> int:
                 if not tid:
                     continue
                 goal = str(j.get("goal") or "").strip()
+                ws = j.get("workspace")
+                workspace_override = str(ws).strip() if isinstance(ws, str) and str(ws).strip() else None
+                mo = j.get("model")
+                model_override = str(mo).strip() if isinstance(mo, str) and str(mo).strip() else None
                 if not goal:
                     mark_schedule_task_run(
                         task_id=tid,
@@ -2372,30 +2403,31 @@ def main(argv: list[str] | None = None) -> int:
                         },
                     )
                     continue
-                try:
-                    settings = Settings.from_env(config_path=None)
-                    app = build_app(settings)
-                    state = initial_state(settings, goal)
-                    final = app.invoke(state)
-                    answer = str(final.get("answer") or "").strip()
-                    preview = answer[:160] + ("…" if len(answer) > 160 else "")
+                ok, out = _execute_scheduled_goal(
+                    config_path=None,
+                    workspace_hint=workspace_override,
+                    workspace_override=workspace_override,
+                    model_override=model_override,
+                    goal=goal,
+                )
+                if ok:
                     mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                    preview = out[:160] + ("…" if len(out) > 160 else "")
                     executed.append(
                         {
                             "id": tid,
                             "ok": True,
                             "status": "completed",
                             "answer_preview": preview,
-                            "finished": bool(final.get("finished")),
-                            "iteration": final.get("iteration"),
+                            "workspace": workspace_override,
+                            "model": model_override,
                         },
                     )
-                except Exception as e:
-                    err = str(e)
+                else:
                     mark_schedule_task_run(
                         task_id=tid,
                         status="failed",
-                        error=err,
+                        error=out,
                         cwd=str(root),
                     )
                     executed.append(
@@ -2403,7 +2435,9 @@ def main(argv: list[str] | None = None) -> int:
                             "id": tid,
                             "ok": False,
                             "status": "failed",
-                            "error": err,
+                            "error": out,
+                            "workspace": workspace_override,
+                            "model": model_override,
                         },
                     )
             payload = {"mode": "execute", "due_jobs": due, "executed": executed}
@@ -2411,6 +2445,107 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(payload, ensure_ascii=False))
             else:
                 print(f"executed={len(executed)} due_jobs={len(due)}")
+            return 0
+        if args.schedule_action == "daemon":
+            interval_sec = max(0.2, float(args.interval_sec))
+            max_cycles = int(args.max_cycles)
+            execute = bool(args.execute)
+            cycles = 0
+            total_due = 0
+            total_executed = 0
+            results: list[dict[str, Any]] = []
+            interrupted = False
+            try:
+                while True:
+                    cycles += 1
+                    due = compute_due_tasks(cwd=str(root))
+                    total_due += len(due)
+                    cycle_exec: list[dict[str, Any]] = []
+                    if execute:
+                        for j in due:
+                            tid = str(j.get("id") or "").strip()
+                            if not tid:
+                                continue
+                            goal = str(j.get("goal") or "").strip()
+                            ws = j.get("workspace")
+                            workspace_override = (
+                                str(ws).strip() if isinstance(ws, str) and str(ws).strip() else None
+                            )
+                            mo = j.get("model")
+                            model_override = (
+                                str(mo).strip() if isinstance(mo, str) and str(mo).strip() else None
+                            )
+                            if not goal:
+                                mark_schedule_task_run(
+                                    task_id=tid,
+                                    status="failed",
+                                    error="empty_goal",
+                                    cwd=str(root),
+                                )
+                                cycle_exec.append(
+                                    {"id": tid, "ok": False, "status": "failed", "error": "empty_goal"},
+                                )
+                                continue
+                            ok, out = _execute_scheduled_goal(
+                                config_path=None,
+                                workspace_hint=workspace_override,
+                                workspace_override=workspace_override,
+                                model_override=model_override,
+                                goal=goal,
+                            )
+                            if ok:
+                                mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                                preview = out[:160] + ("…" if len(out) > 160 else "")
+                                cycle_exec.append(
+                                    {
+                                        "id": tid,
+                                        "ok": True,
+                                        "status": "completed",
+                                        "answer_preview": preview,
+                                    },
+                                )
+                            else:
+                                mark_schedule_task_run(
+                                    task_id=tid,
+                                    status="failed",
+                                    error=out,
+                                    cwd=str(root),
+                                )
+                                cycle_exec.append(
+                                    {"id": tid, "ok": False, "status": "failed", "error": out},
+                                )
+                    total_executed += len(cycle_exec)
+                    cycle_row = {
+                        "cycle": cycles,
+                        "due_count": len(due),
+                        "executed_count": len(cycle_exec),
+                        "execute": execute,
+                        "executed": cycle_exec,
+                    }
+                    results.append(cycle_row)
+                    if max_cycles > 0 and cycles >= max_cycles:
+                        break
+                    time.sleep(interval_sec)
+            except KeyboardInterrupt:
+                interrupted = True
+            payload = {
+                "mode": "daemon",
+                "execute": execute,
+                "interval_sec": interval_sec,
+                "max_cycles": max_cycles,
+                "cycles": cycles,
+                "total_due": total_due,
+                "total_executed": total_executed,
+                "interrupted": interrupted,
+                "results": results,
+            }
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"daemon cycles={cycles} total_due={total_due} total_executed={total_executed} "
+                    f"execute={execute} interrupted={interrupted}",
+                )
             return 0
 
     if args.command == "cost":
