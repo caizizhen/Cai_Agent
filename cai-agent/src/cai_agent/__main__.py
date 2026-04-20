@@ -54,6 +54,15 @@ from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
 from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_security_scan
+from cai_agent.schedule import (
+    add_schedule_task,
+    compute_due_tasks,
+    list_schedule_tasks,
+    load_schedule_doc,
+    mark_schedule_task_run,
+    remove_schedule_task,
+    save_schedule_doc,
+)
 from cai_agent.session import (
     aggregate_sessions,
     build_observe_payload,
@@ -1312,6 +1321,40 @@ def main(argv: list[str] | None = None) -> int:
     )
     memory_import_entries.add_argument("file")
 
+    schedule_p = sub.add_parser(
+        "schedule",
+        help="定时任务管理（轻量 cron：add/list/rm/run-due）",
+    )
+    schedule_sub = schedule_p.add_subparsers(dest="schedule_action", required=True)
+
+    schedule_add = schedule_sub.add_parser("add", help="新增一个定时任务")
+    schedule_add.add_argument("--every-minutes", type=int, required=True, help="执行周期（分钟）")
+    schedule_add.add_argument("--goal", required=True, help="到点时要执行的目标文本")
+    schedule_add.add_argument(
+        "--workspace",
+        default=".",
+        help="任务执行时使用的工作区（默认当前目录）",
+    )
+    schedule_add.add_argument("--model", default=None, help="可选模型覆盖")
+    schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
+    schedule_add.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_list = schedule_sub.add_parser("list", help="列出定时任务")
+    schedule_list.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_rm = schedule_sub.add_parser("rm", help="删除定时任务")
+    schedule_rm.add_argument("id", help="任务 id")
+    schedule_rm.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_due = schedule_sub.add_parser("run-due", help="执行当前到点任务")
+    schedule_due.add_argument(
+        "--execute",
+        action="store_true",
+        default=False,
+        help="真正执行到点任务（默认 dry-run 仅预览）",
+    )
+    schedule_due.add_argument("--json", action="store_true", dest="json_output")
+
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
     cost_budget = cost_sub.add_parser("budget", help="预算检查")
@@ -2211,6 +2254,87 @@ def main(argv: list[str] | None = None) -> int:
                 event="memory_end",
                 json_output=mem_json,
             )
+
+    if args.command == "schedule":
+        root = Path.cwd().resolve()
+        if args.schedule_action == "add":
+            job = add_schedule_task(
+                goal=str(args.goal),
+                every_minutes=int(args.every_minutes),
+                cwd=str(root),
+            )
+            if bool(args.disabled):
+                doc = load_schedule_doc(str(root))
+                tasks = doc.get("tasks")
+                if isinstance(tasks, list):
+                    for row in tasks:
+                        if isinstance(row, dict) and str(row.get("id")) == str(job.get("id")):
+                            row["enabled"] = False
+                            break
+                    save_schedule_doc(doc, str(root))
+                    job["enabled"] = False
+            if bool(args.json_output):
+                print(json.dumps(job, ensure_ascii=False))
+            else:
+                print(
+                    f"added id={job.get('id')} every_minutes={job.get('every_minutes')} "
+                    f"enabled={job.get('enabled')}",
+                )
+            return 0
+        if args.schedule_action == "list":
+            jobs = list_schedule_tasks(str(root))
+            if bool(args.json_output):
+                print(json.dumps(jobs, ensure_ascii=False))
+            else:
+                if not jobs:
+                    print("(无定时任务)")
+                for j in jobs:
+                    print(
+                        f"{j.get('id')}\tevery={j.get('every_minutes')}m\tenabled={j.get('enabled')}\t"
+                        f"goal={(str(j.get('goal') or '')[:80])}",
+                    )
+            return 0
+        if args.schedule_action == "rm":
+            ok = remove_schedule_task(str(args.id), str(root))
+            if bool(args.json_output):
+                print(json.dumps({"removed": ok}, ensure_ascii=False))
+            else:
+                print("removed=1" if ok else "removed=0")
+            return 0 if ok else 2
+        if args.schedule_action == "run-due":
+            due = compute_due_tasks(cwd=str(root))
+            if not bool(args.execute):
+                payload = {"mode": "dry-run", "due_jobs": due, "executed": []}
+                if bool(args.json_output):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"due_jobs={len(due)}")
+                    for j in due:
+                        print(
+                            f"- {j.get('id')} every={j.get('every_minutes')}m "
+                            f"goal={str(j.get('goal') or '')[:80]}"
+                        )
+                return 0
+            executed: list[dict[str, Any]] = []
+            for j in due:
+                tid = str(j.get("id") or "").strip()
+                if not tid:
+                    continue
+                mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                executed.append(
+                    {
+                        "id": tid,
+                        "ok": True,
+                        "status": "completed",
+                        "note": "metadata-only execution; real runner pending",
+                    },
+                )
+            payload = {"mode": "execute", "due_jobs": due, "executed": executed}
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(f"executed={len(executed)} due_jobs={len(due)}")
+            return 0
 
     if args.command == "cost":
         if args.cost_action == "budget":
