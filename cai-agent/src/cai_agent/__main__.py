@@ -184,6 +184,145 @@ def _build_insights_payload(
     }
 
 
+def _extract_session_recall_hits(
+    *,
+    session: dict[str, Any],
+    query: str,
+    use_regex: bool,
+    case_sensitive: bool,
+    snippet_len: int,
+) -> list[dict[str, Any]]:
+    import re
+
+    q = query if case_sensitive else query.lower()
+    hits: list[dict[str, Any]] = []
+    messages = session.get("messages")
+    if not isinstance(messages, list):
+        return hits
+    for idx, msg in enumerate(messages, start=1):
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if not isinstance(content, str) or not content.strip():
+            continue
+        hay = content if case_sensitive else content.lower()
+        matched = False
+        match_start = 0
+        match_end = 0
+        if use_regex:
+            flags = 0 if case_sensitive else re.IGNORECASE
+            m = re.search(query, content, flags=flags)
+            if m is not None:
+                matched = True
+                match_start, match_end = m.start(), m.end()
+        else:
+            pos = hay.find(q)
+            if pos >= 0:
+                matched = True
+                match_start, match_end = pos, pos + len(q)
+        if not matched:
+            continue
+        left = max(0, match_start - max(snippet_len // 2, 20))
+        right = min(len(content), match_end + max(snippet_len // 2, 20))
+        snippet = content[left:right].replace("\n", " ")
+        hits.append(
+            {
+                "message_index": idx,
+                "role": str(role) if isinstance(role, str) else None,
+                "snippet": snippet,
+            },
+        )
+    return hits
+
+
+def _build_recall_payload(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    days: int,
+    query: str,
+    use_regex: bool,
+    case_sensitive: bool,
+    hits_per_session: int,
+    session_limit: int,
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    parse_skipped = 0
+    sessions_scanned = 0
+    sessions_with_hits = 0
+    hits_total = 0
+    result_rows: list[dict[str, Any]] = []
+    for p in files:
+        mtime = datetime.fromtimestamp(p.stat().st_mtime, UTC)
+        if mtime < since:
+            continue
+        try:
+            sess = load_session(str(p))
+        except Exception:
+            parse_skipped += 1
+            continue
+        sessions_scanned += 1
+        hits = _extract_session_recall_hits(
+            session=sess,
+            query=query,
+            use_regex=use_regex,
+            case_sensitive=case_sensitive,
+            snippet_len=220,
+        )
+        if not hits:
+            continue
+        sessions_with_hits += 1
+        selected = hits[: max(1, hits_per_session)]
+        hits_total += len(selected)
+        answer = sess.get("answer")
+        answer_preview = (
+            str(answer).strip()[:120] + ("…" if len(str(answer).strip()) > 120 else "")
+            if isinstance(answer, str) and answer.strip()
+            else ""
+        )
+        result_rows.append(
+            {
+                "path": str(p),
+                "mtime": int(p.stat().st_mtime),
+                "model": sess.get("model") if isinstance(sess.get("model"), str) else None,
+                "task_id": (
+                    str((sess.get("task") or {}).get("task_id"))
+                    if isinstance(sess.get("task"), dict)
+                    else None
+                ),
+                "answer_preview": answer_preview,
+                "hits": selected,
+                "hits_count": len(selected),
+            },
+        )
+    result_rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+    trimmed = result_rows[: max(1, session_limit)]
+    return {
+        "schema_version": "1.0",
+        "generated_at": now.isoformat(),
+        "query": query,
+        "regex": use_regex,
+        "case_sensitive": case_sensitive,
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "pattern": pattern,
+            "limit": limit,
+            "hits_per_session": max(1, hits_per_session),
+            "session_limit": max(1, session_limit),
+        },
+        "sessions_scanned": sessions_scanned,
+        "sessions_with_hits": len(trimmed),
+        "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
+        "parse_skipped": parse_skipped,
+        "results": trimmed,
+    }
+
+
 def _execute_scheduled_goal(
     *,
     config_path: str | None,
@@ -1294,6 +1433,56 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出洞察结果",
     )
+    recall_p = sub.add_parser(
+        "recall",
+        help="跨会话检索：按关键词/正则匹配历史会话内容（Hermes-style recall）",
+    )
+    recall_p.add_argument(
+        "--query",
+        required=True,
+        help="检索关键词（默认子串匹配）或正则表达式（--regex）",
+    )
+    recall_p.add_argument(
+        "--regex",
+        action="store_true",
+        default=False,
+        help="将 --query 按正则表达式解释",
+    )
+    recall_p.add_argument(
+        "--pattern",
+        default=".cai-session*.json",
+        help="匹配会话文件模式（相对当前目录）",
+    )
+    recall_p.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="最多扫描文件数（按最近修改时间倒序）",
+    )
+    recall_p.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="仅检索最近 N 天会话",
+    )
+    recall_p.add_argument(
+        "--max-hits",
+        type=int,
+        default=20,
+        help="最多返回命中条数",
+    )
+    recall_p.add_argument(
+        "--max-matches",
+        type=int,
+        default=None,
+        help="--max-hits 的兼容别名（若指定则覆盖 --max-hits）",
+    )
+    recall_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 输出检索结果",
+    )
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
@@ -2100,6 +2289,42 @@ def main(argv: list[str] | None = None) -> int:
                     if not isinstance(row, dict):
                         continue
                     print(f"  {row.get('path')} errors={row.get('error_count')}")
+        return 0
+
+    if args.command == "recall":
+        payload = _build_recall_payload(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+            days=int(args.days),
+            query=str(args.query),
+            use_regex=bool(args.regex),
+            case_sensitive=bool(getattr(args, "case_sensitive", False)),
+            hits_per_session=int(
+                args.max_matches if args.max_matches is not None else args.max_hits
+            ),
+            session_limit=int(args.limit),
+        )
+        if bool(args.json_output):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"hits={payload.get('hits_count')} scanned={payload.get('sessions_scanned')} "
+                f"matched_sessions={payload.get('sessions_matched')} "
+                f"parse_skipped={payload.get('parse_skipped')}",
+            )
+            hits = payload.get("hits")
+            if isinstance(hits, list):
+                for i, row in enumerate(hits, start=1):
+                    if not isinstance(row, dict):
+                        continue
+                    print(
+                        f"{i:>2}. {row.get('session_name')}:{row.get('field')} "
+                        f"mtime={row.get('mtime')} model={row.get('model')}",
+                    )
+                    snippet = row.get("snippet")
+                    if isinstance(snippet, str) and snippet:
+                        print(f"    {snippet}")
         return 0
 
     if args.command == "quality-gate":

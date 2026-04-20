@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **Cross-session recall search**: Added `cai-agent recall` for Hermes-style session recall with keyword/regex search over saved session JSON files. Supports `--query`, `--regex`, `--days`, `--pattern`, `--limit`, `--json`, and returns ranked snippets with file path, mtime, model, and answer preview.
 - **Schedule daemon guardrails**: `cai-agent schedule daemon` now supports a single-instance lock (`.cai-schedule.lock`) to prevent duplicate runners in one workspace, and optional JSONL append logging via `--log-file`. Added startup metadata (`pid`, `started_at`, mode flags) and per-cycle log records suitable for QA/ops tracing.
 - **Schedule execute mode**: `cai-agent schedule run-due --execute` now performs real agent runs for due tasks (instead of metadata-only marking), captures per-task answer/error/elapsed metrics, and persists run status (`last_run_at`, `last_status`, `last_error`, `run_count`) back into `.cai-schedule.json`. `schedule list` includes `last_status`/`run_count` in text output; `schedule add --disabled` remains supported.
 - **Zhipu AI (BigModel) OpenAI-compatible routing**: `profiles.PRESETS` adds **`zhipu`** (`cai-agent models add --preset zhipu …`); `normalize_openai_chat_base_url` / `project_base_url` **do not append `/v1`** to `https://open.bigmodel.cn/api/paas/v4` so chat hits `…/chat/completions` per [Zhipu’s OpenAI-compat guide](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction). Example templates document **`ZAI_API_KEY`** + **`glm-5.1`**.

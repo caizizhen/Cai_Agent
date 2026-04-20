@@ -505,6 +505,15 @@ cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --json
 cai-agent insights --json --days 7
 ```
 
+### `cai-agent recall --json`
+
+跨会话检索（对标 Hermes 的 recall/search 体验）：在近期会话文件中按关键词或正则查找命中片段，适合快速回忆“之前在哪个会话里讨论过某问题”。
+
+```bash
+cai-agent recall --query "TODO" --days 14 --json
+cai-agent recall --query "risk|回归" --regex --limit 50
+```
+
 ### `cai-agent schedule`（生产护栏补充）
 
 ```bash
