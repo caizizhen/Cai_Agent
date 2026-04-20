@@ -19,6 +19,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Plan only (no tools) | `cai-agent plan "Add auth; outline steps and risks"` |
 | Plan JSON (stable schema) | `cai-agent plan "..." --json` → `plan_schema_version`, `ok`, `generated_at`, `task`, `usage` (errors: `config_not_found` / `goal_empty` / `llm_error`) |
 | Session stats JSON | `cai-agent stats --json` → `stats_schema_version`, `run_events_total`, `session_summaries`, etc. |
+| Session insights | `cai-agent insights --json --days 7` → cross-session trends (`models_top`, `tools_top`, `top_error_sessions`) |
 | Save plan to disk | `cai-agent plan "..." --write-plan ./PLAN.md` |
 | Run with an existing plan | `cai-agent run --plan-file ./PLAN.md "Implement step 1"` |
 | Machine-readable run | `cai-agent run --json "List open risks in the diff"` |

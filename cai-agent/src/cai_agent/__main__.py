@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import signal
@@ -9,7 +10,7 @@ import sys
 import threading
 import time
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,93 @@ def _session_file_json_extra(sess: dict[str, Any]) -> dict[str, Any]:
         "task_id": task_id,
         "total_tokens": int(tt) if isinstance(tt, int) else None,
         "error_count": int(ec) if isinstance(ec, int) else None,
+    }
+
+
+def _build_insights_payload(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    days: int,
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    window_files = [p for p in files if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since]
+
+    model_counts: Counter[str] = Counter()
+    tool_counts: Counter[str] = Counter()
+    total = 0
+    parse_skipped = 0
+    total_tokens = 0
+    total_tool_calls = 0
+    error_sessions = 0
+    latest_session_path: str | None = None
+    top_error_sessions: list[dict[str, Any]] = []
+
+    for p in window_files:
+        if latest_session_path is None:
+            latest_session_path = str(p)
+        try:
+            sess = load_session(str(p))
+        except Exception:
+            parse_skipped += 1
+            continue
+        total += 1
+        model = sess.get("model")
+        if isinstance(model, str) and model.strip():
+            model_counts[model.strip()] += 1
+        tt = sess.get("total_tokens")
+        if isinstance(tt, int):
+            total_tokens += tt
+        msgs = sess.get("messages")
+        msg_list = msgs if isinstance(msgs, list) else []
+        tc, used, _, msg_err = _collect_tool_stats(
+            msg_list if isinstance(msg_list, list) else [],
+        )
+        total_tool_calls += tc
+        for name in used:
+            tool_counts[name] += 1
+        sess_err = sess.get("error_count")
+        sess_err_i = int(sess_err) if isinstance(sess_err, int) else msg_err
+        if sess_err_i > 0:
+            error_sessions += 1
+            top_error_sessions.append(
+                {
+                    "path": str(p),
+                    "error_count": sess_err_i,
+                    "model": model if isinstance(model, str) else None,
+                },
+            )
+
+    top_error_sessions.sort(key=lambda x: int(x.get("error_count") or 0), reverse=True)
+    return {
+        "schema_version": "1.0",
+        "generated_at": now.isoformat(),
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "pattern": pattern,
+            "limit": limit,
+        },
+        "sessions_in_window": total,
+        "parse_skipped": parse_skipped,
+        "failure_rate": (float(error_sessions) / total) if total else 0.0,
+        "total_tokens": total_tokens,
+        "tool_calls_total": total_tool_calls,
+        "avg_tokens_per_session": int(total_tokens / total) if total else 0,
+        "avg_tool_calls_per_session": (float(total_tool_calls) / total) if total else 0.0,
+        "models_top": [
+            {"model": m, "count": c}
+            for m, c in model_counts.most_common(5)
+        ],
+        "tools_top": [
+            {"tool": t, "count": c}
+            for t, c in tool_counts.most_common(10)
+        ],
+        "latest_session_path": latest_session_path,
+        "top_error_sessions": top_error_sessions[:5],
     }
 
 
@@ -1076,6 +1164,33 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出汇总结果",
     )
+    insights_p = sub.add_parser(
+        "insights",
+        help="跨会话趋势洞察（近期模型/工具使用与异常会话）",
+    )
+    insights_p.add_argument(
+        "--pattern",
+        default=".cai-session*.json",
+        help="匹配模式（相对当前目录）",
+    )
+    insights_p.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="最多扫描的会话文件数（按最近修改时间倒序）",
+    )
+    insights_p.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="仅统计最近 N 天会话",
+    )
+    insights_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 对象输出洞察结果",
+    )
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
@@ -1769,6 +1884,45 @@ def main(argv: list[str] | None = None) -> int:
                 print("models_distribution:")
                 for m, cnt in by_model.items():
                     print(f"  {m}: {cnt}")
+        return 0
+
+    if args.command == "insights":
+        payload = _build_insights_payload(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+            days=int(args.days),
+        )
+        if bool(args.json_output):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"sessions_in_window={payload.get('sessions_in_window')} "
+                f"failure_rate={float(payload.get('failure_rate', 0.0)):.2%} "
+                f"total_tokens={payload.get('total_tokens')} "
+                f"tool_calls_total={payload.get('tool_calls_total')}",
+            )
+            models_top = payload.get("models_top")
+            if isinstance(models_top, list) and models_top:
+                print("models_top:")
+                for row in models_top:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('model')}: {row.get('count')}")
+            tools_top = payload.get("tools_top")
+            if isinstance(tools_top, list) and tools_top:
+                print("tools_top:")
+                for row in tools_top[:5]:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('tool')}: {row.get('count')}")
+            top_err = payload.get("top_error_sessions")
+            if isinstance(top_err, list) and top_err:
+                print("top_error_sessions:")
+                for row in top_err:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('path')} errors={row.get('error_count')}")
         return 0
 
     if args.command == "quality-gate":
