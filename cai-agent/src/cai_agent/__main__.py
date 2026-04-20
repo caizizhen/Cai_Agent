@@ -219,6 +219,65 @@ def _execute_scheduled_goal(
     return True, answer
 
 
+def _resolve_schedule_path(root: Path, raw_path: str | None, default_name: str) -> Path:
+    if isinstance(raw_path, str) and raw_path.strip():
+        p = Path(raw_path.strip()).expanduser()
+        if not p.is_absolute():
+            p = (root / p).resolve()
+        else:
+            p = p.resolve()
+        return p
+    return (root / default_name).resolve()
+
+
+def _acquire_schedule_daemon_lock(
+    *,
+    lock_path: Path,
+    stale_lock_sec: float,
+) -> tuple[bool, str]:
+    now = datetime.now(UTC)
+    payload = {
+        "pid": os.getpid(),
+        "started_at": now.isoformat(),
+    }
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return False, f"mkdir_failed: {e}"
+
+    if lock_path.exists() and stale_lock_sec > 0:
+        try:
+            data = json.loads(lock_path.read_text(encoding="utf-8"))
+            started = data.get("started_at")
+            if isinstance(started, str) and started.strip():
+                age = (now - datetime.fromisoformat(started)).total_seconds()
+                if age >= stale_lock_sec:
+                    lock_path.unlink(missing_ok=True)
+        except Exception:
+            # Corrupted/old lock file: keep conservative behavior and let exclusive create decide.
+            pass
+    try:
+        with lock_path.open("x", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return True, "ok"
+    except FileExistsError:
+        try:
+            holder = lock_path.read_text(encoding="utf-8").strip()
+            if len(holder) > 200:
+                holder = holder[:200] + "…"
+        except Exception:
+            holder = "(unreadable)"
+        return False, f"lock_exists: {holder}"
+    except Exception as e:
+        return False, f"lock_create_failed: {e}"
+
+
+def _append_schedule_daemon_log(log_path: Path, row: dict[str, Any]) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
 def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
     names: list[str] = []
     errors = 0
@@ -1412,6 +1471,22 @@ def main(argv: list[str] | None = None) -> int:
         default=False,
         help="真实执行到点任务（默认仅预览）",
     )
+    schedule_daemon.add_argument(
+        "--lock-file",
+        default=".cai-schedule-daemon.lock",
+        help="单实例锁文件路径（相对工作区或绝对路径）",
+    )
+    schedule_daemon.add_argument(
+        "--stale-lock-sec",
+        type=float,
+        default=0.0,
+        help="锁文件超过该秒数视为陈旧并可自动回收（默认 0 表示不回收）",
+    )
+    schedule_daemon.add_argument(
+        "--jsonl-log",
+        default=None,
+        help="可选 JSONL 事件日志路径（相对工作区或绝对路径）",
+    )
     schedule_daemon.add_argument("--json", action="store_true", dest="json_output")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
@@ -2450,6 +2525,20 @@ def main(argv: list[str] | None = None) -> int:
             interval_sec = max(0.2, float(args.interval_sec))
             max_cycles = int(args.max_cycles)
             execute = bool(args.execute)
+            lock_path = _resolve_schedule_path(root, getattr(args, "lock_file", None), ".cai-schedule-daemon.lock")
+            stale_lock_sec = max(0.0, float(getattr(args, "stale_lock_sec", 0.0) or 0.0))
+            ok_lock, lock_msg = _acquire_schedule_daemon_lock(lock_path=lock_path, stale_lock_sec=stale_lock_sec)
+            if not ok_lock:
+                payload = {"mode": "daemon", "ok": False, "error": "lock_conflict", "message": lock_msg}
+                if bool(args.json_output):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"[schedule-daemon] lock conflict: {lock_msg}", file=sys.stderr)
+                return 2
+
+            log_path_raw = getattr(args, "jsonl_log", None)
+            log_path = _resolve_schedule_path(root, log_path_raw, ".cai-schedule-daemon.jsonl") if log_path_raw else None
+
             cycles = 0
             total_due = 0
             total_executed = 0
@@ -2523,11 +2612,26 @@ def main(argv: list[str] | None = None) -> int:
                         "executed": cycle_exec,
                     }
                     results.append(cycle_row)
+                    if log_path is not None:
+                        _append_schedule_daemon_log(
+                            log_path,
+                            {
+                                "event": "schedule.daemon.cycle",
+                                "ts": datetime.now(UTC).isoformat(),
+                                **cycle_row,
+                            },
+                        )
                     if max_cycles > 0 and cycles >= max_cycles:
                         break
                     time.sleep(interval_sec)
             except KeyboardInterrupt:
                 interrupted = True
+            finally:
+                try:
+                    lock_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
             payload = {
                 "mode": "daemon",
                 "execute": execute,
@@ -2538,6 +2642,8 @@ def main(argv: list[str] | None = None) -> int:
                 "total_executed": total_executed,
                 "interrupted": interrupted,
                 "results": results,
+                "lock_file": str(lock_path),
+                "jsonl_log": str(log_path) if log_path is not None else None,
             }
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))

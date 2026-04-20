@@ -505,19 +505,15 @@ cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --json
 cai-agent insights --json --days 7
 ```
 
-### `cai-agent schedule`
-
-轻量定时任务（cron 风格）：
+### `cai-agent schedule`（生产护栏补充）
 
 ```bash
-cai-agent schedule add --goal "生成每日仓库风险摘要" --every-minutes 60
-cai-agent schedule list --json
-cai-agent schedule run-due --json
-cai-agent schedule run-due --execute --json
+cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --execute --json
+cai-agent schedule daemon --interval-sec 30 --execute --log-file ./.cai/schedule-daemon.log
 ```
 
-- `run-due` 默认是 **dry-run**（仅预览到点任务，不触发执行）。
-- `run-due --execute` 会对到点任务执行真实 Agent 运行（调用与 `run` 相同的执行链路），并把结果写回调度记录（`last_status` / `last_error` / `run_count`）。
+- `schedule daemon` 默认会创建单实例锁（`.cai-schedule.daemon.lock`），避免同一工作区重复启动造成重复执行；`--no-lock` 可关闭（仅建议调试场景）。
+- `--log-file` 会按 JSONL 追加轮询日志（每行一条 cycle 记录），便于 QA/运维追查执行轨迹。
 
 ## Demo：从零到一完成一次“分析 -> 计划 -> 执行 -> 验证”
 

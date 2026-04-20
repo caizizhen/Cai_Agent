@@ -237,12 +237,56 @@ cd cai-agent
 python3 -m pytest -q \
   tests/test_schedule_cli.py \
   tests/test_schedule_run_due_execute.py \
-  tests/test_schedule_daemon_cli.py
+  tests/test_schedule_daemon_cli.py \
+  tests/test_schedule_daemon_guardrails.py
 ```
 
 ---
 
-## 6) QA sign-off template
+## 6) Guardrails verification (new)
+
+### SCH-DAEMON-009 Single-instance lock file (P0)
+
+1. Start one daemon session:
+
+```bash
+cai-agent schedule daemon --interval-sec 5 --max-cycles 0 --json
+```
+
+2. In another terminal, start daemon again in the same workspace:
+
+```bash
+cai-agent schedule daemon --interval-sec 5 --max-cycles 1 --json
+```
+
+Expected:
+
+- Second process exits quickly with non-zero code.
+- JSON payload contains:
+  - `ok == false`
+  - `error == "daemon_lock_exists"`
+  - `lock_file` path points to workspace lock file.
+- First daemon keeps running until interrupted.
+
+### SCH-DAEMON-010 Daemon log file append (P1)
+
+Run with log file:
+
+```bash
+cai-agent schedule daemon --interval-sec 1 --max-cycles 2 --json --log-file .cai/schedule-daemon.log
+```
+
+Expected:
+
+- `.cai/schedule-daemon.log` is created.
+- Each cycle appends one JSON line with:
+  - `event: "schedule.daemon.cycle"`
+  - `cycle`, `due_count`, `executed_count`, `execute`.
+- Command still prints the final summary JSON to stdout.
+
+---
+
+## 7) QA sign-off template
 
 - Build/commit:
 - Environment:
