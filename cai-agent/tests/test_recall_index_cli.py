@@ -1,0 +1,94 @@
+from __future__ import annotations
+
+import io
+import json
+import unittest
+from contextlib import redirect_stdout
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import patch
+
+from cai_agent.__main__ import main
+from cai_agent.session import save_session
+
+
+class RecallIndexCliTests(unittest.TestCase):
+    def test_recall_index_build_and_search(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {
+                    "version": 2,
+                    "model": "idx-a",
+                    "answer": "auth token rotated",
+                    "messages": [
+                        {"role": "assistant", "content": "auth token rotated for service A"},
+                    ],
+                },
+            )
+            save_session(
+                str(root / ".cai-session-b.json"),
+                {
+                    "version": 2,
+                    "model": "idx-b",
+                    "answer": "build passed",
+                    "messages": [
+                        {"role": "assistant", "content": "release build passed on CI"},
+                    ],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                buf_build = io.StringIO()
+                with redirect_stdout(buf_build):
+                    rc_build = main(["recall-index", "build", "--json"])
+            self.assertEqual(rc_build, 0)
+            build_payload = json.loads(buf_build.getvalue().strip())
+            self.assertEqual(build_payload.get("ok"), True)
+            self.assertGreaterEqual(int(build_payload.get("sessions_indexed") or 0), 2)
+
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                buf_search = io.StringIO()
+                with redirect_stdout(buf_search):
+                    rc_search = main(["recall-index", "search", "--query", "auth", "--json"])
+            self.assertEqual(rc_search, 0)
+            search_payload = json.loads(buf_search.getvalue().strip())
+            self.assertEqual(search_payload.get("source"), "index")
+            self.assertGreaterEqual(int(search_payload.get("hits_total") or 0), 1)
+            rows = search_payload.get("results") or []
+            self.assertTrue(rows)
+
+    def test_recall_index_info_and_clear(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-c.json"),
+                {
+                    "version": 2,
+                    "model": "idx-c",
+                    "messages": [
+                        {"role": "assistant", "content": "deploy completed"},
+                    ],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                buf_info = io.StringIO()
+                with redirect_stdout(buf_info):
+                    rc_info = main(["recall-index", "info", "--json"])
+            self.assertEqual(rc_info, 0)
+            info_payload = json.loads(buf_info.getvalue().strip())
+            self.assertEqual(info_payload.get("ok"), True)
+            self.assertIn("index_file", info_payload)
+            self.assertIn("recall_index_schema_version", info_payload)
+
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                buf_clear = io.StringIO()
+                with redirect_stdout(buf_clear):
+                    rc_clear = main(["recall-index", "clear", "--json"])
+            self.assertEqual(rc_clear, 0)
+            clear_payload = json.loads(buf_clear.getvalue().strip())
+            self.assertEqual(clear_payload.get("ok"), True)
+            self.assertEqual(clear_payload.get("removed"), True)

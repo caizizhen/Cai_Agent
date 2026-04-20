@@ -512,7 +512,12 @@ cai-agent insights --json --days 7
 ```bash
 cai-agent recall --query "TODO" --days 14 --json
 cai-agent recall --query "risk|回归" --regex --limit 50
+cai-agent recall --query "auth" --use-index --index-file ./.cai/recall-index.json --json
+cai-agent recall index --rebuild --index-file ./.cai/recall-index.json --days 60
 ```
+
+- `recall --use-index` 会优先使用本地索引文件进行检索，适合会话文件较多的仓库。
+- `recall index` 用于构建/重建索引；建议在夜间任务或 CI 前置步骤中定期刷新。
 
 ### `cai-agent schedule`（生产护栏补充）
 

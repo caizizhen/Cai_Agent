@@ -1,6 +1,6 @@
 # QA Test Plan: Recall CLI (Cross-Session Search)
 
-This plan validates the new `cai-agent recall` command (Hermes-style cross-session recall).
+This plan validates `cai-agent recall` in both scan mode and index mode.
 
 ## 1) Scope
 
@@ -10,6 +10,8 @@ In scope:
 - result limits (`--limit`)
 - JSON schema stability (`--json`)
 - parser-failure tolerance (`parse_skipped`)
+- index build/update workflow (`recall index`)
+- indexed query mode (`--use-index`)
 
 Out of scope:
 - external vector DB / embeddings
@@ -31,20 +33,20 @@ cd ..
 
 ## 3) Cases
 
-### RC-001 Basic keyword hit
+### RC-001 Basic keyword hit (scan mode)
 
 1. Create at least 2 session files with content containing keyword `auth`.
 2. Run:
 
 ```bash
-cai-agent recall "auth" --json
+cai-agent recall --query "auth" --json
 ```
 
 Expected:
 - `schema_version == "1.0"`
 - `query == "auth"`
 - `hits_total >= 1`
-- each hit contains `file`, `line`, `snippet`, `timestamp`
+- each result row contains `path`, `hits`, `hits_count`
 
 ### RC-002 Days window filter
 
@@ -52,12 +54,12 @@ Expected:
 2. Run:
 
 ```bash
-cai-agent recall "auth" --days 1 --json
+cai-agent recall --query "auth" --days 1 --json
 ```
 
 Expected:
 - old session is excluded
-- `scanned_sessions` only counts in-window files
+- `sessions_scanned` only counts in-window files
 
 ### RC-003 Limit behavior
 
@@ -65,11 +67,11 @@ Expected:
 2. Run:
 
 ```bash
-cai-agent recall "auth" --limit 2 --json
+cai-agent recall --query "auth" --limit 2 --max-hits 2 --json
 ```
 
 Expected:
-- returned `hits` length is `<= 2`
+- returned `results` length is `<= 2`
 
 ### RC-004 Parse skip tolerance
 
@@ -77,7 +79,7 @@ Expected:
 2. Run:
 
 ```bash
-cai-agent recall "auth" --json
+cai-agent recall --query "auth" --json
 ```
 
 Expected:
@@ -90,16 +92,51 @@ Expected:
 Run:
 
 ```bash
-cai-agent recall "auth"
+cai-agent recall --query "auth"
 ```
 
 Expected:
-- human-readable summary line with `hits_total` / `scanned_sessions`
-- matching lines are printed as `file:line snippet`
+- human-readable summary line with `hits_total` / `sessions_scanned`
+- matched sessions are printed with snippets
+
+### RC-006 Index build smoke
+
+Run:
+
+```bash
+cai-agent recall index --json
+```
+
+Expected:
+- `ok == true`
+- has index metadata (`files_scanned`, `rows_indexed`, `index_path`)
+
+### RC-007 Indexed query parity
+
+1. Build index:
+
+```bash
+cai-agent recall index --json
+```
+
+2. Query with index:
+
+```bash
+cai-agent recall --query "auth" --use-index --json
+```
+
+Expected:
+- `index_used == true`
+- returns same or fewer (window-filtered) sessions compared to scan mode
+- command exits 0 and schema remains stable
 
 ## 4) Regression command
 
 ```bash
 cd cai-agent
-python3 -m pytest -q tests/test_recall_cli.py tests/test_insights_cli.py tests/test_stats_json.py
+python3 -m pytest -q \
+  tests/test_recall_cli.py \
+  tests/test_recall_index_cli.py \
+  tests/test_insights_cli.py \
+  tests/test_stats_json.py
 ```
