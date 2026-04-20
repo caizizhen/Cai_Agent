@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import io
 import json
-import os
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -10,6 +9,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from cai_agent.__main__ import main
+from cai_agent.config import Settings
 
 
 class ScheduleCliTests(unittest.TestCase):
@@ -53,7 +53,7 @@ class ScheduleCliTests(unittest.TestCase):
             payload = json.loads(buf_rm.getvalue().strip())
             self.assertEqual(payload.get("removed"), True)
 
-    def test_run_due_dry_run_and_mark(self) -> None:
+    def test_run_due_dry_run_and_execute(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
             # Due every minute.
@@ -82,11 +82,43 @@ class ScheduleCliTests(unittest.TestCase):
 
             # Execute mode currently only marks schedule records.
             buf_exec = io.StringIO()
-            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+            with (
+                patch("cai_agent.__main__.os.getcwd", return_value=str(root)),
+                patch("cai_agent.__main__.Settings.from_env", return_value=Settings.from_env(config_path=None)),
+                patch("cai_agent.__main__.build_app") as mock_build_app,
+                patch("cai_agent.__main__.initial_state") as mock_initial_state,
+                patch("cai_agent.__main__.get_usage_counters", return_value={"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}),
+                patch("cai_agent.__main__.reset_usage_counters"),
+            ):
+                class _FakeApp:
+                    def invoke(self, state):
+                        return {
+                            "messages": list(state.get("messages") or []),
+                            "answer": "ok",
+                            "finished": True,
+                            "iteration": 1,
+                        }
+
+                mock_build_app.return_value = _FakeApp()
+                mock_initial_state.side_effect = (
+                    lambda _settings, goal: {
+                        "messages": [
+                            {"role": "system", "content": "s"},
+                            {"role": "user", "content": goal},
+                        ],
+                        "iteration": 0,
+                        "pending": None,
+                        "finished": False,
+                    }
+                )
                 with redirect_stdout(buf_exec):
                     rc_exec = main(["schedule", "run-due", "--json", "--execute"])
             self.assertEqual(rc_exec, 0)
             ex = json.loads(buf_exec.getvalue().strip())
             self.assertEqual(ex.get("mode"), "execute")
-            self.assertTrue((ex.get("executed") or []))
+            executed = ex.get("executed") or []
+            self.assertTrue(executed)
+            self.assertEqual(executed[0].get("ok"), True)
+            self.assertEqual(executed[0].get("status"), "completed")
+            self.assertEqual(executed[0].get("answer_preview"), "ok")
 

@@ -184,6 +184,41 @@ def _build_insights_payload(
     }
 
 
+def _execute_scheduled_goal(
+    *,
+    config_path: str | None,
+    workspace_hint: str | None,
+    workspace_override: str | None,
+    model_override: str | None,
+    goal: str,
+) -> tuple[bool, str]:
+    """执行单个 schedule 目标；返回 (ok, answer_or_error)。"""
+    try:
+        settings = Settings.from_env(
+            config_path=config_path,
+            workspace_hint=workspace_hint,
+        )
+    except Exception as e:
+        return False, f"load_settings_failed: {e}"
+
+    if isinstance(model_override, str) and model_override.strip():
+        settings = replace(settings, model=model_override.strip())
+    if isinstance(workspace_override, str) and workspace_override.strip():
+        settings = replace(settings, workspace=os.path.abspath(workspace_override.strip()))
+
+    reset_usage_counters()
+    app = build_app(settings)
+    state = initial_state(settings, goal)
+    try:
+        final = app.invoke(state)
+    except Exception as e:
+        return False, f"invoke_failed: {e}"
+    answer = str((final.get("answer") or "")).strip()
+    if not bool(final.get("finished")):
+        return False, answer or "unfinished"
+    return True, answer
+
+
 def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
     names: list[str] = []
     errors = 0
@@ -2320,15 +2355,57 @@ def main(argv: list[str] | None = None) -> int:
                 tid = str(j.get("id") or "").strip()
                 if not tid:
                     continue
-                mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
-                executed.append(
-                    {
-                        "id": tid,
-                        "ok": True,
-                        "status": "completed",
-                        "note": "metadata-only execution; real runner pending",
-                    },
-                )
+                goal = str(j.get("goal") or "").strip()
+                if not goal:
+                    mark_schedule_task_run(
+                        task_id=tid,
+                        status="failed",
+                        error="empty_goal",
+                        cwd=str(root),
+                    )
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": False,
+                            "status": "failed",
+                            "error": "empty_goal",
+                        },
+                    )
+                    continue
+                try:
+                    settings = Settings.from_env(config_path=None)
+                    app = build_app(settings)
+                    state = initial_state(settings, goal)
+                    final = app.invoke(state)
+                    answer = str(final.get("answer") or "").strip()
+                    preview = answer[:160] + ("…" if len(answer) > 160 else "")
+                    mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": True,
+                            "status": "completed",
+                            "answer_preview": preview,
+                            "finished": bool(final.get("finished")),
+                            "iteration": final.get("iteration"),
+                        },
+                    )
+                except Exception as e:
+                    err = str(e)
+                    mark_schedule_task_run(
+                        task_id=tid,
+                        status="failed",
+                        error=err,
+                        cwd=str(root),
+                    )
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": False,
+                            "status": "failed",
+                            "error": err,
+                        },
+                    )
             payload = {"mode": "execute", "due_jobs": due, "executed": executed}
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))

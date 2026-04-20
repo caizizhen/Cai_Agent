@@ -479,6 +479,28 @@ cai-agent run --json "检查最近改动是否存在高风险点"
 
 汇总当前目录下匹配 `*.cai-session*.json` 的会话：除原有 `sessions_count`、工具调用均值等外，增加 **`stats_schema_version`**（`1.0`）、**`run_events_total`**、**`sessions_with_events`**、**`parse_skipped`** 以及 **`session_summaries`**（逐文件 `events_count` / `task_id` / `total_tokens` / `file_error_count` / `tool_calls_count` / `message_tool_errors`）。**不加 `--json`** 时也会在最后一行摘要中打印 `run_events_total` / `sessions_with_events` / `parse_skipped`。
 
+### `cai-agent insights --json`
+
+跨会话洞察（对标 Hermes 的 `/insights` 体验）：可按时间窗口统计近期会话趋势，输出 `models_top`、`tools_top`、`top_error_sessions`、失败率与平均 token/工具调用。常用示例：
+
+```bash
+cai-agent insights --json --days 7
+```
+
+### `cai-agent schedule`
+
+轻量定时任务（cron 风格）：
+
+```bash
+cai-agent schedule add --goal "生成每日仓库风险摘要" --every-minutes 60
+cai-agent schedule list --json
+cai-agent schedule run-due --json
+cai-agent schedule run-due --execute --json
+```
+
+- `run-due` 默认是 **dry-run**（仅预览到点任务，不触发执行）。
+- `run-due --execute` 会对到点任务执行真实 Agent 运行（调用与 `run` 相同的执行链路），并把结果写回调度记录（`last_status` / `last_error` / `run_count`）。
+
 ## Demo：从零到一完成一次“分析 -> 计划 -> 执行 -> 验证”
 
 下面给一个可直接照着跑的最小实战。

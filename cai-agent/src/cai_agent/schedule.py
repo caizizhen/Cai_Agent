@@ -58,6 +58,8 @@ def add_schedule_task(
     *,
     goal: str,
     every_minutes: int,
+    workspace: str | None = None,
+    model: str | None = None,
     cwd: str | None = None,
 ) -> dict[str, Any]:
     if every_minutes < 1:
@@ -74,6 +76,8 @@ def add_schedule_task(
         "goal": g,
         "every_minutes": int(every_minutes),
         "enabled": True,
+        "workspace": str(workspace).strip() if isinstance(workspace, str) and workspace.strip() else None,
+        "model": str(model).strip() if isinstance(model, str) and model.strip() else None,
         "created_at": _utc_now_iso(),
         "last_run_at": None,
         "last_status": None,
