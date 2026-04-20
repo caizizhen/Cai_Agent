@@ -479,6 +479,42 @@ cai-agent run --json "检查最近改动是否存在高风险点"
 
 汇总当前目录下匹配 `*.cai-session*.json` 的会话：除原有 `sessions_count`、工具调用均值等外，增加 **`stats_schema_version`**（`1.0`）、**`run_events_total`**、**`sessions_with_events`**、**`parse_skipped`** 以及 **`session_summaries`**（逐文件 `events_count` / `task_id` / `total_tokens` / `file_error_count` / `tool_calls_count` / `message_tool_errors`）。**不加 `--json`** 时也会在最后一行摘要中打印 `run_events_total` / `sessions_with_events` / `parse_skipped`。
 
+### `cai-agent schedule`（定时任务）
+
+轻量定时任务命令组：
+
+```bash
+cai-agent schedule add --goal "Daily repo health summary" --every-minutes 60
+cai-agent schedule list --json
+cai-agent schedule run-due --json          # 默认 dry-run 预览
+cai-agent schedule run-due --execute --json  # 执行到点任务
+cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --json
+```
+
+说明：
+
+- `run-due` 默认不执行，仅预览 `due_jobs`。
+- `run-due --execute` 会真实调用 Agent 运行任务目标，并回写 `last_status` / `last_error` / `run_count`。
+- `schedule daemon` 会按固定间隔轮询并执行到点任务；可用 `--max-cycles` 限制轮询次数（便于 CI / QA）。
+
+### `cai-agent insights --json`
+
+跨会话洞察（对标 Hermes 的 `/insights` 体验）：可按时间窗口统计近期会话趋势，输出 `models_top`、`tools_top`、`top_error_sessions`、失败率与平均 token/工具调用。常用示例：
+
+```bash
+cai-agent insights --json --days 7
+```
+
+### `cai-agent schedule`（生产护栏补充）
+
+```bash
+cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --execute --json
+cai-agent schedule daemon --interval-sec 30 --execute --log-file ./.cai/schedule-daemon.log
+```
+
+- `schedule daemon` 默认会创建单实例锁（`.cai-schedule.daemon.lock`），避免同一工作区重复启动造成重复执行；`--no-lock` 可关闭（仅建议调试场景）。
+- `--log-file` 会按 JSONL 追加轮询日志（每行一条 cycle 记录），便于 QA/运维追查执行轨迹。
+
 ## Demo：从零到一完成一次“分析 -> 计划 -> 执行 -> 验证”
 
 下面给一个可直接照着跑的最小实战。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import json
 import os
 import signal
@@ -9,7 +10,7 @@ import sys
 import threading
 import time
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -53,6 +54,15 @@ from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
 from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_security_scan
+from cai_agent.schedule import (
+    add_schedule_task,
+    compute_due_tasks,
+    list_schedule_tasks,
+    load_schedule_doc,
+    mark_schedule_task_run,
+    remove_schedule_task,
+    save_schedule_doc,
+)
 from cai_agent.session import (
     aggregate_sessions,
     build_observe_payload,
@@ -85,6 +95,187 @@ def _session_file_json_extra(sess: dict[str, Any]) -> dict[str, Any]:
         "total_tokens": int(tt) if isinstance(tt, int) else None,
         "error_count": int(ec) if isinstance(ec, int) else None,
     }
+
+
+def _build_insights_payload(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    days: int,
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    window_files = [p for p in files if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since]
+
+    model_counts: Counter[str] = Counter()
+    tool_counts: Counter[str] = Counter()
+    total = 0
+    parse_skipped = 0
+    total_tokens = 0
+    total_tool_calls = 0
+    error_sessions = 0
+    latest_session_path: str | None = None
+    top_error_sessions: list[dict[str, Any]] = []
+
+    for p in window_files:
+        if latest_session_path is None:
+            latest_session_path = str(p)
+        try:
+            sess = load_session(str(p))
+        except Exception:
+            parse_skipped += 1
+            continue
+        total += 1
+        model = sess.get("model")
+        if isinstance(model, str) and model.strip():
+            model_counts[model.strip()] += 1
+        tt = sess.get("total_tokens")
+        if isinstance(tt, int):
+            total_tokens += tt
+        msgs = sess.get("messages")
+        msg_list = msgs if isinstance(msgs, list) else []
+        tc, used, _, msg_err = _collect_tool_stats(
+            msg_list if isinstance(msg_list, list) else [],
+        )
+        total_tool_calls += tc
+        for name in used:
+            tool_counts[name] += 1
+        sess_err = sess.get("error_count")
+        sess_err_i = int(sess_err) if isinstance(sess_err, int) else msg_err
+        if sess_err_i > 0:
+            error_sessions += 1
+            top_error_sessions.append(
+                {
+                    "path": str(p),
+                    "error_count": sess_err_i,
+                    "model": model if isinstance(model, str) else None,
+                },
+            )
+
+    top_error_sessions.sort(key=lambda x: int(x.get("error_count") or 0), reverse=True)
+    return {
+        "schema_version": "1.0",
+        "generated_at": now.isoformat(),
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "pattern": pattern,
+            "limit": limit,
+        },
+        "sessions_in_window": total,
+        "parse_skipped": parse_skipped,
+        "failure_rate": (float(error_sessions) / total) if total else 0.0,
+        "total_tokens": total_tokens,
+        "tool_calls_total": total_tool_calls,
+        "avg_tokens_per_session": int(total_tokens / total) if total else 0,
+        "avg_tool_calls_per_session": (float(total_tool_calls) / total) if total else 0.0,
+        "models_top": [
+            {"model": m, "count": c}
+            for m, c in model_counts.most_common(5)
+        ],
+        "tools_top": [
+            {"tool": t, "count": c}
+            for t, c in tool_counts.most_common(10)
+        ],
+        "latest_session_path": latest_session_path,
+        "top_error_sessions": top_error_sessions[:5],
+    }
+
+
+def _execute_scheduled_goal(
+    *,
+    config_path: str | None,
+    workspace_hint: str | None,
+    workspace_override: str | None,
+    model_override: str | None,
+    goal: str,
+) -> tuple[bool, str]:
+    """执行单个 schedule 目标；返回 (ok, answer_or_error)。"""
+    try:
+        settings = Settings.from_env(
+            config_path=config_path,
+            workspace_hint=workspace_hint,
+        )
+    except Exception as e:
+        return False, f"load_settings_failed: {e}"
+
+    if isinstance(model_override, str) and model_override.strip():
+        settings = replace(settings, model=model_override.strip())
+    if isinstance(workspace_override, str) and workspace_override.strip():
+        settings = replace(settings, workspace=os.path.abspath(workspace_override.strip()))
+
+    reset_usage_counters()
+    app = build_app(settings)
+    state = initial_state(settings, goal)
+    try:
+        final = app.invoke(state)
+    except Exception as e:
+        return False, f"invoke_failed: {e}"
+    answer = str((final.get("answer") or "")).strip()
+    if not bool(final.get("finished")):
+        return False, answer or "unfinished"
+    return True, answer
+
+
+def _resolve_schedule_path(root: Path, raw_path: str | None, default_name: str) -> Path:
+    if isinstance(raw_path, str) and raw_path.strip():
+        p = Path(raw_path.strip()).expanduser()
+        if not p.is_absolute():
+            p = (root / p).resolve()
+        else:
+            p = p.resolve()
+        return p
+    return (root / default_name).resolve()
+
+
+def _acquire_schedule_daemon_lock(
+    *,
+    lock_path: Path,
+    stale_lock_sec: float,
+) -> tuple[bool, str]:
+    now = datetime.now(UTC)
+    payload = {
+        "pid": os.getpid(),
+        "started_at": now.isoformat(),
+    }
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+    except Exception as e:
+        return False, f"mkdir_failed: {e}"
+
+    if lock_path.exists() and stale_lock_sec > 0:
+        try:
+            data = json.loads(lock_path.read_text(encoding="utf-8"))
+            started = data.get("started_at")
+            if isinstance(started, str) and started.strip():
+                age = (now - datetime.fromisoformat(started)).total_seconds()
+                if age >= stale_lock_sec:
+                    lock_path.unlink(missing_ok=True)
+        except Exception:
+            # Corrupted/old lock file: keep conservative behavior and let exclusive create decide.
+            pass
+    try:
+        with lock_path.open("x", encoding="utf-8") as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + "\n")
+        return True, "ok"
+    except FileExistsError:
+        try:
+            holder = lock_path.read_text(encoding="utf-8").strip()
+            if len(holder) > 200:
+                holder = holder[:200] + "…"
+        except Exception:
+            holder = "(unreadable)"
+        return False, f"lock_exists: {holder}"
+    except Exception as e:
+        return False, f"lock_create_failed: {e}"
+
+
+def _append_schedule_daemon_log(log_path: Path, row: dict[str, Any]) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
 def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[str], str | None, int]:
@@ -1076,6 +1267,33 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出汇总结果",
     )
+    insights_p = sub.add_parser(
+        "insights",
+        help="跨会话趋势洞察（近期模型/工具使用与异常会话）",
+    )
+    insights_p.add_argument(
+        "--pattern",
+        default=".cai-session*.json",
+        help="匹配模式（相对当前目录）",
+    )
+    insights_p.add_argument(
+        "--limit",
+        type=int,
+        default=200,
+        help="最多扫描的会话文件数（按最近修改时间倒序）",
+    )
+    insights_p.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="仅统计最近 N 天会话",
+    )
+    insights_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以 JSON 对象输出洞察结果",
+    )
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
@@ -1196,6 +1414,80 @@ def main(argv: list[str] | None = None) -> int:
         help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
     )
     memory_import_entries.add_argument("file")
+
+    schedule_p = sub.add_parser(
+        "schedule",
+        help="定时任务管理（add/list/rm/run-due/daemon）",
+    )
+    schedule_sub = schedule_p.add_subparsers(dest="schedule_action", required=True)
+
+    schedule_add = schedule_sub.add_parser("add", help="新增一个定时任务")
+    schedule_add.add_argument("--every-minutes", type=int, required=True, help="执行周期（分钟）")
+    schedule_add.add_argument("--goal", required=True, help="到点时要执行的目标文本")
+    schedule_add.add_argument(
+        "--workspace",
+        default=".",
+        help="任务执行时使用的工作区（默认当前目录）",
+    )
+    schedule_add.add_argument("--model", default=None, help="可选模型覆盖")
+    schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
+    schedule_add.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_list = schedule_sub.add_parser("list", help="列出定时任务")
+    schedule_list.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_rm = schedule_sub.add_parser("rm", help="删除定时任务")
+    schedule_rm.add_argument("id", help="任务 id")
+    schedule_rm.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_due = schedule_sub.add_parser("run-due", help="执行当前到点任务")
+    schedule_due.add_argument(
+        "--execute",
+        action="store_true",
+        default=False,
+        help="真正执行到点任务（默认 dry-run 仅预览）",
+    )
+    schedule_due.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_daemon = schedule_sub.add_parser(
+        "daemon",
+        help="轮询执行到点任务（默认 dry-run；加 --execute 才会真实执行）",
+    )
+    schedule_daemon.add_argument(
+        "--interval-sec",
+        type=float,
+        default=30.0,
+        help="轮询间隔秒数（默认 30）",
+    )
+    schedule_daemon.add_argument(
+        "--max-cycles",
+        type=int,
+        default=0,
+        help="最多轮询次数（0 表示无限直到 Ctrl+C）",
+    )
+    schedule_daemon.add_argument(
+        "--execute",
+        action="store_true",
+        default=False,
+        help="真实执行到点任务（默认仅预览）",
+    )
+    schedule_daemon.add_argument(
+        "--lock-file",
+        default=".cai-schedule-daemon.lock",
+        help="单实例锁文件路径（相对工作区或绝对路径）",
+    )
+    schedule_daemon.add_argument(
+        "--stale-lock-sec",
+        type=float,
+        default=0.0,
+        help="锁文件超过该秒数视为陈旧并可自动回收（默认 0 表示不回收）",
+    )
+    schedule_daemon.add_argument(
+        "--jsonl-log",
+        default=None,
+        help="可选 JSONL 事件日志路径（相对工作区或绝对路径）",
+    )
+    schedule_daemon.add_argument("--json", action="store_true", dest="json_output")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
@@ -1771,6 +2063,45 @@ def main(argv: list[str] | None = None) -> int:
                     print(f"  {m}: {cnt}")
         return 0
 
+    if args.command == "insights":
+        payload = _build_insights_payload(
+            cwd=os.getcwd(),
+            pattern=str(args.pattern),
+            limit=int(args.limit),
+            days=int(args.days),
+        )
+        if bool(args.json_output):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"sessions_in_window={payload.get('sessions_in_window')} "
+                f"failure_rate={float(payload.get('failure_rate', 0.0)):.2%} "
+                f"total_tokens={payload.get('total_tokens')} "
+                f"tool_calls_total={payload.get('tool_calls_total')}",
+            )
+            models_top = payload.get("models_top")
+            if isinstance(models_top, list) and models_top:
+                print("models_top:")
+                for row in models_top:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('model')}: {row.get('count')}")
+            tools_top = payload.get("tools_top")
+            if isinstance(tools_top, list) and tools_top:
+                print("tools_top:")
+                for row in tools_top[:5]:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('tool')}: {row.get('count')}")
+            top_err = payload.get("top_error_sessions")
+            if isinstance(top_err, list) and top_err:
+                print("top_error_sessions:")
+                for row in top_err:
+                    if not isinstance(row, dict):
+                        continue
+                    print(f"  {row.get('path')} errors={row.get('error_count')}")
+        return 0
+
     if args.command == "quality-gate":
         try:
             settings = Settings.from_env(
@@ -2057,6 +2388,271 @@ def main(argv: list[str] | None = None) -> int:
                 event="memory_end",
                 json_output=mem_json,
             )
+
+    if args.command == "schedule":
+        root = Path.cwd().resolve()
+        if args.schedule_action == "add":
+            job = add_schedule_task(
+                goal=str(args.goal),
+                every_minutes=int(args.every_minutes),
+                workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
+                model=str(args.model) if getattr(args, "model", None) else None,
+                cwd=str(root),
+            )
+            if bool(args.disabled):
+                doc = load_schedule_doc(str(root))
+                tasks = doc.get("tasks")
+                if isinstance(tasks, list):
+                    for row in tasks:
+                        if isinstance(row, dict) and str(row.get("id")) == str(job.get("id")):
+                            row["enabled"] = False
+                            break
+                    save_schedule_doc(doc, str(root))
+                    job["enabled"] = False
+            if bool(args.json_output):
+                print(json.dumps(job, ensure_ascii=False))
+            else:
+                print(
+                    f"added id={job.get('id')} every_minutes={job.get('every_minutes')} "
+                    f"enabled={job.get('enabled')}",
+                )
+            return 0
+        if args.schedule_action == "list":
+            jobs = list_schedule_tasks(str(root))
+            if bool(args.json_output):
+                print(json.dumps(jobs, ensure_ascii=False))
+            else:
+                if not jobs:
+                    print("(无定时任务)")
+                for j in jobs:
+                    print(
+                        f"{j.get('id')}\tevery={j.get('every_minutes')}m\tenabled={j.get('enabled')}\t"
+                        f"run_count={j.get('run_count', 0)} last_status={j.get('last_status')}\t"
+                        f"goal={(str(j.get('goal') or '')[:80])}",
+                    )
+            return 0
+        if args.schedule_action == "rm":
+            ok = remove_schedule_task(str(args.id), str(root))
+            if bool(args.json_output):
+                print(json.dumps({"removed": ok}, ensure_ascii=False))
+            else:
+                print("removed=1" if ok else "removed=0")
+            return 0 if ok else 2
+        if args.schedule_action == "run-due":
+            due = compute_due_tasks(cwd=str(root))
+            if not bool(args.execute):
+                payload = {"mode": "dry-run", "due_jobs": due, "executed": []}
+                if bool(args.json_output):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"due_jobs={len(due)}")
+                    for j in due:
+                        print(
+                            f"- {j.get('id')} every={j.get('every_minutes')}m "
+                            f"goal={str(j.get('goal') or '')[:80]}"
+                        )
+                return 0
+            executed: list[dict[str, Any]] = []
+            for j in due:
+                tid = str(j.get("id") or "").strip()
+                if not tid:
+                    continue
+                goal = str(j.get("goal") or "").strip()
+                ws = j.get("workspace")
+                workspace_override = str(ws).strip() if isinstance(ws, str) and str(ws).strip() else None
+                mo = j.get("model")
+                model_override = str(mo).strip() if isinstance(mo, str) and str(mo).strip() else None
+                if not goal:
+                    mark_schedule_task_run(
+                        task_id=tid,
+                        status="failed",
+                        error="empty_goal",
+                        cwd=str(root),
+                    )
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": False,
+                            "status": "failed",
+                            "error": "empty_goal",
+                        },
+                    )
+                    continue
+                ok, out = _execute_scheduled_goal(
+                    config_path=None,
+                    workspace_hint=workspace_override,
+                    workspace_override=workspace_override,
+                    model_override=model_override,
+                    goal=goal,
+                )
+                if ok:
+                    mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                    preview = out[:160] + ("…" if len(out) > 160 else "")
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": True,
+                            "status": "completed",
+                            "answer_preview": preview,
+                            "workspace": workspace_override,
+                            "model": model_override,
+                        },
+                    )
+                else:
+                    mark_schedule_task_run(
+                        task_id=tid,
+                        status="failed",
+                        error=out,
+                        cwd=str(root),
+                    )
+                    executed.append(
+                        {
+                            "id": tid,
+                            "ok": False,
+                            "status": "failed",
+                            "error": out,
+                            "workspace": workspace_override,
+                            "model": model_override,
+                        },
+                    )
+            payload = {"mode": "execute", "due_jobs": due, "executed": executed}
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(f"executed={len(executed)} due_jobs={len(due)}")
+            return 0
+        if args.schedule_action == "daemon":
+            interval_sec = max(0.2, float(args.interval_sec))
+            max_cycles = int(args.max_cycles)
+            execute = bool(args.execute)
+            lock_path = _resolve_schedule_path(root, getattr(args, "lock_file", None), ".cai-schedule-daemon.lock")
+            stale_lock_sec = max(0.0, float(getattr(args, "stale_lock_sec", 0.0) or 0.0))
+            ok_lock, lock_msg = _acquire_schedule_daemon_lock(lock_path=lock_path, stale_lock_sec=stale_lock_sec)
+            if not ok_lock:
+                payload = {"mode": "daemon", "ok": False, "error": "lock_conflict", "message": lock_msg}
+                if bool(args.json_output):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"[schedule-daemon] lock conflict: {lock_msg}", file=sys.stderr)
+                return 2
+
+            log_path_raw = getattr(args, "jsonl_log", None)
+            log_path = _resolve_schedule_path(root, log_path_raw, ".cai-schedule-daemon.jsonl") if log_path_raw else None
+
+            cycles = 0
+            total_due = 0
+            total_executed = 0
+            results: list[dict[str, Any]] = []
+            interrupted = False
+            try:
+                while True:
+                    cycles += 1
+                    due = compute_due_tasks(cwd=str(root))
+                    total_due += len(due)
+                    cycle_exec: list[dict[str, Any]] = []
+                    if execute:
+                        for j in due:
+                            tid = str(j.get("id") or "").strip()
+                            if not tid:
+                                continue
+                            goal = str(j.get("goal") or "").strip()
+                            ws = j.get("workspace")
+                            workspace_override = (
+                                str(ws).strip() if isinstance(ws, str) and str(ws).strip() else None
+                            )
+                            mo = j.get("model")
+                            model_override = (
+                                str(mo).strip() if isinstance(mo, str) and str(mo).strip() else None
+                            )
+                            if not goal:
+                                mark_schedule_task_run(
+                                    task_id=tid,
+                                    status="failed",
+                                    error="empty_goal",
+                                    cwd=str(root),
+                                )
+                                cycle_exec.append(
+                                    {"id": tid, "ok": False, "status": "failed", "error": "empty_goal"},
+                                )
+                                continue
+                            ok, out = _execute_scheduled_goal(
+                                config_path=None,
+                                workspace_hint=workspace_override,
+                                workspace_override=workspace_override,
+                                model_override=model_override,
+                                goal=goal,
+                            )
+                            if ok:
+                                mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
+                                preview = out[:160] + ("…" if len(out) > 160 else "")
+                                cycle_exec.append(
+                                    {
+                                        "id": tid,
+                                        "ok": True,
+                                        "status": "completed",
+                                        "answer_preview": preview,
+                                    },
+                                )
+                            else:
+                                mark_schedule_task_run(
+                                    task_id=tid,
+                                    status="failed",
+                                    error=out,
+                                    cwd=str(root),
+                                )
+                                cycle_exec.append(
+                                    {"id": tid, "ok": False, "status": "failed", "error": out},
+                                )
+                    total_executed += len(cycle_exec)
+                    cycle_row = {
+                        "cycle": cycles,
+                        "due_count": len(due),
+                        "executed_count": len(cycle_exec),
+                        "execute": execute,
+                        "executed": cycle_exec,
+                    }
+                    results.append(cycle_row)
+                    if log_path is not None:
+                        _append_schedule_daemon_log(
+                            log_path,
+                            {
+                                "event": "schedule.daemon.cycle",
+                                "ts": datetime.now(UTC).isoformat(),
+                                **cycle_row,
+                            },
+                        )
+                    if max_cycles > 0 and cycles >= max_cycles:
+                        break
+                    time.sleep(interval_sec)
+            except KeyboardInterrupt:
+                interrupted = True
+            finally:
+                try:
+                    lock_path.unlink(missing_ok=True)
+                except Exception:
+                    pass
+
+            payload = {
+                "mode": "daemon",
+                "execute": execute,
+                "interval_sec": interval_sec,
+                "max_cycles": max_cycles,
+                "cycles": cycles,
+                "total_due": total_due,
+                "total_executed": total_executed,
+                "interrupted": interrupted,
+                "results": results,
+                "lock_file": str(lock_path),
+                "jsonl_log": str(log_path) if log_path is not None else None,
+            }
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"daemon cycles={cycles} total_due={total_due} total_executed={total_executed} "
+                    f"execute={execute} interrupted={interrupted}",
+                )
+            return 0
 
     if args.command == "cost":
         if args.cost_action == "budget":

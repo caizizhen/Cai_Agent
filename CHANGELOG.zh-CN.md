@@ -6,6 +6,10 @@
 
 ### 0.5.0（当前开发）
 
+- **schedule daemon 生产护栏（防重 + 日志）**：`cai-agent schedule daemon` 新增单实例锁（默认 `.cai-schedule-daemon.lock`，可用 `--lock-file` 自定义）防止同工作区重复启动；重复启动会安全返回并给出 `daemon_already_running`。新增 `--log-file` 将每轮 JSON 摘要追加到日志，便于 QA 与线上排障。命令参数统一为 `--max-cycles`（README 同步修正），并新增 `docs/qa/schedule-daemon-testplan.md` 作为手工验收清单。
+
+- **schedule 真执行（MVP）**：`cai-agent schedule run-due --execute` 不再仅写元数据，现会对每个到点任务真实触发一次 Agent 运行（基于任务 `goal` 调用主循环），并把结果回写到 `.cai-schedule.json`（`last_run_at` / `last_status` / `last_error` / `run_count`）。返回 JSON 新增执行结果数组（含 `answer` 预览、`iteration`、`finished`）。同时兼容早期 `schedule` 数据：历史任务若缺 `enabled` 字段默认视为启用。
+
 - **智谱（BigModel）OpenAI 兼容路由**：`profiles.PRESETS` 增加 **`zhipu`** 预设（`cai-agent models add --preset zhipu …`）；`normalize_openai_chat_base_url` / `project_base_url` 对 `https://open.bigmodel.cn/api/paas/v4` **不再追加 `/v1`**，与[智谱 OpenAI 兼容文档](https://docs.bigmodel.cn/cn/guide/develop/openai/introduction)一致。示例模板说明 **`ZAI_API_KEY`** 与 **`glm-5.1`**。
 - **系统代理与本机 LLM**：`[llm].http_trust_env=true` 时，对 **环回地址**（`localhost`、`127.*`、`::1`）的 OpenAI 兼容 **chat**、**`GET …/models` / profile ping**、以及 **MCP** 的 httpx 客户端仍使用 **`trust_env=false` 直连**，避免企业代理错误转发本机 LM Studio/Ollama 导致 **HTTP 503**。
 - **Sprint 3 — TUI 模型面板（M4）**：`Ctrl+M` / `/models` 打开面板；列表列为 `id | model | provider | base_url | notes | [active]`；`Enter` 切换、`t` 连通测试、`a`/`e`/`d` 新增/编辑/删除（写回 `cai-agent.toml`，与 CLI `models` 语义一致）；空列表时给出引导文案。详见 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md) §4。
