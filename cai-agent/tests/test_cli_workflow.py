@@ -35,11 +35,14 @@ class WorkflowCliTests(unittest.TestCase):
                 with redirect_stdout(buf):
                     rc = main(["workflow", str(wf_path), "--json"])
                 payload = json.loads(buf.getvalue().strip())
+                self.assertEqual(payload.get("schema_version"), "workflow_run_v1")
                 self.assertIn("steps", payload)
                 self.assertIn("events", payload)
                 self.assertTrue(isinstance(payload["events"], list))
                 self.assertIn("task", payload)
                 self.assertEqual(payload["task"].get("type"), "workflow")
+                for ev in payload.get("events") or []:
+                    self.assertEqual(ev.get("task_id"), payload["task"].get("task_id"))
                 self.assertEqual(payload.get("subagent_io_schema_version"), "1.0")
                 self.assertIn("subagent_io", payload)
                 self.assertIn("merge", payload.get("subagent_io") or {})
