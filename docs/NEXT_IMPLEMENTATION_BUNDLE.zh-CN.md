@@ -74,6 +74,7 @@
 - [本轮已落地] `schedule daemon --execute` 与 `run-due --execute` 行为对齐（重试+审计+attempts 输出）
 - [本轮已落地] Recall Loop 增强：`recall` schema `1.1`、混合排序（recency/hit_strength/keyword_density）、行级 `score/score_breakdown`
 - [本轮已落地] Workflow 子代理编排增强：step 级 `parallel_group` 并发、`workflow.parallel_group.completed` 事件、`merge_confidence` 汇总
+- [本轮已落地] 发布门禁增强：`release-ga` 支持 `doctor` 健康检查与 `memory nudge` 严重度阈值（`--with-doctor`、`--with-memory-nudge`、`--max-memory-severity`）
 
 ### 导出与生态
 

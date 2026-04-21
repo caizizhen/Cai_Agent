@@ -65,6 +65,37 @@ class ReleaseGaCliTests(unittest.TestCase):
         self.assertIn("session_failure_rate", failed)
         self.assertIn("token_budget", failed)
 
+    def test_release_ga_includes_doctor_and_memory_nudge_gate(self) -> None:
+        with (
+            patch("cai_agent.__main__.run_quality_gate", return_value={"ok": True, "failed_count": 0}),
+            patch("cai_agent.__main__.run_security_scan", return_value={"ok": True, "findings_count": 0}),
+            patch("cai_agent.__main__.aggregate_sessions", return_value={"failure_rate": 0.0, "total_tokens": 10}),
+            patch("cai_agent.__main__.run_doctor", return_value=2),
+            patch("cai_agent.__main__._build_memory_nudge_payload", return_value={"severity": "high"}),
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "release-ga",
+                        "--json",
+                        "--with-security-scan",
+                        "--with-doctor",
+                        "--with-memory-nudge",
+                        "--memory-max-severity",
+                        "medium",
+                        "--max-failure-rate",
+                        "0.2",
+                        "--max-tokens",
+                        "100",
+                    ],
+                )
+        self.assertEqual(rc, 2)
+        payload = json.loads(buf.getvalue().strip())
+        failed = payload.get("failed_checks") or []
+        self.assertIn("doctor", failed)
+        self.assertIn("memory_nudge", failed)
+
 
 if __name__ == "__main__":
     unittest.main()

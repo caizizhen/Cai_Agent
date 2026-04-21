@@ -950,6 +950,9 @@ def _run_release_ga_gate(
     run_security_scan_check: bool,
     include_lint: bool,
     include_typecheck: bool,
+    with_doctor: bool,
+    with_memory_nudge: bool,
+    memory_nudge_fail_on: str,
 ) -> dict[str, Any]:
     settings = Settings.from_env(config_path=None, workspace_hint=cwd)
     ag = aggregate_sessions(cwd=cwd, limit=200)
@@ -1012,6 +1015,44 @@ def _run_release_ga_gate(
                 "ok": gate_ok,
                 "failed_count": int(gate.get("failed_count", 0) or 0),
                 "detail": f"failed_count={int(gate.get('failed_count', 0) or 0)}",
+            },
+        )
+
+    if with_doctor:
+        try:
+            doctor_settings = Settings.from_env(config_path=None, workspace_hint=cwd)
+            doctor_rc = int(run_doctor(doctor_settings))
+        except Exception:
+            doctor_rc = 2
+        checks.append(
+            {
+                "name": "doctor",
+                "ok": doctor_rc == 0,
+                "exit_code": doctor_rc,
+                "detail": f"doctor_rc={doctor_rc}",
+            },
+        )
+
+    if with_memory_nudge:
+        fail_on = str(memory_nudge_fail_on or "high").strip().lower()
+        if fail_on not in ("medium", "high"):
+            fail_on = "high"
+        nudge = _build_memory_nudge_payload(
+            cwd=cwd,
+            days=7,
+            session_pattern=".cai-session*.json",
+            session_limit=100,
+        )
+        sev = str(nudge.get("severity") or "low").strip().lower()
+        sev_rank = {"low": 0, "medium": 1, "high": 2}
+        nudge_ok = sev_rank.get(sev, 0) < sev_rank.get(fail_on, 2)
+        checks.append(
+            {
+                "name": "memory_nudge",
+                "ok": nudge_ok,
+                "actual": sev,
+                "threshold": fail_on,
+                "detail": f"severity={sev} fail_on={fail_on}",
             },
         )
 
@@ -2579,6 +2620,14 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=None,
         help="覆盖 [cost] budget_max_tokens；未指定时读配置",
+    )
+    release_ga_p.add_argument("--with-doctor", action="store_true", default=False)
+    release_ga_p.add_argument("--with-memory-nudge", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--memory-max-severity",
+        choices=("medium", "high"),
+        default="high",
+        help="启用 --with-memory-nudge 时，允许的最高 memory nudge 严重度（默认 high）",
     )
     release_ga_p.add_argument("--json", action="store_true", dest="json_output")
 
@@ -4352,6 +4401,9 @@ def main(argv: list[str] | None = None) -> int:
             max_tokens=(int(args.max_tokens) if getattr(args, "max_tokens", None) is not None else None),
             run_quality_gate_check=not bool(getattr(args, "no_quality_gate", False)),
             run_security_scan_check=bool(getattr(args, "with_security_scan", False)),
+            with_doctor=bool(getattr(args, "with_doctor", False)),
+            with_memory_nudge=bool(getattr(args, "with_memory_nudge", False)),
+            memory_nudge_fail_on=str(getattr(args, "memory_max_severity", "high") or "high"),
             include_lint=False,
             include_typecheck=False,
         )
