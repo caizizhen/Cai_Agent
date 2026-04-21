@@ -157,7 +157,7 @@ def _build_insights_payload(
 
     top_error_sessions.sort(key=lambda x: int(x.get("error_count") or 0), reverse=True)
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "window": {
             "days": max(days, 1),
@@ -444,6 +444,34 @@ def _extract_session_recall_hits(
     return hits
 
 
+def _recall_row_score(
+    *,
+    mtime: int,
+    now_ts: int,
+    hits_count: int,
+    query: str,
+    text_for_density: str,
+    case_sensitive: bool,
+) -> tuple[float, dict[str, float]]:
+    """融合 recency / hits_count / keyword_density 的轻量评分。"""
+    age_sec = max(0, now_ts - int(mtime or 0))
+    # 7 天半衰，近期结果更靠前。
+    recency = max(0.0, 1.0 - (float(age_sec) / float(7 * 24 * 60 * 60)))
+    hit_strength = min(1.0, float(max(hits_count, 0)) / 5.0)
+    density = 0.0
+    if query.strip() and text_for_density.strip():
+        q = query if case_sensitive else query.lower()
+        hay = text_for_density if case_sensitive else text_for_density.lower()
+        occ = hay.count(q)
+        density = min(1.0, float(occ) / max(1.0, float(len(hay)) / 220.0))
+    score = round((recency * 0.45) + (hit_strength * 0.35) + (density * 0.20), 4)
+    return score, {
+        "recency": round(recency, 4),
+        "hit_strength": round(hit_strength, 4),
+        "keyword_density": round(density, 4),
+    }
+
+
 def _build_recall_payload(
     *,
     cwd: str,
@@ -457,6 +485,7 @@ def _build_recall_payload(
     session_limit: int,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
+    now_ts = int(now.timestamp())
     since = now - timedelta(days=max(days, 1))
     files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     parse_skipped = 0
@@ -492,6 +521,15 @@ def _build_recall_payload(
             if isinstance(answer, str) and answer.strip()
             else ""
         )
+        density_blob = " ".join(str(h.get("snippet") or "") for h in selected)
+        score, score_breakdown = _recall_row_score(
+            mtime=int(p.stat().st_mtime),
+            now_ts=now_ts,
+            hits_count=len(selected),
+            query=query,
+            text_for_density=density_blob,
+            case_sensitive=case_sensitive,
+        )
         result_rows.append(
             {
                 "path": str(p),
@@ -505,12 +543,20 @@ def _build_recall_payload(
                 "answer_preview": answer_preview,
                 "hits": selected,
                 "hits_count": len(selected),
+                "score": score,
+                "score_breakdown": score_breakdown,
             },
         )
-    result_rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+    result_rows.sort(
+        key=lambda x: (
+            float(x.get("score") or 0.0),
+            int(x.get("mtime") or 0),
+        ),
+        reverse=True,
+    )
     trimmed = result_rows[: max(1, session_limit)]
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "query": query,
         "regex": use_regex,
@@ -528,6 +574,10 @@ def _build_recall_payload(
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": parse_skipped,
         "results": trimmed,
+        "ranking": {
+            "strategy": "hybrid(recency,hit_strength,keyword_density)",
+            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
+        },
     }
 
 
@@ -751,6 +801,7 @@ def _build_recall_payload_from_index(
     case_sensitive: bool,
     session_limit: int,
 ) -> dict[str, Any]:
+    now_ts = int(time.time())
     doc = json.loads(Path(index_file).expanduser().resolve().read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise ValueError("index file root must be object")
@@ -778,6 +829,15 @@ def _build_recall_payload_from_index(
         if not hits:
             continue
         total_hits += len(hits)
+        density_blob = " ".join(str(h.get("snippet") or "") for h in hits[:3])
+        score, score_breakdown = _recall_row_score(
+            mtime=int(row.get("mtime") or 0),
+            now_ts=now_ts,
+            hits_count=len(hits),
+            query=query,
+            text_for_density=density_blob,
+            case_sensitive=case_sensitive,
+        )
         rows.append(
             {
                 "path": row.get("path"),
@@ -787,9 +847,17 @@ def _build_recall_payload_from_index(
                 "answer_preview": row.get("answer_preview"),
                 "hits_count": len(hits),
                 "hits": hits[:3],
+                "score": score,
+                "score_breakdown": score_breakdown,
             },
         )
-    rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+    rows.sort(
+        key=lambda x: (
+            float(x.get("score") or 0.0),
+            int(x.get("mtime") or 0),
+        ),
+        reverse=True,
+    )
     trimmed = rows[: max(1, session_limit)]
     return {
         "schema_version": "1.1",
@@ -803,6 +871,10 @@ def _build_recall_payload_from_index(
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": 0,
         "results": trimmed,
+        "ranking": {
+            "strategy": "hybrid(recency,hit_strength,keyword_density)",
+            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
+        },
     }
 
 

@@ -57,8 +57,10 @@ class RecallIndexCliTests(unittest.TestCase):
             search_payload = json.loads(buf_search.getvalue().strip())
             self.assertEqual(search_payload.get("source"), "index")
             self.assertGreaterEqual(int(search_payload.get("hits_total") or 0), 1)
+            self.assertIn("ranking", search_payload)
             rows = search_payload.get("results") or []
             self.assertTrue(rows)
+            self.assertIn("score", rows[0])
 
     def test_recall_index_refresh_skips_unchanged_mtime(self) -> None:
         with TemporaryDirectory() as td:
