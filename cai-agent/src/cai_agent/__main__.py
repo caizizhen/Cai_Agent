@@ -968,13 +968,30 @@ def _print_hook_status(
     json_output: bool,
     hook_payload: dict[str, Any] | None = None,
 ) -> None:
-    run_project_hooks(settings, event, hook_payload)
+    results = run_project_hooks(settings, event, hook_payload)
     if json_output:
         return
     ids = enabled_hook_ids(settings, event)
-    if not ids:
+    if not ids and not results:
         return
-    print(f"[hook:{event}] " + ", ".join(ids), file=sys.stderr)
+    parts: list[str] = []
+    if ids:
+        parts.append("enabled=" + ",".join(ids))
+    if results:
+        # 将关键状态压缩到单行，便于 CI / 日志快速定位 blocked/error。
+        status_bits: list[str] = []
+        for r in results[:20]:
+            hid = str(r.get("id") or "?")
+            st = str(r.get("status") or "unknown")
+            bit = f"{hid}:{st}"
+            reason = r.get("reason")
+            if isinstance(reason, str) and reason.strip():
+                bit += f"({reason.strip()[:80]})"
+            status_bits.append(bit)
+        if len(results) > 20:
+            status_bits.append(f"...+{len(results) - 20}")
+        parts.append("results=" + "; ".join(status_bits))
+    print(f"[hook:{event}] " + " | ".join(parts), file=sys.stderr)
 
 
 def _inject_plan_file(goal: str, plan_path: str) -> str:
