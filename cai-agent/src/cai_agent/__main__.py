@@ -255,20 +255,26 @@ def _build_memory_nudge_report_payload(
     cwd: str,
     history_file: str | None,
     limit: int,
+    days: int,
 ) -> dict[str, Any]:
     root = Path(cwd).resolve()
     history_path = Path(history_file).expanduser() if isinstance(history_file, str) and history_file.strip() else (root / "memory" / "nudge-history.jsonl")
     if not history_path.is_absolute():
         history_path = (root / history_path).resolve()
+    since = datetime.now(UTC) - timedelta(days=max(1, int(days)))
     if not history_path.is_file():
         return {
-            "schema_version": "1.0",
+            "schema_version": "1.1",
             "history_file": str(history_path),
+            "days": max(1, int(days)),
+            "since": since.isoformat(),
             "history_total": 0,
             "rows_total": 0,
+            "entries_considered": 0,
             "severity_counts": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
             "latest_severity": None,
             "severity_trend": [],
+            "severity_jumps": [],
             "avg_recent_sessions": 0.0,
             "avg_memory_entries": 0.0,
             "reports": [],
@@ -276,7 +282,8 @@ def _build_memory_nudge_report_payload(
 
     rows: list[dict[str, Any]] = []
     sev_counts: dict[str, int] = {"low": 0, "medium": 0, "high": 0, "unknown": 0}
-    for line in history_path.read_text(encoding="utf-8").splitlines()[-max(1, limit):]:
+    raw_lines = history_path.read_text(encoding="utf-8").splitlines()[-max(1, limit):]
+    for line in raw_lines:
         raw = line.strip()
         if not raw:
             continue
@@ -286,29 +293,61 @@ def _build_memory_nudge_report_payload(
             continue
         if not isinstance(obj, dict):
             continue
+        generated_raw = obj.get("generated_at")
+        generated_dt = None
+        if isinstance(generated_raw, str) and generated_raw.strip():
+            try:
+                generated_dt = datetime.fromisoformat(generated_raw.replace("Z", "+00:00"))
+                if generated_dt.tzinfo is None:
+                    generated_dt = generated_dt.replace(tzinfo=UTC)
+            except ValueError:
+                generated_dt = None
+        if generated_dt is None or generated_dt < since:
+            continue
         sev = str(obj.get("severity") or "unknown").strip().lower()
         if sev not in ("low", "medium", "high"):
             sev = "unknown"
         sev_counts[sev] = int(sev_counts.get(sev, 0)) + 1
         rows.append(
             {
-                "generated_at": obj.get("generated_at"),
+                "generated_at": generated_dt.isoformat(),
                 "severity": sev,
                 "recent_sessions": int(obj.get("recent_sessions") or 0),
                 "memory_entries": int(obj.get("memory_entries") or 0),
             },
         )
+
+    rows.sort(key=lambda r: str(r.get("generated_at") or ""))
     trend = [str(r.get("severity") or "unknown") for r in rows]
+    sev_rank = {"low": 0, "medium": 1, "high": 2, "unknown": -1}
+    jumps: list[dict[str, Any]] = []
+    for i in range(1, len(rows)):
+        prev = str(rows[i - 1].get("severity") or "unknown")
+        curr = str(rows[i].get("severity") or "unknown")
+        if sev_rank.get(curr, -1) > sev_rank.get(prev, -1):
+            jumps.append(
+                {
+                    "from": prev,
+                    "to": curr,
+                    "at": rows[i].get("generated_at"),
+                    "delta": sev_rank.get(curr, -1) - sev_rank.get(prev, -1),
+                },
+            )
+
     avg_recent = (sum(int(r.get("recent_sessions") or 0) for r in rows) / len(rows)) if rows else 0.0
     avg_mem = (sum(int(r.get("memory_entries") or 0) for r in rows) / len(rows)) if rows else 0.0
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "history_file": str(history_path),
+        "days": max(1, int(days)),
+        "since": since.isoformat(),
         "history_total": len(rows),
         "rows_total": len(rows),
+        "entries_considered": len(rows),
         "severity_counts": sev_counts,
         "latest_severity": trend[-1] if trend else None,
         "severity_trend": trend,
+        "severity_jumps": jumps,
         "avg_recent_sessions": round(avg_recent, 2),
         "avg_memory_entries": round(avg_mem, 2),
         "reports": rows,
@@ -2150,6 +2189,11 @@ def main(argv: list[str] | None = None) -> int:
         choices=("medium", "high"),
         help="当 severity 达到阈值时返回非 0（medium|high）",
     )
+    memory_nudge.add_argument(
+        "--history-file",
+        default=None,
+        help="可选：将本次 nudge JSON 追加到 JSONL 历史（默认 memory/nudge-history.jsonl；与 --write-file 指向同一文件时只写一次）",
+    )
     memory_nudge.add_argument("--json", action="store_true", dest="json_output")
     memory_nudge_report = memory_sub.add_parser(
         "nudge-report",
@@ -2161,6 +2205,7 @@ def main(argv: list[str] | None = None) -> int:
         help="nudge 历史 JSONL 路径（相对工作区或绝对路径）",
     )
     memory_nudge_report.add_argument("--limit", type=int, default=200, help="最多读取历史条目数")
+    memory_nudge_report.add_argument("--days", type=int, default=30, help="仅统计最近 N 天历史（默认 30）")
     memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
 
     schedule_p = sub.add_parser(
@@ -3348,6 +3393,18 @@ def main(argv: list[str] | None = None) -> int:
                         out_path = (root / out_path).resolve()
                     out_path.parent.mkdir(parents=True, exist_ok=True)
                     out_path.write_text(out_text + "\n", encoding="utf-8")
+                    hist_raw = getattr(args, "history_file", None)
+                    hist_path = (
+                        Path(hist_raw).expanduser()
+                        if isinstance(hist_raw, str) and hist_raw.strip()
+                        else (root / "memory" / "nudge-history.jsonl")
+                    )
+                    if not hist_path.is_absolute():
+                        hist_path = (root / hist_path).resolve()
+                    if hist_path.resolve() != out_path.resolve():
+                        hist_path.parent.mkdir(parents=True, exist_ok=True)
+                        with hist_path.open("a", encoding="utf-8") as f:
+                            f.write(out_text + "\n")
                 if bool(getattr(args, "json_output", False)):
                     print(out_text)
                     if isinstance(raw_write, str) and raw_write.strip():
@@ -3374,6 +3431,7 @@ def main(argv: list[str] | None = None) -> int:
                     cwd=str(root),
                     history_file=getattr(args, "history_file", None),
                     limit=int(getattr(args, "limit", 200)),
+                    days=int(getattr(args, "days", 30)),
                 )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))

@@ -15,6 +15,31 @@ from cai_agent.session import save_session
 
 
 class MemoryNudgeCliTests(unittest.TestCase):
+    def test_memory_nudge_dedupes_history_when_write_file_is_history(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {"version": 2, "goal": "g", "answer": "a"},
+            )
+            hist = root / "memory" / "nudge-history.jsonl"
+            hist.parent.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "memory",
+                            "nudge",
+                            "--json",
+                            "--write-file",
+                            str(hist),
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            lines = [ln for ln in hist.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            self.assertEqual(len(lines), 1)
+
     def test_memory_nudge_json_reports_high_when_no_entries(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
@@ -108,6 +133,12 @@ class MemoryNudgeCliTests(unittest.TestCase):
             self.assertTrue(out_file.is_file())
             payload = json.loads(out_file.read_text(encoding="utf-8"))
             self.assertEqual(payload.get("schema_version"), "1.0")
+
+            hist = root / "memory" / "nudge-history.jsonl"
+            self.assertTrue(hist.is_file())
+            lines = [ln for ln in hist.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(json.loads(lines[0]).get("schema_version"), "1.0")
 
     def test_memory_nudge_fail_on_severity_threshold(self) -> None:
         with TemporaryDirectory() as td:

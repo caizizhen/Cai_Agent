@@ -534,20 +534,22 @@ cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-se
 
 - 当近 7 天会话明显增长但记忆沉淀不足时，会给出 `memory extract` 的明确建议；
 - `--write-file` 会把 JSON 结果落盘（便于 schedule/CI 消费）；
+- `--history-file` 可把本次结果追加到 JSONL 历史（默认 `memory/nudge-history.jsonl`；与 `--write-file` 同一路径时只写一次）；
 - `--fail-on-severity` 在严重级别达到阈值时返回非 0（`low|medium|high`），适合做守门检查；
 - 可与 `schedule add/run-due/daemon` 组合，定期巡检记忆质量。
 
 ### `cai-agent memory nudge-report --json`
 
-记忆提醒趋势聚合：读取 `memory nudge --write-history` 产出的 JSONL 历史，输出 severity 计数、最新级别、趋势序列和均值指标，便于 QA/运维观察“记忆健康是否持续改善”。
+记忆提醒趋势聚合：读取 `memory nudge --write-file` 自动追加的 JSONL 历史（或 `--history-file` 指定路径），输出 severity 计数、最新级别、趋势序列、**严重度突变**（`severity_jumps`）与均值指标，便于 QA/运维观察“记忆健康是否持续改善”。
 
 ```bash
-cai-agent memory nudge --json --write-history ./memory/nudge-history.jsonl
-cai-agent memory nudge-report --json --history-file ./memory/nudge-history.jsonl --limit 100
+cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json
+cai-agent memory nudge-report --json --history-file ./memory/nudge-history.jsonl --days 30 --limit 200
 ```
 
-- 默认历史文件为 `./memory/nudge-history.jsonl`；
-- `--limit` 只聚合最近 N 条记录（默认 100）；
+- 默认历史文件为 `./memory/nudge-history.jsonl`（`--write-file` 与默认历史路径相同时不会重复写入）；
+- `--days` 仅统计最近 N 天内的历史记录（默认 30）；
+- `--limit` 只读取历史文件尾部 N 行再过滤（默认 200）；
 - 可与 `schedule add-memory-nudge` 配合形成“生成快照 + 聚合看板”的治理闭环。
 
 ### `cai-agent schedule`（生产护栏补充）

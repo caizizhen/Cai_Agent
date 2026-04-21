@@ -31,7 +31,7 @@ Expected:
 
 - Exit code `0`.
 - JSON contains:
-  - `schema_version = "1.0"`
+  - `schema_version = "1.0"` (nudge snapshot)
   - `severity = "high"`
   - `recent_sessions >= 8`
   - `memory_entries = 0`
@@ -96,8 +96,9 @@ Steps:
 Expected:
 
 - Exit code `0`.
-- Stdout contains a `wrote=` line with the resolved file path.
-- Target file exists and is valid JSON containing `schema_version`, `severity`, and `actions`.
+- Stdout prints one JSON object line, then the resolved `--write-file` path on the next line.
+- `./memory/nudge-latest.json` exists and matches the JSON line.
+- `./memory/nudge-history.jsonl` gains one appended JSON line (same payload; not duplicated when `--write-file` points at the history file).
 
 ### MN-006: Severity gate for automation
 
@@ -136,17 +137,19 @@ Steps:
 1. Ensure history file exists with multiple JSONL lines:
    - `memory/nudge-history.jsonl`
 2. Run:
-   - `cai-agent memory nudge-report --json --limit 50`
+   - `cai-agent memory nudge-report --json --limit 50 --days 3650`
 
 Expected:
 
 - Exit code `0`.
 - JSON contains:
-  - `schema_version = "1.0"`
+  - `schema_version = "1.1"`
+  - `days` / `since`
   - `history_total` (sample count in report window)
   - `severity_counts`
   - `latest_severity`
   - `severity_trend`
+  - `severity_jumps`
   - `avg_recent_sessions` / `avg_memory_entries`
   - `reports` (ordered history rows)
 
@@ -162,6 +165,7 @@ Expected:
 
 - Exit code `0`.
 - JSON returns a valid empty summary:
+  - `schema_version = "1.1"`
   - `history_total = 0`
   - `reports = []`
   - `latest_severity = null`
@@ -170,7 +174,7 @@ Expected:
 
 Run:
 
-- `python3 -m pytest -q tests/test_memory_nudge_cli.py`
+- `python3 -m pytest -q tests/test_memory_nudge_cli.py tests/test_memory_nudge_report_cli.py`
 - `python3 -m pytest -q tests/test_memory_entries_bundle.py tests/test_memory_entry_validate.py`
 
 Expected:
@@ -179,5 +183,5 @@ Expected:
 
 ## Notes
 
-- `memory nudge` is read-only: it must not mutate session files or memory files.
+- `memory nudge` does not mutate session files or `memory/entries.jsonl`; `--write-file` writes a snapshot file and may append one JSON line to the configured history JSONL.
 - JSON schema should remain stable for scheduling/automation consumption.
