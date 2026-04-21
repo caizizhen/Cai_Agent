@@ -1330,6 +1330,47 @@ def _resolve_schedule_path(root: Path, raw_path: str | None, default_name: str) 
     return (root / default_name).resolve()
 
 
+def _resolve_gateway_map_path(root: Path, raw_path: str | None) -> Path:
+    return _resolve_schedule_path(root, raw_path, ".cai/gateway/telegram-session-map.json")
+
+
+def _load_gateway_map(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    if not isinstance(obj, dict):
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    binds = obj.get("bindings")
+    if not isinstance(binds, dict):
+        binds = {}
+    out: dict[str, dict[str, str]] = {}
+    for k, v in binds.items():
+        if not isinstance(k, str) or not k.strip() or not isinstance(v, dict):
+            continue
+        chat_id = str(v.get("chat_id") or "").strip()
+        user_id = str(v.get("user_id") or "").strip()
+        session_file = str(v.get("session_file") or "").strip()
+        if not chat_id or not user_id or not session_file:
+            continue
+        out[k.strip()] = {
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "session_file": session_file,
+        }
+    return {"schema_version": "gateway_telegram_map_v1", "bindings": out}
+
+
+def _save_gateway_map(path: Path, doc: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(doc, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
 def _acquire_schedule_daemon_lock(
     *,
     lock_path: Path,
@@ -2899,6 +2940,37 @@ def main(argv: list[str] | None = None) -> int:
     board_p.add_argument("--pattern", default=".cai-session*.json")
     board_p.add_argument("--limit", type=int, default=100)
     board_p.add_argument("--json", action="store_true", dest="json_output")
+
+    gateway_p = sub.add_parser(
+        "gateway",
+        help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
+    )
+    gateway_sub = gateway_p.add_subparsers(dest="gateway_action", required=True)
+    gw_tg = gateway_sub.add_parser("telegram", help="Telegram 映射管理")
+    gw_tg_sub = gw_tg.add_subparsers(dest="gateway_telegram_action", required=True)
+
+    gw_tg_bind = gw_tg_sub.add_parser("bind", help="绑定 chat_id+user_id 到会话文件")
+    gw_tg_bind.add_argument("--chat-id", required=True)
+    gw_tg_bind.add_argument("--user-id", required=True)
+    gw_tg_bind.add_argument("--session-file", required=True, help="会话文件路径（相对当前目录或绝对路径）")
+    gw_tg_bind.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_get = gw_tg_sub.add_parser("get", help="查询单个 chat_id+user_id 映射")
+    gw_tg_get.add_argument("--chat-id", required=True)
+    gw_tg_get.add_argument("--user-id", required=True)
+    gw_tg_get.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_list = gw_tg_sub.add_parser("list", help="列出所有 Telegram 会话映射")
+    gw_tg_list.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_unbind = gw_tg_sub.add_parser("unbind", help="解除单个 chat_id+user_id 映射")
+    gw_tg_unbind.add_argument("--chat-id", required=True)
+    gw_tg_unbind.add_argument("--user-id", required=True)
+    gw_tg_unbind.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_unbind.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -4630,6 +4702,111 @@ def main(argv: list[str] | None = None) -> int:
                 json_output=board_json,
             )
         return 0
+
+    if args.command == "gateway":
+        root = Path.cwd().resolve()
+        map_path = _resolve_gateway_map_path(root, getattr(args, "map_file", None))
+        doc = _load_gateway_map(map_path)
+        bindings = doc.get("bindings")
+        if not isinstance(bindings, dict):
+            bindings = {}
+            doc["bindings"] = bindings
+
+        if getattr(args, "gateway_action", None) == "telegram":
+            act = str(getattr(args, "gateway_telegram_action", "") or "").strip()
+            if act == "bind":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                session_raw = str(getattr(args, "session_file", "") or "").strip()
+                if not chat_id or not user_id or not session_raw:
+                    print("chat-id/user-id/session-file 不能为空", file=sys.stderr)
+                    return 2
+                p = Path(session_raw).expanduser()
+                if not p.is_absolute():
+                    p = (root / p).resolve()
+                else:
+                    p = p.resolve()
+                key = f"{chat_id}:{user_id}"
+                row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+                bindings[key] = row
+                _save_gateway_map(map_path, doc)
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "bind",
+                    "ok": True,
+                    "map_file": str(map_path),
+                    "binding": row,
+                    "bindings_count": len(bindings),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(
+                        f"bound chat_id={chat_id} user_id={user_id} session_file={p} total={len(bindings)}",
+                    )
+                return 0
+            if act == "get":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                key = f"{chat_id}:{user_id}"
+                row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "get",
+                    "ok": bool(row),
+                    "map_file": str(map_path),
+                    "binding": row,
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                elif row:
+                    print(f"chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
+                else:
+                    print("(not found)")
+                return 0 if row else 2
+            if act == "list":
+                items = [
+                    v
+                    for _, v in sorted(bindings.items(), key=lambda x: x[0])
+                    if isinstance(v, dict)
+                ]
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "list",
+                    "ok": True,
+                    "map_file": str(map_path),
+                    "bindings": items,
+                    "bindings_count": len(items),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"bindings={len(items)}")
+                    for row in items:
+                        print(f"- chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
+                return 0
+            if act == "unbind":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                key = f"{chat_id}:{user_id}"
+                row = bindings.pop(key, None)
+                if row is not None:
+                    _save_gateway_map(map_path, doc)
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "unbind",
+                    "ok": bool(row),
+                    "removed": bool(row),
+                    "map_file": str(map_path),
+                    "binding": row if isinstance(row, dict) else None,
+                    "bindings_count": len(bindings),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"removed={bool(row)} total={len(bindings)}")
+                return 0 if row else 2
+        return 2
 
     if args.command == "workflow":
         try:

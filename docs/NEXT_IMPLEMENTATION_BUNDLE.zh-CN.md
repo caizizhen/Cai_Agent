@@ -81,6 +81,7 @@
 - [本轮已落地] Subagents 标准 IO 输出增强：`workflow` 结果新增 `subagent_io_schema_version=1.0`、`merge` 结构体（strategy/decision/confidence/conflicts/parallel_groups_count），并在每步 `protocol` 中补充 `schema_version=1.0`
 - [本轮已落地] 发布门禁增强：`release-ga` 支持 `doctor` 健康检查与 `memory nudge` 严重度阈值（`--with-doctor`、`--with-memory-nudge`、`--max-memory-severity`）
 - [本轮已落地] Observability 报表增强：新增 `observe-report`，基于 `observe` 聚合输出标准报表并按阈值生成 alerts（`state=pass|warn|fail`）
+- [本轮已落地] Gateway MVP（Telegram）会话映射：新增 `gateway telegram bind|get|list|unbind`，支持 `chat_id+user_id -> session_file` 的持久化映射（默认 `.cai/gateway/telegram-session-map.json`）
 
 ### 导出与生态
 
