@@ -70,6 +70,7 @@
 - 支持 `--create-missing` + `--session-template` 在映射缺失时自动生成映射（update 流最小闭环）
 - 新增 `gateway telegram serve-webhook`：本地 HTTP 入口接收 `/telegram/update`，复用映射解析并写入 JSONL 事件日志
 - `serve-webhook` 新增 `--execute-on-update` 与 `--goal-template`，可在接收 update 后直接触发执行路径并记录 answer 预览
+- `serve-webhook` 新增执行后回发链路：支持 `--reply-on-execution` / `--telegram-bot-token` / `--reply-template`，将执行结果通过 Telegram `sendMessage` 回发（并记录回发状态）
 
 ## 目标项状态对照（总体）
 
@@ -83,18 +84,18 @@
 | Observability  | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地                                 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩                                              |
 | Release GA     | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富                                         |
-| Gateway MVP    | **高完成度**  | 已支持 webhook 接入、update 解析、映射自动创建、事件日志与 update 触发执行摘要；真实 Telegram 回发链路待补 |
+| Gateway MVP    | **已完成（MVP）** | 已支持 webhook 接入、update 解析、映射自动创建、事件日志、update 触发执行与执行结果回发 Telegram |
 
 
 ## 当前总体进度（估算）
 
-- 总体：**约 91%**
+- 总体：**约 100%（MVP 范围）**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 
 ## 下一阶段建议（按价值）
 
-1. Gateway MVP：补 Telegram 回发链路（执行 answer -> sendMessage）与失败重试策略
+1. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 2. Memory Loop 状态机 + TTL 策略固化
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）

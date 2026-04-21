@@ -7,6 +7,8 @@ import os
 import signal
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.error
+import urllib.request
 
 import threading
 import time
@@ -1446,6 +1448,45 @@ def _resolve_gateway_session_from_update(
     }
 
 
+def _send_telegram_message(
+    *,
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    timeout_sec: float = 8.0,
+) -> tuple[bool, dict[str, Any]]:
+    token = str(bot_token or "").strip()
+    cid = str(chat_id or "").strip()
+    if not token or not cid:
+        return False, {"ok": False, "error": "invalid_args", "message": "bot_token/chat_id 不能为空"}
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    body = json.dumps({"chat_id": cid, "text": str(text or "")}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=max(float(timeout_sec), 0.1)) as resp:
+            resp_body = resp.read().decode("utf-8")
+        obj = json.loads(resp_body)
+        if isinstance(obj, dict):
+            return bool(obj.get("ok")), obj
+        return False, {"ok": False, "error": "invalid_response", "raw": resp_body[:500]}
+    except urllib.error.HTTPError as e:
+        try:
+            raw = e.read().decode("utf-8")
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return False, parsed
+            return False, {"ok": False, "error": "http_error", "status": int(e.code), "raw": raw[:500]}
+        except Exception:
+            return False, {"ok": False, "error": "http_error", "status": int(e.code)}
+    except Exception as e:
+        return False, {"ok": False, "error": "send_failed", "message": str(e)}
+
+
 def _run_gateway_telegram_webhook_server(
     *,
     root: Path,
@@ -1456,6 +1497,9 @@ def _run_gateway_telegram_webhook_server(
     create_missing: bool,
     execute_on_update: bool,
     goal_template: str,
+    reply_on_execution: bool,
+    telegram_bot_token: str | None,
+    reply_template: str,
     log_file: Path,
     max_requests: int,
 ) -> dict[str, Any]:
@@ -1520,6 +1564,27 @@ def _run_gateway_telegram_webhook_server(
                     "answer_preview": out_exec[:240],
                     "session_file": workspace_override or None,
                 }
+                if reply_on_execution:
+                    reply_text = reply_template.format(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text=text_hint,
+                        answer=out_exec[:1000],
+                        ok=str(bool(ok_exec)).lower(),
+                    ).strip()
+                    if telegram_bot_token:
+                        reply_result = _telegram_send_message(
+                            bot_token=telegram_bot_token,
+                            chat_id=chat_id,
+                            text=reply_text,
+                        )
+                    else:
+                        reply_result = {
+                            "ok": False,
+                            "error": "missing_bot_token",
+                            "message": "未配置 Telegram bot token",
+                        }
+                    execution["reply"] = reply_result
             elif execute_on_update:
                 execution = {"triggered": False, "ok": False, "reason": "resolve_failed"}
             if execution is not None:
@@ -1563,6 +1628,45 @@ def _run_gateway_telegram_webhook_server(
         "log_file": str(log_file),
         "create_missing": bool(create_missing),
         "execute_on_update": bool(execute_on_update),
+        "reply_on_execution": bool(reply_on_execution),
+    }
+
+
+def _telegram_send_message(
+    *,
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    timeout_sec: float = 8.0,
+) -> dict[str, Any]:
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    req_body = json.dumps(
+        {
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=req_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            obj = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": "http_error", "status": int(e.code), "message": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": "request_failed", "message": str(e)}
+    if not isinstance(obj, dict):
+        return {"ok": False, "error": "invalid_response"}
+    return {
+        "ok": bool(obj.get("ok")),
+        "status": int(getattr(resp, "status", 200) or 200),
     }
 
 

@@ -9,6 +9,7 @@ from contextlib import redirect_stderr
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
+from urllib.error import URLError
 
 from cai_agent.__main__ import main
 from cai_agent.config import Settings
@@ -288,3 +289,46 @@ class GatewayTelegramCliTests(unittest.TestCase):
                 execution = {}
             self.assertTrue(execution.get("triggered"))
             self.assertTrue(execution.get("ok"))
+
+    def test_send_telegram_message_success_and_failure(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                from cai_agent import __main__ as m
+
+                with patch(
+                    "cai_agent.__main__.urllib.request.urlopen",
+                ) as mock_urlopen:
+                    class _Resp:
+                        def __enter__(self):
+                            return self
+
+                        def __exit__(self, exc_type, exc, tb):
+                            return False
+
+                        def read(self):
+                            return b'{"ok": true, "result": {"message_id": 1}}'
+
+                    mock_urlopen.return_value = _Resp()
+                    ok, payload = m._send_telegram_message(
+                        bot_token="tkn",
+                        chat_id="100",
+                        text="hello",
+                        timeout_sec=5.0,
+                    )
+                self.assertTrue(ok)
+                self.assertTrue(isinstance(payload, dict))
+                self.assertTrue(payload.get("ok"))
+
+                with patch(
+                    "cai_agent.__main__.urllib.request.urlopen",
+                    side_effect=URLError("boom"),
+                ):
+                    ok2, payload2 = m._send_telegram_message(
+                        bot_token="tkn",
+                        chat_id="100",
+                        text="hello",
+                        timeout_sec=5.0,
+                    )
+                self.assertFalse(ok2)
+                self.assertEqual(payload2.get("error"), "send_failed")
