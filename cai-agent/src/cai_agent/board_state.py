@@ -253,3 +253,62 @@ def attach_group_summary(
         "tasks": list(out["group_summary"]["tasks_top"]),
     }
     return out
+
+
+def attach_trend_summary(
+    payload: dict[str, Any],
+    *,
+    recent_window: int = 10,
+) -> dict[str, Any]:
+    """基于最近窗口与历史基线窗口计算趋势对比。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["trend_summary"] = {
+            "window": max(1, int(recent_window)),
+            "recent": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "baseline": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "delta": {"failure_rate": 0.0, "avg_total_tokens": 0.0},
+        }
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["trend_summary"] = {
+            "window": max(1, int(recent_window)),
+            "recent": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "baseline": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "delta": {"failure_rate": 0.0, "avg_total_tokens": 0.0},
+        }
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    rows.sort(key=lambda r: int(r.get("mtime") or 0), reverse=True)
+    w = max(1, int(recent_window))
+    recent_rows = rows[:w]
+    baseline_rows = rows[w : (2 * w)]
+    if not baseline_rows:
+        baseline_rows = rows[w:]
+
+    def _slice_stats(slice_rows: list[dict[str, Any]]) -> dict[str, float | int]:
+        n = len(slice_rows)
+        if n <= 0:
+            return {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0}
+        failed = sum(1 for r in slice_rows if int(r.get("error_count") or 0) > 0)
+        total_tokens = sum(int(r.get("total_tokens") or 0) for r in slice_rows)
+        return {
+            "sessions": n,
+            "failure_rate": float(failed) / n,
+            "avg_total_tokens": float(total_tokens) / n,
+        }
+
+    recent = _slice_stats(recent_rows)
+    baseline = _slice_stats(baseline_rows)
+    out["trend_summary"] = {
+        "window": w,
+        "recent": recent,
+        "baseline": baseline,
+        "delta": {
+            "failure_rate": float(recent["failure_rate"]) - float(baseline["failure_rate"]),
+            "avg_total_tokens": float(recent["avg_total_tokens"]) - float(baseline["avg_total_tokens"]),
+        },
+    }
+    return out

@@ -31,6 +31,7 @@
 - `board` 失败摘要增强：支持 `--failed-top` 配置 recent 失败条数，按会话文件 mtime 降序输出（最近失败优先）
 - `board` 新增分组聚合：支持 `--group-top` 输出模型与 task 维度 TopN（`group_summary`），文本模式增加 `[group_summary]` 摘要
 - `board` 新增组合过滤：支持 `--status`（可多值/逗号分隔）并与 `--failed-only` / `--task-id` 联合生效
+- `board` 新增趋势对比：支持 `--trend-window`（或 `--trend-recent` + `--trend-baseline`）输出 `trend_summary`，给出 recent/baseline 的失败率与平均 tokens 差值
 
 ### D. Memory Loop
 
@@ -108,7 +109,7 @@
 
 ## 下一阶段建议（按价值）
 
-1. 看板继续增强：补趋势时间窗对比与环比变化提示
+1. 看板继续增强：补趋势阈值告警与窗口预设（oncall/dev/prod）
 2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）

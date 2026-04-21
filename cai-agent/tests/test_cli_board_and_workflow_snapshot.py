@@ -342,6 +342,76 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_json_includes_trend_window_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                rows = [
+                    {
+                        "name": ".cai-session-old-pass.json",
+                        "task": {"task_id": "run-old-pass", "type": "run", "status": "completed"},
+                        "error_count": 0,
+                        "total_tokens": 10,
+                        "mtime": 1000,
+                    },
+                    {
+                        "name": ".cai-session-old-fail.json",
+                        "task": {"task_id": "run-old-fail", "type": "run", "status": "failed"},
+                        "error_count": 1,
+                        "total_tokens": 40,
+                        "mtime": 1100,
+                    },
+                    {
+                        "name": ".cai-session-recent-pass.json",
+                        "task": {"task_id": "run-recent-pass", "type": "run", "status": "completed"},
+                        "error_count": 0,
+                        "total_tokens": 20,
+                        "mtime": 3000,
+                    },
+                    {
+                        "name": ".cai-session-recent-fail.json",
+                        "task": {"task_id": "run-recent-fail", "type": "run", "status": "failed"},
+                        "error_count": 1,
+                        "total_tokens": 30,
+                        "mtime": 3100,
+                    },
+                ]
+                for r in rows:
+                    payload = {
+                        "version": 2,
+                        "run_schema_version": "1.0",
+                        "task": r["task"],
+                        "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                        "error_count": r["error_count"],
+                        "total_tokens": r["total_tokens"],
+                        "prompt_tokens": 1,
+                        "completion_tokens": 0,
+                        "elapsed_ms": 1,
+                    }
+                    p = root / r["name"]
+                    p.write_text(json.dumps(payload), encoding="utf-8")
+                    os.utime(p, (r["mtime"], r["mtime"]))
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json", "--trend-window", "2"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                tr = payload.get("trend_summary") or {}
+                recent = tr.get("recent") or {}
+                baseline = tr.get("baseline") or {}
+                delta = tr.get("delta") or {}
+                self.assertEqual(recent.get("sessions"), 2)
+                self.assertEqual(baseline.get("sessions"), 2)
+                self.assertAlmostEqual(float(recent.get("failure_rate") or 0.0), 0.5, places=6)
+                self.assertAlmostEqual(float(baseline.get("failure_rate") or 0.0), 0.5, places=6)
+                self.assertAlmostEqual(float(delta.get("failure_rate") or 0.0), 0.0, places=6)
+                self.assertAlmostEqual(float(delta.get("avg_tokens_per_session") or 0.0), 0.0, places=6)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()

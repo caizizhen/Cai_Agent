@@ -26,7 +26,7 @@
 | WebFetch（HTTPS 只读 GET） | claude-code | `Done` | 内置 `fetch_url` + `[fetch_url]` / `[permissions]`；见 [MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md) 作 MCP 并行方案 |
 | WebSearch / 结构化搜索 API | claude-code | `Next` / `MCP` | 定案见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP） |
 | Notebook 编辑 | claude-code | `Next` / `MCP` | 同上 |
-| 任务看板 / 富任务 UI | claude-code | `Done` / `Next` | 已落地 `board --json`（`board_v1`）内嵌 `observe` 与 `observe_schema_version`，支持 `--failed-only` / `--task-id` / `--status` 组合过滤、`--failed-top` 最近失败 TopN 配置，新增 `failed_summary.recent`（按最近会话优先）、`status_summary` 状态分组统计与 `group_summary`（模型/任务 TopN 聚合）；更完整 UI 运营面仍在后续迭代 |
+| 任务看板 / 富任务 UI | claude-code | `Done` / `Next` | 已落地 `board --json`（`board_v1`）内嵌 `observe` 与 `observe_schema_version`，支持 `--failed-only` / `--task-id` / `--status` 组合过滤、`--failed-top` 最近失败 TopN 配置，新增 `failed_summary.recent`（按最近会话优先）、`status_summary` 状态分组统计、`group_summary`（模型/任务 TopN 聚合）以及 `trend_summary`（recent vs baseline 时间窗对比）；更完整 UI 运营面仍在后续迭代 |
 | 语音 / Bridge / 企业门控特性 | claude-code | `OOS` | 依赖官方封闭能力或单独商务 |
 
 ## L2 — 架构完备度（对照 analysis 文档骨架）

@@ -28,6 +28,7 @@ from cai_agent.board_state import (
     attach_group_summary,
     attach_status_summary,
     attach_failed_summary,
+    attach_trend_summary,
     build_board_payload,
     filter_board_payload,
     save_last_workflow_snapshot,
@@ -3363,6 +3364,24 @@ def main(argv: list[str] | None = None) -> int:
         default=5,
         help="聚合视图（模型/任务）TopN 条数（最小为 1）",
     )
+    board_p.add_argument(
+        "--trend-window",
+        type=int,
+        default=5,
+        help="趋势对比窗口大小（recent/baseline 各取 N 条，最小为 1）",
+    )
+    board_p.add_argument(
+        "--trend-recent",
+        type=int,
+        default=20,
+        help="趋势视图 recent 窗口大小（按最新会话计数，最小 1）",
+    )
+    board_p.add_argument(
+        "--trend-baseline",
+        type=int,
+        default=20,
+        help="趋势视图 baseline 窗口大小（紧随 recent 之前，最小 1）",
+    )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
     gateway_p = sub.add_parser(
@@ -5195,6 +5214,10 @@ def main(argv: list[str] | None = None) -> int:
                 payload,
                 top_n=max(1, int(getattr(args, "group_top", 5))),
             )
+            payload = attach_trend_summary(
+                payload,
+                recent_window=max(1, int(getattr(args, "trend_window", 10))),
+            )
             payload["filters"] = {
                 "failed_only": failed_only,
                 "task_id": task_id_filter or None,
@@ -5219,7 +5242,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"run_events_total={ag.get('run_events_total', 0)}",
                 )
                 if isinstance(status_summary, dict):
-                    counts = status_summary.get("by_status")
+                    counts = status_summary.get("counts")
                     if isinstance(counts, dict):
                         print(
                             "[status_summary] "
@@ -5254,13 +5277,30 @@ def main(argv: list[str] | None = None) -> int:
                         for row in models_top:
                             if not isinstance(row, dict):
                                 continue
-                            print(f"  model={row.get('model')} count={row.get('count')}")
+                            print(f"  model={row.get('key')} count={row.get('count')}")
                     if isinstance(tasks_top, list) and tasks_top:
                         print("[tasks_top]")
                         for row in tasks_top:
                             if not isinstance(row, dict):
                                 continue
-                            print(f"  task_id={row.get('task_id')} count={row.get('count')}")
+                            print(f"  task_id={row.get('key')} count={row.get('count')}")
+                trend_summary = payload.get("trend_summary")
+                if isinstance(trend_summary, dict):
+                    recent = trend_summary.get("recent")
+                    baseline = trend_summary.get("baseline")
+                    delta = trend_summary.get("delta")
+                    if (
+                        isinstance(recent, dict)
+                        and isinstance(baseline, dict)
+                        and isinstance(delta, dict)
+                    ):
+                        print(
+                            "[trend] "
+                            f"recent_n={recent.get('sessions_count')} "
+                            f"baseline_n={baseline.get('sessions_count')} "
+                            f"failure_rate_delta={delta.get('failure_rate_delta')} "
+                            f"avg_tokens_delta={delta.get('avg_tokens_delta')}",
+                        )
                 wf = payload.get("last_workflow")
                 if isinstance(wf, dict):
                     task = wf.get("task") if isinstance(wf.get("task"), dict) else {}
