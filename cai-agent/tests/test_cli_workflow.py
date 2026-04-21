@@ -48,6 +48,39 @@ class WorkflowCliTests(unittest.TestCase):
 
         self.assertEqual(rc, 0)
 
+    def test_workflow_parallel_group_emits_group_summary(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "workflow-parallel.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "steps": [
+                            {"name": "p1", "goal": "parallel one", "parallel_group": "g1"},
+                            {"name": "p2", "goal": "parallel two", "parallel_group": "g1"},
+                            {"name": "s1", "goal": "serial tail"},
+                        ],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["workflow", str(wf_path), "--json"])
+                payload = json.loads(buf.getvalue().strip())
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+        self.assertEqual(rc, 0)
+        summary = payload.get("summary") or {}
+        self.assertGreaterEqual(int(summary.get("parallel_groups_count") or 0), 1)
+        self.assertGreaterEqual(int(summary.get("parallel_steps_count") or 0), 2)
+        self.assertIn("merge_confidence", summary)
+
 
 if __name__ == "__main__":
     unittest.main()
