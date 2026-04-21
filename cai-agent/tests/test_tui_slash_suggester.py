@@ -52,7 +52,7 @@ class SlashCommandSuggesterTests(unittest.TestCase):
     def test_fix_build_and_security_scan_completion(self) -> None:
         s = SlashCommandSuggester()
         self.assertEqual(_suggest(s, "/f"), "/fix-build")
-        self.assertEqual(_suggest(s, "/se"), "/security-scan")
+        self.assertEqual(_suggest(s, "/se"), "/sessions")
         self.assertIsNone(_suggest(s, "/fix-build"))
         self.assertIsNone(_suggest(s, "/security-scan"))
 

@@ -163,7 +163,11 @@ class GatewayTelegramCliTests(unittest.TestCase):
             self.assertEqual(p1.get("user_id"), "9002")
             self.assertIs(p1.get("created"), True)
             sess1 = str((p1.get("binding") or {}).get("session_file") or "")
-            self.assertTrue(sess1.endswith(".cai/gateway/sessions/tg-chat-5001-user-9002.json"))
+            # Windows returns backslashes in absolute paths; normalize before suffix match.
+            sess1_norm = sess1.replace("\\", "/")
+            self.assertTrue(
+                sess1_norm.endswith(".cai/gateway/sessions/tg-chat-5001-user-9002.json"),
+            )
 
             buf2 = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
