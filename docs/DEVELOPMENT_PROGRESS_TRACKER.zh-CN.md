@@ -26,6 +26,7 @@
 
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
 - `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务
+- `board` 新增失败摘要：输出 `failed_summary`（count/recent），文本模式增加 `[failed_summary]` 区块便于值班排障
 
 ### D. Memory Loop
 

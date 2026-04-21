@@ -90,7 +90,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
 
                 buf = io.StringIO()
                 with redirect_stdout(buf):
-                    rc = main(["board", "--json", "--failed-only", "--task-id", "run-bad"])
+                    rc = main(["board", "--json", "--failed-only", "--task-id", "run-bad-999"])
                 self.assertEqual(rc, 0)
                 payload = json.loads(buf.getvalue().strip())
                 obs = payload.get("observe") or {}
@@ -99,6 +99,13 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 self.assertEqual(sessions[0].get("task_id"), "run-bad-999")
                 ag = obs.get("aggregates") or {}
                 self.assertEqual(ag.get("failed_count"), 1)
+                fs = payload.get("failed_summary") or {}
+                self.assertEqual(fs.get("count"), 1)
+                recent = fs.get("recent") or []
+                self.assertEqual(len(recent), 1)
+                self.assertEqual(recent[0].get("task_id"), "run-bad-999")
+                self.assertTrue(isinstance(recent[0].get("path"), str))
+                self.assertIn("error_count", recent[0])
             finally:
                 os.chdir(old)
 

@@ -24,7 +24,12 @@ from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
-from cai_agent.board_state import build_board_payload, save_last_workflow_snapshot
+from cai_agent.board_state import (
+    attach_failed_summary,
+    build_board_payload,
+    filter_board_payload,
+    save_last_workflow_snapshot,
+)
 from cai_agent.hook_runtime import enabled_hook_ids, run_project_hooks
 from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.llm_factory import chat_completion_by_role
@@ -5147,39 +5152,16 @@ def main(argv: list[str] | None = None) -> int:
                 observe_pattern=str(args.pattern),
                 observe_limit=int(args.limit),
             )
-            obs_payload = payload.get("observe")
-            if isinstance(obs_payload, dict):
-                sessions = obs_payload.get("sessions")
-                if isinstance(sessions, list):
-                    filtered = []
-                    for s in sessions:
-                        if not isinstance(s, dict):
-                            continue
-                        if failed_only and int(s.get("error_count") or 0) <= 0:
-                            continue
-                        if task_id_filter:
-                            sid = str(s.get("task_id") or "")
-                            if task_id_filter not in sid:
-                                continue
-                        filtered.append(s)
-                    obs_payload["sessions"] = filtered
-                    obs_payload["sessions_count"] = len(filtered)
-                    failed_count = sum(
-                        1 for s in filtered if int((s or {}).get("error_count") or 0) > 0
-                    )
-                    obs_payload["aggregates"] = {
-                        **(
-                            obs_payload.get("aggregates")
-                            if isinstance(obs_payload.get("aggregates"), dict)
-                            else {}
-                        ),
-                        "failed_count": failed_count,
-                        "failure_rate": (float(failed_count) / len(filtered)) if filtered else 0.0,
-                    }
-                payload["filters"] = {
-                    "failed_only": failed_only,
-                    "task_id": task_id_filter or None,
-                }
+            payload = filter_board_payload(
+                payload,
+                failed_only=failed_only,
+                task_id=task_id_filter or None,
+            )
+            payload = attach_failed_summary(payload, limit=5)
+            payload["filters"] = {
+                "failed_only": failed_only,
+                "task_id": task_id_filter or None,
+            }
             if board_json:
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -5191,6 +5173,23 @@ def main(argv: list[str] | None = None) -> int:
                     f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
                     f"run_events_total={ag.get('run_events_total', 0)}",
                 )
+                failed_summary = payload.get("failed_summary")
+                recent_failed = (
+                    failed_summary.get("recent")
+                    if isinstance(failed_summary, dict)
+                    else None
+                )
+                if isinstance(recent_failed, list) and recent_failed:
+                    print("[recent_failed]")
+                    for row in recent_failed:
+                        if not isinstance(row, dict):
+                            continue
+                        print(
+                            "  "
+                            f"path={row.get('path')} "
+                            f"task_id={row.get('task_id')} "
+                            f"errors={row.get('error_count')}",
+                        )
                 wf = payload.get("last_workflow")
                 if isinstance(wf, dict):
                     task = wf.get("task") if isinstance(wf.get("task"), dict) else {}

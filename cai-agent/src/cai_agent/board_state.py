@@ -119,3 +119,38 @@ def filter_board_payload(
     obs2["sessions_count"] = len(rows)
     out["observe"] = obs2
     return out
+
+
+def attach_failed_summary(
+    payload: dict[str, Any],
+    *,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """附加失败会话摘要，便于快速排障。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["failed_summary"] = {"count": 0, "recent": []}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["failed_summary"] = {"count": 0, "recent": []}
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    failed = [r for r in rows if int(r.get("error_count") or 0) > 0]
+    recent: list[dict[str, Any]] = []
+    for r in failed[: max(limit, 1)]:
+        recent.append(
+            {
+                "path": r.get("path"),
+                "task_id": r.get("task_id"),
+                "error_count": r.get("error_count"),
+                "model": r.get("model"),
+                "elapsed_ms": r.get("elapsed_ms"),
+            },
+        )
+    out["failed_summary"] = {
+        "count": len(failed),
+        "recent": recent,
+    }
+    return out
