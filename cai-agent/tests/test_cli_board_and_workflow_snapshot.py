@@ -288,6 +288,60 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_json_combined_filters_failed_and_status(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                rows = [
+                    {
+                        "name": ".cai-session-failed.json",
+                        "task": {"task_id": "run-f-1", "type": "run", "status": "failed"},
+                        "error_count": 1,
+                    },
+                    {
+                        "name": ".cai-session-running.json",
+                        "task": {"task_id": "run-r-1", "type": "run", "status": "running"},
+                        "error_count": 0,
+                    },
+                    {
+                        "name": ".cai-session-completed.json",
+                        "task": {"task_id": "run-c-1", "type": "run", "status": "completed"},
+                        "error_count": 0,
+                    },
+                ]
+                for r in rows:
+                    payload = {
+                        "version": 2,
+                        "run_schema_version": "1.0",
+                        "task": r["task"],
+                        "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                        "error_count": r["error_count"],
+                        "total_tokens": 1,
+                        "prompt_tokens": 1,
+                        "completion_tokens": 0,
+                        "elapsed_ms": 1,
+                    }
+                    (root / r["name"]).write_text(json.dumps(payload), encoding="utf-8")
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json", "--failed-only", "--status", "failed,running"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                obs = payload.get("observe") or {}
+                sessions = obs.get("sessions") or []
+                self.assertEqual(len(sessions), 1)
+                self.assertEqual(sessions[0].get("task_id"), "run-f-1")
+                filters = payload.get("filters") or {}
+                status_values = filters.get("status")
+                self.assertTrue(isinstance(status_values, list))
+                self.assertIn("failed", status_values)
+                self.assertIn("running", status_values)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()

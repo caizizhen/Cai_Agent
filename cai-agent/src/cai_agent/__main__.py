@@ -3346,6 +3346,12 @@ def main(argv: list[str] | None = None) -> int:
         help="按 task_id 精确过滤会话",
     )
     board_p.add_argument(
+        "--status",
+        action="append",
+        default=[],
+        help="按任务状态过滤（可重复）：pending/running/completed/failed/unknown",
+    )
+    board_p.add_argument(
         "--failed-top",
         type=int,
         default=5,
@@ -5155,6 +5161,14 @@ def main(argv: list[str] | None = None) -> int:
         board_json = bool(getattr(args, "json_output", False))
         failed_only = bool(getattr(args, "failed_only", False))
         task_id_filter = str(getattr(args, "task_id", "") or "").strip()
+        raw_statuses = getattr(args, "status", []) or []
+        statuses_filter: list[str] = []
+        if isinstance(raw_statuses, list):
+            for raw in raw_statuses:
+                parts = [p.strip().lower() for p in str(raw or "").split(",")]
+                for s in parts:
+                    if s and s not in statuses_filter:
+                        statuses_filter.append(s)
         _print_hook_status(
             settings_board,
             event="board_start",
@@ -5170,6 +5184,7 @@ def main(argv: list[str] | None = None) -> int:
                 payload,
                 failed_only=failed_only,
                 task_id=task_id_filter or None,
+                status_filters=statuses_filter,
             )
             payload = attach_failed_summary(
                 payload,
@@ -5183,6 +5198,13 @@ def main(argv: list[str] | None = None) -> int:
             payload["filters"] = {
                 "failed_only": failed_only,
                 "task_id": task_id_filter or None,
+                "status": sorted(
+                    {
+                        str(s).strip().lower()
+                        for s in statuses_filter
+                        if str(s).strip()
+                    },
+                ),
             }
             if board_json:
                 print(json.dumps(payload, ensure_ascii=False))

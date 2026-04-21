@@ -100,6 +100,7 @@ def filter_board_payload(
     *,
     failed_only: bool = False,
     task_id: str | None = None,
+    status_filters: list[str] | None = None,
 ) -> dict[str, Any]:
     """按最小看板诉求筛选会话行，不改变顶层 schema。"""
     out = dict(payload)
@@ -110,6 +111,23 @@ def filter_board_payload(
     if not isinstance(sessions, list):
         return out
     rows = [r for r in sessions if isinstance(r, dict)]
+    allowed_status: set[str] = set()
+    if isinstance(status_filters, list):
+        for st in status_filters:
+            s = str(st or "").strip().lower()
+            if s in ("pending", "running", "completed", "failed", "unknown"):
+                allowed_status.add(s)
+    if allowed_status:
+        filtered_rows: list[dict[str, Any]] = []
+        for r in rows:
+            st_raw = str(r.get("task_status") or "").strip().lower()
+            ec = int(r.get("error_count") or 0)
+            derived = st_raw if st_raw in ("pending", "running", "completed", "failed") else (
+                "failed" if ec > 0 else "unknown"
+            )
+            if derived in allowed_status:
+                filtered_rows.append(r)
+        rows = filtered_rows
     if failed_only:
         rows = [r for r in rows if int(r.get("error_count") or 0) > 0]
     tid = str(task_id or "").strip()
