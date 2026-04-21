@@ -56,6 +56,7 @@ from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_security_scan
 from cai_agent.schedule import (
     add_schedule_task,
+    append_schedule_audit_event,
     compute_due_tasks,
     list_schedule_tasks,
     load_schedule_doc,
@@ -2223,6 +2224,24 @@ def main(argv: list[str] | None = None) -> int:
         help="任务执行时使用的工作区（默认当前目录）",
     )
     schedule_add.add_argument("--model", default=None, help="可选模型覆盖")
+    schedule_add.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        help="依赖的任务 id（可重复；依赖任务未 completed 时不会触发执行）",
+    )
+    schedule_add.add_argument(
+        "--retry-max-attempts",
+        type=int,
+        default=1,
+        help="失败重试次数上限（含首次执行，默认 1）",
+    )
+    schedule_add.add_argument(
+        "--retry-backoff-sec",
+        type=float,
+        default=0.0,
+        help="失败重试退避秒数（默认 0）",
+    )
     schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
     schedule_add.add_argument("--json", action="store_true", dest="json_output")
 
@@ -3458,7 +3477,22 @@ def main(argv: list[str] | None = None) -> int:
                 every_minutes=int(args.every_minutes),
                 workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
                 model=str(args.model) if getattr(args, "model", None) else None,
+                depends_on=[str(x) for x in list(getattr(args, "depends_on", []) or [])],
+                retry_max_attempts=int(getattr(args, "retry_max_attempts", 1)),
+                retry_backoff_sec=float(getattr(args, "retry_backoff_sec", 0.0)),
                 cwd=str(root),
+            )
+            append_schedule_audit_event(
+                task_id=str(job.get("id") or ""),
+                status="created",
+                action="schedule.add",
+                cwd=str(root),
+                details={
+                    "every_minutes": job.get("every_minutes"),
+                    "depends_on": job.get("depends_on"),
+                    "retry_max_attempts": job.get("retry_max_attempts"),
+                    "retry_backoff_sec": job.get("retry_backoff_sec"),
+                },
             )
             if bool(args.disabled):
                 doc = load_schedule_doc(str(root))
@@ -3579,14 +3613,36 @@ def main(argv: list[str] | None = None) -> int:
                             "error": "empty_goal",
                         },
                     )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="failed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"reason": "empty_goal"},
+                    )
                     continue
-                ok, out = _execute_scheduled_goal(
-                    config_path=None,
-                    workspace_hint=workspace_override,
-                    workspace_override=workspace_override,
-                    model_override=model_override,
-                    goal=goal,
-                )
+                max_attempts = int(j.get("retry_max_attempts") or 1)
+                if max_attempts < 1:
+                    max_attempts = 1
+                backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
+                if backoff_sec < 0:
+                    backoff_sec = 0.0
+                attempts = 0
+                ok = False
+                out = ""
+                while attempts < max_attempts:
+                    attempts += 1
+                    ok, out = _execute_scheduled_goal(
+                        config_path=None,
+                        workspace_hint=workspace_override,
+                        workspace_override=workspace_override,
+                        model_override=model_override,
+                        goal=goal,
+                    )
+                    if ok:
+                        break
+                    if attempts < max_attempts and backoff_sec > 0:
+                        time.sleep(backoff_sec)
                 if ok:
                     mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                     preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -3598,7 +3654,15 @@ def main(argv: list[str] | None = None) -> int:
                             "answer_preview": preview,
                             "workspace": workspace_override,
                             "model": model_override,
+                            "attempts": attempts,
                         },
+                    )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="completed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"attempts": attempts},
                     )
                 else:
                     mark_schedule_task_run(
@@ -3615,7 +3679,15 @@ def main(argv: list[str] | None = None) -> int:
                             "error": out,
                             "workspace": workspace_override,
                             "model": model_override,
+                            "attempts": attempts,
                         },
+                    )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="failed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"attempts": attempts, "error": out[:500]},
                     )
             payload = {"mode": "execute", "due_jobs": due, "executed": executed}
             if bool(args.json_output):
