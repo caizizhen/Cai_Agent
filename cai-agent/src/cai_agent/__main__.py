@@ -250,6 +250,71 @@ def _build_memory_nudge_payload(
     }
 
 
+def _build_memory_nudge_report_payload(
+    *,
+    cwd: str,
+    history_file: str | None,
+    limit: int,
+) -> dict[str, Any]:
+    root = Path(cwd).resolve()
+    history_path = Path(history_file).expanduser() if isinstance(history_file, str) and history_file.strip() else (root / "memory" / "nudge-history.jsonl")
+    if not history_path.is_absolute():
+        history_path = (root / history_path).resolve()
+    if not history_path.is_file():
+        return {
+            "schema_version": "1.0",
+            "history_file": str(history_path),
+            "history_total": 0,
+            "rows_total": 0,
+            "severity_counts": {"low": 0, "medium": 0, "high": 0, "unknown": 0},
+            "latest_severity": None,
+            "severity_trend": [],
+            "avg_recent_sessions": 0.0,
+            "avg_memory_entries": 0.0,
+            "reports": [],
+        }
+
+    rows: list[dict[str, Any]] = []
+    sev_counts: dict[str, int] = {"low": 0, "medium": 0, "high": 0, "unknown": 0}
+    for line in history_path.read_text(encoding="utf-8").splitlines()[-max(1, limit):]:
+        raw = line.strip()
+        if not raw:
+            continue
+        try:
+            obj = json.loads(raw)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        sev = str(obj.get("severity") or "unknown").strip().lower()
+        if sev not in ("low", "medium", "high"):
+            sev = "unknown"
+        sev_counts[sev] = int(sev_counts.get(sev, 0)) + 1
+        rows.append(
+            {
+                "generated_at": obj.get("generated_at"),
+                "severity": sev,
+                "recent_sessions": int(obj.get("recent_sessions") or 0),
+                "memory_entries": int(obj.get("memory_entries") or 0),
+            },
+        )
+    trend = [str(r.get("severity") or "unknown") for r in rows]
+    avg_recent = (sum(int(r.get("recent_sessions") or 0) for r in rows) / len(rows)) if rows else 0.0
+    avg_mem = (sum(int(r.get("memory_entries") or 0) for r in rows) / len(rows)) if rows else 0.0
+    return {
+        "schema_version": "1.0",
+        "history_file": str(history_path),
+        "history_total": len(rows),
+        "rows_total": len(rows),
+        "severity_counts": sev_counts,
+        "latest_severity": trend[-1] if trend else None,
+        "severity_trend": trend,
+        "avg_recent_sessions": round(avg_recent, 2),
+        "avg_memory_entries": round(avg_mem, 2),
+        "reports": rows,
+    }
+
+
 def _extract_session_recall_hits(
     *,
     session: dict[str, Any],
@@ -2086,6 +2151,17 @@ def main(argv: list[str] | None = None) -> int:
         help="当 severity 达到阈值时返回非 0（medium|high）",
     )
     memory_nudge.add_argument("--json", action="store_true", dest="json_output")
+    memory_nudge_report = memory_sub.add_parser(
+        "nudge-report",
+        help="汇总 memory nudge 历史 JSONL，输出趋势报告",
+    )
+    memory_nudge_report.add_argument(
+        "--history-file",
+        default="memory/nudge-history.jsonl",
+        help="nudge 历史 JSONL 路径（相对工作区或绝对路径）",
+    )
+    memory_nudge_report.add_argument("--limit", type=int, default=200, help="最多读取历史条目数")
+    memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
 
     schedule_p = sub.add_parser(
         "schedule",
@@ -3292,6 +3368,22 @@ def main(argv: list[str] | None = None) -> int:
                     got = str(payload.get("severity") or "low").strip().lower()
                     if sev_map.get(got, 0) >= sev_map.get(fail_th, 99):
                         return 2
+                return 0
+            if args.memory_action == "nudge-report":
+                payload = _build_memory_nudge_report_payload(
+                    cwd=str(root),
+                    history_file=getattr(args, "history_file", None),
+                    limit=int(getattr(args, "limit", 200)),
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(
+                        f"[memory nudge report] entries={payload.get('entries_considered')} "
+                        f"latest={payload.get('latest_severity')} "
+                        f"high={payload.get('severity_counts', {}).get('high', 0)}",
+                    )
+                    print(f"history_file={payload.get('history_file')}")
                 return 0
         finally:
             _print_hook_status(

@@ -129,6 +129,43 @@ Expected:
 - `./memory/nudge-latest.json` is updated by the command.
 - If severity crosses threshold, task status is marked failed (non-zero command semantics visible in execution metadata/logs).
 
+### MN-008: Nudge history trend report
+
+Steps:
+
+1. Ensure history file exists with multiple JSONL lines:
+   - `memory/nudge-history.jsonl`
+2. Run:
+   - `cai-agent memory nudge-report --json --limit 50`
+
+Expected:
+
+- Exit code `0`.
+- JSON contains:
+  - `schema_version = "1.0"`
+  - `history_total` (sample count in report window)
+  - `severity_counts`
+  - `latest_severity`
+  - `severity_trend`
+  - `avg_recent_sessions` / `avg_memory_entries`
+  - `reports` (ordered history rows)
+
+### MN-009: Nudge report with no history file
+
+Steps:
+
+1. Ensure `memory/nudge-history.jsonl` is absent.
+2. Run:
+   - `cai-agent memory nudge-report --json`
+
+Expected:
+
+- Exit code `0`.
+- JSON returns a valid empty summary:
+  - `history_total = 0`
+  - `reports = []`
+  - `latest_severity = null`
+
 ## Automated Regression
 
 Run:

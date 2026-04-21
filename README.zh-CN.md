@@ -537,6 +537,19 @@ cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-se
 - `--fail-on-severity` 在严重级别达到阈值时返回非 0（`low|medium|high`），适合做守门检查；
 - 可与 `schedule add/run-due/daemon` 组合，定期巡检记忆质量。
 
+### `cai-agent memory nudge-report --json`
+
+记忆提醒趋势聚合：读取 `memory nudge --write-history` 产出的 JSONL 历史，输出 severity 计数、最新级别、趋势序列和均值指标，便于 QA/运维观察“记忆健康是否持续改善”。
+
+```bash
+cai-agent memory nudge --json --write-history ./memory/nudge-history.jsonl
+cai-agent memory nudge-report --json --history-file ./memory/nudge-history.jsonl --limit 100
+```
+
+- 默认历史文件为 `./memory/nudge-history.jsonl`；
+- `--limit` 只聚合最近 N 条记录（默认 100）；
+- 可与 `schedule add-memory-nudge` 配合形成“生成快照 + 聚合看板”的治理闭环。
+
 ### `cai-agent schedule`（生产护栏补充）
 
 ```bash
