@@ -941,6 +941,104 @@ def _clear_recall_index(
     return {"ok": True, "removed": True, "index_file": str(idx)}
 
 
+def _run_release_ga_gate(
+    *,
+    cwd: str,
+    max_failure_rate: float,
+    max_tokens: int | None,
+    run_quality_gate_check: bool,
+    run_security_scan_check: bool,
+    include_lint: bool,
+    include_typecheck: bool,
+) -> dict[str, Any]:
+    settings = Settings.from_env(config_path=None, workspace_hint=cwd)
+    ag = aggregate_sessions(cwd=cwd, limit=200)
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    token_budget = int(max_tokens) if isinstance(max_tokens, int) else int(settings.cost_budget_max_tokens)
+    checks: list[dict[str, Any]] = []
+
+    fail_rate_ok = failure_rate <= max_failure_rate
+    checks.append(
+        {
+            "name": "session_failure_rate",
+            "ok": fail_rate_ok,
+            "actual": round(failure_rate, 6),
+            "threshold": round(max_failure_rate, 6),
+            "detail": f"failure_rate={failure_rate:.4f} threshold={max_failure_rate:.4f}",
+        },
+    )
+
+    token_ok = total_tokens <= token_budget
+    checks.append(
+        {
+            "name": "token_budget",
+            "ok": token_ok,
+            "actual": total_tokens,
+            "threshold": token_budget,
+            "detail": f"total_tokens={total_tokens} threshold={token_budget}",
+        },
+    )
+
+    if run_security_scan_check:
+        sec = run_security_scan(settings)
+        sec_ok = bool(sec.get("ok"))
+        checks.append(
+            {
+                "name": "security_scan",
+                "ok": sec_ok,
+                "findings_count": int(sec.get("findings_count", 0) or 0),
+                "detail": (
+                    f"findings={int(sec.get('findings_count', 0) or 0)}"
+                    f" scanned_files={int(sec.get('scanned_files', 0) or 0)}"
+                ),
+            },
+        )
+
+    if run_quality_gate_check:
+        gate = run_quality_gate(
+            settings,
+            enable_compile=settings.quality_gate_compile,
+            enable_test=settings.quality_gate_test,
+            enable_lint=bool(include_lint) or settings.quality_gate_lint,
+            enable_typecheck=bool(include_typecheck) or settings.quality_gate_typecheck,
+            enable_security_scan=False,
+            report_dir=None,
+        )
+        gate_ok = bool(gate.get("ok"))
+        checks.append(
+            {
+                "name": "quality_gate",
+                "ok": gate_ok,
+                "failed_count": int(gate.get("failed_count", 0) or 0),
+                "detail": f"failed_count={int(gate.get('failed_count', 0) or 0)}",
+            },
+        )
+
+    ok = all(bool(c.get("ok")) for c in checks)
+    failed_checks = [str(c.get("name") or "") for c in checks if not bool(c.get("ok"))]
+    state = "pass" if ok else "fail"
+    return {
+        "schema_version": "release_ga_gate_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(Path(cwd).resolve()),
+        "ok": ok,
+        "state": state,
+        "checks_passed": len(checks) - len(failed_checks),
+        "checks_failed": len(failed_checks),
+        "failed_checks": failed_checks,
+        "failure_rate": failure_rate,
+        "total_tokens": total_tokens,
+        "checks": checks,
+        "aggregates": {
+            "sessions_count": int(ag.get("sessions_count", 0) or 0),
+            "failure_rate": failure_rate,
+            "total_tokens": total_tokens,
+            "token_budget": token_budget,
+        },
+    }
+
+
 def _execute_scheduled_goal(
     *,
     config_path: str | None,
@@ -2464,6 +2562,25 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="覆盖 [cost] budget_max_tokens；未指定时读配置",
     )
+    release_ga_p = sub.add_parser(
+        "release-ga",
+        help="发布前 GA 门禁检查（质量+安全+成本+失败率）",
+    )
+    release_ga_p.add_argument("--no-quality-gate", action="store_true", default=False)
+    release_ga_p.add_argument("--with-security-scan", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--max-failure-rate",
+        type=float,
+        default=0.25,
+        help="observe 聚合允许的最大失败率（默认 0.25）",
+    )
+    release_ga_p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help="覆盖 [cost] budget_max_tokens；未指定时读配置",
+    )
+    release_ga_p.add_argument("--json", action="store_true", dest="json_output")
 
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
@@ -4227,6 +4344,33 @@ def main(argv: list[str] | None = None) -> int:
                     f"tool_calls={tools} errors={errors} goal={goal!r}"
                 )
         return 0
+
+    if args.command == "release-ga":
+        payload = _run_release_ga_gate(
+            cwd=os.getcwd(),
+            max_failure_rate=float(getattr(args, "max_failure_rate", 0.20)),
+            max_tokens=(int(args.max_tokens) if getattr(args, "max_tokens", None) is not None else None),
+            run_quality_gate_check=not bool(getattr(args, "no_quality_gate", False)),
+            run_security_scan_check=bool(getattr(args, "with_security_scan", False)),
+            include_lint=False,
+            include_typecheck=False,
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"[release-ga] state={payload.get('state')} "
+                f"checks_passed={payload.get('checks_passed')} "
+                f"failure_rate={payload.get('failure_rate')} "
+                f"total_tokens={payload.get('total_tokens')}",
+            )
+            failures = payload.get("failed_checks") or []
+            if failures:
+                print("[release-ga] failed checks:")
+                for x in failures:
+                    if isinstance(x, dict):
+                        print(f"- {x.get('name')}: {x.get('reason')}")
+        return 0 if str(payload.get("state")) == "pass" else 2
 
     if args.command in ("run", "continue", "command", "agent", "fix-build"):
         try:

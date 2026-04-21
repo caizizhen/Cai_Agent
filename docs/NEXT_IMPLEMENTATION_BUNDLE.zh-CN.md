@@ -50,6 +50,7 @@
 ### 钩子
 
 - [x] `hooks.json` 的 `event` 与 CLI 对齐：`session_*`、`workflow_*`、`quality_gate_*`、`security_scan_*`、`memory_*`、`export_*`、`observe_*`、`cost_budget_*`（见 [hooks/README.md](../hooks/README.md)）；自动执行 hook 脚本仍待办
+- [本轮已落地] hook 执行结果可观测增强：CLI 非 JSON 输出会显示每个 hook 的 `ok/blocked/error/skipped` 摘要（不再仅打印 hook id）
 
 ## L3 — 治理与跨 harness
 
@@ -57,12 +58,22 @@
 
 - [x] `memory/entries.jsonl` 行级 **schema v1** 校验（`cai_agent/schemas/memory_entry_v1.schema.json` + 写入前 Python 校验）
 - [ ] 记忆 TTL/置信度策略与 `memory prune` 规则文档化
+- [本轮已落地] `memory nudge` schema 升级到 `1.1`：增加 `threshold_policy`、`risk_score`、`trend`，并保持 `severity/actions` 兼容字段
 - [ ] `memory extract` 可选 LLM 结构化抽取
 
 ### 质量与安全
 
 - [ ] `quality-gate` 多语言栈模板（前端 monorepo）
 - [ ] `security-scan` 规则与 CI 徽章示例
+- [本轮已落地] `release-ga --json` 门禁聚合：统一汇总 quality-gate / security-scan / token 预算 / 会话失败率，并给出 `state=pass|warn|fail` 与门禁明细
+
+## 本轮已完成增量（补记）
+
+- [本轮已落地] TUI 常用命令模板快捷入口：`/fix-build`、`/security-scan`
+- [本轮已落地] Scheduler 任务模型增强：`depends_on` 依赖链、`retry_max_attempts/retry_backoff_sec` 重试策略、`.cai-schedule-audit.jsonl` 审计日志
+- [本轮已落地] `schedule daemon --execute` 与 `run-due --execute` 行为对齐（重试+审计+attempts 输出）
+- [本轮已落地] Recall Loop 增强：`recall` schema `1.1`、混合排序（recency/hit_strength/keyword_density）、行级 `score/score_breakdown`
+- [本轮已落地] Workflow 子代理编排增强：step 级 `parallel_group` 并发、`workflow.parallel_group.completed` 事件、`merge_confidence` 汇总
 
 ### 导出与生态
 
