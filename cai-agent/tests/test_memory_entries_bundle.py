@@ -8,6 +8,7 @@ from pathlib import Path
 from cai_agent.memory import (
     export_memory_entries_bundle,
     import_memory_entries_bundle,
+    validate_memory_entries_bundle,
     validate_memory_entry_row,
 )
 
@@ -61,6 +62,38 @@ class MemoryEntriesBundleTests(unittest.TestCase):
             bundle = export_memory_entries_bundle(root)
             self.assertEqual(len(bundle.get("entries")), 1)
             self.assertEqual(bundle["entries"][0]["id"], "e1")
+
+    def test_validate_bundle_rows_reports_entry_index_and_field_errors(self) -> None:
+        bundle = {
+            "schema_version": "memory_entries_bundle_v1",
+            "entries": [
+                {
+                    "id": "ok",
+                    "category": "unit",
+                    "text": "hello",
+                    "confidence": 0.5,
+                    "expires_at": None,
+                    "created_at": "2021-01-01T00:00:00+00:00",
+                },
+                {
+                    "id": "",
+                    "category": "unit",
+                    "text": "bad",
+                    "confidence": 2,
+                    "expires_at": None,
+                    "created_at": "",
+                },
+            ],
+        }
+        rows, errors = validate_memory_entries_bundle(bundle)
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(len(errors), 1)
+        err = errors[0]
+        self.assertEqual(err.get("entry_index"), 2)
+        self.assertTrue(isinstance(err.get("errors"), list))
+        txt = " ".join(str(x) for x in err.get("errors") or [])
+        self.assertIn("id", txt)
+        self.assertIn("confidence", txt)
 
 
 if __name__ == "__main__":

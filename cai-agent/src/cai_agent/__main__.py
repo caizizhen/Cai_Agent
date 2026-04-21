@@ -3098,6 +3098,11 @@ def main(argv: list[str] | None = None) -> int:
         help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
     )
     memory_import_entries.add_argument("file")
+    memory_import_entries.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="仅校验 bundle，不写入 entries.jsonl",
+    )
     memory_nudge = memory_sub.add_parser(
         "nudge",
         help="根据近期会话与记忆状态给出沉淀提醒（Hermes-style memory nudge）",
@@ -4661,8 +4666,13 @@ def main(argv: list[str] | None = None) -> int:
             if args.memory_action == "import-entries":
                 src = Path(args.file).expanduser().resolve()
                 doc = json.loads(src.read_text(encoding="utf-8"))
-                n = import_memory_entries_bundle(root, doc)
-                print(json.dumps({"imported": n}, ensure_ascii=False))
+                dry_run = bool(getattr(args, "dry_run", False))
+                if dry_run:
+                    n = import_memory_entries_bundle(root, doc, dry_run=True)
+                    print(json.dumps({"validated": n, "dry_run": True}, ensure_ascii=False))
+                else:
+                    n = import_memory_entries_bundle(root, doc)
+                    print(json.dumps({"imported": n}, ensure_ascii=False))
                 return 0
             if args.memory_action == "nudge":
                 payload = _build_memory_nudge_payload(

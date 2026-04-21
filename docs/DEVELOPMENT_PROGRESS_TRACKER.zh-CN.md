@@ -44,6 +44,8 @@
 
 ### D. Memory Loop
 
+- `memory import-entries` 严格化：新增 `--dry-run` 仅校验不落盘路径，支持在导入前做批量 schema 预检
+- `memory import-entries` 错误语义增强：无效 bundle 返回结构化错误（entry_index/path/errors），便于快速定位坏数据行
 - `memory nudge` schema 升级至 `1.1`
 - 新增 `threshold_policy` / `risk_score` / `trend`
 - 新增记忆状态机评估：`active/stale/expired`（`memory state`）
@@ -118,7 +120,7 @@
 
 ## 下一阶段建议（按价值）
 
-1. Sprint 3 持续推进：补 MCP 配置模板与“从零接入”复现脚本（WebSearch/Notebook），并将 fallback_hint 对接到 onboarding 文档
+1. Sprint 4 持续推进：补 memory import/export CLI 的错误分级码与迁移向导文档
 2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）

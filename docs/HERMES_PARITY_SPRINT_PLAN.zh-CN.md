@@ -135,6 +135,11 @@
   - 依赖现有 memory schema 文件。
   - 风险：老数据兼容，需要迁移/忽略策略。
 
+完成记录（进行中）：
+- 已落地 `memory import-entries --dry-run`：导入前可先做纯校验，不写入磁盘。
+- 已强化 bundle 校验错误语义：返回结构化错误（`entry_index/path/errors`），并在 CLI 失败时输出 `error=memory_bundle_invalid` + `validation_errors`。
+- 目的：让坏数据导入失败具备可定位、可修复、可自动化消费的错误结构，降低批量数据迁移风险。
+
 ### Sprint 5：Hooks Runtime 深化（执行器 + profile）
 
 - 范围

@@ -189,6 +189,29 @@ def import_memory_entries_bundle(root: str | Path, bundle: dict[str, Any]) -> in
     return len(to_write)
 
 
+def validate_memory_entries_bundle(
+    bundle: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """校验 bundle 内容并返回可写行与结构化错误（不写入磁盘）。"""
+    if not isinstance(bundle, dict):
+        return [], [{"entry_index": None, "path": "root", "errors": ["根对象须为 JSON object"]}]
+    entries = bundle.get("entries")
+    if not isinstance(entries, list):
+        return [], [{"entry_index": None, "path": "root.entries", "errors": ["缺少 entries 数组"]}]
+    valid_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for i, row in enumerate(entries, start=1):
+        if not isinstance(row, dict):
+            errors.append({"entry_index": i, "path": f"entries[{i}]", "errors": ["须为 object"]})
+            continue
+        row_errs = validate_memory_entry_row(row)
+        if row_errs:
+            errors.append({"entry_index": i, "path": f"entries[{i}]", "errors": list(row_errs)})
+            continue
+        valid_rows.append(row)
+    return valid_rows, errors
+
+
 def _parse_created_at(row: dict[str, Any]) -> float:
     raw = row.get("created_at")
     if not isinstance(raw, str) or not raw.strip():
