@@ -4,6 +4,7 @@ import io
 import json
 import unittest
 from contextlib import redirect_stdout
+from contextlib import redirect_stderr
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
@@ -95,8 +96,9 @@ class GatewayTelegramCliTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root = Path(td)
             buf = io.StringIO()
+            err = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
-                with redirect_stdout(buf):
+                with redirect_stdout(buf), redirect_stderr(err):
                     rc = main(
                         [
                             "gateway",
@@ -113,3 +115,105 @@ class GatewayTelegramCliTests(unittest.TestCase):
             payload = json.loads(buf.getvalue().strip())
             self.assertIs(payload.get("ok"), False)
             self.assertIsNone(payload.get("binding"))
+
+    def test_resolve_update_creates_and_reuses_binding(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            update_file = root / "update.json"
+            update_file.write_text(
+                json.dumps(
+                    {
+                        "update_id": 777,
+                        "message": {
+                            "message_id": 10,
+                            "chat": {"id": 5001},
+                            "from": {"id": 9002},
+                            "text": "hello",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            buf1 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf1):
+                    rc1 = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "resolve-update",
+                            "--update-file",
+                            str(update_file),
+                            "--create-missing",
+                            "--session-template",
+                            ".cai/gateway/sessions/tg-chat-{chat_id}-user-{user_id}.json",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc1, 0)
+            p1 = json.loads(buf1.getvalue().strip())
+            self.assertEqual(p1.get("action"), "resolve-update")
+            self.assertEqual(p1.get("chat_id"), "5001")
+            self.assertEqual(p1.get("user_id"), "9002")
+            self.assertIs(p1.get("created"), True)
+            sess1 = str((p1.get("binding") or {}).get("session_file") or "")
+            self.assertTrue(sess1.endswith(".cai/gateway/sessions/tg-chat-5001-user-9002.json"))
+
+            buf2 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf2):
+                    rc2 = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "resolve-update",
+                            "--update-file",
+                            str(update_file),
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc2, 0)
+            p2 = json.loads(buf2.getvalue().strip())
+            self.assertIs(p2.get("created"), False)
+            self.assertEqual(str((p2.get("binding") or {}).get("session_file") or ""), sess1)
+
+    def test_resolve_update_missing_user_returns_nonzero(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            update_file = root / "bad-update.json"
+            update_file.write_text(
+                json.dumps(
+                    {
+                        "update_id": 778,
+                        "message": {
+                            "message_id": 11,
+                            "chat": {"id": 5001},
+                            "text": "no user",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "resolve-update",
+                            "--update-file",
+                            str(update_file),
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("action"), "resolve-update")
+            self.assertEqual(payload.get("error"), "invalid_update")

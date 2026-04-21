@@ -1371,6 +1371,32 @@ def _save_gateway_map(path: Path, doc: dict[str, Any]) -> None:
     )
 
 
+def _extract_telegram_ids_from_update(obj: dict[str, Any]) -> tuple[str | None, str | None]:
+    """从 Telegram update JSON 中提取 chat_id/user_id。"""
+    candidates: list[dict[str, Any]] = []
+    for key in ("message", "edited_message", "callback_query", "channel_post"):
+        val = obj.get(key)
+        if isinstance(val, dict):
+            candidates.append(val)
+    for item in candidates:
+        chat_obj = item.get("chat")
+        from_obj = item.get("from")
+        if isinstance(item.get("message"), dict):
+            inner = item.get("message")
+            if isinstance(inner, dict):
+                chat_obj = inner.get("chat") if isinstance(inner.get("chat"), dict) else chat_obj
+                from_obj = inner.get("from") if isinstance(inner.get("from"), dict) else from_obj
+        if not isinstance(from_obj, dict):
+            sender_chat = item.get("sender_chat")
+            if isinstance(sender_chat, dict):
+                from_obj = sender_chat
+        chat_id = str(chat_obj.get("id")).strip() if isinstance(chat_obj, dict) and "id" in chat_obj else ""
+        user_id = str(from_obj.get("id")).strip() if isinstance(from_obj, dict) and "id" in from_obj else ""
+        if chat_id and user_id:
+            return chat_id, user_id
+    return None, None
+
+
 def _acquire_schedule_daemon_lock(
     *,
     lock_path: Path,
@@ -2971,6 +2997,22 @@ def main(argv: list[str] | None = None) -> int:
     gw_tg_unbind.add_argument("--user-id", required=True)
     gw_tg_unbind.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
     gw_tg_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_resolve = gw_tg_sub.add_parser("resolve-update", help="从 Telegram update JSON 解析并解析/创建映射")
+    gw_tg_resolve.add_argument("--update-file", required=True, help="Telegram update JSON 文件路径")
+    gw_tg_resolve.add_argument(
+        "--session-template",
+        default=".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+        help="当映射不存在时自动创建的会话文件模板（支持 {chat_id}/{user_id}）",
+    )
+    gw_tg_resolve.add_argument(
+        "--create-missing",
+        action="store_true",
+        default=False,
+        help="映射缺失时自动创建新映射与会话文件路径",
+    )
+    gw_tg_resolve.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_resolve.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -4805,6 +4847,107 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
                     print(f"removed={bool(row)} total={len(bindings)}")
+                return 0 if row else 2
+            if act == "resolve-update":
+                json_out = bool(getattr(args, "json_output", False))
+                update_raw = str(getattr(args, "update_file", "") or "").strip()
+                if not update_raw:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_args",
+                        "message": "update-file 不能为空",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("update-file 不能为空", file=sys.stderr)
+                    return 2
+                up = Path(update_raw).expanduser()
+                if not up.is_absolute():
+                    up = (root / up).resolve()
+                else:
+                    up = up.resolve()
+                try:
+                    update_obj = json.loads(up.read_text(encoding="utf-8"))
+                except Exception as e:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "read_update_failed",
+                        "message": str(e),
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print(f"读取 update JSON 失败: {e}", file=sys.stderr)
+                    return 2
+                if not isinstance(update_obj, dict):
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_update",
+                        "message": "update JSON 根对象必须为 object",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("update JSON 根对象必须为 object", file=sys.stderr)
+                    return 2
+                chat_id, user_id = _extract_telegram_ids_from_update(update_obj)
+                if not chat_id or not user_id:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_update",
+                        "message": "无法从 update JSON 提取 chat_id/user_id",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("无法从 update JSON 提取 chat_id/user_id", file=sys.stderr)
+                    return 2
+                key = f"{chat_id}:{user_id}"
+                row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+                created = False
+                if row is None and bool(getattr(args, "create_missing", False)):
+                    tpl = str(getattr(args, "session_template", "") or "").strip()
+                    if not tpl:
+                        print("session-template 不能为空", file=sys.stderr)
+                        return 2
+                    rel = tpl.format(chat_id=chat_id, user_id=user_id)
+                    p = Path(rel).expanduser()
+                    if not p.is_absolute():
+                        p = (root / p).resolve()
+                    else:
+                        p = p.resolve()
+                    row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+                    bindings[key] = row
+                    _save_gateway_map(map_path, doc)
+                    created = True
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "resolve-update",
+                    "ok": bool(row),
+                    "created": created,
+                    "map_file": str(map_path),
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "binding": row,
+                }
+                if json_out:
+                    print(json.dumps(payload, ensure_ascii=False))
+                elif row:
+                    print(
+                        f"resolved chat_id={chat_id} user_id={user_id} "
+                        f"session_file={row.get('session_file')} created={created}",
+                    )
+                else:
+                    print(f"mapping_not_found chat_id={chat_id} user_id={user_id}")
                 return 0 if row else 2
         return 2
 
