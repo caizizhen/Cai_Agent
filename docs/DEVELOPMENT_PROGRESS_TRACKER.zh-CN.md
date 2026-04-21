@@ -57,7 +57,7 @@
 |---|---|---|
 | Scheduler V2 | **高完成度** | 任务模型核心已落地（依赖/重试/审计） |
 | Recall Loop V2 | **高完成度** | ranking、索引与 `recall-index benchmark` 性能对比能力已落地 |
-| Memory Loop V2 | **中完成度** | nudge schema/阈值到位，TTL/状态机细化待继续 |
+| Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略 |
 | Subagents 编排 | **中完成度** | workflow 并行与合并增强完成，DSL 规范仍待细化 |
 | Observability | **中完成度** | hook 结果可见，统一报表/告警规则待补 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
@@ -66,7 +66,7 @@
 
 ## 当前总体进度（估算）
 
-- 总体：**约 71%**
+- 总体：**约 75%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 

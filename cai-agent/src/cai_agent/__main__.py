@@ -2520,7 +2520,19 @@ def main(argv: list[str] | None = None) -> int:
         help="confidence 或 created_at（命中后排序再截断）",
     )
     memory_search.add_argument("--json", action="store_true", dest="json_output")
-    memory_prune = memory_sub.add_parser("prune", help="删除已过期的记忆条目")
+    memory_prune = memory_sub.add_parser("prune", help="按策略清理记忆条目（过期/低置信度/超额保留）")
+    memory_prune.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="低于该置信度的条目会被删除（默认 0.0，不按置信度删）",
+    )
+    memory_prune.add_argument(
+        "--max-entries",
+        type=int,
+        default=0,
+        help="最多保留条目数（按 created_at 新到旧保留；0 表示不限制）",
+    )
     memory_prune.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
@@ -3758,11 +3770,21 @@ def main(argv: list[str] | None = None) -> int:
                         )
                 return 0
             if args.memory_action == "prune":
-                n = prune_expired_memory_entries(root)
+                n = prune_expired_memory_entries(
+                    root,
+                    min_confidence=float(getattr(args, "min_confidence", 0.0) or 0.0),
+                    max_entries=int(getattr(args, "max_entries", 0) or 0),
+                )
                 if args.json_output:
-                    print(json.dumps({"removed": n}, ensure_ascii=False))
+                    print(json.dumps(n, ensure_ascii=False))
                 else:
-                    print(f"removed={n}")
+                    print(
+                        f"removed_total={n.get('removed_total', 0)} "
+                        f"expired={n.get('removed_expired', 0)} "
+                        f"low_confidence={n.get('removed_low_confidence', 0)} "
+                        f"over_limit={n.get('removed_over_limit', 0)} "
+                        f"kept_total={n.get('kept_total', 0)}",
+                    )
                 return 0
             if args.memory_action == "export":
                 target = Path(args.file).expanduser().resolve()
