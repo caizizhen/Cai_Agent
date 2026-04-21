@@ -6,7 +6,7 @@
 
 ### 0.5.0（当前开发）
 
-- **Memory Nudge（Hermes 风格记忆提醒）**：新增 `cai-agent memory nudge`，基于最近会话窗口与当前 `memory/entries.jsonl` / `memory/instincts` 状态生成轻量提醒（`severity`: `low|medium|high` + `actions`）。支持 `--days`、`--session-pattern`、`--session-limit` 和 `--json`，可直接接入 `schedule` 做周期自检。
+- **Memory Nudge（Hermes 风格记忆提醒）增强**：`cai-agent memory nudge` 新增 `--write-file`（将 JSON 结果落盘，便于审计/定时任务消费）与 `--fail-on-severity {medium,high}`（达到阈值时返回非 0）。结合 `--json` 可直接用于 CI 与 `schedule` 的周期健康检查。
 
 - **跨会话检索 `recall`（Hermes `/insights` 衍生能力）**：新增 `cai-agent recall <query>`，支持跨会话内容检索并返回命中片段。支持 `--days`（时间窗口）、`--limit`（返回条数）、`--regex`（正则模式）与 `--json`（结构化输出）；默认按最近会话优先。命中结果包含会话路径、文件时间、`task_id`、命中行号与片段预览，无法解析的会话会统计到 `parse_skipped` 且不中断执行。
 

@@ -83,3 +83,48 @@ class MemoryNudgeCliTests(unittest.TestCase):
             self.assertEqual(payload.get("severity"), "low")
             self.assertTrue(payload.get("latest_instinct_path"))
 
+    def test_memory_nudge_writes_output_file(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {"version": 2, "goal": "g", "answer": "a"},
+            )
+            out_file = root / "nudge.json"
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "memory",
+                            "nudge",
+                            "--json",
+                            "--write-file",
+                            str(out_file),
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            self.assertIn(str(out_file), buf.getvalue())
+            self.assertTrue(out_file.is_file())
+            payload = json.loads(out_file.read_text(encoding="utf-8"))
+            self.assertEqual(payload.get("schema_version"), "1.0")
+
+    def test_memory_nudge_fail_on_severity_threshold(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            now = int(time.time())
+            for i in range(8):
+                p = root / f".cai-session-{i}.json"
+                save_session(
+                    str(p),
+                    {
+                        "version": 2,
+                        "goal": f"goal-{i}",
+                        "answer": f"answer-{i}",
+                    },
+                )
+                os.utime(p, (now - (i * 60), now - (i * 60)))
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                rc = main(["memory", "nudge", "--json", "--fail-on-severity", "medium"])
+            self.assertEqual(rc, 2)
+

@@ -527,9 +527,12 @@ cai-agent recall-index refresh --prune
 ```bash
 cai-agent memory nudge --json
 cai-agent memory nudge --days 7 --session-pattern ".cai-session*.json" --session-limit 50 --json
+cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-severity medium
 ```
 
 - 当近 7 天会话明显增长但记忆沉淀不足时，会给出 `memory extract` 的明确建议；
+- `--write-file` 会把 JSON 结果落盘（便于 schedule/CI 消费）；
+- `--fail-on-severity` 在严重级别达到阈值时返回非 0（`low|medium|high`），适合做守门检查；
 - 可与 `schedule add/run-due/daemon` 组合，定期巡检记忆质量。
 
 ### `cai-agent schedule`（生产护栏补充）

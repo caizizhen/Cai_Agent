@@ -86,6 +86,48 @@ Expected:
 - `actions` includes instruction to fix invalid lines.
 - `severity` is at least `medium`.
 
+### MN-005: Write nudge payload to file
+
+Steps:
+
+1. Run:
+   - `cai-agent memory nudge --json --write-file ./memory/nudge-latest.json`
+
+Expected:
+
+- Exit code `0`.
+- Stdout contains a `wrote=` line with the resolved file path.
+- Target file exists and is valid JSON containing `schema_version`, `severity`, and `actions`.
+
+### MN-006: Severity gate for automation
+
+Steps:
+
+1. Prepare fixtures that trigger `high` severity (same as MN-001).
+2. Run:
+   - `cai-agent memory nudge --json --fail-on-severity medium`
+
+Expected:
+
+- Process exits with code `2` when computed severity is `medium` or `high`.
+- JSON payload is still printed for downstream parsers.
+- When severity is `low`, command exits `0`.
+
+### MN-007: Schedule/CI consumption pattern
+
+Suggested setup:
+
+1. Add schedule task:
+   - `cai-agent schedule add --every-minutes 1440 --goal "Run: cai-agent memory nudge --json --write-file ./memory/nudge-latest.json --fail-on-severity high"`
+2. Trigger execution:
+   - `cai-agent schedule run-due --execute --json`
+
+Expected:
+
+- Due task execution includes a run record.
+- `./memory/nudge-latest.json` is updated by the command.
+- If severity crosses threshold, task status is marked failed (non-zero command semantics visible in execution metadata/logs).
+
 ## Automated Regression
 
 Run:

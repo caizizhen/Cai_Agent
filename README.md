@@ -31,7 +31,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Multi-step workflow | `cai-agent workflow workflow.json --json` (optional root `merge_strategy`: `require_manual`, `last_wins`, `role_priority`) |
 | Quality gate / CI | `cai-agent quality-gate --json` (optional `--report-dir DIR`; `[quality_gate]` `test_policy` / `lint_policy`: `skip` or `fail_if_missing`) |
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
-| Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts`; health nudges via `memory nudge --json` |
+| Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts`; health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`) |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
 | Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |

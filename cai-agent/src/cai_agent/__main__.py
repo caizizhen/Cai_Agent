@@ -2074,6 +2074,17 @@ def main(argv: list[str] | None = None) -> int:
         help="会话文件匹配模式（相对当前目录）",
     )
     memory_nudge.add_argument("--session-limit", type=int, default=50, help="最多扫描会话文件数")
+    memory_nudge.add_argument(
+        "--write-file",
+        default=None,
+        help="可选：将 nudge JSON 写入文件（用于 schedule/CI 消费）",
+    )
+    memory_nudge.add_argument(
+        "--fail-on-severity",
+        default=None,
+        choices=("medium", "high"),
+        help="当 severity 达到阈值时返回非 0（medium|high）",
+    )
     memory_nudge.add_argument("--json", action="store_true", dest="json_output")
 
     schedule_p = sub.add_parser(
@@ -3226,8 +3237,18 @@ def main(argv: list[str] | None = None) -> int:
                     session_pattern=str(getattr(args, "session_pattern", ".cai-session*.json")),
                     session_limit=int(getattr(args, "session_limit", 50)),
                 )
+                out_text = json.dumps(payload, ensure_ascii=False)
+                raw_write = getattr(args, "write_file", None)
+                if isinstance(raw_write, str) and raw_write.strip():
+                    out_path = Path(raw_write).expanduser()
+                    if not out_path.is_absolute():
+                        out_path = (root / out_path).resolve()
+                    out_path.parent.mkdir(parents=True, exist_ok=True)
+                    out_path.write_text(out_text + "\n", encoding="utf-8")
                 if bool(getattr(args, "json_output", False)):
-                    print(json.dumps(payload, ensure_ascii=False))
+                    print(out_text)
+                    if isinstance(raw_write, str) and raw_write.strip():
+                        print(str(out_path))
                 else:
                     print(
                         f"[memory nudge] severity={payload.get('severity')} "
@@ -3236,6 +3257,14 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     for i, action in enumerate(payload.get("actions") or [], start=1):
                         print(f"{i}. {action}")
+                    if isinstance(raw_write, str) and raw_write.strip():
+                        print(f"written={out_path}")
+                sev_map = {"low": 0, "medium": 1, "high": 2}
+                fail_th = str(getattr(args, "fail_on_severity", "off") or "off").strip().lower()
+                if fail_th in ("medium", "high"):
+                    got = str(payload.get("severity") or "low").strip().lower()
+                    if sev_map.get(got, 0) >= sev_map.get(fail_th, 99):
+                        return 2
                 return 0
         finally:
             _print_hook_status(
