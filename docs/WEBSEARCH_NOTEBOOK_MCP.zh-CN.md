@@ -40,8 +40,17 @@
 
 说明：
 
-- `--preset` 会对 MCP 工具列表做名称启发式匹配，并输出 `preset_check` 结构（`target` / `matched_tools` / `ok` / `missing_hint`）。
+- `--preset` 会对 MCP 工具列表做名称启发式匹配，并输出 `preset` 结构（`name` / `recommended_tools` / `matched_tools` / `missing_tools` / `ok`）。
 - `--list-only` 仅做工具清单检查，不执行 `--tool` 探活（适合先排配置再排调用）。
-- 若未命中推荐工具，会在 JSON 中返回 `missing_hint`，提示优先检查 MCP 服务能力声明与配置。
+- 若未命中推荐工具，会在 JSON 与文本输出中返回 `next_step`（含文档路径、建议命令、缺失关键词），用于快速降级排障。
+
+### 失败降级提示（推荐流程）
+
+当 `preset.ok=false` 或 `ok=false` 时，建议按以下顺序处理：
+
+1. 先运行 `cai-agent mcp-check --json --preset <websearch|notebook> --list-only`，确认是否至少命中一类推荐工具；
+2. 打开 `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` 与 `docs/MCP_WEB_RECIPE.zh-CN.md`，对齐 MCP 服务声明、超时与鉴权配置；
+3. 若工具列表正常，再用 `--tool <name> --args '<json>'` 做单工具探活；
+4. 若仍失败，按 `next_step` 中 `missing_tools` 和 `recommended_tools` 与服务端维护者核对能力注册。
 
 *版本：2026-04-19；与 Sprint 3 文档链一致。*

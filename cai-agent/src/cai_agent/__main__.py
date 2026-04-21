@@ -3835,7 +3835,10 @@ def main(argv: list[str] | None = None) -> int:
                 probe_result = f"{type(e).__name__}: {e}"
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         preset_payload: dict[str, Any] | None = None
+        preset_hint: dict[str, Any] | None = None
         if preset in preset_keywords:
+            doc_path = "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+            suggested_cmd = f"cai-agent mcp-check --json --preset {preset} --list-only"
             preset_payload = {
                 "name": preset,
                 "recommended_tools": list(preset_keywords[preset]),
@@ -3844,7 +3847,19 @@ def main(argv: list[str] | None = None) -> int:
                 "missing_tools": preset_missing,
                 "missing_keywords": preset_missing,
                 "ok": len(preset_matches) > 0,
+                "doc_path": doc_path,
+                "suggested_command": suggested_cmd,
             }
+            if len(preset_matches) <= 0:
+                preset_hint = {
+                    "kind": "preset_missing_tools",
+                    "message": (
+                        f"未检测到 {preset} 相关 MCP 工具；请先按文档完成服务配置后重试。"
+                    ),
+                    "doc_path": doc_path,
+                    "recommended_keywords": list(preset_keywords[preset]),
+                    "suggested_command": suggested_cmd,
+                }
         if args.json_output:
             payload = {
                 "ok": ok,
@@ -3861,6 +3876,7 @@ def main(argv: list[str] | None = None) -> int:
                 "tool_names": tool_list,
                 "preset_matches": preset_matches,
                 "preset_missing_keywords": preset_missing,
+                "fallback_hint": preset_hint,
                 "probe_result": probe_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
@@ -3875,6 +3891,19 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"tool={args.tool}")
                 print(f"elapsed_ms={elapsed_ms}")
             print(txt)
+            if preset_payload is not None:
+                print(
+                    "[preset] "
+                    f"name={preset_payload.get('name')} "
+                    f"ok={preset_payload.get('ok')} "
+                    f"matched={len(preset_matches)} "
+                    f"missing={len(preset_missing)}"
+                )
+            if preset_hint is not None:
+                print("--- preset fallback hint ---")
+                print(str(preset_hint.get("message") or ""))
+                print(f"doc={preset_hint.get('doc_path')}")
+                print(f"suggested={preset_hint.get('suggested_command')}")
             if probe_result is not None:
                 print("--- tool probe ---")
                 print(probe_result)

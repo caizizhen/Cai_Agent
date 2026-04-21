@@ -51,6 +51,10 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn("recommended_tools", preset)
         self.assertIn("matched_tools", preset)
         self.assertIn("missing_tools", preset)
+        self.assertIn("fallback_hint", payload)
+        hint = payload.get("fallback_hint") or {}
+        self.assertTrue(isinstance(hint, dict))
+        self.assertEqual(hint.get("doc_path"), "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md")
 
 
 class PluginsCliTests(unittest.TestCase):

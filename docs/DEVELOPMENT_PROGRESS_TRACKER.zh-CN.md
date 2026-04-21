@@ -38,6 +38,7 @@
 - `mcp-check` 增强预设自检：支持 `--preset websearch|notebook`，输出推荐关键词命中情况与缺失项
 - `mcp-check` 增强探测策略：支持 `--list-only`（仅列工具不探活），避免在未准备好参数时误触工具调用
 - JSON 输出新增 `preset` 结构化摘要（`name/recommended_tools/matched_tools/missing_tools/ok`），可直接用于 CI 或 onboarding 诊断
+- `mcp-check` 新增降级提示：当 preset 未命中时输出 `fallback_hint`（含文档路径、建议命令、缺失关键词），用于接入阻塞场景快速定位
 
 ### D. Memory Loop
 
@@ -115,7 +116,7 @@
 
 ## 下一阶段建议（按价值）
 
-1. Sprint 3 持续推进：补 MCP 配置模板与“从零接入”复现脚本（WebSearch/Notebook）
+1. Sprint 3 持续推进：补 MCP 配置模板与“从零接入”复现脚本（WebSearch/Notebook），并将 fallback_hint 对接到 onboarding 文档
 2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
