@@ -133,6 +133,7 @@ def build_observe_payload(
         sessions.append(
             {
                 "path": rel_path,
+                "mtime": int(p.stat().st_mtime),
                 "total_tokens": tt,
                 "prompt_tokens": pt,
                 "completion_tokens": ct,

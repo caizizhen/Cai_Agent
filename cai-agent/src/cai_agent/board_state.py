@@ -138,6 +138,7 @@ def attach_failed_summary(
         return out
     rows = [r for r in sessions if isinstance(r, dict)]
     failed = [r for r in rows if int(r.get("error_count") or 0) > 0]
+    failed.sort(key=lambda r: int(r.get("mtime") or 0), reverse=True)
     recent: list[dict[str, Any]] = []
     for r in failed[: max(limit, 1)]:
         recent.append(

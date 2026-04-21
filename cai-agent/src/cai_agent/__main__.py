@@ -3342,7 +3342,13 @@ def main(argv: list[str] | None = None) -> int:
     board_p.add_argument(
         "--task-id",
         default="",
-        help="按 task_id 过滤会话（子串匹配）",
+        help="按 task_id 精确过滤会话",
+    )
+    board_p.add_argument(
+        "--failed-top",
+        type=int,
+        default=5,
+        help="失败摘要 recent 列表的最大条数（最小为 1）",
     )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
@@ -5158,7 +5164,10 @@ def main(argv: list[str] | None = None) -> int:
                 failed_only=failed_only,
                 task_id=task_id_filter or None,
             )
-            payload = attach_failed_summary(payload, limit=5)
+            payload = attach_failed_summary(
+                payload,
+                limit=max(1, int(getattr(args, "failed_top", 5))),
+            )
             payload = attach_status_summary(payload)
             payload["filters"] = {
                 "failed_only": failed_only,

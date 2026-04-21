@@ -109,6 +109,53 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_failed_summary_sorts_by_mtime_and_honors_topn(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                older = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-fail-old", "type": "run", "status": "failed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 1,
+                    "total_tokens": 2,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "elapsed_ms": 2,
+                }
+                newer = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-fail-new", "type": "run", "status": "failed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 1,
+                    "total_tokens": 3,
+                    "prompt_tokens": 2,
+                    "completion_tokens": 1,
+                    "elapsed_ms": 3,
+                }
+                old_path = root / ".cai-session-old.json"
+                new_path = root / ".cai-session-new.json"
+                old_path.write_text(json.dumps(older), encoding="utf-8")
+                new_path.write_text(json.dumps(newer), encoding="utf-8")
+                os.utime(old_path, (1000, 1000))
+                os.utime(new_path, (2000, 2000))
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json", "--failed-top", "1"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                fs = payload.get("failed_summary") or {}
+                recent = fs.get("recent") or []
+                self.assertEqual(len(recent), 1)
+                self.assertEqual(recent[0].get("task_id"), "run-fail-new")
+            finally:
+                os.chdir(old)
+
     def test_board_json_includes_status_counts(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

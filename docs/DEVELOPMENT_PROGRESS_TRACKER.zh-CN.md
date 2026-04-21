@@ -28,6 +28,7 @@
 - `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务
 - `board` 新增失败摘要：输出 `failed_summary`（count/recent），文本模式增加 `[failed_summary]` 区块便于值班排障
 - `board` 新增状态统计：输出 `status_summary` 与 `status_counts`（`pending/running/completed/failed/unknown`），文本模式增加 `[status_summary]` 分组统计
+- `board` 失败摘要增强：支持 `--failed-top` 配置 recent 失败条数，按会话文件 mtime 降序输出（最近失败优先）
 
 ### D. Memory Loop
 
