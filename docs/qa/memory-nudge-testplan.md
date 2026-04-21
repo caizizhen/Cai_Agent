@@ -117,8 +117,9 @@ Expected:
 
 Suggested setup:
 
-1. Add schedule task:
-   - `cai-agent schedule add --every-minutes 1440 --goal "Run: cai-agent memory nudge --json --write-file ./memory/nudge-latest.json --fail-on-severity high"`
+1. Add schedule task (recommended template):
+   - `cai-agent schedule add-memory-nudge --every-minutes 1440 --json`
+   - (optional override) `cai-agent schedule add-memory-nudge --every-minutes 60 --output-file ./memory/nudge-hourly.json --fail-on-severity medium --json`
 2. Trigger execution:
    - `cai-agent schedule run-due --execute --json`
 

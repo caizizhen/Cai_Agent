@@ -13,6 +13,42 @@ from cai_agent.config import Settings
 
 
 class ScheduleCliTests(unittest.TestCase):
+    def test_add_memory_nudge_template(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            out_file = root / "reports" / "memory-nudge.json"
+            buf_add = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_add):
+                    rc_add = main(
+                        [
+                            "schedule",
+                            "add-memory-nudge",
+                            "--every-minutes",
+                            "60",
+                            "--days",
+                            "14",
+                            "--session-limit",
+                            "120",
+                            "--output-file",
+                            str(out_file),
+                            "--fail-on-severity",
+                            "high",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc_add, 0)
+            created = json.loads(buf_add.getvalue().strip())
+            self.assertEqual(created.get("template"), "memory-nudge")
+            job = created.get("job") or {}
+            goal = str(created.get("goal") or "")
+            self.assertIn("memory nudge", goal)
+            self.assertIn("--days 14", goal)
+            self.assertIn("--session-limit 120", goal)
+            self.assertIn("--write-file", goal)
+            self.assertIn("--fail-on-severity high", goal)
+            self.assertEqual(job.get("every_minutes"), 60)
+
     def test_add_list_rm_cycle(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

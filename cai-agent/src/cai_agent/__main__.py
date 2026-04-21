@@ -2105,6 +2105,33 @@ def main(argv: list[str] | None = None) -> int:
     schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
     schedule_add.add_argument("--json", action="store_true", dest="json_output")
 
+    schedule_add_nudge = schedule_sub.add_parser(
+        "add-memory-nudge",
+        help="一键新增 memory nudge 巡检任务模板",
+    )
+    schedule_add_nudge.add_argument("--every-minutes", type=int, default=1440, help="执行周期（分钟，默认 1440=每天）")
+    schedule_add_nudge.add_argument("--days", type=int, default=7, help="nudge 分析窗口天数")
+    schedule_add_nudge.add_argument("--session-limit", type=int, default=50, help="nudge 扫描会话上限")
+    schedule_add_nudge.add_argument(
+        "--output-file",
+        default=".cai/memory-nudge-latest.json",
+        help="nudge JSON 输出路径（相对工作区或绝对路径）",
+    )
+    schedule_add_nudge.add_argument(
+        "--fail-on-severity",
+        default="high",
+        choices=("medium", "high"),
+        help="达到阈值时 `memory nudge` 返回非 0（默认 high）",
+    )
+    schedule_add_nudge.add_argument(
+        "--workspace",
+        default=".",
+        help="任务执行时使用的工作区（默认当前目录）",
+    )
+    schedule_add_nudge.add_argument("--model", default=None, help="可选模型覆盖")
+    schedule_add_nudge.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
+    schedule_add_nudge.add_argument("--json", action="store_true", dest="json_output")
+
     schedule_list = schedule_sub.add_parser("list", help="列出定时任务")
     schedule_list.add_argument("--json", action="store_true", dest="json_output")
 
@@ -3300,6 +3327,47 @@ def main(argv: list[str] | None = None) -> int:
                     f"added id={job.get('id')} every_minutes={job.get('every_minutes')} "
                     f"enabled={job.get('enabled')}",
                 )
+            return 0
+        if args.schedule_action == "add-memory-nudge":
+            out_path = str(getattr(args, "output_file", ".cai/memory-nudge-latest.json"))
+            fail_th = str(getattr(args, "fail_on_severity", "high") or "high").strip().lower()
+            goal = (
+                "Run: cai-agent memory nudge --json "
+                f"--days {int(getattr(args, 'days', 7))} "
+                f"--session-limit {int(getattr(args, 'session_limit', 50))} "
+                f"--write-file {out_path} "
+                f"--fail-on-severity {fail_th}"
+            )
+            job = add_schedule_task(
+                goal=goal,
+                every_minutes=int(getattr(args, "every_minutes", 1440)),
+                workspace=str(args.workspace) if getattr(args, "workspace", None) else ".",
+                model=str(args.model) if getattr(args, "model", None) else None,
+                cwd=str(root),
+            )
+            if bool(args.disabled):
+                doc = load_schedule_doc(str(root))
+                tasks = doc.get("tasks")
+                if isinstance(tasks, list):
+                    for row in tasks:
+                        if isinstance(row, dict) and str(row.get("id")) == str(job.get("id")):
+                            row["enabled"] = False
+                            break
+                    save_schedule_doc(doc, str(root))
+                    job["enabled"] = False
+            payload = {
+                "template": "memory-nudge",
+                "goal": goal,
+                "job": job,
+            }
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"added memory-nudge template id={job.get('id')} every={job.get('every_minutes')}m "
+                    f"enabled={job.get('enabled')}",
+                )
+                print(f"goal={goal}")
             return 0
         if args.schedule_action == "list":
             jobs = list_schedule_tasks(str(root))

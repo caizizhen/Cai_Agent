@@ -485,6 +485,7 @@ cai-agent run --json "检查最近改动是否存在高风险点"
 
 ```bash
 cai-agent schedule add --goal "Daily repo health summary" --every-minutes 60
+cai-agent schedule add-memory-nudge --every-minutes 1440 --json
 cai-agent schedule list --json
 cai-agent schedule run-due --json          # 默认 dry-run 预览
 cai-agent schedule run-due --execute --json  # 执行到点任务
@@ -496,6 +497,7 @@ cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --json
 - `run-due` 默认不执行，仅预览 `due_jobs`。
 - `run-due --execute` 会真实调用 Agent 运行任务目标，并回写 `last_status` / `last_error` / `run_count`。
 - `schedule daemon` 会按固定间隔轮询并执行到点任务；可用 `--max-cycles` 限制轮询次数（便于 CI / QA）。
+- `schedule add-memory-nudge` 可一键创建记忆巡检任务，默认目标为 `cai-agent memory nudge --json --write-file ./memory/nudge-latest.json --fail-on-severity high`。
 
 ### `cai-agent insights --json`
 

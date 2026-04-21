@@ -24,6 +24,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Recall index (incremental) | `cai-agent recall-index build` then `cai-agent recall-index refresh` (skip unchanged mtime; `refresh --prune` drops missing/out-of-window paths) |
 | Cross-session recall | `cai-agent recall --query "auth" --days 14 --json` → matched session snippets with file/time metadata |
 | Scheduled automations | `cai-agent schedule add --every-minutes 60 --goal "Daily repo health summary"` then `cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --execute --json` |
+| Memory nudge schedule template | `cai-agent schedule scaffold memory-nudge --json` (optional `--every-minutes`, `--output-file`, `--fail-on-severity`, `--add-task`) |
 | Save plan to disk | `cai-agent plan "..." --write-plan ./PLAN.md` |
 | Run with an existing plan | `cai-agent run --plan-file ./PLAN.md "Implement step 1"` |
 | Machine-readable run | `cai-agent run --json "List open risks in the diff"` |
@@ -31,7 +32,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Multi-step workflow | `cai-agent workflow workflow.json --json` (optional root `merge_strategy`: `require_manual`, `last_wins`, `role_priority`) |
 | Quality gate / CI | `cai-agent quality-gate --json` (optional `--report-dir DIR`; `[quality_gate]` `test_policy` / `lint_policy`: `skip` or `fail_if_missing`) |
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
-| Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts`; health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`) |
+| Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts`; health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`), and one-step schedule preset via `schedule scaffold memory-nudge` |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
 | Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
