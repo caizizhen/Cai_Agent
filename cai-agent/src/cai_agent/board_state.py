@@ -92,3 +92,30 @@ def build_board_payload(
         "observe": obs,
         "last_workflow": wf,
     }
+
+
+def filter_board_payload(
+    payload: dict[str, Any],
+    *,
+    failed_only: bool = False,
+    task_id: str | None = None,
+) -> dict[str, Any]:
+    """按最小看板诉求筛选会话行，不改变顶层 schema。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    if failed_only:
+        rows = [r for r in rows if int(r.get("error_count") or 0) > 0]
+    tid = str(task_id or "").strip()
+    if tid:
+        rows = [r for r in rows if str(r.get("task_id") or "") == tid]
+    obs2 = dict(obs)
+    obs2["sessions"] = rows
+    obs2["sessions_count"] = len(rows)
+    out["observe"] = obs2
+    return out

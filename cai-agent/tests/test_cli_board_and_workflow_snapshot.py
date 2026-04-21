@@ -57,6 +57,51 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_json_filters_failed_only_and_task_id(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                good = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-ok-123", "type": "run", "status": "completed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 0,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "elapsed_ms": 1,
+                }
+                bad = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-bad-999", "type": "run", "status": "failed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 1,
+                    "total_tokens": 2,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "elapsed_ms": 2,
+                }
+                (root / ".cai-session-good.json").write_text(json.dumps(good), encoding="utf-8")
+                (root / ".cai-session-bad.json").write_text(json.dumps(bad), encoding="utf-8")
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json", "--failed-only", "--task-id", "run-bad"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                obs = payload.get("observe") or {}
+                sessions = obs.get("sessions") or []
+                self.assertEqual(len(sessions), 1)
+                self.assertEqual(sessions[0].get("task_id"), "run-bad-999")
+                ag = obs.get("aggregates") or {}
+                self.assertEqual(ag.get("failed_count"), 1)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()

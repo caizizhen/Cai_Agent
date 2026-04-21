@@ -3328,6 +3328,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     board_p.add_argument("--pattern", default=".cai-session*.json")
     board_p.add_argument("--limit", type=int, default=100)
+    board_p.add_argument(
+        "--failed-only",
+        action="store_true",
+        help="仅展示失败会话（error_count > 0）的看板视图",
+    )
+    board_p.add_argument(
+        "--task-id",
+        default="",
+        help="按 task_id 过滤会话（子串匹配）",
+    )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
     gateway_p = sub.add_parser(
@@ -5124,6 +5134,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
         board_json = bool(getattr(args, "json_output", False))
+        failed_only = bool(getattr(args, "failed_only", False))
+        task_id_filter = str(getattr(args, "task_id", "") or "").strip()
         _print_hook_status(
             settings_board,
             event="board_start",
@@ -5135,6 +5147,39 @@ def main(argv: list[str] | None = None) -> int:
                 observe_pattern=str(args.pattern),
                 observe_limit=int(args.limit),
             )
+            obs_payload = payload.get("observe")
+            if isinstance(obs_payload, dict):
+                sessions = obs_payload.get("sessions")
+                if isinstance(sessions, list):
+                    filtered = []
+                    for s in sessions:
+                        if not isinstance(s, dict):
+                            continue
+                        if failed_only and int(s.get("error_count") or 0) <= 0:
+                            continue
+                        if task_id_filter:
+                            sid = str(s.get("task_id") or "")
+                            if task_id_filter not in sid:
+                                continue
+                        filtered.append(s)
+                    obs_payload["sessions"] = filtered
+                    obs_payload["sessions_count"] = len(filtered)
+                    failed_count = sum(
+                        1 for s in filtered if int((s or {}).get("error_count") or 0) > 0
+                    )
+                    obs_payload["aggregates"] = {
+                        **(
+                            obs_payload.get("aggregates")
+                            if isinstance(obs_payload.get("aggregates"), dict)
+                            else {}
+                        ),
+                        "failed_count": failed_count,
+                        "failure_rate": (float(failed_count) / len(filtered)) if filtered else 0.0,
+                    }
+                payload["filters"] = {
+                    "failed_only": failed_only,
+                    "task_id": task_id_filter or None,
+                }
             if board_json:
                 print(json.dumps(payload, ensure_ascii=False))
             else:

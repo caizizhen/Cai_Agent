@@ -25,6 +25,7 @@
 ### C. Hooks / 可观测
 
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
+- `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务
 
 ### D. Memory Loop
 
@@ -102,8 +103,8 @@
 
 ## 下一阶段建议（按价值）
 
-1. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
-2. Recall 结果缓存与大规模索引压测脚本
-3. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
-4. Gateway/Memory 的策略参数文档与默认值分层（prod/dev）细化
+1. 看板继续增强：补状态分组统计（pending/running/completed/failed）与最近失败 TopN
+2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
+3. Recall 结果缓存与大规模索引压测脚本
+4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
 
