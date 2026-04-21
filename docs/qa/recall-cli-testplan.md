@@ -1,136 +1,182 @@
-# QA Test Plan: Recall CLI (Cross-Session Search)
+# QA Test Plan: Recall CLI and Recall Index
 
-This plan validates `cai-agent recall` in both scan mode and index mode.
+This plan validates cross-session recall (`cai-agent recall`) and the optional index workflow (`cai-agent recall-index`), aligned with Hermes-style session recall.
 
 ## 1) Scope
 
-In scope:
-- keyword search across saved session files
-- time-window filtering (`--days`)
-- result limits (`--limit`)
-- JSON schema stability (`--json`)
-- parser-failure tolerance (`parse_skipped`)
-- index build/update workflow (`recall index`)
-- indexed query mode (`--use-index`)
+**In scope**
 
-Out of scope:
-- external vector DB / embeddings
-- MCP-backed search engines
+- Keyword and regex search over saved session JSON (`.cai-session*.json` by default)
+- Time window (`--days`), scan cap (`--limit`), hit cap (`--max-hits` / `--max-matches`)
+- JSON output contract (`--json`)
+- Parse failure tolerance (`parse_skipped`)
+- Index build, incremental refresh, info, clear
+- `recall --use-index` path
+
+**Out of scope**
+
+- Vector DB / embeddings
+- MCP-backed remote search
 
 ## 2) Preconditions
 
-- repo root with `cai-agent` installed
-- writable temp workspace
-- ability to create `.cai-session*.json` files
+- Repository with `cai-agent` installed (`pip install -e ".[dev]"` from `cai-agent/`)
+- Writable temp directory
+- Ability to create `.cai-session*.json` files
 
-Setup:
+## 3) Commands (reference)
 
-```bash
-cd cai-agent
-python3 -m pip install -e ".[dev]"
-cd ..
-```
+| Command | Purpose |
+|---------|---------|
+| `cai-agent recall --query …` | Scan session files on disk |
+| `cai-agent recall --use-index --query …` | Search using `.cai-recall-index.json` |
+| `cai-agent recall-index build` | Full rebuild of index |
+| `cai-agent recall-index refresh` | Incremental merge (skip unchanged mtime) |
+| `cai-agent recall-index refresh --prune` | Incremental + remove missing / out-of-window |
+| `cai-agent recall-index search --query …` | Search via index only |
+| `cai-agent recall-index info` | Index metadata |
+| `cai-agent recall-index clear` | Delete index file |
 
-## 3) Cases
+Optional: `--index-path PATH` on all index-related commands and on `recall --use-index`.
+
+## 4) Test cases
 
 ### RC-001 Basic keyword hit (scan mode)
 
-1. Create at least 2 session files with content containing keyword `auth`.
+1. Create two session files containing `auth`.
 2. Run:
 
 ```bash
 cai-agent recall --query "auth" --json
 ```
 
-Expected:
-- `schema_version == "1.0"`
-- `query == "auth"`
+**Expected**
+
+- `schema_version` is `1.0`
+- `query` matches
 - `hits_total >= 1`
-- each result row contains `path`, `hits`, `hits_count`
+- `results[]` entries include `path`, `mtime`, `hits`
 
-### RC-002 Days window filter
+### RC-002 Days window (scan mode)
 
-1. Ensure one session is older than 1 day, one is current.
+1. One session older than `--days`, one recent (adjust `touch` / mtime).
 2. Run:
 
 ```bash
 cai-agent recall --query "auth" --days 1 --json
 ```
 
-Expected:
-- old session is excluded
-- `sessions_scanned` only counts in-window files
+**Expected**
 
-### RC-003 Limit behavior
+- Old session excluded from `sessions_scanned` / results
 
-1. Create multiple matching lines.
-2. Run:
+### RC-003 Limit and max hits (scan mode)
 
 ```bash
-cai-agent recall --query "auth" --limit 2 --max-hits 2 --json
+cai-agent recall --query "auth" --limit 5 --max-hits 2 --json
 ```
 
-Expected:
-- returned `results` length is `<= 2`
+**Expected**
 
-### RC-004 Parse skip tolerance
+- At most 2 sessions in `results` (per current implementation: `session_limit` = `limit`)
 
-1. Add one invalid JSON session file matching pattern.
+### RC-004 Malformed session tolerance
+
+1. Add invalid JSON matching `.cai-session*.json`.
 2. Run:
 
 ```bash
 cai-agent recall --query "auth" --json
 ```
 
-Expected:
-- command exits 0
+**Expected**
+
+- Exit code `0`
 - `parse_skipped >= 1`
-- valid files still produce results
+- Valid files still return hits
 
-### RC-005 Text output smoke
-
-Run:
+### RC-005 Text output smoke (scan mode)
 
 ```bash
 cai-agent recall --query "auth"
 ```
 
-Expected:
-- human-readable summary line with `hits_total` / `sessions_scanned`
-- matched sessions are printed with snippets
+**Expected**
 
-### RC-006 Index build smoke
+- Summary line includes `hits_total`, `scanned`, `parse_skipped`
+- Per-result path and snippet preview
 
-Run:
+### RC-006 Index build and search
 
-```bash
-cai-agent recall index --json
-```
-
-Expected:
-- `ok == true`
-- has index metadata (`files_scanned`, `rows_indexed`, `index_path`)
-
-### RC-007 Indexed query parity
-
-1. Build index:
+1. Create two valid sessions with distinct content.
+2. Run:
 
 ```bash
-cai-agent recall index --json
+cai-agent recall-index build --json
+cai-agent recall-index search --query "auth" --json
 ```
 
-2. Query with index:
+**Expected**
+
+- `build` returns `ok: true`, `sessions_indexed >= 1`
+- `search` returns `source: "index"`, `hits_total >= 1` when query matches
+
+### RC-007 Incremental refresh (mtime skip)
+
+1. `recall-index build`
+2. Run `recall-index refresh --json` twice without changing session files.
+
+**Expected**
+
+- Second run: `sessions_skipped_unchanged` equals number of scanned in-window files (or high), `sessions_touched` is `0`
+
+3. Modify one session file content (and ensure mtime changes).
+
+**Expected**
+
+- `sessions_touched >= 1`
+
+### RC-008 Refresh with `--prune`
+
+1. Build index including a session file path.
+2. Delete that session file from disk.
+3. Run:
 
 ```bash
-cai-agent recall --query "auth" --use-index --json
+cai-agent recall-index refresh --prune --json
 ```
 
-Expected:
-- `index_used == true`
-- returns same or fewer (window-filtered) sessions compared to scan mode
-- command exits 0 and schema remains stable
+**Expected**
 
-## 4) Regression command
+- `pruned_missing >= 1` (or index no longer lists deleted path)
+
+### RC-009 `recall --use-index`
+
+1. `recall-index build`
+2. Run:
+
+```bash
+cai-agent recall --use-index --query "auth" --json
+```
+
+**Expected**
+
+- `source: "index"` in payload
+- If index missing: exit `2` and JSON `error: index_not_found`
+
+### RC-010 Custom `--index-path`
+
+```bash
+cai-agent recall-index build --index-path ./tmp-index.json --json
+cai-agent recall --use-index --index-path ./tmp-index.json --query "auth" --json
+```
+
+**Expected**
+
+- Index written to `./tmp-index.json`
+- Recall uses same path
+
+## 5) Regression commands
 
 ```bash
 cd cai-agent
@@ -140,3 +186,12 @@ python3 -m pytest -q \
   tests/test_insights_cli.py \
   tests/test_stats_json.py
 ```
+
+## 6) QA sign-off
+
+- Build / commit:
+- Environment:
+- Cases executed:
+- Pass / fail summary:
+- Blocking issues:
+- Attachments (logs, JSON):

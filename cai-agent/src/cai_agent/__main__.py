@@ -323,13 +323,50 @@ def _build_recall_payload(
     }
 
 
+def _resolve_recall_index_path(*, cwd: str, index_path: str | None) -> Path:
+    if isinstance(index_path, str) and index_path.strip():
+        p = Path(index_path.strip()).expanduser()
+        if not p.is_absolute():
+            return (Path(cwd).resolve() / p).resolve()
+        return p.resolve()
+    return (Path(cwd).resolve() / ".cai-recall-index.json")
+
+
+def _session_row_for_recall_index(*, p: Path, sess: dict[str, Any]) -> dict[str, Any]:
+    fragments: list[str] = []
+    ans = sess.get("answer")
+    if isinstance(ans, str) and ans.strip():
+        fragments.append(ans.strip())
+    msgs = sess.get("messages")
+    if isinstance(msgs, list):
+        for msg in msgs:
+            if not isinstance(msg, dict):
+                continue
+            content = msg.get("content")
+            if isinstance(content, str) and content.strip():
+                fragments.append(content.strip())
+    text_blob = "\n".join(fragments)
+    return {
+        "path": str(p),
+        "mtime": int(p.stat().st_mtime),
+        "model": sess.get("model") if isinstance(sess.get("model"), str) else None,
+        "task_id": (
+            str((sess.get("task") or {}).get("task_id"))
+            if isinstance(sess.get("task"), dict)
+            else None
+        ),
+        "answer_preview": (str(ans).strip()[:120] if isinstance(ans, str) else ""),
+        "content": text_blob,
+    }
+
+
 def _build_recall_index(
     *,
     cwd: str,
     pattern: str,
     limit: int,
     days: int,
-    index_file: str | None,
+    index_path: str | None,
 ) -> dict[str, Any]:
     """构建轻量 recall 索引（JSON），用于加速后续查询。"""
     now = datetime.now(UTC)
@@ -348,36 +385,10 @@ def _build_recall_index(
             parse_skipped += 1
             continue
         sessions_indexed += 1
-        fragments: list[str] = []
-        ans = sess.get("answer")
-        if isinstance(ans, str) and ans.strip():
-            fragments.append(ans.strip())
-        msgs = sess.get("messages")
-        if isinstance(msgs, list):
-            for msg in msgs:
-                if not isinstance(msg, dict):
-                    continue
-                content = msg.get("content")
-                if isinstance(content, str) and content.strip():
-                    fragments.append(content.strip())
-        text_blob = "\n".join(fragments)
-        rows.append(
-            {
-                "path": str(p),
-                "mtime": int(p.stat().st_mtime),
-                "model": sess.get("model") if isinstance(sess.get("model"), str) else None,
-                "task_id": (
-                    str((sess.get("task") or {}).get("task_id"))
-                    if isinstance(sess.get("task"), dict)
-                    else None
-                ),
-                "answer_preview": (str(ans).strip()[:120] if isinstance(ans, str) else ""),
-                "content": text_blob,
-            },
-        )
+        rows.append(_session_row_for_recall_index(p=p, sess=sess))
     rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
     payload = {
-        "recall_index_schema_version": "1.0",
+        "recall_index_schema_version": "1.1",
         "generated_at": now.isoformat(),
         "window": {
             "days": max(days, 1),
@@ -389,11 +400,7 @@ def _build_recall_index(
         "parse_skipped": parse_skipped,
         "entries": rows,
     }
-    idx_path = (
-        Path(index_file).expanduser().resolve()
-        if isinstance(index_file, str) and index_file.strip()
-        else (Path(cwd).resolve() / ".cai-recall-index.json")
-    )
+    idx_path = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
     idx_path.parent.mkdir(parents=True, exist_ok=True)
     idx_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {
@@ -401,7 +408,130 @@ def _build_recall_index(
         "index_file": str(idx_path),
         "sessions_indexed": sessions_indexed,
         "parse_skipped": parse_skipped,
-        "recall_index_schema_version": "1.0",
+        "recall_index_schema_version": "1.1",
+        "mode": "full",
+    }
+
+
+def _refresh_recall_index(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    days: int,
+    index_path: str | None,
+    prune_missing: bool,
+) -> dict[str, Any]:
+    """增量刷新索引：按 path 合并；mtime 未变则跳过重解析；可选删除磁盘已不存在的条目。"""
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    idx_path = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
+
+    old_rows: list[dict[str, Any]] = []
+    if idx_path.is_file():
+        try:
+            old_doc = json.loads(idx_path.read_text(encoding="utf-8"))
+            if isinstance(old_doc, dict):
+                ent = old_doc.get("entries")
+                if isinstance(ent, list):
+                    old_rows = [dict(x) for x in ent if isinstance(x, dict)]
+        except Exception:
+            old_rows = []
+
+    merged_by_path: dict[str, dict[str, Any]] = {}
+    for row in old_rows:
+        pth = str(row.get("path") or "").strip()
+        if not pth:
+            continue
+        try:
+            key = str(Path(pth).expanduser().resolve())
+        except Exception:
+            key = pth
+        merged_by_path[key] = row
+
+    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    parse_skipped = 0
+    sessions_touched = 0
+    sessions_skipped_unchanged = 0
+
+    for p in files:
+        mtime = datetime.fromtimestamp(p.stat().st_mtime, UTC)
+        if mtime < since:
+            continue
+        key = str(p.resolve())
+        prev = merged_by_path.get(key)
+        if isinstance(prev, dict):
+            prev_mtime = prev.get("mtime")
+            if isinstance(prev_mtime, int) and prev_mtime == int(p.stat().st_mtime):
+                sessions_skipped_unchanged += 1
+                continue
+        try:
+            sess = load_session(str(p))
+        except Exception:
+            parse_skipped += 1
+            continue
+        sessions_touched += 1
+        merged_by_path[key] = _session_row_for_recall_index(p=p, sess=sess)
+
+    pruned_missing = 0
+    pruned_stale_window = 0
+    if prune_missing:
+        for pth in list(merged_by_path.keys()):
+            try:
+                pp = Path(pth).expanduser().resolve()
+            except Exception:
+                merged_by_path.pop(pth, None)
+                pruned_missing += 1
+                continue
+            if not pp.is_file():
+                merged_by_path.pop(pth, None)
+                pruned_missing += 1
+                continue
+            try:
+                mt = datetime.fromtimestamp(pp.stat().st_mtime, UTC)
+            except Exception:
+                merged_by_path.pop(pth, None)
+                pruned_missing += 1
+                continue
+            if mt < since:
+                merged_by_path.pop(pth, None)
+                pruned_stale_window += 1
+
+    merged = list(merged_by_path.values())
+    merged.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+
+    payload = {
+        "recall_index_schema_version": "1.1",
+        "generated_at": now.isoformat(),
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "pattern": pattern,
+            "limit": limit,
+        },
+        "sessions_indexed": len(merged),
+        "parse_skipped": parse_skipped,
+        "entries": merged,
+        "refresh": {
+            "sessions_touched": sessions_touched,
+            "sessions_skipped_unchanged": sessions_skipped_unchanged,
+            "pruned_missing": pruned_missing,
+            "pruned_stale_window": pruned_stale_window,
+        },
+    }
+    idx_path.parent.mkdir(parents=True, exist_ok=True)
+    idx_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {
+        "ok": True,
+        "index_file": str(idx_path),
+        "sessions_indexed": len(merged),
+        "parse_skipped": parse_skipped,
+        "recall_index_schema_version": "1.1",
+        "mode": "incremental",
+        "sessions_touched": sessions_touched,
+        "sessions_skipped_unchanged": sessions_skipped_unchanged,
+        "pruned_missing": pruned_missing,
+        "pruned_stale_window": pruned_stale_window,
     }
 
 
@@ -475,13 +605,9 @@ def _search_recall_index(
     regex: bool,
     case_sensitive: bool,
     max_hits: int,
-    index_file: str | None = None,
+    index_path: str | None = None,
 ) -> dict[str, Any]:
-    idx_path = (
-        Path(index_file).expanduser().resolve()
-        if isinstance(index_file, str) and index_file.strip()
-        else (Path(cwd).resolve() / ".cai-recall-index.json")
-    )
+    idx_path = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
     return _build_recall_payload_from_index(
         index_file=str(idx_path),
         query=query,
@@ -494,13 +620,9 @@ def _search_recall_index(
 def _recall_index_info(
     *,
     cwd: str,
-    index_file: str | None,
+    index_path: str | None,
 ) -> dict[str, Any]:
-    idx = (
-        Path(index_file).expanduser().resolve()
-        if isinstance(index_file, str) and index_file.strip()
-        else (Path(cwd).resolve() / ".cai-recall-index.json")
-    )
+    idx = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
     if not idx.is_file():
         return {
             "ok": False,
@@ -522,6 +644,7 @@ def _recall_index_info(
         "recall_index_schema_version": doc.get("recall_index_schema_version"),
         "generated_at": doc.get("generated_at"),
         "entries_count": count,
+        "sessions_indexed": doc.get("sessions_indexed", count),
         "window": doc.get("window"),
     }
 
@@ -529,13 +652,9 @@ def _recall_index_info(
 def _clear_recall_index(
     *,
     cwd: str,
-    index_file: str | None,
+    index_path: str | None,
 ) -> dict[str, Any]:
-    idx = (
-        Path(index_file).expanduser().resolve()
-        if isinstance(index_file, str) and index_file.strip()
-        else (Path(cwd).resolve() / ".cai-recall-index.json")
-    )
+    idx = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
     if not idx.exists():
         return {"ok": True, "removed": False, "index_file": str(idx)}
     idx.unlink()
@@ -1711,6 +1830,7 @@ def main(argv: list[str] | None = None) -> int:
     recall_p.add_argument(
         "--index-path",
         default=None,
+        dest="index_path",
         help="索引文件路径（默认 .cai-recall-index.json）",
     )
     recall_idx_p = sub.add_parser(
@@ -1724,7 +1844,23 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_build.add_argument("--limit", type=int, default=200)
     recall_idx_build.add_argument("--days", type=int, default=30)
     recall_idx_build.add_argument("--json", action="store_true", dest="json_output")
-    recall_idx_build.add_argument("--index-path", default=None)
+    recall_idx_build.add_argument("--index-path", default=None, dest="index_path")
+
+    recall_idx_refresh = recall_idx_sub.add_parser(
+        "refresh",
+        help="增量刷新索引（mtime 未变则跳过解析；可加 --prune 清理缺失/过期条目）",
+    )
+    recall_idx_refresh.add_argument("--pattern", default=".cai-session*.json")
+    recall_idx_refresh.add_argument("--limit", type=int, default=200)
+    recall_idx_refresh.add_argument("--days", type=int, default=30)
+    recall_idx_refresh.add_argument(
+        "--prune",
+        action="store_true",
+        default=False,
+        help="移除磁盘已不存在或超出 --days 窗口的索引条目",
+    )
+    recall_idx_refresh.add_argument("--json", action="store_true", dest="json_output")
+    recall_idx_refresh.add_argument("--index-path", default=None, dest="index_path")
 
     recall_idx_search = recall_idx_sub.add_parser("search", help="通过索引执行检索")
     recall_idx_search.add_argument("--query", required=True)
@@ -1732,15 +1868,15 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_search.add_argument("--days", type=int, default=30)
     recall_idx_search.add_argument("--max-hits", type=int, default=20)
     recall_idx_search.add_argument("--json", action="store_true", dest="json_output")
-    recall_idx_search.add_argument("--index-path", default=None)
+    recall_idx_search.add_argument("--index-path", default=None, dest="index_path")
 
     recall_idx_info = recall_idx_sub.add_parser("info", help="查看索引信息")
     recall_idx_info.add_argument("--json", action="store_true", dest="json_output")
-    recall_idx_info.add_argument("--index-path", default=None)
+    recall_idx_info.add_argument("--index-path", default=None, dest="index_path")
 
     recall_idx_clear = recall_idx_sub.add_parser("clear", help="删除索引文件")
     recall_idx_clear.add_argument("--json", action="store_true", dest="json_output")
-    recall_idx_clear.add_argument("--index-path", default=None)
+    recall_idx_clear.add_argument("--index-path", default=None, dest="index_path")
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
@@ -2550,59 +2686,122 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "recall":
-        payload = _build_recall_payload(
-            cwd=os.getcwd(),
-            pattern=str(args.pattern),
-            limit=int(args.limit),
-            days=int(args.days),
-            query=str(args.query),
-            use_regex=bool(args.regex),
-            case_sensitive=bool(getattr(args, "case_sensitive", False)),
-            hits_per_session=int(
-                args.max_matches if args.max_matches is not None else args.max_hits
-            ),
-            session_limit=int(args.limit),
+        idx_arg = getattr(args, "index_path", None)
+        idx_path = (
+            str(idx_arg).strip()
+            if isinstance(idx_arg, str) and str(idx_arg).strip()
+            else None
         )
+        if bool(getattr(args, "use_index", False)):
+            try:
+                payload = _build_recall_payload_from_index(
+                    index_file=str(_resolve_recall_index_path(cwd=os.getcwd(), index_path=idx_path)),
+                    query=str(args.query),
+                    use_regex=bool(args.regex),
+                    case_sensitive=bool(getattr(args, "case_sensitive", False)),
+                    session_limit=int(args.limit),
+                )
+            except FileNotFoundError:
+                if bool(args.json_output):
+                    print(
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "error": "index_not_found",
+                                "message": "索引文件不存在，请先运行 cai-agent recall-index build",
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print("索引文件不存在，请先运行 cai-agent recall-index build", file=sys.stderr)
+                return 2
+            except Exception as e:
+                if bool(args.json_output):
+                    print(
+                        json.dumps(
+                            {"ok": False, "error": "index_read_failed", "message": str(e)},
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(f"读取索引失败: {e}", file=sys.stderr)
+                return 2
+        else:
+            payload = _build_recall_payload(
+                cwd=os.getcwd(),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+                days=int(args.days),
+                query=str(args.query),
+                use_regex=bool(args.regex),
+                case_sensitive=bool(getattr(args, "case_sensitive", False)),
+                hits_per_session=int(
+                    args.max_matches if args.max_matches is not None else args.max_hits
+                ),
+                session_limit=int(args.limit),
+            )
         if bool(args.json_output):
             print(json.dumps(payload, ensure_ascii=False))
         else:
             print(
-                f"hits={payload.get('hits_count')} scanned={payload.get('sessions_scanned')} "
-                f"matched_sessions={payload.get('sessions_matched')} "
+                f"hits_total={payload.get('hits_total')} scanned={payload.get('sessions_scanned')} "
+                f"matched_sessions={payload.get('sessions_with_hits')} "
                 f"parse_skipped={payload.get('parse_skipped')}",
             )
-            hits = payload.get("hits")
-            if isinstance(hits, list):
-                for i, row in enumerate(hits, start=1):
+            results = payload.get("results")
+            if isinstance(results, list):
+                for i, row in enumerate(results, start=1):
                     if not isinstance(row, dict):
                         continue
                     print(
-                        f"{i:>2}. {row.get('session_name')}:{row.get('field')} "
-                        f"mtime={row.get('mtime')} model={row.get('model')}",
+                        f"{i:>2}. {row.get('path')} mtime={row.get('mtime')} model={row.get('model')}",
                     )
-                    snippet = row.get("snippet")
-                    if isinstance(snippet, str) and snippet:
-                        print(f"    {snippet}")
+                    hits = row.get("hits")
+                    if isinstance(hits, list) and hits:
+                        sn = hits[0].get("snippet") if isinstance(hits[0], dict) else None
+                        if isinstance(sn, str) and sn:
+                            print(f"    {sn}")
         return 0
 
     if args.command == "recall-index":
         action = str(getattr(args, "recall_index_action", "build") or "build")
         cwd = os.getcwd()
-        index_path_arg = getattr(args, "index_file", None)
+        index_path_arg = getattr(args, "index_path", None)
         if action == "build":
             payload = _build_recall_index(
                 cwd=cwd,
                 pattern=str(args.pattern),
                 limit=int(args.limit),
                 days=int(args.days),
-                index_file=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
                 print(
-                    f"indexed_sessions={payload.get('indexed_sessions')} "
-                    f"items={payload.get('index_items')} parse_skipped={payload.get('parse_skipped')} "
+                    f"indexed_sessions={payload.get('sessions_indexed')} "
+                    f"parse_skipped={payload.get('parse_skipped')} "
+                    f"index_file={payload.get('index_file')}",
+                )
+            return 0
+        if action == "refresh":
+            payload = _refresh_recall_index(
+                cwd=cwd,
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+                days=int(args.days),
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                prune_missing=bool(getattr(args, "prune", False)),
+            )
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"mode={payload.get('mode')} indexed_sessions={payload.get('sessions_indexed')} "
+                    f"touched={payload.get('sessions_touched')} "
+                    f"skipped_unchanged={payload.get('sessions_skipped_unchanged')} "
+                    f"parse_skipped={payload.get('parse_skipped')} "
                     f"index_file={payload.get('index_file')}",
                 )
             return 0
@@ -2613,50 +2812,51 @@ def main(argv: list[str] | None = None) -> int:
                 regex=bool(args.regex),
                 case_sensitive=bool(getattr(args, "case_sensitive", False)),
                 max_hits=int(args.max_hits),
-                index_file=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
                 print(
-                    f"hits_total={payload.get('hits_total')} index_items={payload.get('index_items')} "
+                    f"hits_total={payload.get('hits_total')} sessions_scanned={payload.get('sessions_scanned')} "
                     f"index_file={payload.get('index_file')}",
                 )
-                hits = payload.get("hits")
-                if isinstance(hits, list):
-                    for i, row in enumerate(hits, start=1):
+                results = payload.get("results")
+                if isinstance(results, list):
+                    for i, row in enumerate(results, start=1):
                         if not isinstance(row, dict):
                             continue
                         print(
-                            f"{i:>2}. {row.get('session_name')}:{row.get('field')} "
-                            f"mtime={row.get('mtime')} model={row.get('model')}",
+                            f"{i:>2}. {row.get('path')} mtime={row.get('mtime')} model={row.get('model')}",
                         )
-                        snippet = row.get("snippet")
-                        if isinstance(snippet, str) and snippet:
-                            print(f"    {snippet}")
+                        hits = row.get("hits")
+                        if isinstance(hits, list) and hits:
+                            sn = hits[0].get("snippet") if isinstance(hits[0], dict) else None
+                            if isinstance(sn, str) and sn:
+                                print(f"    {sn}")
             return 0
         if action == "info":
             payload = _recall_index_info(
                 cwd=cwd,
-                index_file=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
                 print(
-                    f"exists={payload.get('exists')} index_items={payload.get('index_items')} "
-                    f"indexed_sessions={payload.get('indexed_sessions')} index_file={payload.get('index_file')}",
+                    f"ok={payload.get('ok')} entries_count={payload.get('entries_count')} "
+                    f"index_file={payload.get('index_file')}",
                 )
             return 0
         if action == "clear":
             payload = _clear_recall_index(
                 cwd=cwd,
-                index_file=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
-                print(f"cleared={payload.get('cleared')} index_file={payload.get('index_file')}")
+                print(f"removed={payload.get('removed')} index_file={payload.get('index_file')}")
             return 0
         print(f"未知 recall-index 子命令: {action}", file=sys.stderr)
         return 2

@@ -512,12 +512,13 @@ cai-agent insights --json --days 7
 ```bash
 cai-agent recall --query "TODO" --days 14 --json
 cai-agent recall --query "risk|回归" --regex --limit 50
-cai-agent recall --query "auth" --use-index --index-file ./.cai/recall-index.json --json
-cai-agent recall index --rebuild --index-file ./.cai/recall-index.json --days 60
+cai-agent recall --query "auth" --use-index --index-path ./.cai-recall-index.json --json
+cai-agent recall-index build --days 60
+cai-agent recall-index refresh --prune
 ```
 
-- `recall --use-index` 会优先使用本地索引文件进行检索，适合会话文件较多的仓库。
-- `recall index` 用于构建/重建索引；建议在夜间任务或 CI 前置步骤中定期刷新。
+- `recall --use-index` 使用本地索引（默认工作区根目录 `.cai-recall-index.json`）检索，适合会话文件较多的仓库；需先 `recall-index build`。
+- `recall-index build` 全量重建索引；`recall-index refresh` 增量合并（**mtime 未变则跳过解析**），`--prune` 可清理已删除文件或超出 `--days` 窗口的旧条目。
 
 ### `cai-agent schedule`（生产护栏补充）
 

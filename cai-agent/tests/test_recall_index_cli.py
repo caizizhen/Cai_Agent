@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import time
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -57,6 +59,48 @@ class RecallIndexCliTests(unittest.TestCase):
             self.assertGreaterEqual(int(search_payload.get("hits_total") or 0), 1)
             rows = search_payload.get("results") or []
             self.assertTrue(rows)
+
+    def test_recall_index_refresh_skips_unchanged_mtime(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / ".cai-session-refresh.json"
+            save_session(
+                str(p),
+                {
+                    "version": 2,
+                    "model": "r1",
+                    "messages": [{"role": "assistant", "content": "alpha token"}],
+                },
+            )
+            now = int(time.time())
+            os.utime(p, (now - 300, now - 300))
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            buf1 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf1):
+                    main(["recall-index", "refresh", "--json"])
+            pl1 = json.loads(buf1.getvalue().strip())
+            self.assertEqual(pl1.get("mode"), "incremental")
+            self.assertGreaterEqual(int(pl1.get("sessions_skipped_unchanged") or 0), 1)
+            self.assertEqual(int(pl1.get("sessions_touched") or 0), 0)
+
+            # Touch file to bump mtime and change content.
+            save_session(
+                str(p),
+                {
+                    "version": 2,
+                    "model": "r1",
+                    "messages": [{"role": "assistant", "content": "beta token"}],
+                },
+            )
+            os.utime(p, (now, now))
+            buf2 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf2):
+                    main(["recall-index", "refresh", "--json"])
+            pl2 = json.loads(buf2.getvalue().strip())
+            self.assertGreaterEqual(int(pl2.get("sessions_touched") or 0), 1)
 
     def test_recall_index_info_and_clear(self) -> None:
         with TemporaryDirectory() as td:

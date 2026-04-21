@@ -8,7 +8,7 @@
 
 - **跨会话检索 `recall`（Hermes `/insights` 衍生能力）**：新增 `cai-agent recall <query>`，支持跨会话内容检索并返回命中片段。支持 `--days`（时间窗口）、`--limit`（返回条数）、`--regex`（正则模式）与 `--json`（结构化输出）；默认按最近会话优先。命中结果包含会话路径、文件时间、`task_id`、命中行号与片段预览，无法解析的会话会统计到 `parse_skipped` 且不中断执行。
 
-- **`recall` 索引加速模式（新增）**：新增 `cai-agent recall index`，可把近期会话预构建为本地 JSON 索引（默认 `.cai/recall-index.json`），并在 `recall` 查询时通过 `--use-index` 复用索引以减少大规模会话扫描开销。新增参数：`--index-file`（索引路径）、`--rebuild`（查询前强制重建）、`--max-entries`（每会话索引条目上限）。输出包含 `index_used` / `index_file` / `index_entries_scanned`，便于 QA 验证是否走了索引路径。
+- **`recall-index` 增量刷新**：新增 `cai-agent recall-index refresh`，在已有 `.cai-recall-index.json`（schema `1.1`）上合并更新：**mtime 未变则跳过 JSON 解析**；未出现在本轮扫描窗口内的旧条目仍保留；`--prune` 可剔除磁盘已不存在或超出 `--days` 窗口的路径。`recall-index build` 仍为全量重建。`recall --use-index` 与 `recall-index` 统一使用 `--index-path` 指定索引文件。
 
 - **schedule daemon 生产护栏（防重 + 日志）**：`cai-agent schedule daemon` 新增单实例锁（默认 `.cai-schedule-daemon.lock`，可用 `--lock-file` 自定义）防止同工作区重复启动；重复启动会安全返回并给出 `daemon_already_running`。新增 `--log-file` 将每轮 JSON 摘要追加到日志，便于 QA 与线上排障。命令参数统一为 `--max-cycles`（README 同步修正），并新增 `docs/qa/schedule-daemon-testplan.md` 作为手工验收清单。
 
