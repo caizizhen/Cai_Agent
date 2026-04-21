@@ -60,6 +60,9 @@ def add_schedule_task(
     every_minutes: int,
     workspace: str | None = None,
     model: str | None = None,
+    depends_on: list[str] | None = None,
+    retry_max_attempts: int | None = None,
+    retry_backoff_sec: float | None = None,
     cwd: str | None = None,
 ) -> dict[str, Any]:
     if every_minutes < 1:
@@ -71,6 +74,15 @@ def add_schedule_task(
     tasks = doc.get("tasks")
     if not isinstance(tasks, list):
         tasks = []
+    deps_clean: list[str] = []
+    for dep in (depends_on or []):
+        d = str(dep or "").strip()
+        if d and d not in deps_clean:
+            deps_clean.append(d)
+    retry_attempts = int(retry_max_attempts if retry_max_attempts is not None else 1)
+    retry_attempts = max(1, min(retry_attempts, 20))
+    backoff = float(retry_backoff_sec if retry_backoff_sec is not None else 0.0)
+    backoff = max(0.0, min(backoff, 600.0))
     item = {
         "id": f"sched-{uuid.uuid4().hex[:10]}",
         "goal": g,
@@ -78,6 +90,9 @@ def add_schedule_task(
         "enabled": True,
         "workspace": str(workspace).strip() if isinstance(workspace, str) and workspace.strip() else None,
         "model": str(model).strip() if isinstance(model, str) and model.strip() else None,
+        "depends_on": deps_clean,
+        "retry_max_attempts": retry_attempts,
+        "retry_backoff_sec": backoff,
         "created_at": _utc_now_iso(),
         "last_run_at": None,
         "last_status": None,
@@ -113,11 +128,32 @@ def compute_due_tasks(
     now_ts: float | None = None,
 ) -> list[dict[str, Any]]:
     now = float(now_ts) if now_ts is not None else time.time()
+    rows = list_schedule_tasks(cwd)
+    status_by_id: dict[str, str | None] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        rid = str(row.get("id") or "").strip()
+        if rid:
+            st = row.get("last_status")
+            status_by_id[rid] = str(st).strip() if isinstance(st, str) and st.strip() else None
     out: list[dict[str, Any]] = []
-    for row in list_schedule_tasks(cwd):
+    for row in rows:
         enabled = bool(row.get("enabled", True))
         if not enabled:
             continue
+        deps = row.get("depends_on")
+        if isinstance(deps, list) and deps:
+            blocked = False
+            for dep in deps:
+                dep_id = str(dep or "").strip()
+                if not dep_id:
+                    continue
+                if status_by_id.get(dep_id) != "completed":
+                    blocked = True
+                    break
+            if blocked:
+                continue
         every_raw = row.get("every_minutes")
         if not isinstance(every_raw, int) or every_raw < 1:
             continue
@@ -166,3 +202,26 @@ def mark_schedule_task_run(
     if changed:
         save_schedule_doc(doc, cwd)
     return changed
+
+
+def append_schedule_audit_event(
+    *,
+    task_id: str,
+    status: str,
+    action: str,
+    cwd: str | None = None,
+    details: dict[str, Any] | None = None,
+) -> None:
+    """向 `.cai-schedule-audit.jsonl` 追加审计记录。"""
+    base = Path(cwd or ".").expanduser().resolve()
+    p = base / ".cai-schedule-audit.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    row = {
+        "ts": _utc_now_iso(),
+        "task_id": str(task_id).strip(),
+        "status": str(status).strip(),
+        "action": str(action).strip(),
+        "details": details or {},
+    }
+    with p.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")

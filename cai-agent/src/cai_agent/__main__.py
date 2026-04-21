@@ -6,6 +6,9 @@ import json
 import os
 import signal
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import urllib.error
+import urllib.request
 
 import threading
 import time
@@ -39,7 +42,9 @@ from cai_agent.profiles import (
 )
 from cai_agent.exporter import export_target
 from cai_agent.memory import (
+    annotate_memory_states,
     export_memory_entries_bundle,
+    evaluate_memory_entry_states,
     extract_basic_instincts_from_session,
     extract_memory_entries_from_session,
     import_memory_entries_bundle,
@@ -56,6 +61,7 @@ from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_security_scan
 from cai_agent.schedule import (
     add_schedule_task,
+    append_schedule_audit_event,
     compute_due_tasks,
     list_schedule_tasks,
     load_schedule_doc,
@@ -156,7 +162,7 @@ def _build_insights_payload(
 
     top_error_sessions.sort(key=lambda x: int(x.get("error_count") or 0), reverse=True)
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "window": {
             "days": max(days, 1),
@@ -209,13 +215,23 @@ def _build_memory_nudge_payload(
     latest_instinct_path = str(latest_instincts[0]) if latest_instincts else None
 
     actions: list[str] = []
+    thresholds = {
+        "high": {"recent_sessions_min": 8, "memory_entries_max": 0},
+        "medium": {"recent_sessions_min": 4, "memory_entries_max": 2},
+    }
     severity = "low"
-    if len(recent_sessions) >= 8 and not entries:
+    if (
+        len(recent_sessions) >= int(thresholds["high"]["recent_sessions_min"])
+        and len(entries) <= int(thresholds["high"]["memory_entries_max"])
+    ):
         severity = "high"
         actions.append(
             "近期会话较多但暂无结构化记忆，建议立即执行 `cai-agent memory extract --limit 20`",
         )
-    elif len(recent_sessions) >= 4 and len(entries) < 3:
+    elif (
+        len(recent_sessions) >= int(thresholds["medium"]["recent_sessions_min"])
+        and len(entries) <= int(thresholds["medium"]["memory_entries_max"])
+    ):
         severity = "medium"
         actions.append("近期会话增长较快，建议补充 memory extract 并检查记忆分类质量")
 
@@ -232,8 +248,32 @@ def _build_memory_nudge_payload(
     if not actions:
         actions.append("记忆状态健康：保持每周至少一次 `cai-agent memory extract --limit 10`")
 
+    # 风险分数用于后续调度门禁联动：会话越多、记忆越少、告警越多则分数越高。
+    risk_score = (len(recent_sessions) * 8) - (len(entries) * 5) + (len(warns) * 12)
+    if latest_instinct_path is None:
+        risk_score += 6
+    risk_score = max(0, min(100, int(risk_score)))
+
+    trend = "stable"
+    history_path = root / "memory" / "nudge-history.jsonl"
+    if history_path.is_file():
+        try:
+            lines = [ln.strip() for ln in history_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if lines:
+                prev_obj = json.loads(lines[-1])
+                if isinstance(prev_obj, dict):
+                    prev = str(prev_obj.get("severity") or "low").strip().lower()
+                    rank = {"low": 0, "medium": 1, "high": 2}
+                    d = rank.get(severity, 0) - rank.get(prev, 0)
+                    if d > 0:
+                        trend = "escalated"
+                    elif d < 0:
+                        trend = "deescalated"
+        except Exception:
+            trend = "stable"
+
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "window": {
             "days": max(days, 1),
@@ -246,6 +286,9 @@ def _build_memory_nudge_payload(
         "memory_warnings": warns,
         "latest_instinct_path": latest_instinct_path,
         "severity": severity,
+        "risk_score": risk_score,
+        "trend": trend,
+        "threshold_policy": thresholds,
         "actions": actions,
     }
 
@@ -406,6 +449,34 @@ def _extract_session_recall_hits(
     return hits
 
 
+def _recall_row_score(
+    *,
+    mtime: int,
+    now_ts: int,
+    hits_count: int,
+    query: str,
+    text_for_density: str,
+    case_sensitive: bool,
+) -> tuple[float, dict[str, float]]:
+    """融合 recency / hits_count / keyword_density 的轻量评分。"""
+    age_sec = max(0, now_ts - int(mtime or 0))
+    # 7 天半衰，近期结果更靠前。
+    recency = max(0.0, 1.0 - (float(age_sec) / float(7 * 24 * 60 * 60)))
+    hit_strength = min(1.0, float(max(hits_count, 0)) / 5.0)
+    density = 0.0
+    if query.strip() and text_for_density.strip():
+        q = query if case_sensitive else query.lower()
+        hay = text_for_density if case_sensitive else text_for_density.lower()
+        occ = hay.count(q)
+        density = min(1.0, float(occ) / max(1.0, float(len(hay)) / 220.0))
+    score = round((recency * 0.45) + (hit_strength * 0.35) + (density * 0.20), 4)
+    return score, {
+        "recency": round(recency, 4),
+        "hit_strength": round(hit_strength, 4),
+        "keyword_density": round(density, 4),
+    }
+
+
 def _build_recall_payload(
     *,
     cwd: str,
@@ -419,6 +490,7 @@ def _build_recall_payload(
     session_limit: int,
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
+    now_ts = int(now.timestamp())
     since = now - timedelta(days=max(days, 1))
     files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     parse_skipped = 0
@@ -454,6 +526,15 @@ def _build_recall_payload(
             if isinstance(answer, str) and answer.strip()
             else ""
         )
+        density_blob = " ".join(str(h.get("snippet") or "") for h in selected)
+        score, score_breakdown = _recall_row_score(
+            mtime=int(p.stat().st_mtime),
+            now_ts=now_ts,
+            hits_count=len(selected),
+            query=query,
+            text_for_density=density_blob,
+            case_sensitive=case_sensitive,
+        )
         result_rows.append(
             {
                 "path": str(p),
@@ -467,12 +548,20 @@ def _build_recall_payload(
                 "answer_preview": answer_preview,
                 "hits": selected,
                 "hits_count": len(selected),
+                "score": score,
+                "score_breakdown": score_breakdown,
             },
         )
-    result_rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+    result_rows.sort(
+        key=lambda x: (
+            float(x.get("score") or 0.0),
+            int(x.get("mtime") or 0),
+        ),
+        reverse=True,
+    )
     trimmed = result_rows[: max(1, session_limit)]
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "query": query,
         "regex": use_regex,
@@ -490,6 +579,10 @@ def _build_recall_payload(
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": parse_skipped,
         "results": trimmed,
+        "ranking": {
+            "strategy": "hybrid(recency,hit_strength,keyword_density)",
+            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
+        },
     }
 
 
@@ -713,6 +806,7 @@ def _build_recall_payload_from_index(
     case_sensitive: bool,
     session_limit: int,
 ) -> dict[str, Any]:
+    now_ts = int(time.time())
     doc = json.loads(Path(index_file).expanduser().resolve().read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
         raise ValueError("index file root must be object")
@@ -740,6 +834,15 @@ def _build_recall_payload_from_index(
         if not hits:
             continue
         total_hits += len(hits)
+        density_blob = " ".join(str(h.get("snippet") or "") for h in hits[:3])
+        score, score_breakdown = _recall_row_score(
+            mtime=int(row.get("mtime") or 0),
+            now_ts=now_ts,
+            hits_count=len(hits),
+            query=query,
+            text_for_density=density_blob,
+            case_sensitive=case_sensitive,
+        )
         rows.append(
             {
                 "path": row.get("path"),
@@ -749,9 +852,17 @@ def _build_recall_payload_from_index(
                 "answer_preview": row.get("answer_preview"),
                 "hits_count": len(hits),
                 "hits": hits[:3],
+                "score": score,
+                "score_breakdown": score_breakdown,
             },
         )
-    rows.sort(key=lambda x: int(x.get("mtime") or 0), reverse=True)
+    rows.sort(
+        key=lambda x: (
+            float(x.get("score") or 0.0),
+            int(x.get("mtime") or 0),
+        ),
+        reverse=True,
+    )
     trimmed = rows[: max(1, session_limit)]
     return {
         "schema_version": "1.1",
@@ -765,6 +876,10 @@ def _build_recall_payload_from_index(
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": 0,
         "results": trimmed,
+        "ranking": {
+            "strategy": "hybrid(recency,hit_strength,keyword_density)",
+            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
+        },
     }
 
 
@@ -785,6 +900,146 @@ def _search_recall_index(
         case_sensitive=case_sensitive,
         session_limit=max(1, max_hits),
     )
+
+
+def _benchmark_recall_index(
+    *,
+    cwd: str,
+    query: str,
+    regex: bool,
+    case_sensitive: bool,
+    days: int,
+    max_hits: int,
+    pattern: str,
+    limit: int,
+    ensure_index: bool,
+    runs: int,
+    index_path: str | None,
+) -> dict[str, Any]:
+    """对比直扫 recall 与索引 recall 的耗时与命中质量。"""
+    started_scan = time.perf_counter()
+    scan_payload = _build_recall_payload(
+        cwd=cwd,
+        pattern=pattern,
+        limit=limit,
+        days=days,
+        query=query,
+        use_regex=regex,
+        case_sensitive=case_sensitive,
+        hits_per_session=3,
+        session_limit=max(1, max_hits),
+    )
+    scan_ms = int((time.perf_counter() - started_scan) * 1000)
+
+    idx_file = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
+    if ensure_index or (not idx_file.is_file()):
+        _build_recall_index(
+            cwd=cwd,
+            pattern=pattern,
+            limit=limit,
+            days=days,
+            index_path=index_path,
+        )
+
+    started_idx = time.perf_counter()
+    index_payload = _build_recall_payload_from_index(
+        index_file=str(idx_file),
+        query=query,
+        use_regex=regex,
+        case_sensitive=case_sensitive,
+        session_limit=max(1, max_hits),
+    )
+    index_ms = int((time.perf_counter() - started_idx) * 1000)
+
+    scan_hits = int(scan_payload.get("hits_total") or 0)
+    idx_hits = int(index_payload.get("hits_total") or 0)
+    speedup = None
+    if index_ms > 0:
+        speedup = round(float(scan_ms) / float(index_ms), 3)
+
+    return {
+        "schema_version": "recall_benchmark_v1",
+        "query": query,
+        "regex": regex,
+        "case_sensitive": case_sensitive,
+        "window_days": max(1, int(days)),
+        "scan": {
+            "elapsed_ms": scan_ms,
+            "sessions_scanned": int(scan_payload.get("sessions_scanned") or 0),
+            "sessions_with_hits": int(scan_payload.get("sessions_with_hits") or 0),
+            "hits_total": scan_hits,
+        },
+        "index": {
+            "elapsed_ms": index_ms,
+            "sessions_scanned": int(index_payload.get("sessions_scanned") or 0),
+            "sessions_with_hits": int(index_payload.get("sessions_with_hits") or 0),
+            "hits_total": idx_hits,
+            "index_file": str(idx_file),
+        },
+        "comparison": {
+            "speedup_scan_over_index": speedup,
+            "hits_delta": idx_hits - scan_hits,
+            "scan_faster": scan_ms < index_ms,
+            "index_faster": index_ms < scan_ms,
+        },
+    }
+
+
+def _build_observe_report_payload(
+    observe_payload: dict[str, Any],
+    *,
+    warn_failure_rate: float,
+    fail_failure_rate: float,
+    warn_token_budget: int,
+    fail_token_budget: int,
+    warn_tool_errors: int,
+    fail_tool_errors: int,
+) -> dict[str, Any]:
+    obs = observe_payload
+    ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    tool_errors = int(ag.get("tool_errors_total", 0) or 0)
+
+    alerts: list[dict[str, Any]] = []
+
+    def add_alert(metric: str, value: float | int, warn_t: float | int, fail_t: float | int) -> None:
+        level = "ok"
+        if value >= fail_t:
+            level = "fail"
+        elif value >= warn_t:
+            level = "warn"
+        alerts.append(
+            {
+                "metric": metric,
+                "value": value,
+                "warn_threshold": warn_t,
+                "fail_threshold": fail_t,
+                "level": level,
+            },
+        )
+
+    add_alert("failure_rate", failure_rate, warn_failure_rate, fail_failure_rate)
+    add_alert("total_tokens", total_tokens, warn_token_budget, fail_token_budget)
+    add_alert("tool_errors_total", tool_errors, warn_tool_errors, fail_tool_errors)
+
+    state = "pass"
+    if any(a.get("level") == "fail" for a in alerts):
+        state = "fail"
+    elif any(a.get("level") == "warn" for a in alerts):
+        state = "warn"
+
+    return {
+        "schema_version": "observe_report_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "state": state,
+        "alerts": alerts,
+        "observe": {
+            "schema_version": obs.get("schema_version"),
+            "sessions_count": int(obs.get("sessions_count", 0) or 0),
+            "aggregates": ag,
+        },
+    }
 
 
 def _recall_index_info(
@@ -831,6 +1086,253 @@ def _clear_recall_index(
     return {"ok": True, "removed": True, "index_file": str(idx)}
 
 
+def _run_release_ga_gate(
+    *,
+    cwd: str,
+    max_failure_rate: float,
+    max_tokens: int | None,
+    run_quality_gate_check: bool,
+    run_security_scan_check: bool,
+    include_lint: bool,
+    include_typecheck: bool,
+    with_doctor: bool,
+    with_memory_nudge: bool,
+    memory_nudge_fail_on: str,
+    with_memory_state: bool,
+    memory_state_max_stale_rate: float,
+    memory_state_max_expired_rate: float,
+    memory_state_stale_days: int,
+    memory_state_stale_confidence: float,
+) -> dict[str, Any]:
+    settings = Settings.from_env(config_path=None, workspace_hint=cwd)
+    ag = aggregate_sessions(cwd=cwd, limit=200)
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    token_budget = int(max_tokens) if isinstance(max_tokens, int) else int(settings.cost_budget_max_tokens)
+    checks: list[dict[str, Any]] = []
+
+    fail_rate_ok = failure_rate <= max_failure_rate
+    checks.append(
+        {
+            "name": "session_failure_rate",
+            "ok": fail_rate_ok,
+            "actual": round(failure_rate, 6),
+            "threshold": round(max_failure_rate, 6),
+            "detail": f"failure_rate={failure_rate:.4f} threshold={max_failure_rate:.4f}",
+        },
+    )
+
+    token_ok = total_tokens <= token_budget
+    checks.append(
+        {
+            "name": "token_budget",
+            "ok": token_ok,
+            "actual": total_tokens,
+            "threshold": token_budget,
+            "detail": f"total_tokens={total_tokens} threshold={token_budget}",
+        },
+    )
+
+    if run_security_scan_check:
+        sec = run_security_scan(settings)
+        sec_ok = bool(sec.get("ok"))
+        checks.append(
+            {
+                "name": "security_scan",
+                "ok": sec_ok,
+                "findings_count": int(sec.get("findings_count", 0) or 0),
+                "detail": (
+                    f"findings={int(sec.get('findings_count', 0) or 0)}"
+                    f" scanned_files={int(sec.get('scanned_files', 0) or 0)}"
+                ),
+            },
+        )
+
+    if run_quality_gate_check:
+        gate = run_quality_gate(
+            settings,
+            enable_compile=settings.quality_gate_compile,
+            enable_test=settings.quality_gate_test,
+            enable_lint=bool(include_lint) or settings.quality_gate_lint,
+            enable_typecheck=bool(include_typecheck) or settings.quality_gate_typecheck,
+            enable_security_scan=False,
+            report_dir=None,
+        )
+        gate_ok = bool(gate.get("ok"))
+        checks.append(
+            {
+                "name": "quality_gate",
+                "ok": gate_ok,
+                "failed_count": int(gate.get("failed_count", 0) or 0),
+                "detail": f"failed_count={int(gate.get('failed_count', 0) or 0)}",
+            },
+        )
+
+    if with_doctor:
+        try:
+            doctor_settings = Settings.from_env(config_path=None, workspace_hint=cwd)
+            doctor_rc = int(run_doctor(doctor_settings))
+        except Exception:
+            doctor_rc = 2
+        checks.append(
+            {
+                "name": "doctor",
+                "ok": doctor_rc == 0,
+                "exit_code": doctor_rc,
+                "detail": f"doctor_rc={doctor_rc}",
+            },
+        )
+
+    if with_memory_nudge:
+        fail_on = str(memory_nudge_fail_on or "high").strip().lower()
+        if fail_on not in ("medium", "high"):
+            fail_on = "high"
+        nudge = _build_memory_nudge_payload(
+            cwd=cwd,
+            days=7,
+            session_pattern=".cai-session*.json",
+            session_limit=100,
+        )
+        sev = str(nudge.get("severity") or "low").strip().lower()
+        sev_rank = {"low": 0, "medium": 1, "high": 2}
+        nudge_ok = sev_rank.get(sev, 0) < sev_rank.get(fail_on, 2)
+        checks.append(
+            {
+                "name": "memory_nudge",
+                "ok": nudge_ok,
+                "actual": sev,
+                "threshold": fail_on,
+                "detail": f"severity={sev} fail_on={fail_on}",
+            },
+        )
+
+    if with_memory_state:
+        state_payload = evaluate_memory_entry_states(
+            cwd,
+            stale_after_days=int(max(1, memory_state_stale_days)),
+            min_active_confidence=float(max(0.0, min(1.0, memory_state_stale_confidence))),
+        )
+        counts = state_payload.get("counts") if isinstance(state_payload.get("counts"), dict) else {}
+        rows_obj = state_payload.get("rows")
+        rows_list = rows_obj if isinstance(rows_obj, list) else []
+        total_entries = int(state_payload.get("total_entries", len(rows_list)) or len(rows_list))
+        stale_count = int(counts.get("stale", 0) or 0)
+        expired_count = int(counts.get("expired", 0) or 0)
+        stale_rate = (float(stale_count) / total_entries) if total_entries else 0.0
+        expired_rate = (float(expired_count) / total_entries) if total_entries else 0.0
+        state_ok = (stale_rate <= memory_state_max_stale_rate) and (expired_rate <= memory_state_max_expired_rate)
+        checks.append(
+            {
+                "name": "memory_state",
+                "ok": state_ok,
+                "actual": {
+                    "stale_rate": round(stale_rate, 6),
+                    "expired_rate": round(expired_rate, 6),
+                    "stale_count": stale_count,
+                    "expired_count": expired_count,
+                    "total_entries": total_entries,
+                },
+                "threshold": {
+                    "max_stale_rate": round(memory_state_max_stale_rate, 6),
+                    "max_expired_rate": round(memory_state_max_expired_rate, 6),
+                    "stale_days": int(max(1, memory_state_stale_days)),
+                    "stale_confidence": float(max(0.0, min(1.0, memory_state_stale_confidence))),
+                },
+                "detail": (
+                    f"stale_rate={stale_rate:.4f}<= {memory_state_max_stale_rate:.4f}, "
+                    f"expired_rate={expired_rate:.4f}<= {memory_state_max_expired_rate:.4f}"
+                ),
+            },
+        )
+
+    ok = all(bool(c.get("ok")) for c in checks)
+    failed_checks = [str(c.get("name") or "") for c in checks if not bool(c.get("ok"))]
+    state = "pass" if ok else "fail"
+    return {
+        "schema_version": "release_ga_gate_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(Path(cwd).resolve()),
+        "ok": ok,
+        "state": state,
+        "checks_passed": len(checks) - len(failed_checks),
+        "checks_failed": len(failed_checks),
+        "failed_checks": failed_checks,
+        "failure_rate": failure_rate,
+        "total_tokens": total_tokens,
+        "checks": checks,
+        "aggregates": {
+            "sessions_count": int(ag.get("sessions_count", 0) or 0),
+            "failure_rate": failure_rate,
+            "total_tokens": total_tokens,
+            "token_budget": token_budget,
+        },
+    }
+
+
+def _build_observe_report(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    failure_rate_warn: float,
+    failure_rate_crit: float,
+    tokens_warn: int,
+    run_events_warn: int,
+) -> dict[str, Any]:
+    obs = build_observe_payload(cwd=cwd, pattern=pattern, limit=limit)
+    ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    run_events_total = int(ag.get("run_events_total", 0) or 0)
+    checks: list[dict[str, Any]] = []
+
+    sev = "ok"
+    if failure_rate >= failure_rate_crit:
+        sev = "critical"
+    elif failure_rate >= failure_rate_warn:
+        sev = "warning"
+    checks.append(
+        {
+            "name": "failure_rate",
+            "severity": sev,
+            "actual": round(failure_rate, 6),
+            "threshold_warn": round(failure_rate_warn, 6),
+            "threshold_critical": round(failure_rate_crit, 6),
+        },
+    )
+
+    checks.append(
+        {
+            "name": "total_tokens",
+            "severity": "warning" if total_tokens >= tokens_warn else "ok",
+            "actual": total_tokens,
+            "threshold_warn": int(tokens_warn),
+        },
+    )
+    checks.append(
+        {
+            "name": "run_events_total",
+            "severity": "warning" if run_events_total <= run_events_warn else "ok",
+            "actual": run_events_total,
+            "threshold_warn": int(run_events_warn),
+        },
+    )
+    has_critical = any(str(c.get("severity")) == "critical" for c in checks)
+    has_warning = any(str(c.get("severity")) == "warning" for c in checks)
+    state = "ok"
+    if has_critical:
+        state = "critical"
+    elif has_warning:
+        state = "warning"
+    return {
+        "schema_version": "observe_report_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "state": state,
+        "checks": checks,
+        "observe": obs,
+    }
+
+
 def _execute_scheduled_goal(
     *,
     config_path: str | None,
@@ -875,6 +1377,343 @@ def _resolve_schedule_path(root: Path, raw_path: str | None, default_name: str) 
             p = p.resolve()
         return p
     return (root / default_name).resolve()
+
+
+def _resolve_gateway_map_path(root: Path, raw_path: str | None) -> Path:
+    return _resolve_schedule_path(root, raw_path, ".cai/gateway/telegram-session-map.json")
+
+
+def _load_gateway_map(path: Path) -> dict[str, Any]:
+    if not path.is_file():
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    if not isinstance(obj, dict):
+        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+    binds = obj.get("bindings")
+    if not isinstance(binds, dict):
+        binds = {}
+    out: dict[str, dict[str, str]] = {}
+    for k, v in binds.items():
+        if not isinstance(k, str) or not k.strip() or not isinstance(v, dict):
+            continue
+        chat_id = str(v.get("chat_id") or "").strip()
+        user_id = str(v.get("user_id") or "").strip()
+        session_file = str(v.get("session_file") or "").strip()
+        if not chat_id or not user_id or not session_file:
+            continue
+        out[k.strip()] = {
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "session_file": session_file,
+        }
+    return {"schema_version": "gateway_telegram_map_v1", "bindings": out}
+
+
+def _save_gateway_map(path: Path, doc: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(doc, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _extract_telegram_ids_from_update(obj: dict[str, Any]) -> tuple[str | None, str | None]:
+    """从 Telegram update JSON 中提取 chat_id/user_id。"""
+    candidates: list[dict[str, Any]] = []
+    for key in ("message", "edited_message", "callback_query", "channel_post"):
+        val = obj.get(key)
+        if isinstance(val, dict):
+            candidates.append(val)
+    for item in candidates:
+        chat_obj = item.get("chat")
+        from_obj = item.get("from")
+        if isinstance(item.get("message"), dict):
+            inner = item.get("message")
+            if isinstance(inner, dict):
+                chat_obj = inner.get("chat") if isinstance(inner.get("chat"), dict) else chat_obj
+                from_obj = inner.get("from") if isinstance(inner.get("from"), dict) else from_obj
+        if not isinstance(from_obj, dict):
+            sender_chat = item.get("sender_chat")
+            if isinstance(sender_chat, dict):
+                from_obj = sender_chat
+        chat_id = str(chat_obj.get("id")).strip() if isinstance(chat_obj, dict) and "id" in chat_obj else ""
+        user_id = str(from_obj.get("id")).strip() if isinstance(from_obj, dict) and "id" in from_obj else ""
+        if chat_id and user_id:
+            return chat_id, user_id
+    return None, None
+
+
+def _resolve_gateway_session_from_update(
+    *,
+    root: Path,
+    map_path: Path,
+    update_obj: dict[str, Any],
+    create_missing: bool,
+    session_template: str,
+) -> dict[str, Any]:
+    doc = _load_gateway_map(map_path)
+    bindings = doc.get("bindings")
+    if not isinstance(bindings, dict):
+        bindings = {}
+        doc["bindings"] = bindings
+    chat_id, user_id = _extract_telegram_ids_from_update(update_obj)
+    if not chat_id or not user_id:
+        return {
+            "schema_version": "gateway_telegram_map_v1",
+            "action": "resolve-update",
+            "ok": False,
+            "error": "invalid_update",
+            "message": "无法从 update JSON 提取 chat_id/user_id",
+        }
+    key = f"{chat_id}:{user_id}"
+    row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+    created = False
+    if row is None and create_missing:
+        rel = session_template.format(chat_id=chat_id, user_id=user_id)
+        p = Path(rel).expanduser()
+        if not p.is_absolute():
+            p = (root / p).resolve()
+        else:
+            p = p.resolve()
+        row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+        bindings[key] = row
+        _save_gateway_map(map_path, doc)
+        created = True
+    return {
+        "schema_version": "gateway_telegram_map_v1",
+        "action": "resolve-update",
+        "ok": bool(row),
+        "created": created,
+        "map_file": str(map_path),
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "binding": row,
+    }
+
+
+def _send_telegram_message(
+    *,
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    timeout_sec: float = 8.0,
+) -> tuple[bool, dict[str, Any]]:
+    token = str(bot_token or "").strip()
+    cid = str(chat_id or "").strip()
+    if not token or not cid:
+        return False, {"ok": False, "error": "invalid_args", "message": "bot_token/chat_id 不能为空"}
+    url = f"https://api.telegram.org/bot{token}/sendMessage"
+    body = json.dumps({"chat_id": cid, "text": str(text or "")}, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=max(float(timeout_sec), 0.1)) as resp:
+            resp_body = resp.read().decode("utf-8")
+        obj = json.loads(resp_body)
+        if isinstance(obj, dict):
+            return bool(obj.get("ok")), obj
+        return False, {"ok": False, "error": "invalid_response", "raw": resp_body[:500]}
+    except urllib.error.HTTPError as e:
+        try:
+            raw = e.read().decode("utf-8")
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return False, parsed
+            return False, {"ok": False, "error": "http_error", "status": int(e.code), "raw": raw[:500]}
+        except Exception:
+            return False, {"ok": False, "error": "http_error", "status": int(e.code)}
+    except Exception as e:
+        return False, {"ok": False, "error": "send_failed", "message": str(e)}
+
+
+def _run_gateway_telegram_webhook_server(
+    *,
+    root: Path,
+    host: str,
+    port: int,
+    map_path: Path,
+    session_template: str,
+    create_missing: bool,
+    execute_on_update: bool,
+    goal_template: str,
+    reply_on_execution: bool,
+    telegram_bot_token: str | None,
+    reply_template: str,
+    log_file: Path,
+    max_requests: int,
+) -> dict[str, Any]:
+    class _Handler(BaseHTTPRequestHandler):
+        server_version = "cai-gateway/0.1"
+
+        def _write_json(self, code: int, payload: dict[str, Any]) -> None:
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path != "/telegram/update":
+                self._write_json(404, {"ok": False, "error": "not_found"})
+                return
+            content_length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(max(content_length, 0))
+            try:
+                obj = json.loads(raw.decode("utf-8"))
+            except Exception as e:
+                self._write_json(400, {"ok": False, "error": "invalid_json", "message": str(e)})
+                return
+            if not isinstance(obj, dict):
+                self._write_json(400, {"ok": False, "error": "invalid_json_root"})
+                return
+            payload = _resolve_gateway_session_from_update(
+                root=root,
+                map_path=map_path,
+                update_obj=obj,
+                create_missing=create_missing,
+                session_template=session_template,
+            )
+            execution: dict[str, Any] | None = None
+            if bool(payload.get("ok")) and execute_on_update:
+                chat_id = str(payload.get("chat_id") or "").strip()
+                user_id = str(payload.get("user_id") or "").strip()
+                binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else {}
+                workspace_override = str(binding.get("session_file") or "").strip()
+                text_hint = ""
+                msg = obj.get("message")
+                if isinstance(msg, dict):
+                    text_hint = str(msg.get("text") or "").strip()
+                goal = goal_template.format(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text=text_hint,
+                ).strip()
+                ok_exec, out_exec = _execute_scheduled_goal(
+                    config_path=None,
+                    workspace_hint=str(root),
+                    workspace_override=str(root),
+                    model_override=None,
+                    goal=goal,
+                )
+                execution = {
+                    "triggered": True,
+                    "ok": bool(ok_exec),
+                    "goal": goal,
+                    "answer_preview": out_exec[:240],
+                    "session_file": workspace_override or None,
+                }
+                if reply_on_execution:
+                    reply_text = reply_template.format(
+                        chat_id=chat_id,
+                        user_id=user_id,
+                        text=text_hint,
+                        answer=out_exec[:1000],
+                        ok=str(bool(ok_exec)).lower(),
+                    ).strip()
+                    if telegram_bot_token:
+                        reply_result = _telegram_send_message(
+                            bot_token=telegram_bot_token,
+                            chat_id=chat_id,
+                            text=reply_text,
+                        )
+                    else:
+                        reply_result = {
+                            "ok": False,
+                            "error": "missing_bot_token",
+                            "message": "未配置 Telegram bot token",
+                        }
+                    execution["reply"] = reply_result
+            elif execute_on_update:
+                execution = {"triggered": False, "ok": False, "reason": "resolve_failed"}
+            if execution is not None:
+                payload = {**payload, "execution": execution}
+            log_row = {
+                "ts": datetime.now(UTC).isoformat(),
+                "remote": str(self.client_address[0]) if self.client_address else "",
+                "payload": payload,
+            }
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(log_row, ensure_ascii=False) + "\n")
+            code = 200 if bool(payload.get("ok")) else 422
+            self.server._handled += 1  # type: ignore[attr-defined]
+            self._write_json(code, payload)
+            if self.server._handled >= self.server._max_requests:  # type: ignore[attr-defined]
+                self.server._stop_requested = True  # type: ignore[attr-defined]
+
+        def log_message(self, _fmt: str, *_args: Any) -> None:
+            return
+
+    srv = ThreadingHTTPServer((host, port), _Handler)
+    srv.timeout = 0.25
+    srv._handled = 0  # type: ignore[attr-defined]
+    srv._max_requests = max(max_requests, 1)  # type: ignore[attr-defined]
+    srv._stop_requested = False  # type: ignore[attr-defined]
+    try:
+        while not bool(srv._stop_requested):  # type: ignore[attr-defined]
+            srv.handle_request()
+    finally:
+        srv.server_close()
+    return {
+        "schema_version": "gateway_telegram_webhook_v1",
+        "ok": True,
+        "host": host,
+        "port": port,
+        "path": "/telegram/update",
+        "handled_requests": int(srv._handled),  # type: ignore[attr-defined]
+        "max_requests": int(srv._max_requests),  # type: ignore[attr-defined]
+        "map_file": str(map_path),
+        "log_file": str(log_file),
+        "create_missing": bool(create_missing),
+        "execute_on_update": bool(execute_on_update),
+        "reply_on_execution": bool(reply_on_execution),
+    }
+
+
+def _telegram_send_message(
+    *,
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    timeout_sec: float = 8.0,
+) -> dict[str, Any]:
+    url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
+    req_body = json.dumps(
+        {
+            "chat_id": chat_id,
+            "text": text,
+            "disable_web_page_preview": True,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=req_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            obj = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": "http_error", "status": int(e.code), "message": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": "request_failed", "message": str(e)}
+    if not isinstance(obj, dict):
+        return {"ok": False, "error": "invalid_response"}
+    return {
+        "ok": bool(obj.get("ok")),
+        "status": int(getattr(resp, "status", 200) or 200),
+    }
 
 
 def _acquire_schedule_daemon_lock(
@@ -967,13 +1806,30 @@ def _print_hook_status(
     json_output: bool,
     hook_payload: dict[str, Any] | None = None,
 ) -> None:
-    run_project_hooks(settings, event, hook_payload)
+    results = run_project_hooks(settings, event, hook_payload)
     if json_output:
         return
     ids = enabled_hook_ids(settings, event)
-    if not ids:
+    if not ids and not results:
         return
-    print(f"[hook:{event}] " + ", ".join(ids), file=sys.stderr)
+    parts: list[str] = []
+    if ids:
+        parts.append("enabled=" + ",".join(ids))
+    if results:
+        # 将关键状态压缩到单行，便于 CI / 日志快速定位 blocked/error。
+        status_bits: list[str] = []
+        for r in results[:20]:
+            hid = str(r.get("id") or "?")
+            st = str(r.get("status") or "unknown")
+            bit = f"{hid}:{st}"
+            reason = r.get("reason")
+            if isinstance(reason, str) and reason.strip():
+                bit += f"({reason.strip()[:80]})"
+            status_bits.append(bit)
+        if len(results) > 20:
+            status_bits.append(f"...+{len(results) - 20}")
+        parts.append("results=" + "; ".join(status_bits))
+    print(f"[hook:{event}] " + " | ".join(parts), file=sys.stderr)
 
 
 def _inject_plan_file(goal: str, plan_path: str) -> str:
@@ -2040,6 +2896,26 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_search.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_search.add_argument("--index-path", default=None, dest="index_path")
 
+    recall_idx_bench = recall_idx_sub.add_parser(
+        "benchmark",
+        help="对比 recall 直扫与索引检索性能（同 query）",
+    )
+    recall_idx_bench.add_argument("--query", required=True)
+    recall_idx_bench.add_argument("--regex", action="store_true", default=False)
+    recall_idx_bench.add_argument("--days", type=int, default=30)
+    recall_idx_bench.add_argument("--pattern", default=".cai-session*.json")
+    recall_idx_bench.add_argument("--limit", type=int, default=200)
+    recall_idx_bench.add_argument("--max-hits", type=int, default=20)
+    recall_idx_bench.add_argument("--runs", type=int, default=3, help="基准重复次数（默认 3）")
+    recall_idx_bench.add_argument(
+        "--ensure-index",
+        action="store_true",
+        default=False,
+        help="若索引不存在则自动先 build",
+    )
+    recall_idx_bench.add_argument("--json", action="store_true", dest="json_output")
+    recall_idx_bench.add_argument("--index-path", default=None, dest="index_path")
+
     recall_idx_info = recall_idx_sub.add_parser("info", help="查看索引信息")
     recall_idx_info.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_info.add_argument("--index-path", default=None, dest="index_path")
@@ -2134,6 +3010,8 @@ def main(argv: list[str] | None = None) -> int:
         choices=("none", "confidence", "created_at"),
         help="list 结果排序（默认按文件顺序；无效行会被校验过滤）",
     )
+    memory_list.add_argument("--state-stale-after-days", type=int, default=30, help="状态评估：超过 N 天视为 stale（默认 30）")
+    memory_list.add_argument("--state-min-active-confidence", type=float, default=0.4, help="状态评估：低于该置信度视为 stale（默认 0.4）")
     memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
     memory_instincts.add_argument("--limit", type=int, default=20)
     memory_instincts.add_argument(
@@ -2151,8 +3029,37 @@ def main(argv: list[str] | None = None) -> int:
         help="confidence 或 created_at（命中后排序再截断）",
     )
     memory_search.add_argument("--json", action="store_true", dest="json_output")
-    memory_prune = memory_sub.add_parser("prune", help="删除已过期的记忆条目")
+    memory_prune = memory_sub.add_parser("prune", help="按策略清理记忆条目（过期/低置信度/超额保留）")
+    memory_prune.add_argument(
+        "--min-confidence",
+        type=float,
+        default=0.0,
+        help="低于该置信度的条目会被删除（默认 0.0，不按置信度删）",
+    )
+    memory_prune.add_argument(
+        "--max-entries",
+        type=int,
+        default=0,
+        help="最多保留条目数（按 created_at 新到旧保留；0 表示不限制）",
+    )
+    memory_prune.add_argument(
+        "--drop-non-active",
+        action="store_true",
+        default=False,
+        help="先按状态机移除 stale/expired（需配合状态阈值参数）",
+    )
+    memory_prune.add_argument("--state-stale-after-days", type=int, default=30, help="状态评估：超过 N 天视为 stale（默认 30）")
+    memory_prune.add_argument("--state-min-active-confidence", type=float, default=0.4, help="状态评估：低于该置信度视为 stale（默认 0.4）")
     memory_prune.add_argument("--json", action="store_true", dest="json_output")
+    memory_state = memory_sub.add_parser("state", help="评估记忆条目的状态机分布（active/stale/expired）")
+    memory_state.add_argument("--stale-days", type=int, default=30, help="超过 N 天未更新视为 stale（默认 30）")
+    memory_state.add_argument(
+        "--stale-confidence",
+        type=float,
+        default=0.4,
+        help="低于该置信度的非过期条目视为 stale（默认 0.4）",
+    )
+    memory_state.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
@@ -2223,6 +3130,24 @@ def main(argv: list[str] | None = None) -> int:
         help="任务执行时使用的工作区（默认当前目录）",
     )
     schedule_add.add_argument("--model", default=None, help="可选模型覆盖")
+    schedule_add.add_argument(
+        "--depends-on",
+        action="append",
+        default=[],
+        help="依赖的任务 id（可重复；依赖任务未 completed 时不会触发执行）",
+    )
+    schedule_add.add_argument(
+        "--retry-max-attempts",
+        type=int,
+        default=1,
+        help="失败重试次数上限（含首次执行，默认 1）",
+    )
+    schedule_add.add_argument(
+        "--retry-backoff-sec",
+        type=float,
+        default=0.0,
+        help="失败重试退避秒数（默认 0）",
+    )
     schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
     schedule_add.add_argument("--json", action="store_true", dest="json_output")
 
@@ -2319,6 +3244,58 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="覆盖 [cost] budget_max_tokens；未指定时读配置",
     )
+    release_ga_p = sub.add_parser(
+        "release-ga",
+        help="发布前 GA 门禁检查（质量+安全+成本+失败率）",
+    )
+    release_ga_p.add_argument("--no-quality-gate", action="store_true", default=False)
+    release_ga_p.add_argument("--with-security-scan", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--max-failure-rate",
+        type=float,
+        default=0.25,
+        help="observe 聚合允许的最大失败率（默认 0.25）",
+    )
+    release_ga_p.add_argument(
+        "--max-tokens",
+        type=int,
+        default=None,
+        help="覆盖 [cost] budget_max_tokens；未指定时读配置",
+    )
+    release_ga_p.add_argument("--with-doctor", action="store_true", default=False)
+    release_ga_p.add_argument("--with-memory-nudge", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--memory-max-severity",
+        choices=("medium", "high"),
+        default="high",
+        help="启用 --with-memory-nudge 时，允许的最高 memory nudge 严重度（默认 high）",
+    )
+    release_ga_p.add_argument("--with-memory-state", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--memory-max-stale-ratio",
+        type=float,
+        default=0.50,
+        help="启用 --with-memory-state 时，允许的最大 stale 占比（默认 0.50）",
+    )
+    release_ga_p.add_argument(
+        "--memory-max-expired-ratio",
+        type=float,
+        default=0.10,
+        help="启用 --with-memory-state 时，允许的最大 expired 占比（默认 0.10）",
+    )
+    release_ga_p.add_argument(
+        "--memory-state-stale-days",
+        type=int,
+        default=30,
+        help="memory state 判定 stale 的天数阈值（默认 30）",
+    )
+    release_ga_p.add_argument(
+        "--memory-state-stale-confidence",
+        type=float,
+        default=0.4,
+        help="memory state 判定 stale 的置信度阈值（默认 0.4）",
+    )
+    release_ga_p.add_argument("--json", action="store_true", dest="json_output")
 
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
@@ -2334,6 +3311,17 @@ def main(argv: list[str] | None = None) -> int:
     obs_p.add_argument("--limit", type=int, default=100)
     obs_p.add_argument("--json", action="store_true", dest="json_output")
 
+    obs_report_p = sub.add_parser("observe-report", help="基于 observe 生成告警与报表摘要")
+    obs_report_p.add_argument("--pattern", default=".cai-session*.json")
+    obs_report_p.add_argument("--limit", type=int, default=100)
+    obs_report_p.add_argument("--warn-failure-rate", type=float, default=0.20)
+    obs_report_p.add_argument("--fail-failure-rate", type=float, default=0.35)
+    obs_report_p.add_argument("--warn-token-budget", type=int, default=40_000)
+    obs_report_p.add_argument("--fail-token-budget", type=int, default=80_000)
+    obs_report_p.add_argument("--warn-tool-errors", type=int, default=3)
+    obs_report_p.add_argument("--fail-tool-errors", type=int, default=8)
+    obs_report_p.add_argument("--json", action="store_true", dest="json_output")
+
     board_p = sub.add_parser(
         "board",
         help="任务/会话运营最小看板（observe + .cai/last-workflow.json）",
@@ -2341,6 +3329,87 @@ def main(argv: list[str] | None = None) -> int:
     board_p.add_argument("--pattern", default=".cai-session*.json")
     board_p.add_argument("--limit", type=int, default=100)
     board_p.add_argument("--json", action="store_true", dest="json_output")
+
+    gateway_p = sub.add_parser(
+        "gateway",
+        help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
+    )
+    gateway_sub = gateway_p.add_subparsers(dest="gateway_action", required=True)
+    gw_tg = gateway_sub.add_parser("telegram", help="Telegram 映射管理")
+    gw_tg_sub = gw_tg.add_subparsers(dest="gateway_telegram_action", required=True)
+
+    gw_tg_bind = gw_tg_sub.add_parser("bind", help="绑定 chat_id+user_id 到会话文件")
+    gw_tg_bind.add_argument("--chat-id", required=True)
+    gw_tg_bind.add_argument("--user-id", required=True)
+    gw_tg_bind.add_argument("--session-file", required=True, help="会话文件路径（相对当前目录或绝对路径）")
+    gw_tg_bind.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_get = gw_tg_sub.add_parser("get", help="查询单个 chat_id+user_id 映射")
+    gw_tg_get.add_argument("--chat-id", required=True)
+    gw_tg_get.add_argument("--user-id", required=True)
+    gw_tg_get.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_list = gw_tg_sub.add_parser("list", help="列出所有 Telegram 会话映射")
+    gw_tg_list.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_unbind = gw_tg_sub.add_parser("unbind", help="解除单个 chat_id+user_id 映射")
+    gw_tg_unbind.add_argument("--chat-id", required=True)
+    gw_tg_unbind.add_argument("--user-id", required=True)
+    gw_tg_unbind.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_resolve = gw_tg_sub.add_parser("resolve-update", help="从 Telegram update JSON 解析并解析/创建映射")
+    gw_tg_resolve.add_argument("--update-file", required=True, help="Telegram update JSON 文件路径")
+    gw_tg_resolve.add_argument(
+        "--session-template",
+        default=".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+        help="当映射不存在时自动创建的会话文件模板（支持 {chat_id}/{user_id}）",
+    )
+    gw_tg_resolve.add_argument(
+        "--create-missing",
+        action="store_true",
+        default=False,
+        help="映射缺失时自动创建新映射与会话文件路径",
+    )
+    gw_tg_resolve.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_resolve.add_argument("--json", action="store_true", dest="json_output")
+    gw_tg_serve = gw_tg_sub.add_parser("serve-webhook", help="启动 Telegram webhook HTTP 入口（MVP）")
+    gw_tg_serve.add_argument("--host", default="127.0.0.1", help="监听地址（默认 127.0.0.1）")
+    gw_tg_serve.add_argument("--port", type=int, default=18765, help="监听端口（默认 18765）")
+    gw_tg_serve.add_argument("--path", default="/telegram/update", help="Webhook 路径（默认 /telegram/update）")
+    gw_tg_serve.add_argument(
+        "--session-template",
+        default=".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+        help="映射缺失时自动创建会话文件模板（支持 {chat_id}/{user_id}）",
+    )
+    gw_tg_serve.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_serve.add_argument(
+        "--event-log",
+        default=".cai/gateway/telegram-webhook-events.jsonl",
+        help="Webhook 事件 JSONL 日志路径",
+    )
+    gw_tg_serve.add_argument("--max-events", type=int, default=0, help="最多处理事件数（0=无限）")
+    gw_tg_serve.add_argument(
+        "--create-missing",
+        action="store_true",
+        default=False,
+        help="映射缺失时自动创建新映射与会话文件路径",
+    )
+    gw_tg_serve.add_argument(
+        "--execute-on-update",
+        action="store_true",
+        default=False,
+        help="收到 update 后触发一次会话执行（MVP：仅本地执行，不回发 Telegram）",
+    )
+    gw_tg_serve.add_argument(
+        "--goal-template",
+        default="用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+        help="执行模式下的 goal 模板（支持 {chat_id}/{user_id}/{text}）",
+    )
+    gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -3072,6 +4141,29 @@ def main(argv: list[str] | None = None) -> int:
                             if isinstance(sn, str) and sn:
                                 print(f"    {sn}")
             return 0
+        if action == "benchmark":
+            payload = _benchmark_recall_index(
+                cwd=cwd,
+                query=str(args.query),
+                regex=bool(args.regex),
+                case_sensitive=bool(getattr(args, "case_sensitive", False)),
+                days=int(args.days),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+                max_hits=int(args.max_hits),
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                ensure_index=bool(getattr(args, "ensure_index", False)),
+                runs=int(getattr(args, "runs", 3)),
+            )
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"benchmark query={payload.get('query')!r} runs={payload.get('runs')} "
+                    f"scan_avg_ms={payload.get('scan_avg_ms')} index_avg_ms={payload.get('index_avg_ms')} "
+                    f"speedup={payload.get('speedup_x')}",
+                )
+            return 0
         if action == "info":
             payload = _recall_index_info(
                 cwd=cwd,
@@ -3279,6 +4371,11 @@ def main(argv: list[str] | None = None) -> int:
                 rows, vwarn = load_memory_entries_validated(root)
                 for w in vwarn:
                     print(f"[memory] {w}", file=sys.stderr)
+                rows = annotate_memory_states(
+                    rows,
+                    stale_after_days=int(getattr(args, "state_stale_after_days", 30)),
+                    min_active_confidence=float(getattr(args, "state_min_active_confidence", 0.4)),
+                )
                 sort_key = str(getattr(args, "sort", "none") or "none")
                 sort_memory_rows(rows, sort_key)
                 rows = rows[: int(args.limit)]
@@ -3321,11 +4418,44 @@ def main(argv: list[str] | None = None) -> int:
                         )
                 return 0
             if args.memory_action == "prune":
-                n = prune_expired_memory_entries(root)
+                n = prune_expired_memory_entries(
+                    root,
+                    min_confidence=float(getattr(args, "min_confidence", 0.0) or 0.0),
+                    max_entries=int(getattr(args, "max_entries", 0) or 0),
+                    drop_non_active=bool(getattr(args, "drop_non_active", False)),
+                    stale_after_days=int(getattr(args, "state_stale_after_days", 30)),
+                    min_active_confidence=float(getattr(args, "state_min_active_confidence", 0.4)),
+                )
                 if args.json_output:
-                    print(json.dumps({"removed": n}, ensure_ascii=False))
+                    print(json.dumps(n, ensure_ascii=False))
                 else:
-                    print(f"removed={n}")
+                    print(
+                        f"removed_total={n.get('removed_total', 0)} "
+                        f"expired={n.get('removed_expired', 0)} "
+                        f"low_confidence={n.get('removed_low_confidence', 0)} "
+                        f"over_limit={n.get('removed_over_limit', 0)} "
+                        f"kept_total={n.get('kept_total', 0)}",
+                    )
+                return 0
+            if args.memory_action == "state":
+                rows, vwarn = load_memory_entries_validated(root)
+                for w in vwarn:
+                    print(f"[memory] {w}", file=sys.stderr)
+                payload = evaluate_memory_entry_states(
+                    rows,
+                    stale_days=int(getattr(args, "stale_days", 30)),
+                    stale_confidence=float(getattr(args, "stale_confidence", 0.4)),
+                )
+                if args.json_output:
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+                    print(
+                        f"total={payload.get('total_entries', 0)} "
+                        f"active={counts.get('active', 0)} "
+                        f"stale={counts.get('stale', 0)} "
+                        f"expired={counts.get('expired', 0)}",
+                    )
                 return 0
             if args.memory_action == "export":
                 target = Path(args.file).expanduser().resolve()
@@ -3458,7 +4588,22 @@ def main(argv: list[str] | None = None) -> int:
                 every_minutes=int(args.every_minutes),
                 workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
                 model=str(args.model) if getattr(args, "model", None) else None,
+                depends_on=[str(x) for x in list(getattr(args, "depends_on", []) or [])],
+                retry_max_attempts=int(getattr(args, "retry_max_attempts", 1)),
+                retry_backoff_sec=float(getattr(args, "retry_backoff_sec", 0.0)),
                 cwd=str(root),
+            )
+            append_schedule_audit_event(
+                task_id=str(job.get("id") or ""),
+                status="created",
+                action="schedule.add",
+                cwd=str(root),
+                details={
+                    "every_minutes": job.get("every_minutes"),
+                    "depends_on": job.get("depends_on"),
+                    "retry_max_attempts": job.get("retry_max_attempts"),
+                    "retry_backoff_sec": job.get("retry_backoff_sec"),
+                },
             )
             if bool(args.disabled):
                 doc = load_schedule_doc(str(root))
@@ -3579,14 +4724,36 @@ def main(argv: list[str] | None = None) -> int:
                             "error": "empty_goal",
                         },
                     )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="failed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"reason": "empty_goal"},
+                    )
                     continue
-                ok, out = _execute_scheduled_goal(
-                    config_path=None,
-                    workspace_hint=workspace_override,
-                    workspace_override=workspace_override,
-                    model_override=model_override,
-                    goal=goal,
-                )
+                max_attempts = int(j.get("retry_max_attempts") or 1)
+                if max_attempts < 1:
+                    max_attempts = 1
+                backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
+                if backoff_sec < 0:
+                    backoff_sec = 0.0
+                attempts = 0
+                ok = False
+                out = ""
+                while attempts < max_attempts:
+                    attempts += 1
+                    ok, out = _execute_scheduled_goal(
+                        config_path=None,
+                        workspace_hint=workspace_override,
+                        workspace_override=workspace_override,
+                        model_override=model_override,
+                        goal=goal,
+                    )
+                    if ok:
+                        break
+                    if attempts < max_attempts and backoff_sec > 0:
+                        time.sleep(backoff_sec)
                 if ok:
                     mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                     preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -3598,7 +4765,15 @@ def main(argv: list[str] | None = None) -> int:
                             "answer_preview": preview,
                             "workspace": workspace_override,
                             "model": model_override,
+                            "attempts": attempts,
                         },
+                    )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="completed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"attempts": attempts},
                     )
                 else:
                     mark_schedule_task_run(
@@ -3615,7 +4790,15 @@ def main(argv: list[str] | None = None) -> int:
                             "error": out,
                             "workspace": workspace_override,
                             "model": model_override,
+                            "attempts": attempts,
                         },
+                    )
+                    append_schedule_audit_event(
+                        task_id=tid,
+                        status="failed",
+                        action="schedule.run_due",
+                        cwd=str(root),
+                        details={"attempts": attempts, "error": out[:500]},
                     )
             payload = {"mode": "execute", "due_jobs": due, "executed": executed}
             if bool(args.json_output):
@@ -3676,14 +4859,36 @@ def main(argv: list[str] | None = None) -> int:
                                 cycle_exec.append(
                                     {"id": tid, "ok": False, "status": "failed", "error": "empty_goal"},
                                 )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="failed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"reason": "empty_goal", "cycle": cycles},
+                                )
                                 continue
-                            ok, out = _execute_scheduled_goal(
-                                config_path=None,
-                                workspace_hint=workspace_override,
-                                workspace_override=workspace_override,
-                                model_override=model_override,
-                                goal=goal,
-                            )
+                            max_attempts = int(j.get("retry_max_attempts") or 1)
+                            if max_attempts < 1:
+                                max_attempts = 1
+                            backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
+                            if backoff_sec < 0:
+                                backoff_sec = 0.0
+                            attempts = 0
+                            ok = False
+                            out = ""
+                            while attempts < max_attempts:
+                                attempts += 1
+                                ok, out = _execute_scheduled_goal(
+                                    config_path=None,
+                                    workspace_hint=workspace_override,
+                                    workspace_override=workspace_override,
+                                    model_override=model_override,
+                                    goal=goal,
+                                )
+                                if ok:
+                                    break
+                                if attempts < max_attempts and backoff_sec > 0:
+                                    time.sleep(backoff_sec)
                             if ok:
                                 mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                                 preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -3693,7 +4898,15 @@ def main(argv: list[str] | None = None) -> int:
                                         "ok": True,
                                         "status": "completed",
                                         "answer_preview": preview,
+                                        "attempts": attempts,
                                     },
+                                )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="completed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"attempts": attempts, "cycle": cycles},
                                 )
                             else:
                                 mark_schedule_task_run(
@@ -3703,7 +4916,20 @@ def main(argv: list[str] | None = None) -> int:
                                     cwd=str(root),
                                 )
                                 cycle_exec.append(
-                                    {"id": tid, "ok": False, "status": "failed", "error": out},
+                                    {
+                                        "id": tid,
+                                        "ok": False,
+                                        "status": "failed",
+                                        "error": out,
+                                        "attempts": attempts,
+                                    },
+                                )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="failed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"attempts": attempts, "error": out[:500], "cycle": cycles},
                                 )
                     total_executed += len(cycle_exec)
                     cycle_row = {
@@ -3862,6 +5088,39 @@ def main(argv: list[str] | None = None) -> int:
             )
         return 0
 
+    if args.command == "observe-report":
+        obs = build_observe_payload(
+            cwd=os.getcwd(),
+            pattern=str(getattr(args, "pattern", ".cai-session*.json")),
+            limit=int(getattr(args, "limit", 100)),
+        )
+        payload = _build_observe_report_payload(
+            observe_payload=obs,
+            warn_failure_rate=float(getattr(args, "warn_failure_rate", 0.20)),
+            fail_failure_rate=float(getattr(args, "fail_failure_rate", 0.35)),
+            warn_token_budget=int(getattr(args, "warn_token_budget", 40_000)),
+            fail_token_budget=int(getattr(args, "fail_token_budget", 80_000)),
+            warn_tool_errors=int(getattr(args, "warn_tool_errors", 3)),
+            fail_tool_errors=int(getattr(args, "fail_tool_errors", 8)),
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"[observe-report] state={payload.get('state')} "
+                f"sessions={payload.get('sessions_count')} "
+                f"failure_rate={payload.get('failure_rate')} "
+                f"total_tokens={payload.get('total_tokens')} "
+                f"tool_errors={payload.get('tool_errors_total')}",
+            )
+            alerts = payload.get("alerts") or []
+            if isinstance(alerts, list):
+                for a in alerts:
+                    if not isinstance(a, dict):
+                        continue
+                    print(f"- {a.get('severity')} {a.get('name')}: {a.get('detail')}")
+        return 0 if str(payload.get("state")) != "fail" else 2
+
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
         board_json = bool(getattr(args, "json_output", False))
@@ -3910,6 +5169,261 @@ def main(argv: list[str] | None = None) -> int:
                 json_output=board_json,
             )
         return 0
+
+    if args.command == "gateway":
+        root = Path.cwd().resolve()
+        map_path = _resolve_gateway_map_path(root, getattr(args, "map_file", None))
+        doc = _load_gateway_map(map_path)
+        bindings = doc.get("bindings")
+        if not isinstance(bindings, dict):
+            bindings = {}
+            doc["bindings"] = bindings
+
+        if getattr(args, "gateway_action", None) == "telegram":
+            act = str(getattr(args, "gateway_telegram_action", "") or "").strip()
+            if act == "bind":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                session_raw = str(getattr(args, "session_file", "") or "").strip()
+                if not chat_id or not user_id or not session_raw:
+                    print("chat-id/user-id/session-file 不能为空", file=sys.stderr)
+                    return 2
+                p = Path(session_raw).expanduser()
+                if not p.is_absolute():
+                    p = (root / p).resolve()
+                else:
+                    p = p.resolve()
+                key = f"{chat_id}:{user_id}"
+                row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+                bindings[key] = row
+                _save_gateway_map(map_path, doc)
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "bind",
+                    "ok": True,
+                    "map_file": str(map_path),
+                    "binding": row,
+                    "bindings_count": len(bindings),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(
+                        f"bound chat_id={chat_id} user_id={user_id} session_file={p} total={len(bindings)}",
+                    )
+                return 0
+            if act == "get":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                key = f"{chat_id}:{user_id}"
+                row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "get",
+                    "ok": bool(row),
+                    "map_file": str(map_path),
+                    "binding": row,
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                elif row:
+                    print(f"chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
+                else:
+                    print("(not found)")
+                return 0 if row else 2
+            if act == "list":
+                items = [
+                    v
+                    for _, v in sorted(bindings.items(), key=lambda x: x[0])
+                    if isinstance(v, dict)
+                ]
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "list",
+                    "ok": True,
+                    "map_file": str(map_path),
+                    "bindings": items,
+                    "bindings_count": len(items),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"bindings={len(items)}")
+                    for row in items:
+                        print(f"- chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
+                return 0
+            if act == "unbind":
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                user_id = str(getattr(args, "user_id", "") or "").strip()
+                key = f"{chat_id}:{user_id}"
+                row = bindings.pop(key, None)
+                if row is not None:
+                    _save_gateway_map(map_path, doc)
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "unbind",
+                    "ok": bool(row),
+                    "removed": bool(row),
+                    "map_file": str(map_path),
+                    "binding": row if isinstance(row, dict) else None,
+                    "bindings_count": len(bindings),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(f"removed={bool(row)} total={len(bindings)}")
+                return 0 if row else 2
+            if act == "resolve-update":
+                json_out = bool(getattr(args, "json_output", False))
+                update_raw = str(getattr(args, "update_file", "") or "").strip()
+                if not update_raw:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_args",
+                        "message": "update-file 不能为空",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("update-file 不能为空", file=sys.stderr)
+                    return 2
+                up = Path(update_raw).expanduser()
+                if not up.is_absolute():
+                    up = (root / up).resolve()
+                else:
+                    up = up.resolve()
+                try:
+                    update_obj = json.loads(up.read_text(encoding="utf-8"))
+                except Exception as e:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "read_update_failed",
+                        "message": str(e),
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print(f"读取 update JSON 失败: {e}", file=sys.stderr)
+                    return 2
+                if not isinstance(update_obj, dict):
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_update",
+                        "message": "update JSON 根对象必须为 object",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("update JSON 根对象必须为 object", file=sys.stderr)
+                    return 2
+                chat_id, user_id = _extract_telegram_ids_from_update(update_obj)
+                if not chat_id or not user_id:
+                    payload = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "resolve-update",
+                        "ok": False,
+                        "error": "invalid_update",
+                        "message": "无法从 update JSON 提取 chat_id/user_id",
+                    }
+                    if json_out:
+                        print(json.dumps(payload, ensure_ascii=False))
+                    else:
+                        print("无法从 update JSON 提取 chat_id/user_id", file=sys.stderr)
+                    return 2
+                key = f"{chat_id}:{user_id}"
+                row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+                created = False
+                if row is None and bool(getattr(args, "create_missing", False)):
+                    tpl = str(getattr(args, "session_template", "") or "").strip()
+                    if not tpl:
+                        print("session-template 不能为空", file=sys.stderr)
+                        return 2
+                    rel = tpl.format(chat_id=chat_id, user_id=user_id)
+                    p = Path(rel).expanduser()
+                    if not p.is_absolute():
+                        p = (root / p).resolve()
+                    else:
+                        p = p.resolve()
+                    row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+                    bindings[key] = row
+                    _save_gateway_map(map_path, doc)
+                    created = True
+                payload = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "resolve-update",
+                    "ok": bool(row),
+                    "created": created,
+                    "map_file": str(map_path),
+                    "chat_id": chat_id,
+                    "user_id": user_id,
+                    "binding": row,
+                }
+                if json_out:
+                    print(json.dumps(payload, ensure_ascii=False))
+                elif row:
+                    print(
+                        f"resolved chat_id={chat_id} user_id={user_id} "
+                        f"session_file={row.get('session_file')} created={created}",
+                    )
+                else:
+                    print(f"mapping_not_found chat_id={chat_id} user_id={user_id}")
+                return 0 if row else 2
+            if act == "serve-webhook":
+                host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1")
+                port = int(getattr(args, "port", 18765))
+                max_events = int(getattr(args, "max_events", 1))
+                create_missing = bool(getattr(args, "create_missing", False))
+                session_template = str(
+                    getattr(args, "session_template", ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json")
+                    or ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+                )
+                log_path = _resolve_schedule_path(
+                    root,
+                    getattr(args, "log_file", None),
+                    ".cai/gateway/telegram-webhook-events.jsonl",
+                )
+                payload = _run_gateway_telegram_webhook_server(
+                    root=root,
+                    host=host,
+                    port=port,
+                    map_path=map_path,
+                    session_template=session_template,
+                    create_missing=create_missing,
+                    log_file=log_path,
+                    max_requests=max_events,
+                    execute_on_update=bool(getattr(args, "execute_on_update", False)),
+                    goal_template=str(
+                        getattr(args, "goal_template", "Telegram inbound message: {text}") or "Telegram inbound message: {text}",
+                    ),
+                )
+                out = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "serve-webhook",
+                    "ok": bool(payload.get("ok")),
+                    "host": payload.get("host"),
+                    "port": payload.get("port"),
+                    "path": payload.get("path"),
+                    "events_handled": payload.get("handled_requests"),
+                    "events_ok": payload.get("handled_requests"),
+                    "map_file": payload.get("map_file"),
+                    "log_file": payload.get("log_file"),
+                    "create_missing": payload.get("create_missing"),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out, ensure_ascii=False))
+                else:
+                    print(
+                        f"gateway webhook stopped host={host} port={port} "
+                        f"handled={out.get('events_handled')} log={out.get('log_file')}",
+                    )
+                return 0
+        return 2
 
     if args.command == "workflow":
         try:
@@ -3986,6 +5500,41 @@ def main(argv: list[str] | None = None) -> int:
                     f"tool_calls={tools} errors={errors} goal={goal!r}"
                 )
         return 0
+
+    if args.command == "release-ga":
+        payload = _run_release_ga_gate(
+            cwd=os.getcwd(),
+            max_failure_rate=float(getattr(args, "max_failure_rate", 0.20)),
+            max_tokens=(int(args.max_tokens) if getattr(args, "max_tokens", None) is not None else None),
+            run_quality_gate_check=not bool(getattr(args, "no_quality_gate", False)),
+            run_security_scan_check=bool(getattr(args, "with_security_scan", False)),
+            with_doctor=bool(getattr(args, "with_doctor", False)),
+            with_memory_nudge=bool(getattr(args, "with_memory_nudge", False)),
+            with_memory_state=bool(getattr(args, "with_memory_state", False)),
+            memory_state_max_stale_rate=float(getattr(args, "memory_max_stale_ratio", 0.50)),
+            memory_state_max_expired_rate=float(getattr(args, "memory_max_expired_ratio", 0.10)),
+            memory_state_stale_days=int(getattr(args, "memory_state_stale_days", 30)),
+            memory_state_stale_confidence=float(getattr(args, "memory_state_stale_confidence", 0.4)),
+            memory_nudge_fail_on=str(getattr(args, "memory_max_severity", "high") or "high"),
+            include_lint=False,
+            include_typecheck=False,
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"[release-ga] state={payload.get('state')} "
+                f"checks_passed={payload.get('checks_passed')} "
+                f"failure_rate={payload.get('failure_rate')} "
+                f"total_tokens={payload.get('total_tokens')}",
+            )
+            failures = payload.get("failed_checks") or []
+            if failures:
+                print("[release-ga] failed checks:")
+                for x in failures:
+                    if isinstance(x, dict):
+                        print(f"- {x.get('name')}: {x.get('reason')}")
+        return 0 if str(payload.get("state")) == "pass" else 2
 
     if args.command in ("run", "continue", "command", "agent", "fix-build"):
         try:

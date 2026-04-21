@@ -49,6 +49,13 @@ class SlashCommandSuggesterTests(unittest.TestCase):
         self.assertEqual(_suggest(s, "/mcp r"), "/mcp refresh")
         self.assertEqual(_suggest(s, "/mcp c"), "/mcp call ")
 
+    def test_fix_build_and_security_scan_completion(self) -> None:
+        s = SlashCommandSuggester()
+        self.assertEqual(_suggest(s, "/f"), "/fix-build")
+        self.assertEqual(_suggest(s, "/se"), "/sessions")
+        self.assertIsNone(_suggest(s, "/fix-build"))
+        self.assertIsNone(_suggest(s, "/security-scan"))
+
     def test_load_latest_in_list(self) -> None:
         s = SlashCommandSuggester()
         self.assertEqual(_suggest(s, "/load"), "/load ")

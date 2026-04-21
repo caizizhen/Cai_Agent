@@ -35,7 +35,7 @@
 |--------|------|------|------|
 | Query 式主循环 | claude-code-analysis | `Done` | `graph.py` |
 | 工具注册与权限 | claude-code-analysis | `Done` | `tools.py` + `[permissions]` |
-| 会话与历史 | claude-code-analysis | `Next` | `workflow` 已有 `events`；`run`/`continue` 的 JSON 与 **`--save-session` 落盘**均含 `run_schema_version` + `events` + 工具统计；`observe` 已汇总 `run_events_total` / `sessions_with_events` / 逐文件 `events_count`；与 TUI/全量 Dashboard 仍待办 |
+| 会话与历史 | claude-code-analysis | `Done` / `Next` | 已落地：`workflow` 事件流、`run`/`continue` 的 `run_schema_version` + `events`、`observe` 汇总 `run_events_total`、`sessions_with_events`、逐文件 `events_count`；新增 `hooks` 执行结果状态摘要（stderr）与 release-ga 聚合门禁。TUI/全量 Dashboard 深化仍待办 |
 | 上下文压缩策略 | claude-code-analysis | `Next` | 与 `[context]`、`observe` 联动深化 |
 | 成本 / token 策略 | claude-code-analysis | `Next` | 由统计升级为可配置策略 |
 | 钩子扩展 | claude-code-analysis | `Next` | 另含 `security_scan_*`、`memory_*`、`export_*`、`observe_*`、`cost_budget_*`；执行器与 `hooks.json` 深度集成仍待办 |
@@ -46,8 +46,8 @@
 |--------|------|------|------|
 | 质量门禁 | ECC / 官方 CI 习惯 | `Done` | `quality-gate` |
 | 安全扫描 | ECC | `Done` | `security-scan` |
-| 记忆 / 本能 | ECC | `Next` | `entries.jsonl` 写入前 **v1 schema** 校验（`schemas/memory_entry_v1.schema.json`）；TTL/自动化提炼仍待办 |
-| 成本预算 | ECC | `Done` / `Next` | `cost budget`；策略深化见 L2 |
+| 记忆 / 本能 | ECC | `Done` / `Next` | 已落地：`entries.jsonl` 写入前 **v1 schema** 校验；`memory nudge` schema 升级到 `1.1`（`threshold_policy` / `risk_score` / `trend`）+ `nudge-report` 趋势汇总。TTL/自动化提炼仍待办 |
+| 成本预算 | ECC | `Done` / `Next` | `cost budget`；新增 `release-ga` 汇总 budget 与会话失败率门禁；策略深化见 L2 |
 | 跨工具导出 | ECC | `Done` / `Next` | `export`；manifest 维度持续对齐 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
 | 可视化运营面板 | ECC | `Next` | P2+，见路线图 |
 | 大规模社区技能库本体 | ECC | `MCP` / `Next` | 以导出格式与外部包渐进吸收，不阻塞核心发版 |

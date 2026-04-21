@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List
@@ -133,6 +134,139 @@ def _merge_decision_for_strategy(
     return "manual_review"
 
 
+def _merge_confidence(
+    merge_decision: str,
+    conflicts_count: int,
+    *,
+    total_steps: int,
+) -> str:
+    if merge_decision == "auto_merge" and conflicts_count == 0:
+        return "high"
+    if merge_decision in ("last_wins", "role_priority") and conflicts_count <= max(1, total_steps // 3):
+        return "medium"
+    return "low"
+
+
+def _build_subagent_io_summary(
+    *,
+    steps: list[dict[str, Any]],
+    merge_strategy: str,
+    merge_decision: str,
+    merge_confidence: str,
+    conflicts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """标准化 workflow 输出为可被子代理编排消费的稳定 I/O schema。"""
+    outputs: list[dict[str, Any]] = []
+    for step in steps:
+        outputs.append(
+            {
+                "id": str(step.get("index") or ""),
+                "name": str(step.get("name") or ""),
+                "role": str(step.get("role") or "default"),
+                "ok": bool(step.get("finished")) and int(step.get("error_count") or 0) == 0,
+                "answer": str(step.get("answer") or ""),
+                "error": (
+                    str((step.get("protocol") or {}).get("error"))
+                    if isinstance(step.get("protocol"), dict)
+                    and (step.get("protocol") or {}).get("error") is not None
+                    else None
+                ),
+                "parallel_group": step.get("parallel_group"),
+            },
+        )
+    return {
+        "subagent_io_schema_version": "1.0",
+        "inputs": {
+            "steps_count": len(steps),
+            "merge_strategy": merge_strategy,
+        },
+        "merge": {
+            "strategy": merge_strategy,
+            "decision": merge_decision,
+            "confidence": merge_confidence,
+            "conflicts": conflicts,
+        },
+        "outputs": outputs,
+    }
+
+
+def _run_single_step(
+    settings: Settings,
+    raw_step: dict[str, Any],
+    idx: int,
+) -> tuple[dict[str, Any], dict[str, Any], str]:
+    goal = str(raw_step.get("goal", "")).strip()
+    if not goal:
+        raise ValueError(f"workflow.steps[{idx - 1}] 缺少非空 goal")
+    name = str(raw_step.get("name") or f"step-{idx}").strip()
+
+    ws_raw = raw_step.get("workspace")
+    if isinstance(ws_raw, str) and ws_raw.strip():
+        workspace = os.path.abspath(ws_raw.strip())
+    else:
+        workspace = settings.workspace
+
+    step_settings = replace(settings, workspace=workspace)
+    model_raw = raw_step.get("model")
+    if isinstance(model_raw, str) and model_raw.strip():
+        step_settings = replace(step_settings, model=model_raw.strip())
+
+    role_raw = str(raw_step.get("role") or "default").strip().lower()
+    if role_raw not in ("default", "explorer", "reviewer", "security"):
+        role_raw = "default"
+
+    reset_usage_counters()
+    agent = create_agent(step_settings, role=role_raw) if role_raw != "default" else None
+    started = time.perf_counter()
+    if agent is not None:
+        final = agent.run(goal)
+    else:
+        app = build_app(step_settings)
+        state = initial_state(step_settings, goal)
+        final = app.invoke(state)
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    usage = get_usage_counters()
+
+    msgs = final.get("messages")
+    msg_list: List[Dict[str, Any]] = msgs if isinstance(msgs, list) else []
+    stats = _collect_tool_stats(msg_list)
+    pg_raw = raw_step.get("parallel_group")
+    parallel_group = str(pg_raw).strip() if isinstance(pg_raw, str) and pg_raw.strip() else None
+
+    step_result: Dict[str, Any] = {
+        "index": idx,
+        "name": name,
+        "goal": goal,
+        "workspace": step_settings.workspace,
+        "provider": step_settings.provider,
+        "model": step_settings.model,
+        "elapsed_ms": elapsed_ms,
+        "answer": (final.get("answer") or "").strip(),
+        "finished": bool(final.get("finished")),
+        "prompt_tokens": usage.get("prompt_tokens", 0),
+        "completion_tokens": usage.get("completion_tokens", 0),
+        "total_tokens": usage.get("total_tokens", 0),
+        **stats,
+        "role": role_raw,
+        "parallel_group": parallel_group,
+        "protocol": {
+            "input": {"goal": goal, "role": role_raw, "parallel_group": parallel_group},
+            "output": {"answer": (final.get("answer") or "").strip()},
+            "error": None if int(stats.get("error_count", 0)) == 0 else "tool_error_detected",
+        },
+    }
+    step_event = {
+        "event": "workflow.step.completed",
+        "step_index": idx,
+        "name": name,
+        "elapsed_ms": elapsed_ms,
+        "tool_calls_count": int(stats.get("tool_calls_count", 0)),
+        "error_count": int(stats.get("error_count", 0)),
+        "parallel_group": parallel_group,
+    }
+    return step_result, step_event, step_settings.workspace
+
+
 def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     """
     运行基于 JSON 描述的多步骤 workflow。
@@ -162,108 +296,101 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     instincts_roots: set[str] = set()
 
-    for idx, raw_step in enumerate(steps_data, start=1):
+    idx = 1
+    while idx <= len(steps_data):
+        raw_step = steps_data[idx - 1]
         if not isinstance(raw_step, dict):
             raise ValueError(f"workflow.steps[{idx - 1}] 必须是 JSON object")
-        goal = str(raw_step.get("goal", "")).strip()
-        if not goal:
-            raise ValueError(f"workflow.steps[{idx - 1}] 缺少非空 goal")
-        name = str(raw_step.get("name") or f"step-{idx}").strip()
+        pg_raw = raw_step.get("parallel_group")
+        parallel_group = str(pg_raw).strip() if isinstance(pg_raw, str) and pg_raw.strip() else None
+        batch: list[tuple[int, dict[str, Any]]] = [(idx, raw_step)]
+        if parallel_group is not None:
+            j = idx + 1
+            while j <= len(steps_data):
+                cand = steps_data[j - 1]
+                if not isinstance(cand, dict):
+                    raise ValueError(f"workflow.steps[{j - 1}] 必须是 JSON object")
+                cpg = cand.get("parallel_group")
+                cpg_name = str(cpg).strip() if isinstance(cpg, str) and cpg.strip() else None
+                if cpg_name != parallel_group:
+                    break
+                batch.append((j, cand))
+                j += 1
 
-        events.append(
-            {
-                "event": "workflow.step.started",
-                "workflow_task_id": wf_task.task_id,
-                "step_index": idx,
-                "name": name,
-            },
-        )
+        for bi, br in batch:
+            bname = str(br.get("name") or f"step-{bi}").strip()
+            events.append(
+                {
+                    "event": "workflow.step.started",
+                    "workflow_task_id": wf_task.task_id,
+                    "step_index": bi,
+                    "name": bname,
+                    "parallel_group": parallel_group,
+                },
+            )
 
-        ws_raw = raw_step.get("workspace")
-        if isinstance(ws_raw, str) and ws_raw.strip():
-            workspace = os.path.abspath(ws_raw.strip())
+        batch_results: list[tuple[dict[str, Any], dict[str, Any], str]] = []
+        if parallel_group is not None and len(batch) > 1:
+            with ThreadPoolExecutor(max_workers=len(batch)) as pool:
+                futs = {
+                    pool.submit(_run_single_step, settings, br, bi): bi
+                    for bi, br in batch
+                }
+                for fut in as_completed(futs):
+                    batch_results.append(fut.result())
         else:
-            workspace = settings.workspace
+            for bi, br in batch:
+                batch_results.append(_run_single_step(settings, br, bi))
 
-        step_settings = replace(settings, workspace=workspace)
-        model_raw = raw_step.get("model")
-        if isinstance(model_raw, str) and model_raw.strip():
-            step_settings = replace(step_settings, model=model_raw.strip())
+        batch_results.sort(key=lambda x: int((x[0].get("index") or 0)))
+        for step_result, step_event, workspace in batch_results:
+            results.append(step_result)
+            step_event["workflow_task_id"] = wf_task.task_id
+            events.append(step_event)
+            total_elapsed += int(step_result.get("elapsed_ms") or 0)
+            total_tool_calls += int(step_result.get("tool_calls_count") or 0)
+            total_errors += int(step_result.get("error_count") or 0)
+            instincts_roots.add(workspace)
 
-        role_raw = str(raw_step.get("role") or "default").strip().lower()
-        if role_raw not in ("default", "explorer", "reviewer", "security"):
-            role_raw = "default"
-        reset_usage_counters()
-        agent = create_agent(step_settings, role=role_raw) if role_raw != "default" else None
-
-        started = time.perf_counter()
-        if agent is not None:
-            final = agent.run(goal)
-        else:
-            app = build_app(step_settings)
-            state = initial_state(step_settings, goal)
-            final = app.invoke(state)
-        elapsed_ms = int((time.perf_counter() - started) * 1000)
-        usage = get_usage_counters()
-
-        msgs = final.get("messages")
-        msg_list: List[Dict[str, Any]] = msgs if isinstance(msgs, list) else []
-        stats = _collect_tool_stats(msg_list)
-
-        step_result: Dict[str, Any] = {
-            "index": idx,
-            "name": name,
-            "goal": goal,
-            "workspace": step_settings.workspace,
-            "provider": step_settings.provider,
-            "model": step_settings.model,
-            "elapsed_ms": elapsed_ms,
-            "answer": (final.get("answer") or "").strip(),
-            "finished": bool(final.get("finished")),
-            "prompt_tokens": usage.get("prompt_tokens", 0),
-            "completion_tokens": usage.get("completion_tokens", 0),
-            "total_tokens": usage.get("total_tokens", 0),
-            **stats,
-            "role": role_raw,
-            "protocol": {
-                "input": {"goal": goal, "role": role_raw},
-                "output": {"answer": (final.get("answer") or "").strip()},
-                "error": None if int(stats.get("error_count", 0)) == 0 else "tool_error_detected",
-            },
-        }
-        results.append(step_result)
-
-        events.append(
-            {
-                "event": "workflow.step.completed",
-                "workflow_task_id": wf_task.task_id,
-                "step_index": idx,
-                "name": name,
-                "elapsed_ms": elapsed_ms,
-                "tool_calls_count": int(stats.get("tool_calls_count", 0)),
-                "error_count": int(stats.get("error_count", 0)),
-            },
-        )
-
-        total_elapsed += elapsed_ms
-        total_tool_calls += int(stats.get("tool_calls_count", 0))
-        total_errors += int(stats.get("error_count", 0))
-
-        instincts_roots.add(step_settings.workspace)
+        idx += len(batch)
 
     conflicts = _detect_conflicts(results)
     merge_decision = _merge_decision_for_strategy(merge_strategy, conflicts, results)
 
     summary = {
         "steps_count": len(results),
+        "parallel_steps_count": sum(
+            1
+            for r in results
+            if isinstance(r.get("parallel_group"), str) and str(r.get("parallel_group")).strip()
+        ),
+        "parallel_groups_count": len(
+            {
+                str(r.get("parallel_group"))
+                for r in results
+                if isinstance(r.get("parallel_group"), str) and str(r.get("parallel_group")).strip()
+            },
+        ),
         "elapsed_ms_total": total_elapsed,
         "elapsed_ms_avg": int(total_elapsed / len(results)) if results else 0,
         "tool_calls_total": total_tool_calls,
         "tool_errors_total": total_errors,
         "conflicts": conflicts,
         "merge_decision": merge_decision,
+        "merge_confidence": _merge_confidence(
+            merge_decision,
+            len(conflicts),
+            total_steps=len(results),
+        ),
         "merge_strategy": merge_strategy,
     }
+    subagent_io = _build_subagent_io_summary(
+        steps=results,
+        merge_strategy=merge_strategy,
+        merge_decision=merge_decision,
+        merge_confidence=str(summary.get("merge_confidence") or "low"),
+        conflicts=conflicts,
+    )
 
     try:
         if instincts_roots:
@@ -293,6 +420,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     )
     return {
         "task": wf_task.to_dict(),
+        "subagent_io_schema_version": "1.0",
+        "subagent_io": subagent_io,
         "steps": results,
         "summary": summary,
         "events": events,

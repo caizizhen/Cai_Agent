@@ -747,6 +747,36 @@ cai-agent workflow path/to/workflow.json --json
 - `mcp_enabled` / `elapsed_ms`
 - `tool_calls_count` / `used_tools` / `last_tool` / `error_count`
 
+## 当前 MVP 收官能力（2026-04）
+
+### Gateway（Telegram）
+
+已具备端到端最小闭环：
+
+- `gateway telegram bind|get|list|unbind`：会话映射管理
+- `gateway telegram resolve-update`：从 update JSON 解析 chat/user 并自动建映射
+- `gateway telegram serve-webhook`：本地 webhook 入口（`/telegram/update`）
+- `--execute-on-update` + `--goal-template`：接收消息后触发执行链
+- `--reply-on-execution` + `--telegram-bot-token` + `--reply-template`：执行后自动调用 Telegram `sendMessage` 回传结果
+
+### Memory（状态机治理）
+
+已从“条目存储”升级到“状态治理”：
+
+- `memory state`：输出 `active/stale/expired` 分布（含阈值）
+- `memory list --with-state --json`：返回 `state` / `state_reason`
+- `memory prune --drop-non-active`：按状态机策略清理非 active 条目
+
+### Release GA（门禁矩阵）
+
+`release-ga` 已支持多维门禁聚合（quality/security/session/token/doctor/memory）并可机读输出，新增：
+
+- `--with-memory-state`
+- `--memory-max-stale-ratio`
+- `--memory-max-expired-ratio`
+- `--memory-state-stale-days`
+- `--memory-state-stale-confidence`
+
 **内置斜杠命令（UI）：**
 
 - `/help` 或 `/?`

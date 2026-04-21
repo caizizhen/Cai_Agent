@@ -17,12 +17,14 @@ from textual.widgets import Footer, Header, Input, LoadingIndicator, RichLog, St
 from textual.worker import Worker, WorkerState
 
 from cai_agent import __version__
+from cai_agent.command_registry import load_command_text
 from cai_agent.config import Settings
 from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, get_last_usage
 from cai_agent.llm_factory import activate_profile_in_memory
 from cai_agent.models import fetch_models
 from cai_agent.profiles import Profile
+from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.tui_model_panel import ModelPanelScreen
 from cai_agent.tui_path_complete import suggest_path_after_command
@@ -46,6 +48,8 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/use-model",
     "/use-model ",
     "/reload",
+    "/fix-build",
+    "/security-scan",
     "/stop",
     "/clear",
 )
@@ -71,6 +75,8 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/sessions",
     "/use-model",
     "/reload",
+    "/fix-build",
+    "/security-scan",
     "/stop",
     "/clear",
 )
@@ -953,6 +959,8 @@ class CaiAgentApp(App[None]):
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
                 "/mcp call <name> <json_args> — 调用 MCP 工具\n"
+                "/fix-build — 载入并执行 fix-build 命令模板\n"
+                "/security-scan — 载入并执行 security-scan 命令模板\n"
                 "/save <path> — 保存当前会话为 JSON（不传 path 则自动命名；/save 后可补全已有会话文件）\n"
                 "/load <path|latest> — 从 JSON 加载会话（若文件含 active_profile_id 等字段且与当前配置一致则恢复运行时 profile）\n"
                 "/sessions — 列出最近会话文件\n"
@@ -1008,6 +1016,28 @@ class CaiAgentApp(App[None]):
             )
             self._sync_slash_completion_sources()
             return
+
+        if raw in ("/fix-build", "/security-scan"):
+            cmd_name = raw.lstrip("/")
+            cmd_text = load_command_text(self._settings, cmd_name)
+            log = self.query_one("#chat", RichLog)
+            if not cmd_text:
+                log.write(f"\n[red]命令模板不存在:[/] /{cmd_name}\n")
+                return
+            skill_texts = load_related_skill_texts(self._settings, cmd_name)
+            skill_block = ""
+            if skill_texts:
+                skill_block = (
+                    "\n\n下面是自动匹配到的相关技能，请在执行中参考：\n\n"
+                    + "\n\n---\n\n".join(skill_texts)
+                )
+            rendered_goal = (
+                f"你当前正在执行命令 /{cmd_name}。\n"
+                "请严格参考下方命令模板完成任务：\n\n"
+                f"{cmd_text}{skill_block}"
+            )
+            # 走统一执行路径：将模板渲染后的目标塞回输入处理，避免复制粘贴运行逻辑。
+            raw = rendered_goal
 
         if raw == "/models refresh":
             log = self.query_one("#chat", RichLog)

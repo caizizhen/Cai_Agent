@@ -33,6 +33,9 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Quality gate / CI | `cai-agent quality-gate --json` (optional `--report-dir DIR`; `[quality_gate]` `test_policy` / `lint_policy`: `skip` or `fail_if_missing`) |
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
 | Memory | `cai-agent memory extract` → `memory/entries.jsonl`; `memory list --json`, `memory search`, `memory prune`; instinct paths via `memory instincts`; health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`), historical trend via `memory nudge-report --json` (`--days`, `severity_jumps`), and one-step schedule preset via `schedule add-memory-nudge` |
+| Memory state machine | `cai-agent memory state --json` → `active/stale/expired` distribution; `memory list --with-state --json`; `memory prune --drop-non-active` (optional `--state-stale-after-days`, `--state-min-active-confidence`) |
+| Gateway Telegram MVP | `cai-agent gateway telegram bind|get|list|unbind`; `resolve-update`; `serve-webhook --execute-on-update --reply-on-execution --telegram-bot-token ...` |
+| Release gate matrix | `cai-agent release-ga --json --with-memory-state --memory-max-stale-ratio 0.5 --memory-max-expired-ratio 0.1` (+ existing `--with-doctor`, `--with-memory-nudge`) |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
 | Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |

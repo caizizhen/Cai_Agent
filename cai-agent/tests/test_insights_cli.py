@@ -52,7 +52,7 @@ class InsightsCliTests(unittest.TestCase):
                     rc = main(["insights", "--json", "--days", "7", "--limit", "10"])
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
-            self.assertEqual(payload.get("schema_version"), "1.0")
+            self.assertEqual(payload.get("schema_version"), "1.1")
             self.assertEqual(payload.get("sessions_in_window"), 2)
             self.assertEqual(payload.get("total_tokens"), 150)
             self.assertEqual(payload.get("tool_calls_total"), 2)

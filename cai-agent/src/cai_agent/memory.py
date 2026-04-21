@@ -3,13 +3,15 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterable, List
 
 MEMORY_ENTRY_V1_FIELDS = frozenset(
     {"id", "category", "text", "confidence", "expires_at", "created_at"},
 )
+
+MEMORY_STATES = ("active", "stale", "expired")
 
 
 def validate_memory_entry_row(row: dict[str, Any]) -> list[str]:
@@ -216,6 +218,99 @@ def _confidence_val(row: dict[str, Any]) -> float:
     return float(c)
 
 
+def _parse_dt(raw: object) -> datetime | None:
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=UTC)
+    return dt
+
+
+def memory_entry_state(
+    row: dict[str, Any],
+    *,
+    now: datetime | None = None,
+    stale_after_days: int = 14,
+    min_active_confidence: float = 0.5,
+) -> str:
+    now_dt = now or datetime.now(UTC)
+    exp = _parse_dt(row.get("expires_at"))
+    if exp is not None and exp < now_dt:
+        return "expired"
+    created = _parse_dt(row.get("created_at"))
+    conf = _confidence_val(row)
+    stale_after = max(1, int(stale_after_days))
+    if created is not None and created < (now_dt - timedelta(days=stale_after)):
+        return "stale"
+    if conf < max(0.0, min(1.0, float(min_active_confidence))):
+        return "stale"
+    return "active"
+
+
+def annotate_memory_states(
+    rows: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
+    stale_after_days: int = 14,
+    min_active_confidence: float = 0.5,
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        st = memory_entry_state(
+            row,
+            now=now,
+            stale_after_days=stale_after_days,
+            min_active_confidence=min_active_confidence,
+        )
+        reason = "active"
+        exp = _parse_dt(row.get("expires_at"))
+        created = _parse_dt(row.get("created_at"))
+        conf = _confidence_val(row)
+        stale_after = max(1, int(stale_after_days))
+        now_dt = now or datetime.now(UTC)
+        if exp is not None and exp < now_dt:
+            reason = "expired_by_ttl"
+        elif created is not None and created < (now_dt - timedelta(days=stale_after)):
+            reason = "stale_by_age"
+        elif conf < max(0.0, min(1.0, float(min_active_confidence))):
+            reason = "stale_by_confidence"
+        out.append({**row, "state": st, "state_reason": reason})
+    return out
+
+
+def evaluate_memory_entry_states(
+    root: str | Path,
+    *,
+    stale_after_days: int = 14,
+    min_active_confidence: float = 0.5,
+) -> dict[str, Any]:
+    rows, warnings = load_memory_entries_validated(root)
+    annotated = annotate_memory_states(
+        rows,
+        stale_after_days=stale_after_days,
+        min_active_confidence=min_active_confidence,
+    )
+    counts = {"active": 0, "stale": 0, "expired": 0}
+    for row in annotated:
+        st = str(row.get("state") or "").strip().lower()
+        if st in counts:
+            counts[st] += 1
+    return {
+        "schema_version": "memory_state_eval_v1",
+        "rows": annotated,
+        "counts": counts,
+        "warnings": warnings,
+        "stale_after_days": int(max(1, stale_after_days)),
+        "min_active_confidence": float(max(0.0, min(1.0, min_active_confidence))),
+    }
+
+
 def search_memory_entries(
     root: str | Path,
     query: str,
@@ -243,14 +338,42 @@ def search_memory_entries(
     return hits[:limit]
 
 
-def prune_expired_memory_entries(root: str | Path) -> int:
-    """删除 expires_at 早于当前 UTC 的行；返回删除条数。"""
+def prune_expired_memory_entries(
+    root: str | Path,
+    *,
+    min_confidence: float | None = None,
+    max_entries: int | None = None,
+    drop_non_active: bool = False,
+    stale_after_days: int = 30,
+    min_active_confidence: float = 0.4,
+) -> dict[str, int]:
+    """按策略清理记忆条目并返回统计。
+
+    清理顺序：
+    1) 删除 expires_at 已过期条目；
+    2) 若设置 min_confidence，删除低于阈值条目；
+    3) 若设置 max_entries，按 created_at 新到旧保留前 N 条，其余删除。
+    """
     path = _entries_path(root)
     if not path.is_file():
-        return 0
+        return {
+            "removed_total": 0,
+            "removed_expired": 0,
+            "removed_low_confidence": 0,
+            "removed_over_limit": 0,
+            "kept_total": 0,
+        }
     now = datetime.now(UTC)
-    kept: list[str] = []
-    removed = 0
+    remove_expired = 0
+    remove_low_conf = 0
+    remove_limit = 0
+    remove_non_active = 0
+    cand: list[dict[str, Any]] = []
+
+    low_conf_cutoff = None
+    if isinstance(min_confidence, int | float) and not isinstance(min_confidence, bool):
+        low_conf_cutoff = max(0.0, min(1.0, float(min_confidence)))
+
     for line in path.read_text(encoding="utf-8").splitlines():
         raw = line.strip()
         if not raw:
@@ -258,7 +381,7 @@ def prune_expired_memory_entries(root: str | Path) -> int:
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError:
-            kept.append(raw)
+            cand.append({"raw": raw, "created_ts": 0.0})
             continue
         exp = obj.get("expires_at")
         if isinstance(exp, str) and exp.strip():
@@ -267,13 +390,47 @@ def prune_expired_memory_entries(root: str | Path) -> int:
                 if exp_dt.tzinfo is None:
                     exp_dt = exp_dt.replace(tzinfo=UTC)
                 if exp_dt < now:
-                    removed += 1
+                    remove_expired += 1
                     continue
             except ValueError:
                 pass
-        kept.append(raw)
+        if low_conf_cutoff is not None and isinstance(obj, dict):
+            conf = obj.get("confidence")
+            conf_val = float(conf) if isinstance(conf, int | float) and not isinstance(conf, bool) else 0.0
+            if conf_val < low_conf_cutoff:
+                remove_low_conf += 1
+                continue
+        if bool(drop_non_active) and isinstance(obj, dict):
+            st = memory_entry_state(
+                obj,
+                stale_after_days=int(max(1, stale_after_days)),
+                min_active_confidence=float(max(0.0, min(1.0, min_active_confidence))),
+            )
+            if st != "active":
+                remove_non_active += 1
+                continue
+        created_ts = _parse_created_at(obj) if isinstance(obj, dict) else 0.0
+        cand.append({"raw": raw, "created_ts": created_ts})
+
+    kept: list[str] = [str(x["raw"]) for x in cand]
+    if isinstance(max_entries, int) and max_entries > 0:
+        cap = int(max_entries)
+        if len(cand) > cap:
+            sorted_cand = sorted(cand, key=lambda x: float(x["created_ts"]), reverse=True)
+            kept_set = {str(x["raw"]) for x in sorted_cand[:cap]}
+            remove_limit = len(cand) - len(kept_set)
+            kept = [str(x["raw"]) for x in cand if str(x["raw"]) in kept_set]
+
     path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
-    return removed
+    removed_total = remove_expired + remove_low_conf + remove_limit + remove_non_active
+    return {
+        "removed_total": removed_total,
+        "removed_expired": remove_expired,
+        "removed_low_confidence": remove_low_conf,
+        "removed_over_limit": remove_limit,
+        "removed_non_active": remove_non_active,
+        "kept_total": len(kept),
+    }
 
 
 def save_instincts(root: str | Path, instincts: Iterable[Instinct]) -> Path | None:

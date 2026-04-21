@@ -13,6 +13,35 @@ from cai_agent.config import Settings
 
 
 class ScheduleCliTests(unittest.TestCase):
+    def test_add_with_retry_and_dependency_fields(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "schedule",
+                            "add",
+                            "--goal",
+                            "task A",
+                            "--every-minutes",
+                            "10",
+                            "--depends-on",
+                            "sched-upstream",
+                            "--retry-max-attempts",
+                            "3",
+                            "--retry-backoff-sec",
+                            "2.5",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("depends_on"), ["sched-upstream"])
+            self.assertEqual(payload.get("retry_max_attempts"), 3)
+            self.assertEqual(payload.get("retry_backoff_sec"), 2.5)
+
     def test_add_memory_nudge_template(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
@@ -63,6 +92,12 @@ class ScheduleCliTests(unittest.TestCase):
                             "daily audit",
                             "--every-minutes",
                             "5",
+                            "--depends-on",
+                            "sched-prev",
+                            "--retry-max-attempts",
+                            "3",
+                            "--retry-backoff-sec",
+                            "0",
                             "--disabled",
                             "--json",
                         ],
@@ -71,6 +106,8 @@ class ScheduleCliTests(unittest.TestCase):
             created = json.loads(buf_add.getvalue().strip())
             self.assertEqual(created.get("goal"), "daily audit")
             self.assertEqual(created.get("enabled"), False)
+            self.assertEqual(created.get("depends_on"), ["sched-prev"])
+            self.assertEqual(created.get("retry_max_attempts"), 3)
 
             buf_list = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):

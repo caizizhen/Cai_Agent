@@ -65,10 +65,13 @@ class MemoryNudgeCliTests(unittest.TestCase):
                     rc = main(["memory", "nudge", "--json", "--days", "7", "--session-limit", "20"])
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
-            self.assertEqual(payload.get("schema_version"), "1.0")
+            self.assertEqual(payload.get("schema_version"), "1.1")
             self.assertEqual(payload.get("severity"), "high")
             self.assertGreaterEqual(int(payload.get("recent_sessions") or 0), 8)
             self.assertEqual(int(payload.get("memory_entries") or 0), 0)
+            self.assertIn("threshold_policy", payload)
+            self.assertIn("risk_score", payload)
+            self.assertIn("trend", payload)
 
     def test_memory_nudge_json_reports_low_with_entries(self) -> None:
         with TemporaryDirectory() as td:
@@ -132,13 +135,13 @@ class MemoryNudgeCliTests(unittest.TestCase):
             self.assertIn(str(out_file), buf.getvalue())
             self.assertTrue(out_file.is_file())
             payload = json.loads(out_file.read_text(encoding="utf-8"))
-            self.assertEqual(payload.get("schema_version"), "1.0")
+            self.assertEqual(payload.get("schema_version"), "1.1")
 
             hist = root / "memory" / "nudge-history.jsonl"
             self.assertTrue(hist.is_file())
             lines = [ln for ln in hist.read_text(encoding="utf-8").splitlines() if ln.strip()]
             self.assertEqual(len(lines), 1)
-            self.assertEqual(json.loads(lines[0]).get("schema_version"), "1.0")
+            self.assertEqual(json.loads(lines[0]).get("schema_version"), "1.1")
 
     def test_memory_nudge_fail_on_severity_threshold(self) -> None:
         with TemporaryDirectory() as td:

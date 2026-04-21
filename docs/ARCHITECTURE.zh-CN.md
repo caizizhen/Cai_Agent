@@ -190,7 +190,39 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
 
 ---
 
-## 11. Roadmap（参考 Claude Code / Everything Claude Code）
+## 11. 当前已落地闭环（MVP）
+
+### 11.1 Gateway Telegram 闭环
+
+- `gateway telegram bind|get|list|unbind`：维护 `chat_id:user_id -> session_file` 映射；
+- `gateway telegram resolve-update`：从 Telegram update JSON 解析 `chat_id/user_id` 并按需自动建映射；
+- `gateway telegram serve-webhook`：本地 HTTP `/telegram/update` 接入；
+- `serve-webhook --execute-on-update --goal-template ...`：解析成功后触发执行链；
+- `serve-webhook --reply-on-execution --telegram-bot-token --reply-template ...`：执行完成后自动调用 Telegram `sendMessage` 回发结果；
+- 全链路事件写入 JSONL（含解析、执行、回发状态），便于审计与排障。
+
+### 11.2 Memory 状态机治理
+
+- 记忆条目统一状态：`active / stale / expired`；
+- `memory state`：输出状态分布与阈值；
+- `memory list --with-state --json`：输出 `state` 与 `state_reason`；
+- `memory prune --drop-non-active`：按状态机清理非 active 条目；
+- 兼容原有 TTL / 最小置信度 / 保留上限策略。
+
+### 11.3 Release GA 门禁矩阵增强
+
+- 原有门禁：质量门禁、安全扫描、会话失败率、token 预算、doctor、memory nudge；
+- 新增 memory state 比例门禁：
+  - `--with-memory-state`
+  - `--memory-max-stale-ratio`
+  - `--memory-max-expired-ratio`
+  - `--memory-state-stale-days`
+  - `--memory-state-stale-confidence`
+- 可将 stale/expired 占比超阈值直接纳入发版阻断。
+
+---
+
+## 12. Roadmap（参考 Claude Code / Everything Claude Code）
 
 本节是对后续演进方向的更细分规划，按阶段对齐 Claude Code 与 Everything Claude Code 的能力。
 

@@ -19,21 +19,21 @@ class MemoryNudgeReportCliTests(unittest.TestCase):
             hist.parent.mkdir(parents=True, exist_ok=True)
             rows = [
                 {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "generated_at": "2099-04-20T00:00:00+00:00",
                     "severity": "low",
                     "recent_sessions": 2,
                     "memory_entries": 8,
                 },
                 {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "generated_at": "2099-04-20T12:00:00+00:00",
                     "severity": "medium",
                     "recent_sessions": 5,
                     "memory_entries": 3,
                 },
                 {
-                    "schema_version": "1.0",
+                    "schema_version": "1.1",
                     "generated_at": "2099-04-21T00:00:00+00:00",
                     "severity": "high",
                     "recent_sessions": 9,

@@ -228,6 +228,8 @@ class Settings:
     permission_write_file: str
     permission_run_command: str
     permission_fetch_url: str
+    run_command_approval_mode: str
+    run_command_high_risk_patterns: tuple[str, ...]
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -500,6 +502,17 @@ class Settings:
         permission_write_file = _perm_mode(perm.get("write_file"), "allow")
         permission_run_command = _perm_mode(perm.get("run_command"), "allow")
         permission_fetch_url = _perm_mode(perm.get("fetch_url"), "allow")
+        raw_rc_mode = str(perm.get("run_command_approval_mode", "block_high_risk")).strip().lower()
+        if raw_rc_mode not in ("block_high_risk", "allow_all"):
+            raw_rc_mode = "block_high_risk"
+        run_command_approval_mode = raw_rc_mode
+        raw_patterns = perm.get("run_command_high_risk_patterns")
+        if isinstance(raw_patterns, list):
+            run_command_high_risk_patterns = tuple(
+                str(x).strip().lower() for x in raw_patterns if str(x).strip()
+            )
+        else:
+            run_command_high_risk_patterns = ()
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
@@ -726,6 +739,8 @@ class Settings:
             permission_write_file=permission_write_file,
             permission_run_command=permission_run_command,
             permission_fetch_url=permission_fetch_url,
+            run_command_approval_mode=run_command_approval_mode,
+            run_command_high_risk_patterns=run_command_high_risk_patterns,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

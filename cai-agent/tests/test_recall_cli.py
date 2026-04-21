@@ -64,7 +64,7 @@ class RecallCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
-            self.assertEqual(payload.get("schema_version"), "1.0")
+            self.assertEqual(payload.get("schema_version"), "1.1")
             results = payload.get("results") or []
             self.assertEqual(len(results), 2)
             # Newest first.
@@ -72,6 +72,9 @@ class RecallCliTests(unittest.TestCase):
             first_hits = results[0].get("hits") or []
             self.assertTrue(first_hits)
             self.assertIn("fix", str(first_hits[0]).lower())
+            self.assertIn("ranking", payload)
+            self.assertIn("score", results[0])
+            self.assertIn("score_breakdown", results[0])
 
     def test_recall_regex_mode_and_days_filter(self) -> None:
         with TemporaryDirectory() as td:
