@@ -520,6 +520,18 @@ cai-agent recall-index refresh --prune
 - `recall --use-index` 使用本地索引（默认工作区根目录 `.cai-recall-index.json`）检索，适合会话文件较多的仓库；需先 `recall-index build`。
 - `recall-index build` 全量重建索引；`recall-index refresh` 增量合并（**mtime 未变则跳过解析**），`--prune` 可清理已删除文件或超出 `--days` 窗口的旧条目。
 
+### `cai-agent memory nudge --json`
+
+记忆提醒（对标 Hermes 的 memory nudge 思路）：基于近期会话活跃度、结构化记忆条目数量、instinct 快照是否存在，以及 `entries.jsonl` 校验告警，输出 `severity`（`low|medium|high`）与建议动作 `actions`，便于做定时治理。
+
+```bash
+cai-agent memory nudge --json
+cai-agent memory nudge --days 7 --session-pattern ".cai-session*.json" --session-limit 50 --json
+```
+
+- 当近 7 天会话明显增长但记忆沉淀不足时，会给出 `memory extract` 的明确建议；
+- 可与 `schedule add/run-due/daemon` 组合，定期巡检记忆质量。
+
 ### `cai-agent schedule`（生产护栏补充）
 
 ```bash

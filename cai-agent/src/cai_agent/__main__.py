@@ -184,6 +184,72 @@ def _build_insights_payload(
     }
 
 
+def _build_memory_nudge_payload(
+    *,
+    cwd: str,
+    days: int,
+    session_pattern: str,
+    session_limit: int,
+) -> dict[str, Any]:
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    sessions = list_session_files(cwd=cwd, pattern=session_pattern, limit=session_limit)
+    recent_sessions = [
+        p for p in sessions if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since
+    ]
+
+    root = Path(cwd).resolve()
+    entries, warns = load_memory_entries_validated(root)
+    inst_dir = root / "memory" / "instincts"
+    latest_instincts = sorted(
+        inst_dir.glob("instincts-*.md"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    ) if inst_dir.is_dir() else []
+    latest_instinct_path = str(latest_instincts[0]) if latest_instincts else None
+
+    actions: list[str] = []
+    severity = "low"
+    if len(recent_sessions) >= 8 and not entries:
+        severity = "high"
+        actions.append(
+            "近期会话较多但暂无结构化记忆，建议立即执行 `cai-agent memory extract --limit 20`",
+        )
+    elif len(recent_sessions) >= 4 and len(entries) < 3:
+        severity = "medium"
+        actions.append("近期会话增长较快，建议补充 memory extract 并检查记忆分类质量")
+
+    if latest_instinct_path is None and len(recent_sessions) >= 3:
+        if severity == "low":
+            severity = "medium"
+        actions.append("尚未生成 instincts 快照，建议执行 `cai-agent memory extract` 触发沉淀")
+
+    if warns:
+        if severity == "low":
+            severity = "medium"
+        actions.append("检测到 memory/entries.jsonl 存在无效行，建议先修复再继续累积记忆")
+
+    if not actions:
+        actions.append("记忆状态健康：保持每周至少一次 `cai-agent memory extract --limit 10`")
+
+    return {
+        "schema_version": "1.0",
+        "generated_at": now.isoformat(),
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "session_pattern": session_pattern,
+            "session_limit": max(session_limit, 1),
+        },
+        "recent_sessions": len(recent_sessions),
+        "memory_entries": len(entries),
+        "memory_warnings": warns,
+        "latest_instinct_path": latest_instinct_path,
+        "severity": severity,
+        "actions": actions,
+    }
+
+
 def _extract_session_recall_hits(
     *,
     session: dict[str, Any],
@@ -1997,6 +2063,18 @@ def main(argv: list[str] | None = None) -> int:
         help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
     )
     memory_import_entries.add_argument("file")
+    memory_nudge = memory_sub.add_parser(
+        "nudge",
+        help="根据近期会话与记忆状态给出沉淀提醒（Hermes-style memory nudge）",
+    )
+    memory_nudge.add_argument("--days", type=int, default=7, help="回顾最近 N 天会话")
+    memory_nudge.add_argument(
+        "--session-pattern",
+        default=".cai-session*.json",
+        help="会话文件匹配模式（相对当前目录）",
+    )
+    memory_nudge.add_argument("--session-limit", type=int, default=50, help="最多扫描会话文件数")
+    memory_nudge.add_argument("--json", action="store_true", dest="json_output")
 
     schedule_p = sub.add_parser(
         "schedule",
@@ -3140,6 +3218,24 @@ def main(argv: list[str] | None = None) -> int:
                 doc = json.loads(src.read_text(encoding="utf-8"))
                 n = import_memory_entries_bundle(root, doc)
                 print(json.dumps({"imported": n}, ensure_ascii=False))
+                return 0
+            if args.memory_action == "nudge":
+                payload = _build_memory_nudge_payload(
+                    cwd=str(root),
+                    days=int(getattr(args, "days", 7)),
+                    session_pattern=str(getattr(args, "session_pattern", ".cai-session*.json")),
+                    session_limit=int(getattr(args, "session_limit", 50)),
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    print(
+                        f"[memory nudge] severity={payload.get('severity')} "
+                        f"recent_sessions={payload.get('recent_sessions')} "
+                        f"memory_entries={payload.get('memory_entries')}",
+                    )
+                    for i, action in enumerate(payload.get("actions") or [], start=1):
+                        print(f"{i}. {action}")
                 return 0
         finally:
             _print_hook_status(
