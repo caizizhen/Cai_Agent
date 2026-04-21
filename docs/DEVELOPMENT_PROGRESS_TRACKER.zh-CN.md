@@ -29,6 +29,7 @@
 - `board` 新增失败摘要：输出 `failed_summary`（count/recent），文本模式增加 `[failed_summary]` 区块便于值班排障
 - `board` 新增状态统计：输出 `status_summary` 与 `status_counts`（`pending/running/completed/failed/unknown`），文本模式增加 `[status_summary]` 分组统计
 - `board` 失败摘要增强：支持 `--failed-top` 配置 recent 失败条数，按会话文件 mtime 降序输出（最近失败优先）
+- `board` 新增分组聚合：支持 `--group-top` 输出模型与 task 维度 TopN（`group_summary`），文本模式增加 `[group_summary]` 摘要
 
 ### D. Memory Loop
 
@@ -106,7 +107,7 @@
 
 ## 下一阶段建议（按价值）
 
-1. 看板继续增强：补按模型/任务维度聚合（TopN）与过滤组合（状态+失败）视图
+1. 看板继续增强：补过滤组合（状态+失败）视图与趋势时间窗对比
 2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -194,5 +195,43 @@ def attach_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
     out["status_summary"] = {
         "total": sum(counts.values()),
         "counts": counts,
+    }
+    return out
+
+
+def attach_group_summary(
+    payload: dict[str, Any],
+    *,
+    top_n: int = 5,
+) -> dict[str, Any]:
+    """附加按模型与任务维度的 TopN 聚合统计。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["group_summary"] = {"top_n": max(1, int(top_n)), "models_top": [], "tasks_top": []}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["group_summary"] = {"top_n": max(1, int(top_n)), "models_top": [], "tasks_top": []}
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    m_counter: Counter[str] = Counter()
+    t_counter: Counter[str] = Counter()
+    for r in rows:
+        model = str(r.get("model") or "").strip() or "unknown"
+        task_id = str(r.get("task_id") or "").strip() or "unknown"
+        m_counter[model] += 1
+        t_counter[task_id] += 1
+    n = max(1, int(top_n))
+    out["group_summary"] = {
+        "top_n": n,
+        "models_top": [{"key": k, "count": v} for k, v in m_counter.most_common(n)],
+        "tasks_top": [{"key": k, "count": v} for k, v in t_counter.most_common(n)],
+    }
+    # backward-compatible alias for early adopters
+    out["topn_summary"] = {
+        "top_n": n,
+        "models": list(out["group_summary"]["models_top"]),
+        "tasks": list(out["group_summary"]["tasks_top"]),
     }
     return out

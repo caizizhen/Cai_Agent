@@ -226,6 +226,68 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_json_includes_model_and_task_top(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                rows = [
+                    {
+                        "name": ".cai-session-a.json",
+                        "task_id": "run-t1",
+                        "model": "gpt-x",
+                        "error_count": 0,
+                    },
+                    {
+                        "name": ".cai-session-b.json",
+                        "task_id": "run-t1",
+                        "model": "gpt-x",
+                        "error_count": 0,
+                    },
+                    {
+                        "name": ".cai-session-c.json",
+                        "task_id": "run-t2",
+                        "model": "gpt-y",
+                        "error_count": 1,
+                    },
+                ]
+                for r in rows:
+                    payload = {
+                        "version": 2,
+                        "run_schema_version": "1.0",
+                        "task": {
+                            "task_id": r["task_id"],
+                            "type": "run",
+                            "status": "failed" if r["error_count"] else "completed",
+                        },
+                        "model": r["model"],
+                        "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                        "error_count": r["error_count"],
+                        "total_tokens": 1,
+                        "prompt_tokens": 1,
+                        "completion_tokens": 0,
+                        "elapsed_ms": 1,
+                    }
+                    (root / r["name"]).write_text(json.dumps(payload), encoding="utf-8")
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json", "--group-top", "2"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                gs = payload.get("group_summary") or {}
+                by_model = gs.get("models_top") or []
+                by_task = gs.get("tasks_top") or []
+                self.assertGreaterEqual(len(by_model), 2)
+                self.assertEqual(by_model[0].get("key"), "gpt-x")
+                self.assertEqual(by_model[0].get("count"), 2)
+                self.assertGreaterEqual(len(by_task), 2)
+                self.assertEqual(by_task[0].get("key"), "run-t1")
+                self.assertEqual(by_task[0].get("count"), 2)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()

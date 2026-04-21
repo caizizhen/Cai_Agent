@@ -25,6 +25,7 @@ from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import (
+    attach_group_summary,
     attach_status_summary,
     attach_failed_summary,
     build_board_payload,
@@ -3350,6 +3351,12 @@ def main(argv: list[str] | None = None) -> int:
         default=5,
         help="失败摘要 recent 列表的最大条数（最小为 1）",
     )
+    board_p.add_argument(
+        "--group-top",
+        type=int,
+        default=5,
+        help="聚合视图（模型/任务）TopN 条数（最小为 1）",
+    )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
     gateway_p = sub.add_parser(
@@ -5169,6 +5176,10 @@ def main(argv: list[str] | None = None) -> int:
                 limit=max(1, int(getattr(args, "failed_top", 5))),
             )
             payload = attach_status_summary(payload)
+            payload = attach_group_summary(
+                payload,
+                top_n=max(1, int(getattr(args, "group_top", 5))),
+            )
             payload["filters"] = {
                 "failed_only": failed_only,
                 "task_id": task_id_filter or None,
@@ -5196,6 +5207,7 @@ def main(argv: list[str] | None = None) -> int:
                             f"failed={counts.get('failed', 0)}",
                         )
                 failed_summary = payload.get("failed_summary")
+                group_summary = payload.get("group_summary")
                 recent_failed = (
                     failed_summary.get("recent")
                     if isinstance(failed_summary, dict)
@@ -5212,6 +5224,21 @@ def main(argv: list[str] | None = None) -> int:
                             f"task_id={row.get('task_id')} "
                             f"errors={row.get('error_count')}",
                         )
+                if isinstance(group_summary, dict):
+                    models_top = group_summary.get("models_top")
+                    tasks_top = group_summary.get("tasks_top")
+                    if isinstance(models_top, list) and models_top:
+                        print("[models_top]")
+                        for row in models_top:
+                            if not isinstance(row, dict):
+                                continue
+                            print(f"  model={row.get('model')} count={row.get('count')}")
+                    if isinstance(tasks_top, list) and tasks_top:
+                        print("[tasks_top]")
+                        for row in tasks_top:
+                            if not isinstance(row, dict):
+                                continue
+                            print(f"  task_id={row.get('task_id')} count={row.get('count')}")
                 wf = payload.get("last_workflow")
                 if isinstance(wf, dict):
                     task = wf.get("task") if isinstance(wf.get("task"), dict) else {}
