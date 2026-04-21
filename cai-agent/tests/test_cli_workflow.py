@@ -40,6 +40,10 @@ class WorkflowCliTests(unittest.TestCase):
                 self.assertTrue(isinstance(payload["events"], list))
                 self.assertIn("task", payload)
                 self.assertEqual(payload["task"].get("type"), "workflow")
+                self.assertEqual(payload.get("subagent_io_schema_version"), "1.0")
+                self.assertIn("subagent_io", payload)
+                self.assertIn("merge", payload.get("subagent_io") or {})
+                self.assertTrue(isinstance((payload.get("subagent_io") or {}).get("merge"), dict))
             finally:
                 if old_mock is None:
                     os.environ.pop("CAI_MOCK", None)
@@ -80,6 +84,11 @@ class WorkflowCliTests(unittest.TestCase):
         self.assertGreaterEqual(int(summary.get("parallel_groups_count") or 0), 1)
         self.assertGreaterEqual(int(summary.get("parallel_steps_count") or 0), 2)
         self.assertIn("merge_confidence", summary)
+        subio = payload.get("subagent_io") or {}
+        merge = subio.get("merge") if isinstance(subio, dict) else {}
+        self.assertIn("decision", merge)
+        self.assertIn("confidence", merge)
+        self.assertIn("conflicts", merge)
 
 
 if __name__ == "__main__":

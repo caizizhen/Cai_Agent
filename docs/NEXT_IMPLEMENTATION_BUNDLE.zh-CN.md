@@ -78,6 +78,7 @@
 - [本轮已落地] Recall 指标基准入口：`recall-index benchmark`（索引检索 vs 直扫检索耗时、加速比）
 - [本轮已落地] Memory Loop 治理策略增强：`memory prune` 支持 `--min-confidence` / `--max-entries`，输出按原因统计（`expired`/`low_confidence`/`overflow`）
 - [本轮已落地] Workflow 子代理编排增强：step 级 `parallel_group` 并发、`workflow.parallel_group.completed` 事件、`merge_confidence` 汇总
+- [本轮已落地] Subagents 标准 IO 输出增强：`workflow` 结果新增 `subagent_io_schema_version=1.0`、`merge` 结构体（strategy/decision/confidence/conflicts/parallel_groups_count），并在每步 `protocol` 中补充 `schema_version=1.0`
 - [本轮已落地] 发布门禁增强：`release-ga` 支持 `doctor` 健康检查与 `memory nudge` 严重度阈值（`--with-doctor`、`--with-memory-nudge`、`--max-memory-severity`）
 - [本轮已落地] Observability 报表增强：新增 `observe-report`，基于 `observe` 聚合输出标准报表并按阈值生成 alerts（`state=pass|warn|fail`）
 

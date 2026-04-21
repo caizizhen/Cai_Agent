@@ -37,6 +37,7 @@
 - [x] step 级 `parallel_group` 并发执行
 - [x] `workflow.parallel_group.completed` 事件
 - [x] `parallel_steps_count` / `parallel_groups_count` / `merge_confidence`
+- [x] 子代理标准 IO 输出结构：`subagent_io_schema_version=v1`、`merge_result`（strategy/decision/confidence/conflicts）
 
 ### G. Release / Security Gate
 - [x] 新增 `release-ga` 命令（质量、失败率、token 预算、可选安全扫描）
@@ -58,7 +59,7 @@
 | Scheduler V2 | **高完成度** | 任务模型核心已落地（依赖/重试/审计） |
 | Recall Loop V2 | **高完成度** | ranking、索引与 `recall-index benchmark` 性能对比能力已落地 |
 | Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略 |
-| Subagents 编排 | **中完成度** | workflow 并行与合并增强完成，DSL 规范仍待细化 |
+| Subagents 编排 | **中高完成度** | workflow 并行、合并与标准 IO 输出已落地，DSL 规范仍待细化 |
 | Observability | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
 | Release GA | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富 |
@@ -66,7 +67,7 @@
 
 ## 当前总体进度（估算）
 
-- 总体：**约 78%**
+- 总体：**约 82%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 

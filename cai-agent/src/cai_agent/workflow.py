@@ -147,6 +147,49 @@ def _merge_confidence(
     return "low"
 
 
+def _build_subagent_io_summary(
+    *,
+    steps: list[dict[str, Any]],
+    merge_strategy: str,
+    merge_decision: str,
+    merge_confidence: str,
+    conflicts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """标准化 workflow 输出为可被子代理编排消费的稳定 I/O schema。"""
+    outputs: list[dict[str, Any]] = []
+    for step in steps:
+        outputs.append(
+            {
+                "id": str(step.get("index") or ""),
+                "name": str(step.get("name") or ""),
+                "role": str(step.get("role") or "default"),
+                "ok": bool(step.get("finished")) and int(step.get("error_count") or 0) == 0,
+                "answer": str(step.get("answer") or ""),
+                "error": (
+                    str((step.get("protocol") or {}).get("error"))
+                    if isinstance(step.get("protocol"), dict)
+                    and (step.get("protocol") or {}).get("error") is not None
+                    else None
+                ),
+                "parallel_group": step.get("parallel_group"),
+            },
+        )
+    return {
+        "subagent_io_schema_version": "1.0",
+        "inputs": {
+            "steps_count": len(steps),
+            "merge_strategy": merge_strategy,
+        },
+        "merge": {
+            "strategy": merge_strategy,
+            "decision": merge_decision,
+            "confidence": merge_confidence,
+            "conflicts": conflicts,
+        },
+        "outputs": outputs,
+    }
+
+
 def _run_single_step(
     settings: Settings,
     raw_step: dict[str, Any],
@@ -336,11 +379,18 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "merge_decision": merge_decision,
         "merge_confidence": _merge_confidence(
             merge_decision,
-            conflicts,
+            len(conflicts),
             total_steps=len(results),
         ),
         "merge_strategy": merge_strategy,
     }
+    subagent_io = _build_subagent_io_summary(
+        steps=results,
+        merge_strategy=merge_strategy,
+        merge_decision=merge_decision,
+        merge_confidence=str(summary.get("merge_confidence") or "low"),
+        conflicts=conflicts,
+    )
 
     try:
         if instincts_roots:
@@ -370,6 +420,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     )
     return {
         "task": wf_task.to_dict(),
+        "subagent_io_schema_version": "1.0",
+        "subagent_io": subagent_io,
         "steps": results,
         "summary": summary,
         "events": events,
