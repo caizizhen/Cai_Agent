@@ -119,7 +119,10 @@ def build_observe_payload(
         ev = s.get("events")
         events_count = len(ev) if isinstance(ev, list) else 0
         td = s.get("task")
-        task_id = str(td.get("task_id", "")) if isinstance(td, dict) else None
+        task_id: str | None = None
+        if isinstance(td, dict):
+            tid = str(td.get("task_id") or "").strip()
+            task_id = tid or None
         try:
             rel_path = str(p.relative_to(base))
         except ValueError:

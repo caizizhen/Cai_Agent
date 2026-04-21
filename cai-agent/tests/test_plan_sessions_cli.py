@@ -177,3 +177,39 @@ class SessionsJsonExtraTests(unittest.TestCase):
             self.assertEqual(row.get("events_count"), 2)
             self.assertEqual(row.get("run_schema_version"), "1.0")
             self.assertEqual(row.get("task_id"), "run-zzzzzzzzzz")
+
+    def test_sessions_json_normalizes_blank_task_id_to_null(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-blank-task.json"),
+                {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "goal": "g",
+                    "workspace": td,
+                    "elapsed_ms": 1,
+                    "total_tokens": 3,
+                    "prompt_tokens": 2,
+                    "completion_tokens": 1,
+                    "error_count": 0,
+                    "task": {
+                        "task_id": "  ",
+                        "type": "run",
+                        "status": "completed",
+                        "started_at": 0.0,
+                        "ended_at": 1.0,
+                        "elapsed_ms": 1,
+                        "error": None,
+                    },
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                },
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["sessions", "--pattern", ".cai-session*.json", "--json"])
+            self.assertEqual(rc, 0)
+            arr = json.loads(buf.getvalue().strip())
+            self.assertEqual(len(arr), 1)
+            self.assertIsNone(arr[0].get("task_id"))

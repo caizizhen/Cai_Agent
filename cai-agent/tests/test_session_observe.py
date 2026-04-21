@@ -47,3 +47,34 @@ class SessionObserveAggregationTests(unittest.TestCase):
             self.assertEqual(sess.get("events_count"), 2)
             self.assertEqual(sess.get("task_id"), "run-aaaaaaaaaa")
             self.assertEqual(sess.get("run_schema_version"), "1.0")
+
+    def test_observe_normalizes_blank_task_id_to_none(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-blank-task.json"),
+                {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "goal": "blank task id",
+                    "workspace": td,
+                    "elapsed_ms": 1,
+                    "total_tokens": 0,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "error_count": 0,
+                    "task": {
+                        "task_id": "   ",
+                        "type": "run",
+                        "status": "completed",
+                        "started_at": 0.0,
+                        "ended_at": 1.0,
+                        "elapsed_ms": 1,
+                        "error": None,
+                    },
+                    "events": [],
+                },
+            )
+            obs = build_observe_payload(cwd=td, pattern=".cai-session*.json", limit=10)
+            sess = (obs.get("sessions") or [])[0]
+            self.assertIsNone(sess.get("task_id"))
