@@ -154,3 +154,44 @@ def attach_failed_summary(
         "recent": recent,
     }
     return out
+
+
+def attach_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """附加会话状态分布统计，便于看板快速识别运行态。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        empty = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+        out["status_counts"] = dict(empty)
+        out["status_summary"] = {"total": 0, "counts": dict(empty)}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        empty = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+        out["status_counts"] = dict(empty)
+        out["status_summary"] = {"total": 0, "counts": dict(empty)}
+        return out
+    counts = {
+        "pending": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "unknown": 0,
+    }
+    for row in sessions:
+        if not isinstance(row, dict):
+            continue
+        st_raw = str(row.get("task_status") or "").strip().lower()
+        ec = int(row.get("error_count") or 0)
+        if st_raw in ("pending", "running", "completed", "failed"):
+            counts[st_raw] += 1
+        elif ec > 0:
+            counts["failed"] += 1
+        else:
+            counts["unknown"] += 1
+    out["status_counts"] = dict(counts)
+    out["status_summary"] = {
+        "total": sum(counts.values()),
+        "counts": counts,
+    }
+    return out

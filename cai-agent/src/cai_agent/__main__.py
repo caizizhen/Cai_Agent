@@ -25,6 +25,7 @@ from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import (
+    attach_status_summary,
     attach_failed_summary,
     build_board_payload,
     filter_board_payload,
@@ -5158,6 +5159,7 @@ def main(argv: list[str] | None = None) -> int:
                 task_id=task_id_filter or None,
             )
             payload = attach_failed_summary(payload, limit=5)
+            payload = attach_status_summary(payload)
             payload["filters"] = {
                 "failed_only": failed_only,
                 "task_id": task_id_filter or None,
@@ -5167,12 +5169,23 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 obs = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
                 ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+                status_summary = payload.get("status_summary")
                 print(
                     f"[observe] schema={obs.get('schema_version')} "
                     f"sessions={obs.get('sessions_count')} "
                     f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
                     f"run_events_total={ag.get('run_events_total', 0)}",
                 )
+                if isinstance(status_summary, dict):
+                    counts = status_summary.get("by_status")
+                    if isinstance(counts, dict):
+                        print(
+                            "[status_summary] "
+                            f"pending={counts.get('pending', 0)} "
+                            f"running={counts.get('running', 0)} "
+                            f"completed={counts.get('completed', 0)} "
+                            f"failed={counts.get('failed', 0)}",
+                        )
                 failed_summary = payload.get("failed_summary")
                 recent_failed = (
                     failed_summary.get("recent")

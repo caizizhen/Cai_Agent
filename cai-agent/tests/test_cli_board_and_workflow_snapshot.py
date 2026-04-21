@@ -109,6 +109,76 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_json_includes_status_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                running = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-running-1", "type": "run", "status": "running"},
+                    "events": [{"event": "run.started"}],
+                    "error_count": 0,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "elapsed_ms": 1,
+                }
+                completed = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-completed-1", "type": "run", "status": "completed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 0,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "elapsed_ms": 1,
+                }
+                failed = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-failed-1", "type": "run", "status": "failed"},
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                    "error_count": 1,
+                    "total_tokens": 2,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "elapsed_ms": 2,
+                }
+                unknown = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "events": [{"event": "run.started"}],
+                    "error_count": 0,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "elapsed_ms": 1,
+                }
+                (root / ".cai-session-running.json").write_text(json.dumps(running), encoding="utf-8")
+                (root / ".cai-session-completed.json").write_text(json.dumps(completed), encoding="utf-8")
+                (root / ".cai-session-failed.json").write_text(json.dumps(failed), encoding="utf-8")
+                (root / ".cai-session-unknown.json").write_text(json.dumps(unknown), encoding="utf-8")
+
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["board", "--json"])
+                self.assertEqual(rc, 0)
+                payload = json.loads(buf.getvalue().strip())
+                status_summary = payload.get("status_summary") or {}
+                self.assertEqual(status_summary.get("total"), 4)
+                counts = status_summary.get("counts") or {}
+                self.assertEqual(counts.get("running"), 1)
+                self.assertEqual(counts.get("completed"), 1)
+                self.assertEqual(counts.get("failed"), 1)
+                self.assertEqual(counts.get("pending"), 0)
+                self.assertEqual(counts.get("unknown"), 1)
+            finally:
+                os.chdir(old)
+
 
 if __name__ == "__main__":
     unittest.main()
