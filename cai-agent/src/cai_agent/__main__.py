@@ -42,7 +42,9 @@ from cai_agent.profiles import (
 )
 from cai_agent.exporter import export_target
 from cai_agent.memory import (
+    annotate_memory_states,
     export_memory_entries_bundle,
+    evaluate_memory_entry_states,
     extract_basic_instincts_from_session,
     extract_memory_entries_from_session,
     import_memory_entries_bundle,
@@ -2964,6 +2966,8 @@ def main(argv: list[str] | None = None) -> int:
         choices=("none", "confidence", "created_at"),
         help="list 结果排序（默认按文件顺序；无效行会被校验过滤）",
     )
+    memory_list.add_argument("--state-stale-after-days", type=int, default=30, help="状态评估：超过 N 天视为 stale（默认 30）")
+    memory_list.add_argument("--state-min-active-confidence", type=float, default=0.4, help="状态评估：低于该置信度视为 stale（默认 0.4）")
     memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
     memory_instincts.add_argument("--limit", type=int, default=20)
     memory_instincts.add_argument(
@@ -2994,7 +2998,24 @@ def main(argv: list[str] | None = None) -> int:
         default=0,
         help="最多保留条目数（按 created_at 新到旧保留；0 表示不限制）",
     )
+    memory_prune.add_argument(
+        "--drop-non-active",
+        action="store_true",
+        default=False,
+        help="先按状态机移除 stale/expired（需配合状态阈值参数）",
+    )
+    memory_prune.add_argument("--state-stale-after-days", type=int, default=30, help="状态评估：超过 N 天视为 stale（默认 30）")
+    memory_prune.add_argument("--state-min-active-confidence", type=float, default=0.4, help="状态评估：低于该置信度视为 stale（默认 0.4）")
     memory_prune.add_argument("--json", action="store_true", dest="json_output")
+    memory_state = memory_sub.add_parser("state", help="评估记忆条目的状态机分布（active/stale/expired）")
+    memory_state.add_argument("--stale-days", type=int, default=30, help="超过 N 天未更新视为 stale（默认 30）")
+    memory_state.add_argument(
+        "--stale-confidence",
+        type=float,
+        default=0.4,
+        help="低于该置信度的非过期条目视为 stale（默认 0.4）",
+    )
+    memory_state.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
@@ -4281,6 +4302,11 @@ def main(argv: list[str] | None = None) -> int:
                 rows, vwarn = load_memory_entries_validated(root)
                 for w in vwarn:
                     print(f"[memory] {w}", file=sys.stderr)
+                rows = annotate_memory_states(
+                    rows,
+                    stale_after_days=int(getattr(args, "state_stale_after_days", 30)),
+                    min_active_confidence=float(getattr(args, "state_min_active_confidence", 0.4)),
+                )
                 sort_key = str(getattr(args, "sort", "none") or "none")
                 sort_memory_rows(rows, sort_key)
                 rows = rows[: int(args.limit)]
@@ -4327,6 +4353,9 @@ def main(argv: list[str] | None = None) -> int:
                     root,
                     min_confidence=float(getattr(args, "min_confidence", 0.0) or 0.0),
                     max_entries=int(getattr(args, "max_entries", 0) or 0),
+                    drop_non_active=bool(getattr(args, "drop_non_active", False)),
+                    stale_after_days=int(getattr(args, "state_stale_after_days", 30)),
+                    min_active_confidence=float(getattr(args, "state_min_active_confidence", 0.4)),
                 )
                 if args.json_output:
                     print(json.dumps(n, ensure_ascii=False))
@@ -4337,6 +4366,26 @@ def main(argv: list[str] | None = None) -> int:
                         f"low_confidence={n.get('removed_low_confidence', 0)} "
                         f"over_limit={n.get('removed_over_limit', 0)} "
                         f"kept_total={n.get('kept_total', 0)}",
+                    )
+                return 0
+            if args.memory_action == "state":
+                rows, vwarn = load_memory_entries_validated(root)
+                for w in vwarn:
+                    print(f"[memory] {w}", file=sys.stderr)
+                payload = evaluate_memory_entry_states(
+                    rows,
+                    stale_days=int(getattr(args, "stale_days", 30)),
+                    stale_confidence=float(getattr(args, "stale_confidence", 0.4)),
+                )
+                if args.json_output:
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    counts = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+                    print(
+                        f"total={payload.get('total_entries', 0)} "
+                        f"active={counts.get('active', 0)} "
+                        f"stale={counts.get('stale', 0)} "
+                        f"expired={counts.get('expired', 0)}",
                     )
                 return 0
             if args.memory_action == "export":

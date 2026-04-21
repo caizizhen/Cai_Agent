@@ -30,6 +30,9 @@
 
 - `memory nudge` schema 升级至 `1.1`
 - 新增 `threshold_policy` / `risk_score` / `trend`
+- 新增记忆状态机评估：`active/stale/expired`（`memory state`）
+- `memory list --json` 输出补充 `state` / `state_reason`
+- `memory prune` 新增 `--drop-non-active`，可按状态机删除非 active 条目
 
 ### E. Recall Loop
 
@@ -79,7 +82,7 @@
 | -------------- | --------- | ----------------------------------------------------------------------- |
 | Scheduler V2   | **高完成度**  | 任务模型核心已落地（依赖/重试/审计）                                                     |
 | Recall Loop V2 | **高完成度**  | ranking、索引与 `recall-index benchmark` 性能对比能力已落地                          |
-| Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略                   |
+| Memory Loop V2 | **高完成度** | nudge schema/阈值到位；状态机评估与 prune 策略（TTL/置信度/保留上限/非 active 清理）已落地 |
 | Subagents 编排   | **中高完成度** | workflow 并行、合并与标准 IO 输出已落地，DSL 规范仍待细化                                   |
 | Observability  | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地                                 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩                                              |
@@ -89,14 +92,14 @@
 
 ## 当前总体进度（估算）
 
-- 总体：**约 100%（MVP 范围）**
+- 总体：**约 100%（当前规划范围）**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 
 ## 下一阶段建议（按价值）
 
 1. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
-2. Memory Loop 状态机 + TTL 策略固化
-3. Recall 结果缓存与大规模索引压测脚本
-4. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）
+2. Recall 结果缓存与大规模索引压测脚本
+3. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）
+4. Gateway/Memory 的策略参数文档与默认值分层（prod/dev）细化
 
