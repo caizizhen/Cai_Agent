@@ -6,6 +6,7 @@ import json
 import os
 import signal
 import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import threading
 import time
@@ -1395,6 +1396,138 @@ def _extract_telegram_ids_from_update(obj: dict[str, Any]) -> tuple[str | None, 
         if chat_id and user_id:
             return chat_id, user_id
     return None, None
+
+
+def _resolve_gateway_session_from_update(
+    *,
+    root: Path,
+    map_path: Path,
+    update_obj: dict[str, Any],
+    create_missing: bool,
+    session_template: str,
+) -> dict[str, Any]:
+    doc = _load_gateway_map(map_path)
+    bindings = doc.get("bindings")
+    if not isinstance(bindings, dict):
+        bindings = {}
+        doc["bindings"] = bindings
+    chat_id, user_id = _extract_telegram_ids_from_update(update_obj)
+    if not chat_id or not user_id:
+        return {
+            "schema_version": "gateway_telegram_map_v1",
+            "action": "resolve-update",
+            "ok": False,
+            "error": "invalid_update",
+            "message": "无法从 update JSON 提取 chat_id/user_id",
+        }
+    key = f"{chat_id}:{user_id}"
+    row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
+    created = False
+    if row is None and create_missing:
+        rel = session_template.format(chat_id=chat_id, user_id=user_id)
+        p = Path(rel).expanduser()
+        if not p.is_absolute():
+            p = (root / p).resolve()
+        else:
+            p = p.resolve()
+        row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+        bindings[key] = row
+        _save_gateway_map(map_path, doc)
+        created = True
+    return {
+        "schema_version": "gateway_telegram_map_v1",
+        "action": "resolve-update",
+        "ok": bool(row),
+        "created": created,
+        "map_file": str(map_path),
+        "chat_id": chat_id,
+        "user_id": user_id,
+        "binding": row,
+    }
+
+
+def _run_gateway_telegram_webhook_server(
+    *,
+    root: Path,
+    host: str,
+    port: int,
+    map_path: Path,
+    session_template: str,
+    create_missing: bool,
+    log_file: Path,
+    max_requests: int,
+) -> dict[str, Any]:
+    class _Handler(BaseHTTPRequestHandler):
+        server_version = "cai-gateway/0.1"
+
+        def _write_json(self, code: int, payload: dict[str, Any]) -> None:
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(code)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_POST(self) -> None:  # noqa: N802
+            if self.path != "/telegram/update":
+                self._write_json(404, {"ok": False, "error": "not_found"})
+                return
+            content_length = int(self.headers.get("Content-Length", "0") or 0)
+            raw = self.rfile.read(max(content_length, 0))
+            try:
+                obj = json.loads(raw.decode("utf-8"))
+            except Exception as e:
+                self._write_json(400, {"ok": False, "error": "invalid_json", "message": str(e)})
+                return
+            if not isinstance(obj, dict):
+                self._write_json(400, {"ok": False, "error": "invalid_json_root"})
+                return
+            payload = _resolve_gateway_session_from_update(
+                root=root,
+                map_path=map_path,
+                update_obj=obj,
+                create_missing=create_missing,
+                session_template=session_template,
+            )
+            log_row = {
+                "ts": datetime.now(UTC).isoformat(),
+                "remote": str(self.client_address[0]) if self.client_address else "",
+                "payload": payload,
+            }
+            log_file.parent.mkdir(parents=True, exist_ok=True)
+            with log_file.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(log_row, ensure_ascii=False) + "\n")
+            code = 200 if bool(payload.get("ok")) else 422
+            self.server._handled += 1  # type: ignore[attr-defined]
+            self._write_json(code, payload)
+            if self.server._handled >= self.server._max_requests:  # type: ignore[attr-defined]
+                self.server._stop_requested = True  # type: ignore[attr-defined]
+
+        def log_message(self, _fmt: str, *_args: Any) -> None:
+            return
+
+    srv = ThreadingHTTPServer((host, port), _Handler)
+    srv.timeout = 0.25
+    srv._handled = 0  # type: ignore[attr-defined]
+    srv._max_requests = max(max_requests, 1)  # type: ignore[attr-defined]
+    srv._stop_requested = False  # type: ignore[attr-defined]
+    try:
+        while not bool(srv._stop_requested):  # type: ignore[attr-defined]
+            srv.handle_request()
+    finally:
+        srv.server_close()
+    return {
+        "schema_version": "gateway_telegram_webhook_v1",
+        "ok": True,
+        "host": host,
+        "port": port,
+        "path": "/telegram/update",
+        "handled_requests": int(srv._handled),  # type: ignore[attr-defined]
+        "max_requests": int(srv._max_requests),  # type: ignore[attr-defined]
+        "map_file": str(map_path),
+        "log_file": str(log_file),
+        "create_missing": bool(create_missing),
+    }
 
 
 def _acquire_schedule_daemon_lock(
@@ -3013,6 +3146,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     gw_tg_resolve.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
     gw_tg_resolve.add_argument("--json", action="store_true", dest="json_output")
+    gw_tg_serve = gw_tg_sub.add_parser("serve-webhook", help="启动 Telegram webhook HTTP 入口（MVP）")
+    gw_tg_serve.add_argument("--host", default="127.0.0.1", help="监听地址（默认 127.0.0.1）")
+    gw_tg_serve.add_argument("--port", type=int, default=18765, help="监听端口（默认 18765）")
+    gw_tg_serve.add_argument("--path", default="/telegram/update", help="Webhook 路径（默认 /telegram/update）")
+    gw_tg_serve.add_argument(
+        "--session-template",
+        default=".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+        help="映射缺失时自动创建会话文件模板（支持 {chat_id}/{user_id}）",
+    )
+    gw_tg_serve.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_serve.add_argument(
+        "--event-log",
+        default=".cai/gateway/telegram-webhook-events.jsonl",
+        help="Webhook 事件 JSONL 日志路径",
+    )
+    gw_tg_serve.add_argument("--max-events", type=int, default=0, help="最多处理事件数（0=无限）")
+    gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -4949,6 +5099,51 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(f"mapping_not_found chat_id={chat_id} user_id={user_id}")
                 return 0 if row else 2
+            if act == "serve-webhook":
+                host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1")
+                port = int(getattr(args, "port", 18765))
+                max_events = int(getattr(args, "max_events", 1))
+                create_missing = bool(getattr(args, "create_missing", False))
+                session_template = str(
+                    getattr(args, "session_template", ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json")
+                    or ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+                )
+                log_path = _resolve_schedule_path(
+                    root,
+                    getattr(args, "log_file", None),
+                    ".cai/gateway/telegram-webhook-events.jsonl",
+                )
+                payload = _run_gateway_telegram_webhook_server(
+                    root=root,
+                    host=host,
+                    port=port,
+                    map_path=map_path,
+                    session_template=session_template,
+                    create_missing=create_missing,
+                    log_file=log_path,
+                    max_requests=max_events,
+                )
+                out = {
+                    "schema_version": "gateway_telegram_map_v1",
+                    "action": "serve-webhook",
+                    "ok": bool(payload.get("ok")),
+                    "host": payload.get("host"),
+                    "port": payload.get("port"),
+                    "path": payload.get("path"),
+                    "events_handled": payload.get("handled_requests"),
+                    "events_ok": payload.get("handled_requests"),
+                    "map_file": payload.get("map_file"),
+                    "log_file": payload.get("log_file"),
+                    "create_missing": payload.get("create_missing"),
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out, ensure_ascii=False))
+                else:
+                    print(
+                        f"gateway webhook stopped host={host} port={port} "
+                        f"handled={out.get('events_handled')} log={out.get('log_file')}",
+                    )
+                return 0
         return 2
 
     if args.command == "workflow":

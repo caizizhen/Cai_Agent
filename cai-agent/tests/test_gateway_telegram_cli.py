@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import io
 import json
+import socket
+import threading
+import urllib.request
 import unittest
 from contextlib import redirect_stdout
 from contextlib import redirect_stderr
@@ -217,3 +220,76 @@ class GatewayTelegramCliTests(unittest.TestCase):
             payload = json.loads(buf.getvalue().strip())
             self.assertEqual(payload.get("action"), "resolve-update")
             self.assertEqual(payload.get("error"), "invalid_update")
+
+    def test_webhook_serve_handles_update_and_writes_log(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            update = {
+                "update_id": 9001,
+                "message": {
+                    "message_id": 3,
+                    "chat": {"id": 2222},
+                    "from": {"id": 3333},
+                    "text": "ping",
+                },
+            }
+            payload = json.dumps(update, ensure_ascii=False).encode("utf-8")
+            out = io.StringIO()
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.bind(("127.0.0.1", 0))
+                    port = int(s.getsockname()[1])
+                t = threading.Thread(
+                    target=lambda: main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "serve-webhook",
+                            "--host",
+                            "127.0.0.1",
+                            "--port",
+                            str(port),
+                            "--max-events",
+                            "1",
+                            "--json",
+                        ],
+                    ),
+                    daemon=True,
+                )
+                with redirect_stdout(out), redirect_stderr(err):
+                    t.start()
+                    # Give server a short moment to bind.
+                    for _ in range(50):
+                        if t.is_alive():
+                            try:
+                                req = urllib.request.Request(
+                                    f"http://127.0.0.1:{port}/telegram/update",
+                                    data=payload,
+                                    method="POST",
+                                    headers={"Content-Type": "application/json"},
+                                )
+                                with urllib.request.urlopen(req, timeout=1.0) as resp:
+                                    body = json.loads(resp.read().decode("utf-8"))
+                                self.assertIs(body.get("ok"), True)
+                                break
+                            except Exception:
+                                continue
+                    t.join(timeout=5.0)
+            self.assertFalse(t.is_alive())
+            rows = [ln for ln in out.getvalue().splitlines() if ln.strip()]
+            self.assertTrue(rows)
+            summary = json.loads(rows[-1])
+            self.assertEqual(summary.get("action"), "serve-webhook")
+            self.assertGreaterEqual(int(summary.get("events_handled") or 0), 1)
+            self.assertEqual(summary.get("events_ok"), 1)
+            log_path = root / ".cai" / "gateway" / "telegram-webhook-events.jsonl"
+            self.assertTrue(log_path.is_file())
+            log_rows = [ln.strip() for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            self.assertTrue(log_rows)
+            item = json.loads(log_rows[-1])
+            payload_row = item.get("payload") if isinstance(item, dict) else {}
+            if not isinstance(payload_row, dict):
+                payload_row = {}
+            self.assertEqual(payload_row.get("chat_id"), "2222")
+            self.assertEqual(payload_row.get("user_id"), "3333")

@@ -59,6 +59,7 @@
 - [x] 新增 CLI 单测覆盖完整绑定生命周期（bind/get/list/unbind + not found）
 - [x] 新增 `gateway telegram resolve-update`：可从 Telegram update JSON 提取 `chat_id/user_id` 并解析映射
 - [x] 支持 `--create-missing` + `--session-template` 在映射缺失时自动生成映射（update 流最小闭环）
+- [x] 新增 `gateway telegram serve-webhook`：本地 HTTP 入口接收 `/telegram/update`，复用映射解析并写入 JSONL 事件日志
 
 ## 目标项状态对照（总体）
 
@@ -71,17 +72,17 @@
 | Observability | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
 | Release GA | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富 |
-| Gateway MVP | **中高完成度** | 已支持 update 解析与缺失映射自动创建（resolve-update）；真实 webhook 接入与会话执行链路待补 |
+| Gateway MVP | **高完成度** | 已支持 webhook 接入、update 解析、映射自动创建与事件日志；“收到 update 后触发 run/continue”执行链路待补 |
 
 ## 当前总体进度（估算）
 
-- 总体：**约 87%**
+- 总体：**约 89%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 
 ## 下一阶段建议（按价值）
 
-1. Gateway MVP：补 Telegram webhook/update 拉取与会话执行打通（复用 resolve-update）
+1. Gateway MVP：打通 webhook -> 映射会话 -> run/continue 执行链路
 2. Memory Loop 状态机 + TTL 策略固化
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）

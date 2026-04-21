@@ -83,6 +83,7 @@
 - [本轮已落地] Observability 报表增强：新增 `observe-report`，基于 `observe` 聚合输出标准报表并按阈值生成 alerts（`state=pass|warn|fail`）
 - [本轮已落地] Gateway MVP（Telegram）会话映射：新增 `gateway telegram bind|get|list|unbind`，支持 `chat_id+user_id -> session_file` 的持久化映射（默认 `.cai/gateway/telegram-session-map.json`）
 - [本轮已落地] Gateway MVP（Telegram）update 解析入口：新增 `gateway telegram resolve-update`，可从 update JSON 提取 `chat_id/user_id` 并自动创建/复用映射（`--create-missing` + `--session-template`）
+- [本轮已落地] Gateway MVP（Telegram）Webhook 入口：新增 `gateway telegram serve-webhook`，提供本地 HTTP `/telegram/update` 接收、映射解析/自动创建与 JSONL 事件日志落盘
 
 ### 导出与生态
 
