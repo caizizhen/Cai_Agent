@@ -3748,14 +3748,36 @@ def main(argv: list[str] | None = None) -> int:
                                 cycle_exec.append(
                                     {"id": tid, "ok": False, "status": "failed", "error": "empty_goal"},
                                 )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="failed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"reason": "empty_goal", "cycle": cycles},
+                                )
                                 continue
-                            ok, out = _execute_scheduled_goal(
-                                config_path=None,
-                                workspace_hint=workspace_override,
-                                workspace_override=workspace_override,
-                                model_override=model_override,
-                                goal=goal,
-                            )
+                            max_attempts = int(j.get("retry_max_attempts") or 1)
+                            if max_attempts < 1:
+                                max_attempts = 1
+                            backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
+                            if backoff_sec < 0:
+                                backoff_sec = 0.0
+                            attempts = 0
+                            ok = False
+                            out = ""
+                            while attempts < max_attempts:
+                                attempts += 1
+                                ok, out = _execute_scheduled_goal(
+                                    config_path=None,
+                                    workspace_hint=workspace_override,
+                                    workspace_override=workspace_override,
+                                    model_override=model_override,
+                                    goal=goal,
+                                )
+                                if ok:
+                                    break
+                                if attempts < max_attempts and backoff_sec > 0:
+                                    time.sleep(backoff_sec)
                             if ok:
                                 mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                                 preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -3765,7 +3787,15 @@ def main(argv: list[str] | None = None) -> int:
                                         "ok": True,
                                         "status": "completed",
                                         "answer_preview": preview,
+                                        "attempts": attempts,
                                     },
+                                )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="completed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"attempts": attempts, "cycle": cycles},
                                 )
                             else:
                                 mark_schedule_task_run(
@@ -3775,7 +3805,20 @@ def main(argv: list[str] | None = None) -> int:
                                     cwd=str(root),
                                 )
                                 cycle_exec.append(
-                                    {"id": tid, "ok": False, "status": "failed", "error": out},
+                                    {
+                                        "id": tid,
+                                        "ok": False,
+                                        "status": "failed",
+                                        "error": out,
+                                        "attempts": attempts,
+                                    },
+                                )
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="failed",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={"attempts": attempts, "error": out[:500], "cycle": cycles},
                                 )
                     total_executed += len(cycle_exec)
                     cycle_row = {
