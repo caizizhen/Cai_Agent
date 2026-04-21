@@ -210,13 +210,23 @@ def _build_memory_nudge_payload(
     latest_instinct_path = str(latest_instincts[0]) if latest_instincts else None
 
     actions: list[str] = []
+    thresholds = {
+        "high": {"recent_sessions_min": 8, "memory_entries_max": 0},
+        "medium": {"recent_sessions_min": 4, "memory_entries_max": 2},
+    }
     severity = "low"
-    if len(recent_sessions) >= 8 and not entries:
+    if (
+        len(recent_sessions) >= int(thresholds["high"]["recent_sessions_min"])
+        and len(entries) <= int(thresholds["high"]["memory_entries_max"])
+    ):
         severity = "high"
         actions.append(
             "近期会话较多但暂无结构化记忆，建议立即执行 `cai-agent memory extract --limit 20`",
         )
-    elif len(recent_sessions) >= 4 and len(entries) < 3:
+    elif (
+        len(recent_sessions) >= int(thresholds["medium"]["recent_sessions_min"])
+        and len(entries) <= int(thresholds["medium"]["memory_entries_max"])
+    ):
         severity = "medium"
         actions.append("近期会话增长较快，建议补充 memory extract 并检查记忆分类质量")
 
@@ -233,8 +243,32 @@ def _build_memory_nudge_payload(
     if not actions:
         actions.append("记忆状态健康：保持每周至少一次 `cai-agent memory extract --limit 10`")
 
+    # 风险分数用于后续调度门禁联动：会话越多、记忆越少、告警越多则分数越高。
+    risk_score = (len(recent_sessions) * 8) - (len(entries) * 5) + (len(warns) * 12)
+    if latest_instinct_path is None:
+        risk_score += 6
+    risk_score = max(0, min(100, int(risk_score)))
+
+    trend = "stable"
+    history_path = root / "memory" / "nudge-history.jsonl"
+    if history_path.is_file():
+        try:
+            lines = [ln.strip() for ln in history_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
+            if lines:
+                prev_obj = json.loads(lines[-1])
+                if isinstance(prev_obj, dict):
+                    prev = str(prev_obj.get("severity") or "low").strip().lower()
+                    rank = {"low": 0, "medium": 1, "high": 2}
+                    d = rank.get(severity, 0) - rank.get(prev, 0)
+                    if d > 0:
+                        trend = "escalated"
+                    elif d < 0:
+                        trend = "deescalated"
+        except Exception:
+            trend = "stable"
+
     return {
-        "schema_version": "1.0",
+        "schema_version": "1.1",
         "generated_at": now.isoformat(),
         "window": {
             "days": max(days, 1),
@@ -247,6 +281,9 @@ def _build_memory_nudge_payload(
         "memory_warnings": warns,
         "latest_instinct_path": latest_instinct_path,
         "severity": severity,
+        "risk_score": risk_score,
+        "trend": trend,
+        "threshold_policy": thresholds,
         "actions": actions,
     }
 
