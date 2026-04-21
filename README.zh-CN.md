@@ -19,6 +19,8 @@
 - **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）；Sprint 3 验收以 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md) **§4** 为准。
 - **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP；`board`/`observe` schema 关系）。
 - **开发计划（Sprint 1–3，含 Alpha/Beta/GA 节奏）**：[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（分工、时间片、DoD、QA 回归矩阵、内测公告模板）。
+- **Hermes 对齐开发总计划（按 Sprint）**：[docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md](docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md)（对齐目标、8 个 Sprint、开发 DoD、跨迭代约束）。
+- **Hermes 对齐总测试计划（Master）**：[docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md](docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md)（QA 分层策略、Sprint 测试矩阵、回归与发布门禁）。
 - **对标 Claude Code / ECC 的优化清单 + 开发/QA 同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)（可继续优化项、Parity `Next` 汇总、Sprint3 与后续 P1）。
 - **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
