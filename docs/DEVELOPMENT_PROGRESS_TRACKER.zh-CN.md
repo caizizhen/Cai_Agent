@@ -12,77 +12,89 @@
 ## 本分支已完成（累计）
 
 ### A. 统一入口与体验
-- [x] TUI 快捷模板入口：`/fix-build`、`/security-scan`
+
+- TUI 快捷模板入口：`/fix-build`、`/security-scan`
 
 ### B. Scheduler / 任务模型
-- [x] `depends_on` 依赖链
-- [x] `retry_max_attempts` / `retry_backoff_sec` 重试策略
-- [x] `.cai-schedule-audit.jsonl` 审计日志
-- [x] `run-due --execute` 与 `daemon --execute` 行为对齐（重试、审计、attempts）
+
+- `depends_on` 依赖链
+- `retry_max_attempts` / `retry_backoff_sec` 重试策略
+- `.cai-schedule-audit.jsonl` 审计日志
+- `run-due --execute` 与 `daemon --execute` 行为对齐（重试、审计、attempts）
 
 ### C. Hooks / 可观测
-- [x] 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
+
+- 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
 
 ### D. Memory Loop
-- [x] `memory nudge` schema 升级至 `1.1`
-- [x] 新增 `threshold_policy` / `risk_score` / `trend`
+
+- `memory nudge` schema 升级至 `1.1`
+- 新增 `threshold_policy` / `risk_score` / `trend`
 
 ### E. Recall Loop
-- [x] `recall` schema 升级至 `1.1`
-- [x] 混合排序：`recency` + `hit_strength` + `keyword_density`
-- [x] 行级评分：`score` + `score_breakdown`
-- [x] `recall-index search` 与主 recall 评分模型对齐
+
+- `recall` schema 升级至 `1.1`
+- 混合排序：`recency` + `hit_strength` + `keyword_density`
+- 行级评分：`score` + `score_breakdown`
+- `recall-index search` 与主 recall 评分模型对齐
 
 ### F. Workflow / Subagents 编排
-- [x] step 级 `parallel_group` 并发执行
-- [x] `workflow.parallel_group.completed` 事件
-- [x] `parallel_steps_count` / `parallel_groups_count` / `merge_confidence`
-- [x] 子代理标准 IO 输出结构：`subagent_io_schema_version=v1`、`merge_result`（strategy/decision/confidence/conflicts）
+
+- step 级 `parallel_group` 并发执行
+- `workflow.parallel_group.completed` 事件
+- `parallel_steps_count` / `parallel_groups_count` / `merge_confidence`
+- 子代理标准 IO 输出结构：`subagent_io_schema_version=v1`、`merge_result`（strategy/decision/confidence/conflicts）
 
 ### G. Release / Security Gate
-- [x] 新增 `release-ga` 命令（质量、失败率、token 预算、可选安全扫描）
-- [x] 新增 `release-ga` 扩展门禁：
+
+- 新增 `release-ga` 命令（质量、失败率、token 预算、可选安全扫描）
+- 新增 `release-ga` 扩展门禁：
   - `--with-doctor`（包含 doctor 健康检查）
   - `--with-memory-nudge` + `--nudge-fail-on-severity`（包含 memory nudge 门禁）
 
 ### H. Security Model（命令审批策略）
-- [x] `run_command` 高风险命令策略：新增可配置阻断（默认开启）
-- [x] 支持配置项：
+
+- `run_command` 高风险命令策略：新增可配置阻断（默认开启）
+- 支持配置项：
   - `[permissions].run_command_approval_mode = "block_high_risk" | "allow_all"`
   - `[permissions].run_command_high_risk_patterns = [...]`（可扩展匹配片段）
-- [x] 新增单测覆盖阻断/放行路径
+- 新增单测覆盖阻断/放行路径
 
 ### I. Gateway MVP（Telegram）
-- [x] 新增 `gateway telegram` 子命令族：`bind|get|list|unbind`
-- [x] 建立 `chat_id:user_id -> session_file` 持久化映射（默认 `.cai/gateway/telegram-session-map.json`）
-- [x] 支持 `--map-file` 自定义映射路径与 JSON 输出（`gateway_telegram_map_v1`）
-- [x] 新增 CLI 单测覆盖完整绑定生命周期（bind/get/list/unbind + not found）
-- [x] 新增 `gateway telegram resolve-update`：可从 Telegram update JSON 提取 `chat_id/user_id` 并解析映射
-- [x] 支持 `--create-missing` + `--session-template` 在映射缺失时自动生成映射（update 流最小闭环）
-- [x] 新增 `gateway telegram serve-webhook`：本地 HTTP 入口接收 `/telegram/update`，复用映射解析并写入 JSONL 事件日志
+
+- 新增 `gateway telegram` 子命令族：`bind|get|list|unbind`
+- 建立 `chat_id:user_id -> session_file` 持久化映射（默认 `.cai/gateway/telegram-session-map.json`）
+- 支持 `--map-file` 自定义映射路径与 JSON 输出（`gateway_telegram_map_v1`）
+- 新增 CLI 单测覆盖完整绑定生命周期（bind/get/list/unbind + not found）
+- 新增 `gateway telegram resolve-update`：可从 Telegram update JSON 提取 `chat_id/user_id` 并解析映射
+- 支持 `--create-missing` + `--session-template` 在映射缺失时自动生成映射（update 流最小闭环）
+- 新增 `gateway telegram serve-webhook`：本地 HTTP 入口接收 `/telegram/update`，复用映射解析并写入 JSONL 事件日志
+- `serve-webhook` 新增 `--execute-on-update` 与 `--goal-template`，可在接收 update 后直接触发执行路径并记录 answer 预览
 
 ## 目标项状态对照（总体）
 
-| 领域 | 状态 | 说明 |
-|---|---|---|
-| Scheduler V2 | **高完成度** | 任务模型核心已落地（依赖/重试/审计） |
-| Recall Loop V2 | **高完成度** | ranking、索引与 `recall-index benchmark` 性能对比能力已落地 |
-| Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略 |
-| Subagents 编排 | **中高完成度** | workflow 并行、合并与标准 IO 输出已落地，DSL 规范仍待细化 |
-| Observability | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地 |
-| Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
-| Release GA | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富 |
-| Gateway MVP | **高完成度** | 已支持 webhook 接入、update 解析、映射自动创建与事件日志；“收到 update 后触发 run/continue”执行链路待补 |
+
+| 领域             | 状态        | 说明                                                                      |
+| -------------- | --------- | ----------------------------------------------------------------------- |
+| Scheduler V2   | **高完成度**  | 任务模型核心已落地（依赖/重试/审计）                                                     |
+| Recall Loop V2 | **高完成度**  | ranking、索引与 `recall-index benchmark` 性能对比能力已落地                          |
+| Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略                   |
+| Subagents 编排   | **中高完成度** | workflow 并行、合并与标准 IO 输出已落地，DSL 规范仍待细化                                   |
+| Observability  | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地                                 |
+| Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩                                              |
+| Release GA     | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富                                         |
+| Gateway MVP    | **高完成度**  | 已支持 webhook 接入、update 解析、映射自动创建、事件日志与 update 触发执行摘要；真实 Telegram 回发链路待补 |
+
 
 ## 当前总体进度（估算）
 
-- 总体：**约 89%**
+- 总体：**约 91%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 
 ## 下一阶段建议（按价值）
 
-1. Gateway MVP：打通 webhook -> 映射会话 -> run/continue 执行链路
+1. Gateway MVP：补 Telegram 回发链路（执行 answer -> sendMessage）与失败重试策略
 2. Memory Loop 状态机 + TTL 策略固化
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）

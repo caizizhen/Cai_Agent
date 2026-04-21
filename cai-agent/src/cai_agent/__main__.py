@@ -1454,6 +1454,8 @@ def _run_gateway_telegram_webhook_server(
     map_path: Path,
     session_template: str,
     create_missing: bool,
+    execute_on_update: bool,
+    goal_template: str,
     log_file: Path,
     max_requests: int,
 ) -> dict[str, Any]:
@@ -1489,6 +1491,39 @@ def _run_gateway_telegram_webhook_server(
                 create_missing=create_missing,
                 session_template=session_template,
             )
+            execution: dict[str, Any] | None = None
+            if bool(payload.get("ok")) and execute_on_update:
+                chat_id = str(payload.get("chat_id") or "").strip()
+                user_id = str(payload.get("user_id") or "").strip()
+                binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else {}
+                workspace_override = str(binding.get("session_file") or "").strip()
+                text_hint = ""
+                msg = obj.get("message")
+                if isinstance(msg, dict):
+                    text_hint = str(msg.get("text") or "").strip()
+                goal = goal_template.format(
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    text=text_hint,
+                ).strip()
+                ok_exec, out_exec = _execute_scheduled_goal(
+                    config_path=None,
+                    workspace_hint=str(root),
+                    workspace_override=str(root),
+                    model_override=None,
+                    goal=goal,
+                )
+                execution = {
+                    "triggered": True,
+                    "ok": bool(ok_exec),
+                    "goal": goal,
+                    "answer_preview": out_exec[:240],
+                    "session_file": workspace_override or None,
+                }
+            elif execute_on_update:
+                execution = {"triggered": False, "ok": False, "reason": "resolve_failed"}
+            if execution is not None:
+                payload = {**payload, "execution": execution}
             log_row = {
                 "ts": datetime.now(UTC).isoformat(),
                 "remote": str(self.client_address[0]) if self.client_address else "",
@@ -1527,6 +1562,7 @@ def _run_gateway_telegram_webhook_server(
         "map_file": str(map_path),
         "log_file": str(log_file),
         "create_missing": bool(create_missing),
+        "execute_on_update": bool(execute_on_update),
     }
 
 
@@ -3162,6 +3198,23 @@ def main(argv: list[str] | None = None) -> int:
         help="Webhook 事件 JSONL 日志路径",
     )
     gw_tg_serve.add_argument("--max-events", type=int, default=0, help="最多处理事件数（0=无限）")
+    gw_tg_serve.add_argument(
+        "--create-missing",
+        action="store_true",
+        default=False,
+        help="映射缺失时自动创建新映射与会话文件路径",
+    )
+    gw_tg_serve.add_argument(
+        "--execute-on-update",
+        action="store_true",
+        default=False,
+        help="收到 update 后触发一次会话执行（MVP：仅本地执行，不回发 Telegram）",
+    )
+    gw_tg_serve.add_argument(
+        "--goal-template",
+        default="用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+        help="执行模式下的 goal 模板（支持 {chat_id}/{user_id}/{text}）",
+    )
     gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
@@ -5122,6 +5175,10 @@ def main(argv: list[str] | None = None) -> int:
                     create_missing=create_missing,
                     log_file=log_path,
                     max_requests=max_events,
+                    execute_on_update=bool(getattr(args, "execute_on_update", False)),
+                    goal_template=str(
+                        getattr(args, "goal_template", "Telegram inbound message: {text}") or "Telegram inbound message: {text}",
+                    ),
                 )
                 out = {
                     "schema_version": "gateway_telegram_map_v1",
