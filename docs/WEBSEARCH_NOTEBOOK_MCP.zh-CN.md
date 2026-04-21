@@ -37,11 +37,13 @@
 - `cai-agent mcp-check --json --preset websearch`
 - `cai-agent mcp-check --json --preset notebook`
 - `cai-agent mcp-check --json --preset websearch --list-only`
+- `cai-agent mcp-check --preset notebook --print-template`
 
 说明：
 
 - `--preset` 会对 MCP 工具列表做名称启发式匹配，并输出 `preset` 结构（`name` / `recommended_tools` / `matched_tools` / `missing_tools` / `ok`）。
 - `--list-only` 仅做工具清单检查，不执行 `--tool` 探活（适合先排配置再排调用）。
+- `--print-template` 会输出对应 preset 的最小 MCP 配置模板（文本模式直接打印，JSON 模式在 `template` 字段返回），用于快速拷贝到配置。
 - 若未命中推荐工具，会在 JSON 与文本输出中返回 `next_step`（含文档路径、建议命令、缺失关键词），用于快速降级排障。
 
 ### 失败降级提示（推荐流程）

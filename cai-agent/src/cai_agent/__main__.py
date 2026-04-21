@@ -2741,6 +2741,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="仅做工具列表探测，不执行 --tool 探活",
     )
+    mcp_p.add_argument(
+        "--print-template",
+        action="store_true",
+        help="当使用 --preset 时输出可复制的 MCP 配置模板片段",
+    )
     sess_p = sub.add_parser(
         "sessions",
         help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
@@ -3836,9 +3841,23 @@ def main(argv: list[str] | None = None) -> int:
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         preset_payload: dict[str, Any] | None = None
         preset_hint: dict[str, Any] | None = None
+        template_text: str | None = None
         if preset in preset_keywords:
             doc_path = "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
             suggested_cmd = f"cai-agent mcp-check --json --preset {preset} --list-only"
+            if bool(getattr(args, "print_template", False)):
+                template_text = (
+                    "# cai-agent.toml (MCP 示例片段)\n"
+                    "[agent]\n"
+                    "mcp_enabled = true\n"
+                    "mcp_base_url = \"http://127.0.0.1:8787\"\n\n"
+                    "[permissions]\n"
+                    "mcp_list_tools = \"allow\"\n"
+                    "mcp_call_tool = \"ask\"\n\n"
+                    "# 期望能力关键词\n"
+                    f"# preset = {preset}\n"
+                    f"# recommended_tools = {', '.join(preset_keywords[preset])}\n"
+                )
             preset_payload = {
                 "name": preset,
                 "recommended_tools": list(preset_keywords[preset]),
@@ -3877,6 +3896,7 @@ def main(argv: list[str] | None = None) -> int:
                 "preset_matches": preset_matches,
                 "preset_missing_keywords": preset_missing,
                 "fallback_hint": preset_hint,
+                "template": template_text,
                 "probe_result": probe_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
@@ -3904,6 +3924,9 @@ def main(argv: list[str] | None = None) -> int:
                 print(str(preset_hint.get("message") or ""))
                 print(f"doc={preset_hint.get('doc_path')}")
                 print(f"suggested={preset_hint.get('suggested_command')}")
+            if template_text is not None:
+                print("--- preset template ---")
+                print(template_text)
             if probe_result is not None:
                 print("--- tool probe ---")
                 print(probe_result)

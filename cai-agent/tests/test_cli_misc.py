@@ -56,6 +56,34 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertTrue(isinstance(hint, dict))
         self.assertEqual(hint.get("doc_path"), "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md")
 
+    def test_mcp_check_json_print_template_for_notebook(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "mcp-check",
+                        "--json",
+                        "--preset",
+                        "notebook",
+                        "--print-template",
+                    ],
+                )
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        payload = json.loads(buf.getvalue().strip())
+        tmpl = payload.get("template")
+        self.assertTrue(isinstance(tmpl, str))
+        self.assertIn("mcp_enabled = true", str(tmpl))
+        self.assertIn("preset = notebook", str(tmpl))
+
 
 class PluginsCliTests(unittest.TestCase):
     def test_plugins_json_returns_0(self) -> None:

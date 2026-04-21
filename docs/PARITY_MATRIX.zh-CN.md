@@ -24,8 +24,8 @@
 | 多步工作流 | claude-code / ECC | `Done` | `workflow`；任务看板类 UI 见下行 |
 | 多模型 profile / TUI 面板 / `/use-model` / session `profile` 字段 | claude-code / ECC | `Done` | `[[models.profile]]` + `cai-agent models`；TUI `Ctrl+M` / `/models` 面板（列表、a/e/d/t）；`/status` 与 `--save-session` 含 `profile`；跨 provider 切换提示 `/compact`；见 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](MODEL_SWITCHER_DEVPLAN.zh-CN.md) §4 |
 | WebFetch（HTTPS 只读 GET） | claude-code | `Done` | 内置 `fetch_url` + `[fetch_url]` / `[permissions]`；见 [MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md) 作 MCP 并行方案 |
-| WebSearch / 结构化搜索 API | claude-code | `Next` / `MCP` | 定案见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP）；新增 `mcp-check --preset websearch --list-only` 预检输出（命中/缺失关键词 + fallback_hint） |
-| Notebook 编辑 | claude-code | `Next` / `MCP` | 同上；新增 `mcp-check --preset notebook --list-only` 预检输出（含 fallback_hint） |
+| WebSearch / 结构化搜索 API | claude-code | `Next` / `MCP` | 定案见 [WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP）；新增 `mcp-check --preset websearch --list-only` 预检输出（命中/缺失关键词 + fallback_hint），并支持 `--print-template` 生成最小配置片段 |
+| Notebook 编辑 | claude-code | `Next` / `MCP` | 同上；新增 `mcp-check --preset notebook --list-only` 预检输出（含 fallback_hint），并支持 `--print-template` 生成最小配置片段 |
 | 任务看板 / 富任务 UI | claude-code | `Done` / `Next` | 已落地 `board --json`（`board_v1`）内嵌 `observe` 与 `observe_schema_version`，支持 `--failed-only` / `--task-id` / `--status` 组合过滤、`--failed-top` 最近失败 TopN 配置，新增 `failed_summary.recent`（按最近会话优先）、`status_summary` 状态分组统计、`group_summary`（模型/任务 TopN 聚合）以及 `trend_summary`（recent vs baseline 时间窗对比）；更完整 UI 运营面仍在后续迭代 |
 | 语音 / Bridge / 企业门控特性 | claude-code | `OOS` | 依赖官方封闭能力或单独商务 |
 

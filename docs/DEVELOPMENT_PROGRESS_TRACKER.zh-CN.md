@@ -39,6 +39,7 @@
 - `mcp-check` 增强探测策略：支持 `--list-only`（仅列工具不探活），避免在未准备好参数时误触工具调用
 - JSON 输出新增 `preset` 结构化摘要（`name/recommended_tools/matched_tools/missing_tools/ok`），可直接用于 CI 或 onboarding 诊断
 - `mcp-check` 新增降级提示：当 preset 未命中时输出 `fallback_hint`（含文档路径、建议命令、缺失关键词），用于接入阻塞场景快速定位
+- `mcp-check` 新增模板输出：支持 `--print-template`，按 `websearch/notebook` 生成可复制的最小 MCP 配置片段（文本/JSON 双输出）
 
 ### D. Memory Loop
 
