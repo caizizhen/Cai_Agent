@@ -113,6 +113,10 @@
   - 依赖外部 MCP 服务稳定性。
   - 风险：网络与密钥配置导致假失败，需强引导诊断信息。
 
+完成记录（进行中）：
+- 已落地 `mcp-check` 自检增强：`--preset websearch|notebook`、`--list-only`，并在 JSON 输出中增加 `preset` 诊断对象（`recommended_tools/matched_tools/missing_tools/ok`）。
+- 目的：在不强依赖具体 MCP 服务实现的前提下，为 WebSearch/Notebook 接入提供可脚本化的最小诊断入口。
+
 ### Sprint 4：Memory Schema v1 严格化与治理策略
 
 - 范围

@@ -30,4 +30,18 @@
 - 在 `docs/` 增加**经维护者验证**的示例 MCP 配置片段（固定工具名、超时、环境变量占位），并链到 Parity 矩阵 `MCP` 备注列。
 - 若产品决定某能力为 **OOS**，须在 Parity 备注写明理由并在缺口分析备案。
 
+## CLI 自检入口（Sprint 3 增量）
+
+为降低接入排障成本，`mcp-check` 增强了面向 WebSearch/Notebook 的预设自检：
+
+- `cai-agent mcp-check --json --preset websearch`
+- `cai-agent mcp-check --json --preset notebook`
+- `cai-agent mcp-check --json --preset websearch --list-only`
+
+说明：
+
+- `--preset` 会对 MCP 工具列表做名称启发式匹配，并输出 `preset_check` 结构（`target` / `matched_tools` / `ok` / `missing_hint`）。
+- `--list-only` 仅做工具清单检查，不执行 `--tool` 探活（适合先排配置再排调用）。
+- 若未命中推荐工具，会在 JSON 中返回 `missing_hint`，提示优先检查 MCP 服务能力声明与配置。
+
 *版本：2026-04-19；与 Sprint 3 文档链一致。*

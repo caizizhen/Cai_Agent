@@ -30,6 +30,28 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn("ok", payload)
         self.assertEqual(rc == 0, bool(payload["ok"]))
 
+    def test_mcp_check_json_with_websearch_preset(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["mcp-check", "--json", "--preset", "websearch", "--list-only"])
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        payload = json.loads(buf.getvalue().strip())
+        preset = payload.get("preset")
+        self.assertTrue(isinstance(preset, dict))
+        self.assertEqual(preset.get("name"), "websearch")
+        self.assertIn("recommended_tools", preset)
+        self.assertIn("matched_tools", preset)
+        self.assertIn("missing_tools", preset)
+
 
 class PluginsCliTests(unittest.TestCase):
     def test_plugins_json_returns_0(self) -> None:

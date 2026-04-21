@@ -2730,6 +2730,17 @@ def main(argv: list[str] | None = None) -> int:
         metavar="JSON",
         help="与 --tool 配合使用的 JSON 参数，默认 {}",
     )
+    mcp_p.add_argument(
+        "--preset",
+        choices=["websearch", "notebook"],
+        default=None,
+        help="按预设能力进行工具存在性诊断（websearch/notebook）",
+    )
+    mcp_p.add_argument(
+        "--list-only",
+        action="store_true",
+        help="仅做工具列表探测，不执行 --tool 探活",
+    )
     sess_p = sub.add_parser(
         "sessions",
         help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
@@ -3783,8 +3794,31 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             ok = False
             txt = f"{type(e).__name__}: {e}"
+        tool_list: list[str] = []
+        if isinstance(txt, str):
+            for line in txt.splitlines():
+                s = line.strip()
+                if s.startswith("- "):
+                    name = s[2:].strip()
+                    if name:
+                        tool_list.append(name)
+        preset = str(getattr(args, "preset", "") or "").strip().lower() or None
+        preset_keywords: dict[str, list[str]] = {
+            "websearch": ["search", "web", "serp", "tavily", "duckduckgo", "google", "bing"],
+            "notebook": ["notebook", "jupyter", "ipynb", "cell"],
+        }
+        preset_matches: list[str] = []
+        preset_missing: list[str] = []
+        if preset in preset_keywords:
+            kws = preset_keywords[preset]
+            for kw in kws:
+                hit = next((t for t in tool_list if kw in t.lower()), None)
+                if hit is not None:
+                    preset_matches.append(hit)
+                else:
+                    preset_missing.append(kw)
         probe_result = None
-        if ok and args.tool:
+        if ok and args.tool and not bool(getattr(args, "list_only", False)):
             try:
                 probe_args = json.loads(args.args)
                 if not isinstance(probe_args, dict):
@@ -3800,6 +3834,17 @@ def main(argv: list[str] | None = None) -> int:
                 ok = False
                 probe_result = f"{type(e).__name__}: {e}"
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        preset_payload: dict[str, Any] | None = None
+        if preset in preset_keywords:
+            preset_payload = {
+                "name": preset,
+                "recommended_tools": list(preset_keywords[preset]),
+                "matched_tools": preset_matches,
+                "matches": preset_matches,
+                "missing_tools": preset_missing,
+                "missing_keywords": preset_missing,
+                "ok": len(preset_matches) > 0,
+            }
         if args.json_output:
             payload = {
                 "ok": ok,
@@ -3809,8 +3854,13 @@ def main(argv: list[str] | None = None) -> int:
                 "mcp_base_url": settings.mcp_base_url,
                 "force": bool(args.force),
                 "tool": args.tool,
+                "list_only": bool(getattr(args, "list_only", False)),
+                "preset": preset_payload,
                 "elapsed_ms": elapsed_ms,
                 "result": txt,
+                "tool_names": tool_list,
+                "preset_matches": preset_matches,
+                "preset_missing_keywords": preset_missing,
                 "probe_result": probe_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
