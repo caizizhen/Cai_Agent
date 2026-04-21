@@ -1098,6 +1098,11 @@ def _run_release_ga_gate(
     with_doctor: bool,
     with_memory_nudge: bool,
     memory_nudge_fail_on: str,
+    with_memory_state: bool,
+    memory_state_max_stale_rate: float,
+    memory_state_max_expired_rate: float,
+    memory_state_stale_days: int,
+    memory_state_stale_confidence: float,
 ) -> dict[str, Any]:
     settings = Settings.from_env(config_path=None, workspace_hint=cwd)
     ag = aggregate_sessions(cwd=cwd, limit=200)
@@ -1198,6 +1203,45 @@ def _run_release_ga_gate(
                 "actual": sev,
                 "threshold": fail_on,
                 "detail": f"severity={sev} fail_on={fail_on}",
+            },
+        )
+
+    if with_memory_state:
+        state_payload = evaluate_memory_entry_states(
+            cwd,
+            stale_after_days=int(max(1, memory_state_stale_days)),
+            min_active_confidence=float(max(0.0, min(1.0, memory_state_stale_confidence))),
+        )
+        counts = state_payload.get("counts") if isinstance(state_payload.get("counts"), dict) else {}
+        rows_obj = state_payload.get("rows")
+        rows_list = rows_obj if isinstance(rows_obj, list) else []
+        total_entries = int(state_payload.get("total_entries", len(rows_list)) or len(rows_list))
+        stale_count = int(counts.get("stale", 0) or 0)
+        expired_count = int(counts.get("expired", 0) or 0)
+        stale_rate = (float(stale_count) / total_entries) if total_entries else 0.0
+        expired_rate = (float(expired_count) / total_entries) if total_entries else 0.0
+        state_ok = (stale_rate <= memory_state_max_stale_rate) and (expired_rate <= memory_state_max_expired_rate)
+        checks.append(
+            {
+                "name": "memory_state",
+                "ok": state_ok,
+                "actual": {
+                    "stale_rate": round(stale_rate, 6),
+                    "expired_rate": round(expired_rate, 6),
+                    "stale_count": stale_count,
+                    "expired_count": expired_count,
+                    "total_entries": total_entries,
+                },
+                "threshold": {
+                    "max_stale_rate": round(memory_state_max_stale_rate, 6),
+                    "max_expired_rate": round(memory_state_max_expired_rate, 6),
+                    "stale_days": int(max(1, memory_state_stale_days)),
+                    "stale_confidence": float(max(0.0, min(1.0, memory_state_stale_confidence))),
+                },
+                "detail": (
+                    f"stale_rate={stale_rate:.4f}<= {memory_state_max_stale_rate:.4f}, "
+                    f"expired_rate={expired_rate:.4f}<= {memory_state_max_expired_rate:.4f}"
+                ),
             },
         )
 
@@ -3225,6 +3269,31 @@ def main(argv: list[str] | None = None) -> int:
         choices=("medium", "high"),
         default="high",
         help="启用 --with-memory-nudge 时，允许的最高 memory nudge 严重度（默认 high）",
+    )
+    release_ga_p.add_argument("--with-memory-state", action="store_true", default=False)
+    release_ga_p.add_argument(
+        "--memory-max-stale-ratio",
+        type=float,
+        default=0.50,
+        help="启用 --with-memory-state 时，允许的最大 stale 占比（默认 0.50）",
+    )
+    release_ga_p.add_argument(
+        "--memory-max-expired-ratio",
+        type=float,
+        default=0.10,
+        help="启用 --with-memory-state 时，允许的最大 expired 占比（默认 0.10）",
+    )
+    release_ga_p.add_argument(
+        "--memory-state-stale-days",
+        type=int,
+        default=30,
+        help="memory state 判定 stale 的天数阈值（默认 30）",
+    )
+    release_ga_p.add_argument(
+        "--memory-state-stale-confidence",
+        type=float,
+        default=0.4,
+        help="memory state 判定 stale 的置信度阈值（默认 0.4）",
     )
     release_ga_p.add_argument("--json", action="store_true", dest="json_output")
 
@@ -5441,6 +5510,11 @@ def main(argv: list[str] | None = None) -> int:
             run_security_scan_check=bool(getattr(args, "with_security_scan", False)),
             with_doctor=bool(getattr(args, "with_doctor", False)),
             with_memory_nudge=bool(getattr(args, "with_memory_nudge", False)),
+            with_memory_state=bool(getattr(args, "with_memory_state", False)),
+            memory_state_max_stale_rate=float(getattr(args, "memory_max_stale_ratio", 0.50)),
+            memory_state_max_expired_rate=float(getattr(args, "memory_max_expired_ratio", 0.10)),
+            memory_state_stale_days=int(getattr(args, "memory_state_stale_days", 30)),
+            memory_state_stale_confidence=float(getattr(args, "memory_state_stale_confidence", 0.4)),
             memory_nudge_fail_on=str(getattr(args, "memory_max_severity", "high") or "high"),
             include_lint=False,
             include_typecheck=False,

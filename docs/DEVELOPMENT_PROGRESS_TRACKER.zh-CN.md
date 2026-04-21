@@ -54,6 +54,10 @@
 - 新增 `release-ga` 扩展门禁：
   - `--with-doctor`（包含 doctor 健康检查）
   - `--with-memory-nudge` + `--nudge-fail-on-severity`（包含 memory nudge 门禁）
+- 新增 `release-ga` 记忆状态门禁：
+  - `--with-memory-state`
+  - `--memory-max-stale-ratio` / `--memory-max-expired-ratio`
+  - `--memory-state-stale-days` / `--memory-state-stale-confidence`
 
 ### H. Security Model（命令审批策略）
 
@@ -86,7 +90,7 @@
 | Subagents 编排   | **中高完成度** | workflow 并行、合并与标准 IO 输出已落地，DSL 规范仍待细化                                   |
 | Observability  | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地                                 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩                                              |
-| Release GA     | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富                                         |
+| Release GA     | **高完成度** | `release-ga` 已覆盖质量/安全/成本/doctor/memory-nudge/memory-state 多维门禁，后续以阈值运营优化为主 |
 | Gateway MVP    | **已完成（MVP）** | 已支持 webhook 接入、update 解析、映射自动创建、事件日志、update 触发执行与执行结果回发 Telegram |
 
 
@@ -100,6 +104,6 @@
 
 1. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 2. Recall 结果缓存与大规模索引压测脚本
-3. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）
+3. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
 4. Gateway/Memory 的策略参数文档与默认值分层（prod/dev）细化
 

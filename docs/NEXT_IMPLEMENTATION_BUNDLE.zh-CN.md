@@ -87,6 +87,7 @@
 - [本轮已落地] Gateway MVP（Telegram）Webhook 执行联动：`serve-webhook` 支持 `--execute-on-update` 与 `--goal-template`，可在 update 解析成功后触发执行链并写入执行摘要（`answer_preview`）
 - [本轮已落地] Gateway MVP（Telegram）Webhook 回发闭环：`serve-webhook` 支持 `--reply-on-execution` + `--telegram-bot-token` + `--reply-template`，执行完成后可自动调用 Telegram `sendMessage` 回传结果并记录回发状态
 - [本轮已落地] Memory Loop 状态机固化：新增 `memory state`（`active/stale/expired` 分布评估）、`memory list --with-state` 状态视图、`memory prune --drop-non-active` 基于状态机的清理路径
+- [本轮已落地] Release GA 门禁矩阵增强：`release-ga` 新增 `--with-memory-state`，支持基于 memory 状态机的 `stale/expired` 占比门禁（`--memory-max-stale-ratio` / `--memory-max-expired-ratio`），并可配置状态判定阈值（`--memory-state-stale-days` / `--memory-state-stale-confidence`）
 
 ### 导出与生态
 
