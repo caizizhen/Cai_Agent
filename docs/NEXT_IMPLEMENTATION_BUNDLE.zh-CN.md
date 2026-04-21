@@ -76,9 +76,10 @@
 - [本轮已落地] `schedule daemon --execute` 与 `run-due --execute` 行为对齐（重试+审计+attempts 输出）
 - [本轮已落地] Recall Loop 增强：`recall` schema `1.1`、混合排序（recency/hit_strength/keyword_density）、行级 `score/score_breakdown`
 - [本轮已落地] Recall 指标基准入口：`recall-index benchmark`（索引检索 vs 直扫检索耗时、加速比）
-- [本轮已落地] Memory Loop 治理策略增强：`memory prune` 支持 `--min-confidence` / `--keep-latest`，输出按原因统计（`expired`/`low_confidence`/`overflow`）
+- [本轮已落地] Memory Loop 治理策略增强：`memory prune` 支持 `--min-confidence` / `--max-entries`，输出按原因统计（`expired`/`low_confidence`/`overflow`）
 - [本轮已落地] Workflow 子代理编排增强：step 级 `parallel_group` 并发、`workflow.parallel_group.completed` 事件、`merge_confidence` 汇总
 - [本轮已落地] 发布门禁增强：`release-ga` 支持 `doctor` 健康检查与 `memory nudge` 严重度阈值（`--with-doctor`、`--with-memory-nudge`、`--max-memory-severity`）
+- [本轮已落地] Observability 报表增强：新增 `observe-report`，基于 `observe` 聚合输出标准报表并按阈值生成 alerts（`state=pass|warn|fail`）
 
 ### 导出与生态
 

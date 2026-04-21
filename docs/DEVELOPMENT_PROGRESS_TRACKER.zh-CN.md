@@ -59,14 +59,14 @@
 | Recall Loop V2 | **高完成度** | ranking、索引与 `recall-index benchmark` 性能对比能力已落地 |
 | Memory Loop V2 | **中高完成度** | nudge schema/阈值到位；`memory prune` 已支持 TTL+最小置信度+保留上限策略 |
 | Subagents 编排 | **中完成度** | workflow 并行与合并增强完成，DSL 规范仍待细化 |
-| Observability | **中完成度** | hook 结果可见，统一报表/告警规则待补 |
+| Observability | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
 | Release GA | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富 |
 | Gateway MVP | **低完成度** | Telegram 接入协议与会话映射尚未实现 |
 
 ## 当前总体进度（估算）
 
-- 总体：**约 75%**
+- 总体：**约 78%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 

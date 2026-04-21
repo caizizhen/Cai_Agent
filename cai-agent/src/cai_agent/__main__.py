@@ -980,6 +980,63 @@ def _benchmark_recall_index(
     }
 
 
+def _build_observe_report_payload(
+    observe_payload: dict[str, Any],
+    *,
+    warn_failure_rate: float,
+    fail_failure_rate: float,
+    warn_token_budget: int,
+    fail_token_budget: int,
+    warn_tool_errors: int,
+    fail_tool_errors: int,
+) -> dict[str, Any]:
+    obs = observe_payload
+    ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    tool_errors = int(ag.get("tool_errors_total", 0) or 0)
+
+    alerts: list[dict[str, Any]] = []
+
+    def add_alert(metric: str, value: float | int, warn_t: float | int, fail_t: float | int) -> None:
+        level = "ok"
+        if value >= fail_t:
+            level = "fail"
+        elif value >= warn_t:
+            level = "warn"
+        alerts.append(
+            {
+                "metric": metric,
+                "value": value,
+                "warn_threshold": warn_t,
+                "fail_threshold": fail_t,
+                "level": level,
+            },
+        )
+
+    add_alert("failure_rate", failure_rate, warn_failure_rate, fail_failure_rate)
+    add_alert("total_tokens", total_tokens, warn_token_budget, fail_token_budget)
+    add_alert("tool_errors_total", tool_errors, warn_tool_errors, fail_tool_errors)
+
+    state = "pass"
+    if any(a.get("level") == "fail" for a in alerts):
+        state = "fail"
+    elif any(a.get("level") == "warn" for a in alerts):
+        state = "warn"
+
+    return {
+        "schema_version": "observe_report_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "state": state,
+        "alerts": alerts,
+        "observe": {
+            "schema_version": obs.get("schema_version"),
+            "sessions_count": int(obs.get("sessions_count", 0) or 0),
+            "aggregates": ag,
+        },
+    }
+
+
 def _recall_index_info(
     *,
     cwd: str,
@@ -1160,6 +1217,70 @@ def _run_release_ga_gate(
             "total_tokens": total_tokens,
             "token_budget": token_budget,
         },
+    }
+
+
+def _build_observe_report(
+    *,
+    cwd: str,
+    pattern: str,
+    limit: int,
+    failure_rate_warn: float,
+    failure_rate_crit: float,
+    tokens_warn: int,
+    run_events_warn: int,
+) -> dict[str, Any]:
+    obs = build_observe_payload(cwd=cwd, pattern=pattern, limit=limit)
+    ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+    failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
+    total_tokens = int(ag.get("total_tokens", 0) or 0)
+    run_events_total = int(ag.get("run_events_total", 0) or 0)
+    checks: list[dict[str, Any]] = []
+
+    sev = "ok"
+    if failure_rate >= failure_rate_crit:
+        sev = "critical"
+    elif failure_rate >= failure_rate_warn:
+        sev = "warning"
+    checks.append(
+        {
+            "name": "failure_rate",
+            "severity": sev,
+            "actual": round(failure_rate, 6),
+            "threshold_warn": round(failure_rate_warn, 6),
+            "threshold_critical": round(failure_rate_crit, 6),
+        },
+    )
+
+    checks.append(
+        {
+            "name": "total_tokens",
+            "severity": "warning" if total_tokens >= tokens_warn else "ok",
+            "actual": total_tokens,
+            "threshold_warn": int(tokens_warn),
+        },
+    )
+    checks.append(
+        {
+            "name": "run_events_total",
+            "severity": "warning" if run_events_total <= run_events_warn else "ok",
+            "actual": run_events_total,
+            "threshold_warn": int(run_events_warn),
+        },
+    )
+    has_critical = any(str(c.get("severity")) == "critical" for c in checks)
+    has_warning = any(str(c.get("severity")) == "warning" for c in checks)
+    state = "ok"
+    if has_critical:
+        state = "critical"
+    elif has_warning:
+        state = "warning"
+    return {
+        "schema_version": "observe_report_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "state": state,
+        "checks": checks,
+        "observe": obs,
     }
 
 
@@ -2759,6 +2880,17 @@ def main(argv: list[str] | None = None) -> int:
     obs_p.add_argument("--pattern", default=".cai-session*.json")
     obs_p.add_argument("--limit", type=int, default=100)
     obs_p.add_argument("--json", action="store_true", dest="json_output")
+
+    obs_report_p = sub.add_parser("observe-report", help="基于 observe 生成告警与报表摘要")
+    obs_report_p.add_argument("--pattern", default=".cai-session*.json")
+    obs_report_p.add_argument("--limit", type=int, default=100)
+    obs_report_p.add_argument("--warn-failure-rate", type=float, default=0.20)
+    obs_report_p.add_argument("--fail-failure-rate", type=float, default=0.35)
+    obs_report_p.add_argument("--warn-token-budget", type=int, default=40_000)
+    obs_report_p.add_argument("--fail-token-budget", type=int, default=80_000)
+    obs_report_p.add_argument("--warn-tool-errors", type=int, default=3)
+    obs_report_p.add_argument("--fail-tool-errors", type=int, default=8)
+    obs_report_p.add_argument("--json", action="store_true", dest="json_output")
 
     board_p = sub.add_parser(
         "board",
@@ -4416,6 +4548,39 @@ def main(argv: list[str] | None = None) -> int:
                 },
             )
         return 0
+
+    if args.command == "observe-report":
+        obs = build_observe_payload(
+            cwd=os.getcwd(),
+            pattern=str(getattr(args, "pattern", ".cai-session*.json")),
+            limit=int(getattr(args, "limit", 100)),
+        )
+        payload = _build_observe_report_payload(
+            observe_payload=obs,
+            warn_failure_rate=float(getattr(args, "warn_failure_rate", 0.20)),
+            fail_failure_rate=float(getattr(args, "fail_failure_rate", 0.35)),
+            warn_token_budget=int(getattr(args, "warn_token_budget", 40_000)),
+            fail_token_budget=int(getattr(args, "fail_token_budget", 80_000)),
+            warn_tool_errors=int(getattr(args, "warn_tool_errors", 3)),
+            fail_tool_errors=int(getattr(args, "fail_tool_errors", 8)),
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            print(
+                f"[observe-report] state={payload.get('state')} "
+                f"sessions={payload.get('sessions_count')} "
+                f"failure_rate={payload.get('failure_rate')} "
+                f"total_tokens={payload.get('total_tokens')} "
+                f"tool_errors={payload.get('tool_errors_total')}",
+            )
+            alerts = payload.get("alerts") or []
+            if isinstance(alerts, list):
+                for a in alerts:
+                    if not isinstance(a, dict):
+                        continue
+                    print(f"- {a.get('severity')} {a.get('name')}: {a.get('detail')}")
+        return 0 if str(payload.get("state")) != "fail" else 2
 
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
