@@ -138,3 +138,43 @@ class RecallIndexCliTests(unittest.TestCase):
             clear_payload = json.loads(buf_clear.getvalue().strip())
             self.assertEqual(clear_payload.get("ok"), True)
             self.assertEqual(clear_payload.get("removed"), True)
+
+    def test_recall_index_benchmark_outputs_metrics(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-bench.json"),
+                {
+                    "version": 2,
+                    "model": "bench",
+                    "answer": "token refresh complete",
+                    "messages": [
+                        {"role": "assistant", "content": "token refresh complete on env A"},
+                    ],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "recall-index",
+                            "benchmark",
+                            "--query",
+                            "token",
+                            "--json",
+                            "--runs",
+                            "2",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "recall_benchmark_v1")
+            self.assertIn("scan", payload)
+            self.assertIn("index", payload)
+            self.assertIn("comparison", payload)
+            comp = payload.get("comparison") or {}
+            self.assertIn("speedup_scan_over_index", comp)

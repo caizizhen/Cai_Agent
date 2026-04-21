@@ -56,7 +56,7 @@
 | 领域 | 状态 | 说明 |
 |---|---|---|
 | Scheduler V2 | **高完成度** | 任务模型核心已落地（依赖/重试/审计） |
-| Recall Loop V2 | **中高完成度** | ranking 与索引路径对齐，仍缺性能基准体系 |
+| Recall Loop V2 | **高完成度** | ranking、索引与 `recall-index benchmark` 性能对比能力已落地 |
 | Memory Loop V2 | **中完成度** | nudge schema/阈值到位，TTL/状态机细化待继续 |
 | Subagents 编排 | **中完成度** | workflow 并行与合并增强完成，DSL 规范仍待细化 |
 | Observability | **中完成度** | hook 结果可见，统一报表/告警规则待补 |
@@ -66,7 +66,7 @@
 
 ## 当前总体进度（估算）
 
-- 总体：**约 63%**
+- 总体：**约 71%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 
@@ -74,6 +74,6 @@
 
 1. Gateway MVP（Telegram）最小闭环
 2. Memory Loop 状态机 + TTL 策略固化
-3. Recall 性能指标与基准测试命令
+3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁矩阵扩展（回归覆盖、性能阈值、告警格式）
 

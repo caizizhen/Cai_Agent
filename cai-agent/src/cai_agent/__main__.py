@@ -897,6 +897,89 @@ def _search_recall_index(
     )
 
 
+def _benchmark_recall_index(
+    *,
+    cwd: str,
+    query: str,
+    regex: bool,
+    case_sensitive: bool,
+    days: int,
+    max_hits: int,
+    pattern: str,
+    limit: int,
+    ensure_index: bool,
+    runs: int,
+    index_path: str | None,
+) -> dict[str, Any]:
+    """对比直扫 recall 与索引 recall 的耗时与命中质量。"""
+    started_scan = time.perf_counter()
+    scan_payload = _build_recall_payload(
+        cwd=cwd,
+        pattern=pattern,
+        limit=limit,
+        days=days,
+        query=query,
+        use_regex=regex,
+        case_sensitive=case_sensitive,
+        hits_per_session=3,
+        session_limit=max(1, max_hits),
+    )
+    scan_ms = int((time.perf_counter() - started_scan) * 1000)
+
+    idx_file = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
+    if ensure_index or (not idx_file.is_file()):
+        _build_recall_index(
+            cwd=cwd,
+            pattern=pattern,
+            limit=limit,
+            days=days,
+            index_path=index_path,
+        )
+
+    started_idx = time.perf_counter()
+    index_payload = _build_recall_payload_from_index(
+        index_file=str(idx_file),
+        query=query,
+        use_regex=regex,
+        case_sensitive=case_sensitive,
+        session_limit=max(1, max_hits),
+    )
+    index_ms = int((time.perf_counter() - started_idx) * 1000)
+
+    scan_hits = int(scan_payload.get("hits_total") or 0)
+    idx_hits = int(index_payload.get("hits_total") or 0)
+    speedup = None
+    if index_ms > 0:
+        speedup = round(float(scan_ms) / float(index_ms), 3)
+
+    return {
+        "schema_version": "recall_benchmark_v1",
+        "query": query,
+        "regex": regex,
+        "case_sensitive": case_sensitive,
+        "window_days": max(1, int(days)),
+        "scan": {
+            "elapsed_ms": scan_ms,
+            "sessions_scanned": int(scan_payload.get("sessions_scanned") or 0),
+            "sessions_with_hits": int(scan_payload.get("sessions_with_hits") or 0),
+            "hits_total": scan_hits,
+        },
+        "index": {
+            "elapsed_ms": index_ms,
+            "sessions_scanned": int(index_payload.get("sessions_scanned") or 0),
+            "sessions_with_hits": int(index_payload.get("sessions_with_hits") or 0),
+            "hits_total": idx_hits,
+            "index_file": str(idx_file),
+        },
+        "comparison": {
+            "speedup_scan_over_index": speedup,
+            "hits_delta": idx_hits - scan_hits,
+            "scan_faster": scan_ms < index_ms,
+            "index_faster": index_ms < scan_ms,
+        },
+    }
+
+
 def _recall_index_info(
     *,
     cwd: str,
@@ -2306,6 +2389,26 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_search.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_search.add_argument("--index-path", default=None, dest="index_path")
 
+    recall_idx_bench = recall_idx_sub.add_parser(
+        "benchmark",
+        help="对比 recall 直扫与索引检索性能（同 query）",
+    )
+    recall_idx_bench.add_argument("--query", required=True)
+    recall_idx_bench.add_argument("--regex", action="store_true", default=False)
+    recall_idx_bench.add_argument("--days", type=int, default=30)
+    recall_idx_bench.add_argument("--pattern", default=".cai-session*.json")
+    recall_idx_bench.add_argument("--limit", type=int, default=200)
+    recall_idx_bench.add_argument("--max-hits", type=int, default=20)
+    recall_idx_bench.add_argument("--runs", type=int, default=3, help="基准重复次数（默认 3）")
+    recall_idx_bench.add_argument(
+        "--ensure-index",
+        action="store_true",
+        default=False,
+        help="若索引不存在则自动先 build",
+    )
+    recall_idx_bench.add_argument("--json", action="store_true", dest="json_output")
+    recall_idx_bench.add_argument("--index-path", default=None, dest="index_path")
+
     recall_idx_info = recall_idx_sub.add_parser("info", help="查看索引信息")
     recall_idx_info.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_info.add_argument("--index-path", default=None, dest="index_path")
@@ -3382,6 +3485,29 @@ def main(argv: list[str] | None = None) -> int:
                             sn = hits[0].get("snippet") if isinstance(hits[0], dict) else None
                             if isinstance(sn, str) and sn:
                                 print(f"    {sn}")
+            return 0
+        if action == "benchmark":
+            payload = _benchmark_recall_index(
+                cwd=cwd,
+                query=str(args.query),
+                regex=bool(args.regex),
+                case_sensitive=bool(getattr(args, "case_sensitive", False)),
+                days=int(args.days),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+                max_hits=int(args.max_hits),
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                ensure_index=bool(getattr(args, "ensure_index", False)),
+                runs=int(getattr(args, "runs", 3)),
+            )
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"benchmark query={payload.get('query')!r} runs={payload.get('runs')} "
+                    f"scan_avg_ms={payload.get('scan_avg_ms')} index_avg_ms={payload.get('index_avg_ms')} "
+                    f"speedup={payload.get('speedup_x')}",
+                )
             return 0
         if action == "info":
             payload = _recall_index_info(
