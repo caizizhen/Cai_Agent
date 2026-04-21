@@ -66,6 +66,8 @@
 - [ ] `quality-gate` 多语言栈模板（前端 monorepo）
 - [ ] `security-scan` 规则与 CI 徽章示例
 - [本轮已落地] `release-ga --json` 门禁聚合：统一汇总 quality-gate / security-scan / token 预算 / 会话失败率，并给出 `state=pass|warn|fail` 与门禁明细
+- [本轮已落地] `release-ga` 扩展门禁：支持 `--with-doctor` 与 `--with-memory-nudge --memory-max-severity`，可把 doctor 健康检查与记忆严重度纳入 GA 判定
+- [本轮已落地] `run_command` 高危命令审批策略：`[permissions].run_command_approval_mode=block_high_risk|allow_all` 与 `run_command_high_risk_patterns`
 
 ## 本轮已完成增量（补记）
 

@@ -44,6 +44,13 @@
   - `--with-doctor`（包含 doctor 健康检查）
   - `--with-memory-nudge` + `--nudge-fail-on-severity`（包含 memory nudge 门禁）
 
+### H. Security Model（命令审批策略）
+- [x] `run_command` 高风险命令策略：新增可配置阻断（默认开启）
+- [x] 支持配置项：
+  - `[permissions].run_command_approval_mode = "block_high_risk" | "allow_all"`
+  - `[permissions].run_command_high_risk_patterns = [...]`（可扩展匹配片段）
+- [x] 新增单测覆盖阻断/放行路径
+
 ## 目标项状态对照（总体）
 
 | 领域 | 状态 | 说明 |
@@ -53,13 +60,13 @@
 | Memory Loop V2 | **中完成度** | nudge schema/阈值到位，TTL/状态机细化待继续 |
 | Subagents 编排 | **中完成度** | workflow 并行与合并增强完成，DSL 规范仍待细化 |
 | Observability | **中完成度** | hook 结果可见，统一报表/告警规则待补 |
-| Security Model | **中完成度** | 扫描与门禁增强，审批链与策略面待扩 |
+| Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩 |
 | Release GA | **中高完成度** | `release-ga` 聚合门禁已可用，门禁矩阵仍可继续丰富 |
 | Gateway MVP | **低完成度** | Telegram 接入协议与会话映射尚未实现 |
 
 ## 当前总体进度（估算）
 
-- 总体：**约 58%**
+- 总体：**约 63%**
 - 已完成偏“核心底座与可执行门禁”
 - 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
 

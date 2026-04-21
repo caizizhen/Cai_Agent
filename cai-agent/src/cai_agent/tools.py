@@ -36,6 +36,19 @@ ALLOWED_CMD_NAMES = frozenset(
 _MCP_TOOLS_CACHE: dict[str, tuple[float, list[str]]] = {}
 _MCP_TOOLS_TTL_SEC = 15.0
 
+_DEFAULT_HIGH_RISK_PATTERNS = (
+    "rm -rf",
+    "sudo ",
+    "chmod 777",
+    "mkfs",
+    "dd if=",
+    "shutdown",
+    "reboot",
+    "curl ",
+    "wget ",
+    "| bash",
+)
+
 
 def _reject_shell_metachar(s: str) -> None:
     bad = '&|;$`<>\n\r'
@@ -48,6 +61,29 @@ def _reject_path_traversal_token(s: str, *, label: str) -> None:
         raise SandboxError(f"{label} 不允许包含 '..'")
     if os.path.isabs(s):
         raise SandboxError(f"{label} 不允许绝对路径")
+
+
+def _is_high_risk_command(settings: Settings, argv: list[str]) -> tuple[bool, str]:
+    joined = " ".join(argv).lower()
+    defaults = (
+        "rm -rf",
+        "mkfs",
+        "dd if=",
+        ":(){",
+        "shutdown",
+        "reboot",
+        "format ",
+        "rmdir /s",
+        "del /f",
+    )
+    pats = tuple(settings.run_command_high_risk_patterns) or defaults
+    for pat in pats:
+        p = str(pat).strip().lower()
+        if not p:
+            continue
+        if p in joined:
+            return (True, p)
+    return (False, "")
 
 
 def tool_read_file(workspace: str, args: dict[str, Any]) -> str:
@@ -197,6 +233,18 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
         raise SandboxError(
             f"不允许的命令: {exe}，允许: {', '.join(sorted(ALLOWED_CMD_NAMES))}",
         )
+    mode = str(getattr(settings, "run_command_approval_mode", "block_high_risk") or "block_high_risk").strip().lower()
+    if mode not in ("block_high_risk", "allow_all"):
+        mode = "block_high_risk"
+    if mode == "block_high_risk":
+        joined = " ".join(argv).lower()
+        patterns = tuple(getattr(settings, "run_command_high_risk_patterns", ()) or ()) or _DEFAULT_HIGH_RISK_PATTERNS
+        for pat in patterns:
+            p = str(pat or "").strip().lower()
+            if p and p in joined:
+                raise SandboxError(
+                    f"run_command 命中高危模式并被阻断: {p!r}（可在 [permissions].run_command_approval_mode=allow_all 放开）",
+                )
     cwd_arg = str(args.get("cwd", ".")).strip() or "."
     cwd_path = resolve_workspace_path(settings.workspace, cwd_arg)
     if not cwd_path.is_dir():
