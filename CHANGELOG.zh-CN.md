@@ -6,7 +6,8 @@
 
 ### 0.5.0（当前开发）
 
-- **`scripts/smoke_new_features.py`**：在**隔离临时工作目录**下增加 **`cai-agent schedule add|list|rm --json`** 冒烟，校验 **`schedule_add_v1`**、**`schedule_list_v1`**（**`jobs`** 非空）、**`schedule_rm_v1`**（**`removed`**）。
+- **CLI `memory list`/`search`/`instincts --json` 与 `memory extract` stdout**：**`memory_list_v1`**（**`entries`**、`limit`、`sort`）、**`memory_search_v1`**（**`hits`**、`query`、`limit`、`sort`）、**`memory_instincts_list_v1`**（**`paths`**、`limit`）、**`memory_extract_v1`**（**`written`**、**`entries_appended`**）。**`list`/`search`/`instincts` 的 `--json` 为破坏性变更**（此前根节点为裸数组）。见 **`docs/schema/README.zh-CN.md`**。
+- **`scripts/smoke_new_features.py`**：在**隔离临时工作目录**下增加 **`cai-agent schedule add|list|rm --json`** 冒烟，校验 **`schedule_add_v1`**、**`schedule_list_v1`**（**`jobs`** 非空）、**`schedule_rm_v1`**（**`removed`**）；并校验空工作区 **`memory list --json`**（**`memory_list_v1`**）。
 - **CLI `schedule add`/`list`/`rm`/`add-memory-nudge --json`**：成功 **`schedule_add_v1`**；**`list`** 为 **`schedule_list_v1` + `jobs[]`**（**破坏性变更**：此前 `list` 根为数组）；**`rm`** 为 **`schedule_rm_v1`**；**`add-memory-nudge`** 为 **`schedule_add_memory_nudge_v1`**；**`add` 校验失败** 为 **`schedule_add_invalid_v1`**。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `schedule run-due --json` / `schedule daemon --json`**：stdout 根对象增加 **`schema_version`：`schedule_run_due_v1`** / **`schedule_daemon_summary_v1`**（daemon 锁冲突负载亦含同一 schema）；详见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `cost budget`**：stdout 单行 JSON 增加 **`schema_version`：`cost_budget_v1`**（字段仍为 `state` / `total_tokens` / `max_tokens`；无 `--json` 开关）。契约见 **`docs/schema/README.zh-CN.md`**。

@@ -3509,7 +3509,7 @@ def main(argv: list[str] | None = None) -> int:
         "--json",
         action="store_true",
         dest="json_output",
-        help="输出 JSON 数组（含 id/category/confidence/expires_at）",
+        help="输出 JSON 对象 memory_list_v1（含 entries[]：id/category/confidence/expires_at/state 等）",
     )
     memory_list.add_argument(
         "--sort",
@@ -3525,7 +3525,7 @@ def main(argv: list[str] | None = None) -> int:
         "--json",
         action="store_true",
         dest="json_output",
-        help="以 JSON 数组输出路径",
+        help="以 JSON 对象 memory_instincts_list_v1 输出 paths[]",
     )
     memory_search = memory_sub.add_parser("search", help="按子串搜索记忆条目")
     memory_search.add_argument("query", help="搜索子串")
@@ -3535,7 +3535,12 @@ def main(argv: list[str] | None = None) -> int:
         default="",
         help="confidence 或 created_at（命中后排序再截断）",
     )
-    memory_search.add_argument("--json", action="store_true", dest="json_output")
+    memory_search.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 JSON 对象 memory_search_v1（含 hits[]）",
+    )
     memory_prune = memory_sub.add_parser("prune", help="按策略清理记忆条目（过期/低置信度/超额保留）")
     memory_prune.add_argument(
         "--min-confidence",
@@ -5322,7 +5327,11 @@ def main(argv: list[str] | None = None) -> int:
                         entries_appended += 1
                 print(
                     json.dumps(
-                        {"written": written, "entries_appended": entries_appended},
+                        {
+                            "schema_version": "memory_extract_v1",
+                            "written": written,
+                            "entries_appended": entries_appended,
+                        },
                         ensure_ascii=False,
                     ),
                 )
@@ -5340,7 +5349,17 @@ def main(argv: list[str] | None = None) -> int:
                 sort_memory_rows(rows, sort_key)
                 rows = rows[: int(args.limit)]
                 if args.json_output:
-                    print(json.dumps(rows, ensure_ascii=False))
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_list_v1",
+                                "limit": int(args.limit),
+                                "sort": sort_key,
+                                "entries": rows,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
                 else:
                     for row in rows:
                         tid = row.get("id", "")
@@ -5356,7 +5375,16 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 arr = [str(p) for p in files[: int(args.limit)]]
                 if args.json_output:
-                    print(json.dumps(arr, ensure_ascii=False))
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_instincts_list_v1",
+                                "limit": int(args.limit),
+                                "paths": arr,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
                 else:
                     for p in arr:
                         print(p)
@@ -5370,7 +5398,18 @@ def main(argv: list[str] | None = None) -> int:
                     sort=sk,
                 )
                 if args.json_output:
-                    print(json.dumps(hits, ensure_ascii=False))
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_search_v1",
+                                "query": str(args.query),
+                                "limit": int(args.limit),
+                                "sort": sk,
+                                "hits": hits,
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
                 else:
                     for row in hits:
                         print(

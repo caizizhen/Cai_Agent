@@ -2,7 +2,7 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
-temporary cwd, schedule add + list + rm envelopes.
+temporary cwd, schedule add + list + rm envelopes and memory list --json.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -193,6 +193,17 @@ def main() -> int:
                     errs.append(f"schedule rm schema_version {rm_o.get('schema_version')!r}")
                 if rm_o.get("removed") is not True:
                     errs.append(f"schedule rm removed: {rm_o!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
+        pm = _run([exe, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
+        if pm.returncode != 0:
+            errs.append(f"memory list json exit {pm.returncode}")
+        else:
+            mo = json.loads((pm.stdout or "").strip())
+            if mo.get("schema_version") != "memory_list_v1":
+                errs.append(f"memory list schema_version {mo.get('schema_version')!r}")
+            if not isinstance(mo.get("entries"), list):
+                errs.append("memory list entries not list")
 
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)

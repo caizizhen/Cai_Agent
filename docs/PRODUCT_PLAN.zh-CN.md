@@ -43,7 +43,7 @@
 | 15 | `gateway telegram` 映射与解析 CLI | **完成** | `test_gateway_telegram_cli.py` |
 | 16 | `export` 多 harness | **完成（基础）** | |
 | 17 | Hermes backlog **S2-02～S2-05**（freshness / conflict_rate / coverage 指标、nudge-report 与 health 联动） | **完成** | 与 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 已完成表一致；**已在 `main`** |
-| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon` 等 JSON `schema_version`**（见 schema README）；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
+| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon` 等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**（见 schema README「破坏性变更」）；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
 | 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | 含 **`models ping --fail-on-any-error`**、**`hooks list --json` 错误时 exit `2`** 及既有 doctor / plugins / workflow 等；`models ping` 默认非全 OK 仍为 exit **`1`** |
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
 | 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **未开始** | |
@@ -59,7 +59,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **334 passed**（以本机 `pytest cai-agent/tests` 为准） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **337 passed**（以本机 `pytest cai-agent/tests` 为准） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`schedule add|list|rm`** 契约校验；见 `docs/qa/runs/regression-20260422-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
@@ -87,4 +87,4 @@
 
 ---
 
-*文档版本：2026-04-22（§二 S1-02：`schedule list` 等为 **`schedule_list_v1`** 等；`run-due`/`daemon` 见 **`schedule_run_due_v1`**/**`schedule_daemon_summary_v1`**；T1 **334 passed**；T2 冒烟含 **`schedule add|list|rm`**。）*
+*文档版本：2026-04-22（§二 S1-02：`schedule list` 等为 **`schedule_list_v1`** 等；`memory list`/`search`/`instincts`/`extract` 见 **`memory_list_v1`** 等；`run-due`/`daemon` 见 **`schedule_run_due_v1`**/**`schedule_daemon_summary_v1`**；T1 **以本机 pytest 为准**；T2 冒烟含 **`schedule add|list|rm`** 与 **`memory list --json`**。）*

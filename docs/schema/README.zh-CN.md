@@ -230,10 +230,10 @@
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |
 |--------|----------------|-------------------------|
-| `memory extract` | 单行对象 `written` / `entries_appended` | 无统一 `schema_version` |
-| `memory list` | **条目数组**（非包一层对象） | 行内字段见 `memory.py`；无顶层 `schema_version` |
-| `memory search` | 命中数组 | 同上 |
-| `memory instincts` | 路径字符串数组 | |
+| `memory extract` | 单行对象 **`memory_extract_v1`**：`written`、`entries_appended` | 始终 JSON stdout（无 `--json` 开关） |
+| `memory list` | 对象 **`memory_list_v1`**：`entries`（条目数组）、`limit`、`sort` | 行内字段见 `memory.py` |
+| `memory search` | 对象 **`memory_search_v1`**：`hits`、`query`、`limit`、`sort` | |
+| `memory instincts` | 对象 **`memory_instincts_list_v1`**：`paths`（字符串数组）、`limit` | |
 | `memory prune` | `memory_prune_result_v1` | 含 `removed_total`、`removed_by_reason` 等 |
 | `memory state` | `memory_state_eval_v1` | |
 | `memory export` / `import` / `export-entries` / `import-entries` | 见实现 | `memory_entries_bundle_v1` / `memory_entries_import_errors_v1` 等 |
@@ -288,6 +288,8 @@
 
 ## 破坏性变更
 
+- **`memory list --json` / `memory search --json` / `memory instincts --json`**：根对象分别为 **`memory_list_v1`**（读 **`entries`**）、**`memory_search_v1`**（读 **`hits`**）、**`memory_instincts_list_v1`**（读 **`paths`**）；**不再**直接输出裸数组。
+- **`memory extract`**：stdout JSON 增加顶层 **`schema_version`：`memory_extract_v1`**（字段 **`written`** / **`entries_appended`** 不变）。
 - **`schedule list --json`**：自 **`schedule_list_v1`** 起，根对象为 **`{ "schema_version", "jobs" }`**；**不再**直接输出任务数组（旧脚本请读 **`jobs`**）。
 - **`schedule run-due --json` / `schedule daemon --json`**：stdout 根对象新增 **`schema_version`**（分别为 **`schedule_run_due_v1`**、**`schedule_daemon_summary_v1`**）；其余字段保持，**若脚本以固定键集合校验需放行新键**。
 - **`sessions --json`**：自 **`sessions_list_v1`** 起，根对象为 `{ "schema_version", "pattern", "limit", "details", "sessions" }`；**不再**直接输出裸数组（旧脚本请改为读 **`sessions`** 字段）。

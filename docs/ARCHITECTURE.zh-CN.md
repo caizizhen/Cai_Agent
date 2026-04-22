@@ -205,7 +205,7 @@ CLI 层负责解析参数和加载 `Settings`，然后调用下层 `graph.build_
 
 - 记忆条目统一状态：`active / stale / expired`；
 - `memory state`：输出状态分布与阈值；
-- `memory list --with-state --json`：输出 `state` 与 `state_reason`；
+- `memory list --json`：根对象 **`memory_list_v1`**，**`entries[]`** 内含 `state` 与 `state_reason`；
 - `memory prune --drop-non-active`：按状态机清理非 active 条目；
 - 兼容原有 TTL / 最小置信度 / 保留上限策略。
 
