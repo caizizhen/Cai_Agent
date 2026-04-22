@@ -222,7 +222,7 @@ Sprint 8（GA）
 
 | Sprint | 开发完成信号                     | QA 开始动作                                           |
 | ------ | -------------------------- | ------------------------------------------------- |
-| S2     | Sprint 2 Memory（health / nudge-report 1.2）已合并主线 | 运行 `test_memory_health*.py` `test_memory_nudge_report_cli.py` `test_memory_freshness_metrics.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
+| S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
 | S3     | S3-01/S3-02/S3-03 合并       | 运行 `test_recall*.py` + 手工 RCL-RANK/NOHIT/DOC 系列   |
 | S4     | S4-01/S4-02 合并             | 运行 `test_schedule*.py` + 故障注入测试 SCH-FI-001~003    |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
