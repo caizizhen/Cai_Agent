@@ -1221,6 +1221,185 @@ def _build_observe_report_payload(
     }
 
 
+def _parse_recall_index_since_ts(window: object) -> int | None:
+    if not isinstance(window, dict):
+        return None
+    raw = window.get("since")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return int(dt.timestamp())
+    except ValueError:
+        return None
+
+
+def _recall_index_doctor(
+    *,
+    cwd: str,
+    index_path: str | None,
+    fix: bool,
+) -> tuple[dict[str, Any], int]:
+    """索引体检（S3-03）。返回 (payload, exit_code)。"""
+    idx = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
+    base: dict[str, Any] = {
+        "schema_version": "recall_index_doctor_v1",
+        "index_file": str(idx),
+        "is_healthy": True,
+        "issues": [],
+        "stale_paths": [],
+        "missing_files": [],
+        "schema_version_ok": True,
+        "fixed": False,
+        "removed_missing": 0,
+        "removed_stale": 0,
+    }
+    if not idx.is_file():
+        base["is_healthy"] = False
+        base["schema_version_ok"] = False
+        base["issues"] = ["index_file_missing"]
+        return base, 2
+    try:
+        raw_text = idx.read_text(encoding="utf-8")
+        doc = json.loads(raw_text)
+    except json.JSONDecodeError:
+        base["is_healthy"] = False
+        base["schema_version_ok"] = False
+        base["issues"] = ["index_json_parse_error"]
+        return base, 2
+    if not isinstance(doc, dict):
+        base["is_healthy"] = False
+        base["schema_version_ok"] = False
+        base["issues"] = ["index_root_not_object"]
+        return base, 2
+
+    issues: list[str] = []
+    stale_paths: list[str] = []
+    missing_files: list[str] = []
+    ver = doc.get("recall_index_schema_version")
+    schema_ok = ver == "1.1"
+    if not schema_ok:
+        base["schema_version_ok"] = False
+        issues.append(f"recall_index_schema_version_unsupported:{ver!r}")
+
+    window = doc.get("window")
+    since_ts = _parse_recall_index_since_ts(window)
+    if since_ts is None:
+        issues.append("index_window_since_missing_or_invalid")
+
+    entries = doc.get("entries")
+    if not isinstance(entries, list):
+        issues.append("index_entries_not_array")
+        entries = []
+
+    for row in entries:
+        if not isinstance(row, dict):
+            issues.append("index_entry_not_object")
+            continue
+        pth = str(row.get("path") or "").strip()
+        if not pth:
+            issues.append("index_entry_missing_path")
+            continue
+        try:
+            pp = Path(pth).expanduser().resolve()
+        except Exception:
+            missing_files.append(pth)
+            issues.append(f"missing_file:{pth}")
+            continue
+        if not pp.is_file():
+            missing_files.append(str(pp))
+            issues.append(f"missing_file:{pp}")
+            continue
+        if since_ts is not None:
+            try:
+                disk_mtime = int(pp.stat().st_mtime)
+            except OSError:
+                missing_files.append(str(pp))
+                issues.append(f"missing_file:{pp}")
+                continue
+            if disk_mtime < since_ts:
+                stale_paths.append(str(pp))
+                issues.append(f"stale_path:{pp}")
+
+    # 去重列表，保持顺序
+    def uniq(seq: list[str]) -> list[str]:
+        seen: set[str] = set()
+        out: list[str] = []
+        for x in seq:
+            if x not in seen:
+                seen.add(x)
+                out.append(x)
+        return out
+
+    stale_paths = uniq(stale_paths)
+    missing_files = uniq(missing_files)
+    # issues 保留顺序去重
+    issues_u: list[str] = []
+    seen_i: set[str] = set()
+    for it in issues:
+        if it not in seen_i:
+            seen_i.add(it)
+            issues_u.append(it)
+    issues = issues_u
+
+    is_healthy = len(issues) == 0
+    base["stale_paths"] = stale_paths
+    base["missing_files"] = missing_files
+    base["issues"] = issues
+    base["is_healthy"] = is_healthy
+    base["entries_count"] = len([e for e in entries if isinstance(e, dict)])
+
+    exit_code = 0 if is_healthy else 2
+
+    if fix and (missing_files or stale_paths or any(x == "index_entry_not_object" for x in issues)):
+        new_entries: list[dict[str, Any]] = []
+        removed_missing = 0
+        removed_stale = 0
+        removed_invalid = 0
+        for row in entries:
+            if not isinstance(row, dict):
+                removed_invalid += 1
+                continue
+            pth = str(row.get("path") or "").strip()
+            if not pth:
+                removed_invalid += 1
+                continue
+            try:
+                pp = Path(pth).expanduser().resolve()
+            except Exception:
+                removed_missing += 1
+                continue
+            if not pp.is_file():
+                removed_missing += 1
+                continue
+            if since_ts is not None:
+                try:
+                    if int(pp.stat().st_mtime) < since_ts:
+                        removed_stale += 1
+                        continue
+                except OSError:
+                    removed_missing += 1
+                    continue
+            new_entries.append(row)
+
+        new_doc = dict(doc)
+        new_doc["entries"] = new_entries
+        new_doc["generated_at"] = datetime.now(UTC).isoformat()
+        idx.write_text(json.dumps(new_doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        before_count = base.get("entries_count")
+        fixed_payload, fixed_exit = _recall_index_doctor(cwd=cwd, index_path=index_path, fix=False)
+        fixed_payload["fixed"] = True
+        fixed_payload["removed_missing"] = removed_missing
+        fixed_payload["removed_stale"] = removed_stale
+        fixed_payload["removed_invalid"] = removed_invalid
+        fixed_payload["entries_count_before_fix"] = before_count
+        return fixed_payload, fixed_exit
+
+    return base, exit_code
+
+
 def _recall_index_info(
     *,
     cwd: str,
@@ -3138,6 +3317,19 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_clear = recall_idx_sub.add_parser("clear", help="删除索引文件")
     recall_idx_clear.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_clear.add_argument("--index-path", default=None, dest="index_path")
+
+    recall_idx_doctor = recall_idx_sub.add_parser(
+        "doctor",
+        help="索引健康检查：缺失文件、相对窗口过旧路径、schema 版本（S3-03）",
+    )
+    recall_idx_doctor.add_argument(
+        "--fix",
+        action="store_true",
+        default=False,
+        help="移除缺失/过旧/无效条目并写回索引（等价于 prune 索引侧）",
+    )
+    recall_idx_doctor.add_argument("--json", action="store_true", dest="json_output")
+    recall_idx_doctor.add_argument("--index-path", default=None, dest="index_path")
     qg_p = sub.add_parser(
         "quality-gate",
         parents=[common],
@@ -4634,6 +4826,28 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(f"removed={payload.get('removed')} index_file={payload.get('index_file')}")
             return 0
+        if action == "doctor":
+            doc_payload, doc_rc = _recall_index_doctor(
+                cwd=cwd,
+                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                fix=bool(getattr(args, "fix", False)),
+            )
+            if bool(args.json_output):
+                print(json.dumps(doc_payload, ensure_ascii=False))
+            else:
+                print(
+                    f"healthy={doc_payload.get('is_healthy')} "
+                    f"issues={len(doc_payload.get('issues') or [])} "
+                    f"missing={len(doc_payload.get('missing_files') or [])} "
+                    f"stale={len(doc_payload.get('stale_paths') or [])} "
+                    f"schema_ok={doc_payload.get('schema_version_ok')}",
+                )
+                if doc_payload.get("fixed"):
+                    print(
+                        f"fixed removed_missing={doc_payload.get('removed_missing', 0)} "
+                        f"removed_stale={doc_payload.get('removed_stale', 0)}",
+                    )
+            return int(doc_rc)
         print(f"未知 recall-index 子命令: {action}", file=sys.stderr)
         return 2
 

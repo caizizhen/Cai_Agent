@@ -222,3 +222,161 @@ class RecallIndexCliTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             pl = json.loads(buf.getvalue().strip())
             self.assertEqual(pl.get("no_hit_reason"), "pattern_no_match")
+
+    def test_recall_index_doctor_healthy(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-doc.json"),
+                {
+                    "version": 2,
+                    "model": "d1",
+                    "messages": [{"role": "assistant", "content": "hello doctor"}],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--json"])
+            self.assertEqual(rc, 0)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertEqual(pl.get("schema_version"), "recall_index_doctor_v1")
+            self.assertTrue(pl.get("is_healthy"))
+            self.assertEqual(pl.get("issues"), [])
+            self.assertTrue(pl.get("schema_version_ok"))
+
+    def test_recall_index_doctor_missing_file_exit_2(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            sess = root / ".cai-session-gone.json"
+            save_session(
+                str(sess),
+                {
+                    "version": 2,
+                    "model": "g1",
+                    "messages": [{"role": "assistant", "content": "will delete"}],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            sess.unlink()
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--json"])
+            self.assertEqual(rc, 2)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertFalse(pl.get("is_healthy"))
+            self.assertTrue(any(str(x).startswith("missing_file:") for x in (pl.get("issues") or [])))
+
+    def test_recall_index_doctor_fix_prunes_missing(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            sess = root / ".cai-session-fix.json"
+            save_session(
+                str(sess),
+                {
+                    "version": 2,
+                    "model": "f1",
+                    "messages": [{"role": "assistant", "content": "fix me"}],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            sess.unlink()
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--fix", "--json"])
+            self.assertEqual(rc, 0, buf.getvalue())
+            pl = json.loads(buf.getvalue().strip())
+            self.assertTrue(pl.get("is_healthy"))
+            self.assertTrue(pl.get("fixed"))
+
+    def test_recall_index_doctor_index_missing_exit_2(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--json"])
+            self.assertEqual(rc, 2)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertEqual(pl.get("issues"), ["index_file_missing"])
+
+    def test_recall_index_doctor_stale_path(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            p = root / ".cai-session-stale.json"
+            save_session(
+                str(p),
+                {
+                    "version": 2,
+                    "model": "s1",
+                    "messages": [{"role": "assistant", "content": "stale content"}],
+                },
+            )
+            now = int(time.time())
+            os.utime(p, (now, now))
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--days", "30", "--json"])
+            old_ts = now - 60 * 60 * 24 * 90
+            os.utime(p, (old_ts, old_ts))
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--json"])
+            self.assertEqual(rc, 2)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertTrue(any(str(x).startswith("stale_path:") for x in (pl.get("issues") or [])))
+            self.assertGreaterEqual(len(pl.get("stale_paths") or []), 1)
+
+    def test_recall_index_doctor_schema_mismatch(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            idx = root / ".cai-recall-index.json"
+            idx.write_text(
+                json.dumps(
+                    {
+                        "recall_index_schema_version": "9.9",
+                        "window": {"since": "2020-01-01T00:00:00+00:00", "days": 30},
+                        "entries": [],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "doctor", "--json"])
+            self.assertEqual(rc, 2)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertFalse(pl.get("schema_version_ok"))
+            self.assertTrue(any("recall_index_schema_version_unsupported" in str(x) for x in (pl.get("issues") or [])))
+
+    def test_recall_index_doctor_info_entries_count_consistent(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-i1.json"),
+                {
+                    "version": 2,
+                    "model": "i1",
+                    "messages": [{"role": "assistant", "content": "info sync"}],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            buf_d = io.StringIO()
+            buf_i = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_d):
+                    main(["recall-index", "doctor", "--json"])
+                with redirect_stdout(buf_i):
+                    main(["recall-index", "info", "--json"])
+            d = json.loads(buf_d.getvalue().strip())
+            i = json.loads(buf_i.getvalue().strip())
+            self.assertEqual(d.get("entries_count"), i.get("entries_count"))
