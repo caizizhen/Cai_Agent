@@ -190,9 +190,23 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     )
 
     last: httpx.Response | None = None
+    last_transport_exc: Exception | None = None
     with httpx.Client(timeout=timeout, trust_env=trust) as client:
         for attempt in range(5):
-            last = client.post(url, json=payload, headers=headers)
+            try:
+                last = client.post(url, json=payload, headers=headers)
+                last_transport_exc = None
+            except httpx.TransportError as exc:
+                # Network/channel errors (e.g. "Channel Error" from llama.cpp,
+                # RemoteProtocolError, ReadError) — retry with backoff.
+                last_transport_exc = exc
+                if attempt == 4:
+                    raise RuntimeError(
+                        f"LLM 连接失败（传输层错误，已重试 5 次）: {exc}",
+                    ) from exc
+                delay = min(2.0**attempt, 12.0)
+                time.sleep(delay)
+                continue
             if last.status_code < 400:
                 break
             if last.status_code not in _RETRYABLE_STATUS or attempt == 4:
@@ -203,6 +217,10 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
             delay = min(2.0**attempt, 12.0)
             time.sleep(delay)
 
+    if last_transport_exc is not None:
+        raise RuntimeError(
+            f"LLM 连接失败（传输层错误）: {last_transport_exc}",
+        ) from last_transport_exc
     if last is None or last.status_code >= 400:
         raise RuntimeError("LLM 请求失败（未知状态）")
 

@@ -168,9 +168,21 @@ def chat_completion(
         client_kwargs["transport"] = effective_transport
 
     last: httpx.Response | None = None
+    last_transport_exc: Exception | None = None
     with httpx.Client(**client_kwargs) as client:
         for attempt in range(5):
-            last = client.post(url, json=payload, headers=headers)
+            try:
+                last = client.post(url, json=payload, headers=headers)
+                last_transport_exc = None
+            except httpx.TransportError as exc:
+                last_transport_exc = exc
+                if attempt == 4:
+                    raise RuntimeError(
+                        f"Anthropic 连接失败（传输层错误，已重试 5 次）: {exc}",
+                    ) from exc
+                delay = min(2.0**attempt, 12.0)
+                time.sleep(delay)
+                continue
             if last.status_code < 400:
                 break
             if last.status_code not in _RETRYABLE_STATUS or attempt == 4:
@@ -182,6 +194,10 @@ def chat_completion(
             delay = min(2.0**attempt, 12.0)
             time.sleep(delay)
 
+    if last_transport_exc is not None:
+        raise RuntimeError(
+            f"Anthropic 连接失败（传输层错误）: {last_transport_exc}",
+        ) from last_transport_exc
     if last is None or last.status_code >= 400:
         raise RuntimeError("Anthropic 请求失败（未知状态）")
 

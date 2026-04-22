@@ -143,7 +143,25 @@ def build_app(
                 "step": "请求模型",
             },
         )
-        text = chat_completion_by_role(settings, messages, role=role_name)
+        try:
+            text = chat_completion_by_role(settings, messages, role=role_name)
+        except Exception as llm_exc:
+            err_msg = f"LLM 请求失败: {llm_exc}"
+            messages.append(
+                {
+                    "role": "user",
+                    "content": err_msg,
+                },
+            )
+            _emit(progress, {"phase": "error", "iteration": iteration, "error": err_msg})
+            return {
+                "messages": messages,
+                "iteration": iteration,
+                "finished": True,
+                "answer": err_msg,
+                "pending": None,
+                "compact_hint_sent": compact_hint_sent,
+            }
         usage_snapshot = get_last_usage()
         _emit(
             progress,

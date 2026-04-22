@@ -1,0 +1,206 @@
+"""Regression tests for transport-level error retry in LLM adapters.
+
+Covers the "Channel Error" class of failures where llama.cpp / any LLM backend
+drops the TCP connection mid-request. These errors surface as
+``httpx.TransportError`` subclasses (``RemoteProtocolError``, ``ReadError``,
+``ConnectError``, etc.) rather than HTTP error responses.
+
+Before this fix, a single ``httpx.TransportError`` propagated unhandled all
+the way up and crashed the agent. After the fix:
+- The retry loop retries up to 5 times with exponential backoff.
+- If the error clears before the 5th attempt the call succeeds normally.
+- If all 5 attempts fail, a descriptive ``RuntimeError`` is raised (which is
+  then caught by ``graph.llm_node`` and turned into a graceful agent error).
+"""
+
+from __future__ import annotations
+
+import unittest
+from dataclasses import dataclass
+from types import SimpleNamespace
+from typing import Any
+from unittest.mock import patch
+
+import httpx
+
+from cai_agent import llm as llm_mod
+from cai_agent import llm_anthropic
+
+
+@dataclass
+class _OAISettings:
+    base_url: str = "http://127.0.0.1:1234/v1"
+    model: str = "google/gemma-4-31b"
+    api_key: str = "test-key"
+    temperature: float = 0.2
+    llm_timeout_sec: float = 30.0
+    http_trust_env: bool = False
+    mock: bool = False
+
+
+def _make_anthropic_settings(**overrides: Any) -> SimpleNamespace:
+    base: dict[str, Any] = {
+        "provider": "anthropic",
+        "base_url": "https://api.anthropic.com",
+        "model": "claude-sonnet-4-5-20250929",
+        "api_key": "test-anthropic-key",
+        "temperature": 0.2,
+        "llm_timeout_sec": 30.0,
+        "http_trust_env": False,
+        "mock": False,
+        "anthropic_version": "2023-06-01",
+        "anthropic_max_tokens": 256,
+    }
+    base.update(overrides)
+    return SimpleNamespace(**base)
+
+
+def _good_oai_response() -> dict:
+    return {
+        "choices": [
+            {
+                "message": {"role": "assistant", "content": '{"type":"finish","message":"ok"}'},
+                "finish_reason": "stop",
+            }
+        ],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+    }
+
+
+def _good_anthropic_response() -> dict:
+    return {
+        "content": [{"type": "text", "text": '{"type":"finish","message":"ok"}'}],
+        "usage": {"input_tokens": 5, "output_tokens": 10},
+    }
+
+
+class OpenAICompatTransportErrorRetryTests(unittest.TestCase):
+    """Tests for httpx.TransportError retry in the OpenAI-compat adapter."""
+
+    def setUp(self) -> None:
+        llm_mod.reset_usage_counters()
+        self._real_client = httpx.Client
+
+    def tearDown(self) -> None:
+        httpx.Client = self._real_client  # type: ignore[misc]
+        llm_mod.httpx.Client = self._real_client  # type: ignore[attr-defined]
+
+    def _install_transport(self, transport: httpx.BaseTransport) -> None:
+        real_cls = self._real_client
+
+        def fake_client(*args, **kwargs):
+            kwargs["transport"] = transport
+            return real_cls(*args, **kwargs)
+
+        llm_mod.httpx.Client = fake_client  # type: ignore[attr-defined]
+
+    def test_transport_error_then_success_retries_and_succeeds(self) -> None:
+        """First attempt raises RemoteProtocolError; second attempt succeeds."""
+        calls = {"n": 0}
+
+        class _OneFailTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise httpx.RemoteProtocolError("Channel Error", request=request)
+                return httpx.Response(200, json=_good_oai_response())
+
+        self._install_transport(_OneFailTransport())
+        with patch.object(llm_mod.time, "sleep", return_value=None):
+            out = llm_mod.chat_completion(
+                _OAISettings(),
+                [{"role": "user", "content": "ping"}],
+            )
+        self.assertIn("finish", out)
+        self.assertEqual(calls["n"], 2)
+
+    def test_all_transport_errors_raises_runtime_error(self) -> None:
+        """5 consecutive RemoteProtocolError raises RuntimeError after retries."""
+        calls = {"n": 0}
+
+        class _AlwaysFailTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                raise httpx.RemoteProtocolError("Channel Error", request=request)
+
+        self._install_transport(_AlwaysFailTransport())
+        with patch.object(llm_mod.time, "sleep", return_value=None):
+            with self.assertRaises(RuntimeError) as ctx:
+                llm_mod.chat_completion(
+                    _OAISettings(),
+                    [{"role": "user", "content": "ping"}],
+                )
+        self.assertEqual(calls["n"], 5)
+        self.assertIn("传输层错误", str(ctx.exception))
+
+    def test_read_error_is_also_retried(self) -> None:
+        """httpx.ReadError (a TransportError subclass) is also retried."""
+        calls = {"n": 0}
+
+        class _ReadErrorTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                if calls["n"] < 3:
+                    raise httpx.ReadError("connection reset", request=request)
+                return httpx.Response(200, json=_good_oai_response())
+
+        self._install_transport(_ReadErrorTransport())
+        with patch.object(llm_mod.time, "sleep", return_value=None):
+            out = llm_mod.chat_completion(
+                _OAISettings(),
+                [{"role": "user", "content": "ping"}],
+            )
+        self.assertIn("finish", out)
+        self.assertEqual(calls["n"], 3)
+
+
+class AnthropicTransportErrorRetryTests(unittest.TestCase):
+    """Tests for httpx.TransportError retry in the Anthropic adapter."""
+
+    def setUp(self) -> None:
+        llm_mod.reset_usage_counters()
+        llm_anthropic._DEFAULT_TRANSPORT = None
+
+    def tearDown(self) -> None:
+        llm_anthropic._DEFAULT_TRANSPORT = None
+
+    def test_transport_error_then_success_retries_and_succeeds(self) -> None:
+        calls = {"n": 0}
+
+        class _OneFailTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    raise httpx.RemoteProtocolError("Channel Error", request=request)
+                return httpx.Response(200, json=_good_anthropic_response())
+
+        with patch.object(llm_anthropic.time, "sleep", return_value=None):
+            out = llm_anthropic.chat_completion(
+                _make_anthropic_settings(),
+                [{"role": "user", "content": "ping"}],
+                transport=_OneFailTransport(),
+            )
+        self.assertIn("finish", out)
+        self.assertEqual(calls["n"], 2)
+
+    def test_all_transport_errors_raises_runtime_error(self) -> None:
+        calls = {"n": 0}
+
+        class _AlwaysFailTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                raise httpx.RemoteProtocolError("Channel Error", request=request)
+
+        with patch.object(llm_anthropic.time, "sleep", return_value=None):
+            with self.assertRaises(RuntimeError) as ctx:
+                llm_anthropic.chat_completion(
+                    _make_anthropic_settings(),
+                    [{"role": "user", "content": "ping"}],
+                    transport=_AlwaysFailTransport(),
+                )
+        self.assertEqual(calls["n"], 5)
+        self.assertIn("传输层错误", str(ctx.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()
