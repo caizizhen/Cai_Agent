@@ -3,8 +3,8 @@
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
 temporary cwd, init --json, schedule add + list + rm + stats --json envelopes,
-gateway telegram list --json, memory list/search/export-entries/export --json
-envelopes.
+gateway telegram list --json, recall --json (empty workspace), memory
+list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -255,6 +255,38 @@ def main() -> int:
                 errs.append(f"gateway list action {go.get('action')!r}")
             if not isinstance(go.get("bindings"), list):
                 errs.append("gateway list bindings not list")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-") as rec_td:
+        pr = _run(
+            [
+                *cli,
+                "recall",
+                "--query",
+                "smoke-recall-envelope",
+                "--json",
+                "--limit",
+                "5",
+                "--days",
+                "7",
+            ],
+            cwd=rec_td,
+        )
+        if pr.returncode != 0:
+            errs.append(f"recall json exit {pr.returncode} stderr={pr.stderr!r}")
+        else:
+            ro = json.loads((pr.stdout or "").strip())
+            if ro.get("schema_version") != "1.3":
+                errs.append(f"recall schema_version {ro.get('schema_version')!r}")
+            ht = ro.get("hits_total")
+            if type(ht) is not int:
+                errs.append(f"recall hits_total not int: {ht!r}")
+            elif ht != 0:
+                errs.append(f"recall hits_total want 0 got {ht}")
+            nhr = ro.get("no_hit_reason")
+            if not isinstance(nhr, str) or not nhr.strip():
+                errs.append(f"recall no_hit_reason missing: {ro!r}")
+            if not isinstance(ro.get("results"), list):
+                errs.append("recall results not list")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
         pm = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)

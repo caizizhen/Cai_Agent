@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`schedule stats --json`**（**`schedule_stats_v1`**）、**`gateway telegram list --json`**（**`gateway_telegram_map_v1`**）；入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`schedule stats --json`**（**`schedule_stats_v1`**）、**`gateway telegram list --json`**（**`gateway_telegram_map_v1`**）、**`recall --json`**（**`schema_version` 1.3**、**`no_hit_reason`**）；入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
 
 ## 对照基线
 
