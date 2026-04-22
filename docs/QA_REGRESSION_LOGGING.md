@@ -10,7 +10,7 @@ From the repository root:
 python scripts/run_regression.py
 ```
 
-The script also runs **`scripts/smoke_new_features.py`** (JSON envelopes for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `schedule add|list|rm`, `memory list --json`, and `memory export --json` in a temp cwd).
+The script also runs **`scripts/smoke_new_features.py`** (JSON envelopes for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `schedule add|list|rm`, `memory list --json`, `memory search --json`, `memory export-entries --json`, and `memory export --json` in temp cwds).
 
 On completion, the script writes:
 

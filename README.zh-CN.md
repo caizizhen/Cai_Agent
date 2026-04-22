@@ -884,7 +884,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-  `run_regression.py` 会调用已安装的 `cai-agent`，并执行 `scripts/smoke_new_features.py`（校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及**临时工作区**下的 `schedule add|list|rm`、`memory list --json`、`memory export --json` 等 JSON 契约）。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
+  `run_regression.py` 会调用已安装的 `cai-agent`，并执行 `scripts/smoke_new_features.py`（校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及**临时工作区**下的 `schedule add|list|rm`、`memory list|search|export|export-entries --json` 等 JSON 契约）。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
 
   **回归审计留痕**：每次执行结束会在 `docs/qa/runs/` 写入 `regression-YYYYMMDD-HHmmss.md`（可用 `QA_LOG_DIR` 改目录，`QA_SKIP_LOG=1` 关闭写文件）。说明见 [docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)。
 
