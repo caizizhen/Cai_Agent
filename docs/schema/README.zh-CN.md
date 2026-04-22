@@ -130,7 +130,7 @@
 ## `export`（单行 JSON）
 
 - **实现**：`cai_agent.exporter.export_target` → `print(json.dumps(result))`
-- **无**顶层 `schema_version`；返回对象含 `target`、`output_dir`、`manifest`（路径）、`copied`（`cursor` 模式）、`mode` 等。磁盘上的 `cai-export-manifest.json` 使用 **`manifest_version`** 与内嵌 **`schema`: `export-v2`**（见实现）。
+- **`schema_version`**：`export_cli_v1`；另含 `target`、`output_dir`、`manifest`（`cursor` / `codex` 有路径；**`opencode`** 分支当前无 `manifest` 键）、`copied`、`mode`（`structured` / `manifest` / `copy`）。磁盘上的 `cai-export-manifest.json` 使用 **`manifest_version`** 与内嵌 **`schema`: `export-v2`**（与 CLI 负载的 `schema_version` 不同层）。
 
 **Exit**：配置不可读 → `2`；不支持 `--target` → 异常前由 argparse 约束；成功 → `0`。
 

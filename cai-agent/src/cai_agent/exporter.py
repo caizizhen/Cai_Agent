@@ -61,6 +61,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             encoding="utf-8",
         )
         return {
+            "schema_version": "export_cli_v1",
             "target": t,
             "output_dir": str(out_dir),
             "manifest": str(manifest_path),
@@ -87,6 +88,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             encoding="utf-8",
         )
         return {
+            "schema_version": "export_cli_v1",
             "target": t,
             "output_dir": str(out_dir),
             "manifest": str(manifest_path),
@@ -116,6 +118,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
         encoding="utf-8",
     )
     return {
+        "schema_version": "export_cli_v1",
         "target": t,
         "output_dir": str(out_dir),
         "copied": copied,

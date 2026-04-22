@@ -166,3 +166,24 @@ class ObserveCliTests(unittest.TestCase):
         ag = payload.get("aggregates") or {}
         self.assertIn("run_events_total", ag)
         self.assertIn("sessions_with_events", ag)
+
+
+class ExportCliTests(unittest.TestCase):
+    def test_export_cursor_json_has_schema_version(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://localhost:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["export", "--config", str(cfg), "--target", "cursor"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "export_cli_v1")
+            self.assertEqual(payload.get("target"), "cursor")
+            self.assertEqual(payload.get("mode"), "structured")
+            self.assertIn("output_dir", payload)
+            self.assertIn("manifest", payload)
