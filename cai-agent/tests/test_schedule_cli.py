@@ -41,6 +41,9 @@ class ScheduleCliTests(unittest.TestCase):
             self.assertEqual(payload.get("depends_on"), ["sched-upstream"])
             self.assertEqual(payload.get("retry_max_attempts"), 3)
             self.assertEqual(payload.get("retry_backoff_sec"), 2.5)
+            self.assertEqual(payload.get("max_retries"), 3)
+            self.assertEqual(payload.get("retry_count"), 0)
+            self.assertIsNone(payload.get("next_retry_at"))
 
     def test_add_memory_nudge_template(self) -> None:
         with TemporaryDirectory() as td:
