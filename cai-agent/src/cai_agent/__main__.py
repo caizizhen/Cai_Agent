@@ -3751,6 +3751,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="可选 JSONL 事件日志路径（相对工作区或绝对路径）",
     )
+    schedule_daemon.add_argument(
+        "--max-concurrent",
+        type=int,
+        default=1,
+        help="每轮最多执行多少个到点任务（默认 1；多余任务本跳过并在下轮再判断；0 视为 1）",
+    )
     schedule_daemon.add_argument("--json", action="store_true", dest="json_output")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
@@ -5740,6 +5746,8 @@ def main(argv: list[str] | None = None) -> int:
             interval_sec = max(0.2, float(args.interval_sec))
             max_cycles = int(args.max_cycles)
             execute = bool(args.execute)
+            max_concurrent_raw = int(getattr(args, "max_concurrent", 1) or 1)
+            max_concurrent = max(1, max_concurrent_raw)
             lock_path = _resolve_schedule_path(root, getattr(args, "lock_file", None), ".cai-schedule-daemon.lock")
             stale_lock_sec = max(0.0, float(getattr(args, "stale_lock_sec", 0.0) or 0.0))
             ok_lock, lock_msg = _acquire_schedule_daemon_lock(lock_path=lock_path, stale_lock_sec=stale_lock_sec)
@@ -5757,6 +5765,7 @@ def main(argv: list[str] | None = None) -> int:
             cycles = 0
             total_due = 0
             total_executed = 0
+            total_skipped_concurrency = 0
             results: list[dict[str, Any]] = []
             interrupted = False
             try:
@@ -5765,11 +5774,49 @@ def main(argv: list[str] | None = None) -> int:
                     due = compute_due_tasks(cwd=str(root))
                     total_due += len(due)
                     cycle_exec: list[dict[str, Any]] = []
+                    skipped_conc: list[dict[str, Any]] = []
+                    ran_this_cycle = 0
                     if execute:
                         for j in due:
                             tid = str(j.get("id") or "").strip()
                             if not tid:
                                 continue
+                            if ran_this_cycle >= max_concurrent:
+                                gp = str(j.get("goal") or "").strip()
+                                skip_row = {
+                                    "id": tid,
+                                    "status": "skipped",
+                                    "skip_reason": "skipped_due_to_concurrency",
+                                    "max_concurrent": max_concurrent,
+                                    "goal_preview": (gp[:120] + ("…" if len(gp) > 120 else "")) if gp else "",
+                                }
+                                skipped_conc.append(skip_row)
+                                total_skipped_concurrency += 1
+                                append_schedule_audit_event(
+                                    task_id=tid,
+                                    status="skipped",
+                                    action="schedule.daemon",
+                                    cwd=str(root),
+                                    details={
+                                        "reason": "skipped_due_to_concurrency",
+                                        "max_concurrent": max_concurrent,
+                                        "cycle": cycles,
+                                    },
+                                )
+                                if log_path is not None:
+                                    _append_schedule_daemon_log(
+                                        log_path,
+                                        {
+                                            "event": "skipped_due_to_concurrency",
+                                            "ts": datetime.now(UTC).isoformat(),
+                                            "task_id": tid,
+                                            "cycle": cycles,
+                                            "max_concurrent": max_concurrent,
+                                            "goal_preview": skip_row.get("goal_preview") or "",
+                                        },
+                                    )
+                                continue
+                            ran_this_cycle += 1
                             goal = str(j.get("goal") or "").strip()
                             ws = j.get("workspace")
                             workspace_override = (
@@ -5890,8 +5937,10 @@ def main(argv: list[str] | None = None) -> int:
                         "cycle": cycles,
                         "due_count": len(due),
                         "executed_count": len(cycle_exec),
+                        "skipped_due_to_concurrency_count": len(skipped_conc),
                         "execute": execute,
                         "executed": cycle_exec,
+                        "skipped_due_to_concurrency": skipped_conc,
                     }
                     results.append(cycle_row)
                     if log_path is not None:
@@ -5919,9 +5968,11 @@ def main(argv: list[str] | None = None) -> int:
                 "execute": execute,
                 "interval_sec": interval_sec,
                 "max_cycles": max_cycles,
+                "max_concurrent": max_concurrent,
                 "cycles": cycles,
                 "total_due": total_due,
                 "total_executed": total_executed,
+                "total_skipped_due_to_concurrency": total_skipped_concurrency,
                 "interrupted": interrupted,
                 "results": results,
                 "lock_file": str(lock_path),
@@ -5932,6 +5983,7 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print(
                     f"daemon cycles={cycles} total_due={total_due} total_executed={total_executed} "
+                    f"skipped_concurrency={total_skipped_concurrency} max_concurrent={max_concurrent} "
                     f"execute={execute} interrupted={interrupted}",
                 )
             return 0
