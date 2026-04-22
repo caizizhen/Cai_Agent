@@ -181,7 +181,7 @@
 |--------|----------------|-------------------------|
 | `models list` | 对象：`active`、`subagent`、`planner`、`profiles[]` | **`models_list_v1`**（`profile_to_public_dict` 行） |
 | `models fetch` | 数组或对象（随上游 `/models` 响应封装） | 无固定顶层版本号 |
-| `models ping` | `{"results": [ {profile_id, status, http_status?, message?}, … ]}` | 无顶层 `schema_version` |
+| `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等） | **`models_ping_v1`** |
 
 **Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；**默认** 存在非 `OK` 的 ping → **`1`**；成功全 `OK` → **`0`**。`ping --fail-on-any-error`：存在非 `OK` → **`2`**（便于与 CI 的 exit 2 约定对齐）。
 

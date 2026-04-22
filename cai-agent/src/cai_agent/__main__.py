@@ -2359,7 +2359,12 @@ def _cmd_models(args: argparse.Namespace) -> int:
             for p in targets
         ]
         if getattr(args, "json_output", False):
-            print(json.dumps({"results": results}, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"schema_version": "models_ping_v1", "results": results},
+                    ensure_ascii=False,
+                ),
+            )
         else:
             for r in results:
                 status = r.get("status")

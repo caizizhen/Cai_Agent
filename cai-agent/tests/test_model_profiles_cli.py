@@ -236,7 +236,7 @@ class ModelsCliEndToEnd(unittest.TestCase):
             "cai_agent.__main__.ping_profile",
             return_value={"profile_id": "px", "status": "AUTH_FAIL", "message": "nope"},
         ):
-            rc2, _ = self._cli(
+            rc2, out = self._cli(
                 "models",
                 "--config",
                 str(self.cfg),
@@ -246,6 +246,9 @@ class ModelsCliEndToEnd(unittest.TestCase):
                 "--fail-on-any-error",
             )
         self.assertEqual(rc2, 2)
+        payload = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual(payload.get("schema_version"), "models_ping_v1")
+        self.assertEqual(len(payload.get("results") or []), 1)
 
 
 class PingProfileTests(unittest.TestCase):
