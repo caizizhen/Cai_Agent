@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **`scripts/smoke_new_features.py`**: Also exercises **`cai-agent schedule add|list|rm --json`** inside a temporary workspace directory, asserting **`schedule_add_v1`**, **`schedule_list_v1`** (non-empty **`jobs`**), and **`schedule_rm_v1`** (**`removed`**).
 - **`cai-agent schedule add|list|rm|add-memory-nudge --json`**: Adds **`schema_version`** payloads (**`schedule_add_v1`**, **`schedule_list_v1` + `jobs`**, **`schedule_rm_v1`**, **`schedule_add_memory_nudge_v1`**, and **`schedule_add_invalid_v1`** on validation failure). **`schedule list --json` is a breaking change** (was a bare array). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent schedule run-due --json` / `schedule daemon --json`**: Stdout payloads now include **`schema_version`: `schedule_run_due_v1`** / **`schedule_daemon_summary_v1`** (including the daemon lock-conflict JSON). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent cost budget`**: The always-JSON stdout payload now includes **`schema_version`: `cost_budget_v1`** (alongside `state` / `total_tokens` / `max_tokens`; still no `--json` flag). See `docs/schema/README.zh-CN.md`.

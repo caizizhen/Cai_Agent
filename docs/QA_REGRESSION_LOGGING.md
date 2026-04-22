@@ -10,7 +10,7 @@ From the repository root:
 python scripts/run_regression.py
 ```
 
-The script also runs **`scripts/smoke_new_features.py`** (plan/run/stats/sessions/observe JSON envelopes from recent releases).
+The script also runs **`scripts/smoke_new_features.py`** (JSON envelopes for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `schedule add|list|rm` in a temp cwd).
 
 On completion, the script writes:
 

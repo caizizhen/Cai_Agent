@@ -60,7 +60,7 @@
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
 | T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **334 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；见 `docs/qa/runs/regression-20260422-*.md` |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`schedule add|list|rm`** 契约校验；见 `docs/qa/runs/regression-20260422-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -87,4 +87,4 @@
 
 ---
 
-*文档版本：2026-04-22（§二 S1-02：`schedule list` 等为 **`schedule_list_v1`** 等；`run-due`/`daemon` 见 **`schedule_run_due_v1`**/**`schedule_daemon_summary_v1`**；T1 **334 passed**。）*
+*文档版本：2026-04-22（§二 S1-02：`schedule list` 等为 **`schedule_list_v1`** 等；`run-due`/`daemon` 见 **`schedule_run_due_v1`**/**`schedule_daemon_summary_v1`**；T1 **334 passed**；T2 冒烟含 **`schedule add|list|rm`**。）*

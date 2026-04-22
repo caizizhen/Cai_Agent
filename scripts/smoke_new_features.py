@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
+Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
+temporary cwd, schedule add + list + rm envelopes.
+
 Run from repository root:
   python scripts/smoke_new_features.py
 """
@@ -11,6 +14,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 
@@ -18,10 +22,15 @@ def _root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
-def _run(argv: list[str], *, env: dict[str, str] | None = None) -> subprocess.CompletedProcess[str]:
+def _run(
+    argv: list[str],
+    *,
+    env: dict[str, str] | None = None,
+    cwd: str | None = None,
+) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         argv,
-        cwd=str(_root()),
+        cwd=cwd if cwd is not None else str(_root()),
         capture_output=True,
         text=True,
         encoding="utf-8",
@@ -148,6 +157,42 @@ def main() -> int:
             errs.append(f"agents json schema_version {o.get('schema_version')!r}")
         if "agents" not in o or not isinstance(o.get("agents"), list):
             errs.append(f"agents json envelope: {o!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-schedule-") as sched_td:
+        tid = ""
+        p = _run(
+            [exe, "schedule", "add", "--goal", "smoke", "--every-minutes", "1440", "--json"],
+            cwd=sched_td,
+        )
+        if p.returncode != 0:
+            errs.append(f"schedule add exit {p.returncode} stderr={p.stderr!r}")
+        else:
+            add_o = json.loads((p.stdout or "").strip())
+            if add_o.get("schema_version") != "schedule_add_v1":
+                errs.append(f"schedule add schema_version {add_o.get('schema_version')!r}")
+            tid = str(add_o.get("id") or "").strip()
+            if not tid:
+                errs.append("schedule add missing id")
+        if tid:
+            p2 = _run([exe, "schedule", "list", "--json"], cwd=sched_td)
+            if p2.returncode != 0:
+                errs.append(f"schedule list exit {p2.returncode}")
+            else:
+                list_o = json.loads((p2.stdout or "").strip())
+                if list_o.get("schema_version") != "schedule_list_v1":
+                    errs.append(f"schedule list schema_version {list_o.get('schema_version')!r}")
+                jobs = list_o.get("jobs")
+                if not isinstance(jobs, list) or not jobs:
+                    errs.append("schedule list jobs not non-empty list")
+            p3 = _run([exe, "schedule", "rm", tid, "--json"], cwd=sched_td)
+            if p3.returncode != 0:
+                errs.append(f"schedule rm exit {p3.returncode}")
+            else:
+                rm_o = json.loads((p3.stdout or "").strip())
+                if rm_o.get("schema_version") != "schedule_rm_v1":
+                    errs.append(f"schedule rm schema_version {rm_o.get('schema_version')!r}")
+                if rm_o.get("removed") is not True:
+                    errs.append(f"schedule rm removed: {rm_o!r}")
 
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)
