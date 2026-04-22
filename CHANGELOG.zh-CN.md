@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **文档**：[`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) 新增 **§三之二**（开发项 1–26 状态计数、**未开发项 21–26 全表标记**、**测试移交 QA 清单**）；[`HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md) 头部与说明指向该节。
 - **CLI `init --json`**：stdout **单行 `init_cli_v1`**（成功时 **`ok`**、**`config_path`**、**`preset`**、**`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等）。无 **`--json`** 时仍为原有文本输出。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `memory export --json` / `memory export-entries --json`**：可选 JSON stdout **`memory_instincts_export_v1`**（**`output_file`**、**`snapshots_exported`**）与 **`memory_entries_export_result_v1`**（**`output_file`**、**`entries_count`**、**`export_warnings`**）；默认仍仅打印输出路径。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `models ping` exit（S1-03）**：任一 **`status`≠`OK`** 时 **默认 exit `2`**（此前为 **`1`**）；**`--fail-on-any-error`** 保留为与默认一致的显式别名（兼容旧脚本）。破坏性说明见 **`docs/schema/README.zh-CN.md`**。

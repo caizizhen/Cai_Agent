@@ -15,7 +15,7 @@
 | 技能自进化闭环 | 任务后自动生成 / 改进 skills、Skills Hub | 有 `skills/` 与插件扫描；**无**自动提炼闭环 | **未开始** |
 | 定时无人值守 | 内置 cron + 任意平台投递 | `schedule` / `daemon` / scaffold **已落地** | **完成** |
 | 跨会话检索 | FTS5 + LLM 摘要等 | `recall` / `recall-index`、`insights` **已落地** | **完成** |
-| 记忆治理 | 周期性 nudge、健康度、用户建模（Honcho 等） | `memory nudge` / `nudge-report`、**`memory health`（S2-01）已合并** | **部分完成**（见开发项 15–16、31） |
+| 记忆治理 | 周期性 nudge、健康度、用户建模（Honcho 等） | `memory nudge` / `nudge-report`、**`memory health`（S2-01）已合并** | **部分完成**（见开发项 **9–10**；用户建模 / Honcho 级能力见 **§一** 与 **开发项 25**） |
 | 子代理 / 并行 | 隔离子 agent、RPC 脚本 | `workflow`、路由与 hooks **部分**对齐 | **进行中**（Hermes backlog S5+） |
 | 运行后端 | 本地 / Docker / SSH / Modal / Daytona 等 | 以本机 + 可选配置为主；**无** Modal/Daytona 一等公民 | **未开始**（P2） |
 | 语音 / Bridge | 产品化能力 | **OOS** 或 MCP 路径（见 Parity 矩阵） | **定案** |
@@ -69,6 +69,50 @@
 
 ---
 
+## 三之二、开发进度统计 · 未开发项标记 · 测试移交（QA）
+
+> **说明**：本节为 **进度统计** 与 **给测试人员的执行清单**。**开发项 21–26** 与 Hermes Sprint 5+  backlog 为 **大颗粒能力**，**未**在主线以「单提交全部实现」的方式交付；以下「未开发」表为 **全量列出并标记状态**，避免与「已完成」混淆。
+
+### 3.1 §二 开发项（1–26）状态计数
+
+| 状态 | 数量 | 含开发项编号 / 说明 |
+|------|------|---------------------|
+| **完成** | **17** | 1–7、9–17、20 |
+| **定案（产品决策，无对等代码里程碑）** | **1** | 8（WebSearch/Notebook **MCP 优先**） |
+| **完成（持续演进）** | **1** | 9（记忆 CLI 仍随需求迭代） |
+| **部分完成** | **2** | 18（S1-02 JSON 契约与文档）、19（S1-03 exit 0/2 叙事） |
+| **未开始** | **6** | **21、22、23、24、25、26**（见下表 **已全部标记**） |
+
+### 3.2 未开发项全表（**标记：待分 Sprint / 立项后开发**）
+
+以下各项 **当前主线未实现业务闭环**；开发需按 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) / [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) **拆 Story、排期、再编码**。**不可**期望在未排期的情况下「一次开发全部落地」。
+
+| 开发项 | 主题 | 依赖 / 风险摘要 |
+|--------|------|-----------------|
+| **21** | 统一任务 ID、全链路状态机、Dashboard 消费 | 跨 `run` / `schedule` / `workflow` 数据模型；需架构设计 |
+| **22** | 敏感信息扫描、高危命令二次确认 | 安全策略、误报率、与 `sandbox` 联动 |
+| **23** | 子 Agent 标准 IO、多 Agent 编排模板 | Hermes **S5**；见 `docs/qa/sprint5-subagents-testplan.md` |
+| **24** | 多平台 Gateway（Discord/Slack/…） | 密钥与合规；**S6** 起 |
+| **25** | 技能自进化 / Skills Hub 式分发 | 与 **§一**「技能自进化」维度同源；产品未定稿前保持 **未开始** |
+| **26** | 运营面板（队列、失败率、成本） | P2；依赖可观测数据管道 |
+
+### 3.3 测试移交清单（请测试人员按序执行并回填）
+
+| 序号 | 测试对象 | 类型 | 建议执行人 | 操作说明 | 当前证据（开发侧） |
+|------|----------|------|------------|----------|---------------------|
+| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**345 passed**（以执行机 `pytest cai-agent/tests` 为准） |
+| **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；含 **`scripts/smoke_new_features.py`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 `init` / `schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
+| **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
+| **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 21–26 对应段落待开发完成后再测** | 计划已写 |
+| **QA-7** | S3 TUI 模型面板 | 手工 | 测试 | [`s3-tui-model-panel-testplan.md`](qa/s3-tui-model-panel-testplan.md) | 40 用例 |
+| **QA-8** | 发版前 gate | 人工 | 测试 / 发布 | `doctor`、Parity、CHANGELOG、**§二 18–19 契约抽样** | T7 **部分完成** |
+
+**回填方式**：测试负责人在本表右侧「当前证据」列追加日期与结论（或仅在 `docs/qa/runs/` 新增回归 Markdown 由流程约定处理）；**不必**在本文件重复粘贴大段日志。
+
+---
+
 ## 四、[PR #12](https://github.com/caizizhen/Cai_Agent/pull/12)（`cursor/hermes-s2-01-memory-health-9ed2`）处理说明
 
 | 项 | 说明 |
@@ -87,4 +131,4 @@
 
 ---
 
-*文档版本：2026-04-22（§二 S1-02：**`init --json` → `init_cli_v1`**；**`memory export`/`export-entries --json`** 等；`memory import`/`import-entries` stdout 含 **`memory_instincts_import_v1`** 等；`schedule list` 等为 **`schedule_list_v1`** 等；`memory list`/`search`/`instincts`/`extract` 见 **`memory_list_v1`** 等；§二 S1-03：**`models ping`** 非全 OK **默认 exit `2`**；`run-due`/`daemon` 见 **`schedule_run_due_v1`**/**`schedule_daemon_summary_v1`**；T1 **345 passed**（本机）；T2 冒烟含 **`init --json`**、**`schedule`**、**`memory list|search|export|export-entries --json`** 等。）*
+*文档版本：2026-04-22（新增 **§三之二** 进度统计与 **QA 测试移交**；§二 S1-02：`init`/`memory`/`schedule` 等契约见 **`docs/schema/README.zh-CN.md`**；S1-03：**`models ping`** 非全 OK **默认 exit `2`**；T1 **345 passed**（本机）；**开发项 21–26** 见 §三之二 **未开发全表**。）*

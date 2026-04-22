@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **Docs**: [`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) adds **§三之二** — dev-item counts (1–26), a **fully listed backlog** for items **21–26** (marked *not shipped as a single drop*), and a **QA handoff checklist**; [`docs/HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md) header links there.
 - **`cai-agent init --json`**: Prints a single-line **`init_cli_v1`** payload (`ok`, `config_path`, `preset`, `global` on success; `error` + `message` on `config_exists` / `template_read_failed` / `mkdir_failed`). Default text output unchanged without `--json`. See `docs/schema/README.zh-CN.md`.
 - **`cai-agent memory export --json` / `memory export-entries --json`**: Optional JSON stdout summaries **`memory_instincts_export_v1`** (`output_file`, `snapshots_exported`) and **`memory_entries_export_result_v1`** (`output_file`, `entries_count`, `export_warnings`). Default stdout (path only) unchanged. See `docs/schema/README.zh-CN.md`.
 - **`cai-agent models ping` exit codes (S1-03)**: Any result with `status != OK` now returns **exit `2`** by default (previously **`1`**). **`--fail-on-any-error`** remains a **no-op alias** for backward-compatible scripts. See `docs/schema/README.zh-CN.md` breaking-changes section.
