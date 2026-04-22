@@ -10,7 +10,7 @@
 python scripts/run_regression.py
 ```
 
-过程中会执行 **`scripts/smoke_new_features.py`**（与主回归一致：**`python -m cai_agent`**，并设置 **`PYTHONPATH=cai-agent/src`**），校验近期版本中的 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health --json`** 及临时目录下的 **`init --json`**、**`schedule add|list|rm|stats --json`**、**`gateway telegram list --json`**、**`recall --json`**、**`memory list --json`**、**`memory search --json`**、**`memory export-entries --json`**、**`memory export --json`** 等 JSON 契约与字段。
+过程中会执行 **`scripts/smoke_new_features.py`**（与主回归一致：**`python -m cai_agent`**，并设置 **`PYTHONPATH=cai-agent/src`**），校验近期版本中的 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`、**`mcp-check`/`plugins`/`doctor` --json**、**`sessions`/`observe-report`/`insights`/`board` --json**、**`hooks list` + `run-event --dry-run --json`**、**`memory health`/`memory state` --json** 及临时目录下的 **`init --json`**、**`schedule add|list|rm|stats --json`**、**`gateway telegram list --json`**、**`recall --json`**、**`memory list --json`**、**`memory search --json`**、**`memory export-entries --json`**、**`memory export --json`** 等 JSON 契约与字段。
 
 结束后会写入：
 

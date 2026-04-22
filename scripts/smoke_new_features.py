@@ -2,12 +2,11 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
-``plugins --json`` / ``doctor --json`` (``plugins_surface_v1`` / ``doctor_v1``),
-temp-dir ``hooks list --json`` (``hooks_catalog_v1``), empty-cwd ``insights
---json`` (``1.1``) and ``board --json`` (``board_v1``), ``memory health --json``
-(S2-01 schema ``1.0``), plus init --json, schedule add + list + rm + stats
---json, gateway telegram list --json, recall --json, memory list/search/
-export-entries/export --json envelopes.
+``plugins``/``doctor``/``mcp-check --json``, empty cwd ``sessions`` +
+``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
+``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
+init --json, schedule add + list + rm + stats --json, gateway telegram list
+--json, recall --json, memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -209,6 +208,22 @@ def main() -> int:
                 errs.append(f"doctor schema_version {do.get('schema_version')!r}")
             if not isinstance(do.get("workspace"), str) or not str(do.get("workspace")).strip():
                 errs.append("doctor workspace missing")
+        pmcp = _run(
+            [*cli, "mcp-check", "--json", "--list-only", "--config", str(cfg_repo)],
+            cwd=str(root),
+        )
+        if pmcp.returncode not in (0, 2):
+            errs.append(f"mcp-check json exit {pmcp.returncode} stderr={pmcp.stderr!r}")
+        else:
+            try:
+                mco = json.loads((pmcp.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"mcp-check json parse: {e}")
+            else:
+                if mco.get("schema_version") != "mcp_check_result_v1":
+                    errs.append(f"mcp-check schema_version {mco.get('schema_version')!r}")
+                if "mcp_enabled" not in mco:
+                    errs.append("mcp-check missing mcp_enabled")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-insights-") as ins_td:
         pi = _run(
@@ -238,6 +253,29 @@ def main() -> int:
             obs = bo.get("observe")
             if not isinstance(obs, dict) or obs.get("schema_version") != "1.1":
                 errs.append(f"board observe envelope: {bo!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-sessions-obsrpt-") as so_td:
+        pss = _run([*cli, "sessions", "--json", "--limit", "3"], cwd=so_td)
+        if pss.returncode != 0:
+            errs.append(f"sessions json (empty cwd) exit {pss.returncode} stderr={pss.stderr!r}")
+        else:
+            sobj = json.loads((pss.stdout or "").strip())
+            if sobj.get("schema_version") != "sessions_list_v1":
+                errs.append(f"sessions schema_version {sobj.get('schema_version')!r}")
+            if not isinstance(sobj.get("sessions"), list):
+                errs.append("sessions.sessions not list")
+        por = _run([*cli, "observe-report", "--json"], cwd=so_td)
+        if por.returncode != 0:
+            errs.append(f"observe-report json exit {por.returncode} stderr={por.stderr!r}")
+        else:
+            rep = json.loads((por.stdout or "").strip())
+            if rep.get("schema_version") != "observe_report_v1":
+                errs.append(f"observe-report schema_version {rep.get('schema_version')!r}")
+            if rep.get("state") != "pass":
+                errs.append(f"observe-report state want pass got {rep.get('state')!r}")
+            obn = rep.get("observe")
+            if not isinstance(obn, dict):
+                errs.append("observe-report observe not object")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-hooks-") as hk_td:
         hp = Path(hk_td)
@@ -280,6 +318,29 @@ def main() -> int:
             rows = ho.get("hooks")
             if not isinstance(rows, list) or not rows:
                 errs.append("hooks list hooks not non-empty list")
+            pru = _run(
+                [
+                    *cli,
+                    "hooks",
+                    "--config",
+                    str(hp / "cai-agent.toml"),
+                    "run-event",
+                    "observe_start",
+                    "--dry-run",
+                    "--json",
+                ],
+                cwd=str(hp),
+            )
+            if pru.returncode != 0:
+                errs.append(f"hooks run-event dry-run json exit {pru.returncode} stderr={pru.stderr!r}")
+            else:
+                ru = json.loads((pru.stdout or "").strip())
+                if ru.get("schema_version") != "hooks_run_event_result_v1":
+                    errs.append(f"hooks run-event schema_version {ru.get('schema_version')!r}")
+                if ru.get("dry_run") is not True:
+                    errs.append(f"hooks run-event dry_run flag: {ru!r}")
+                if not isinstance(ru.get("results"), list):
+                    errs.append("hooks run-event results not list")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memhealth-") as mh_td:
         pmh = _run([*cli, "memory", "health", "--json"], cwd=mh_td)
@@ -295,6 +356,15 @@ def main() -> int:
             hs = mh.get("health_score")
             if not isinstance(hs, int | float):
                 errs.append(f"memory health health_score not numeric: {hs!r}")
+        pst = _run([*cli, "memory", "state", "--json"], cwd=mh_td)
+        if pst.returncode != 0:
+            errs.append(f"memory state json exit {pst.returncode} stderr={pst.stderr!r}")
+        else:
+            st = json.loads((pst.stdout or "").strip())
+            if st.get("schema_version") != "memory_state_eval_v1":
+                errs.append(f"memory state schema_version {st.get('schema_version')!r}")
+            if not isinstance(st.get("counts"), dict):
+                errs.append("memory state counts not object")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)

@@ -41,6 +41,8 @@
 
 **Exit**：`state == fail` → `2`；`state == warn` 且 `--fail-on-warn` → `2`；否则 `0`。
 
+**冒烟**：`scripts/smoke_new_features.py` 在**空临时工作区**（与 **`sessions --json`** 同目录）执行 **`observe-report --json`**，断言 **`observe_report_v1`** 且 **`state`=`pass`**（无会话时指标为 0）。
+
 ---
 
 ## `insights` / `insights --json`
@@ -102,6 +104,8 @@
 
 **Exit**：`ok == true` → `0`；否则 → `2`。
 
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`mcp-check --json --list-only`**，接受 exit **`0`** 或 **`2`**，并断言 **`mcp_check_result_v1`** 与 **`mcp_enabled`** 字段存在。
+
 ---
 
 ## `sessions` / `sessions --json`
@@ -111,6 +115,8 @@
 - **无 `--details`**：尽力解析；失败时元素可含 **`parse_error: true`**。
 
 **Exit**：默认 `0`。
+
+**冒烟**：`scripts/smoke_new_features.py` 在**空临时工作区**执行 **`sessions --json`**，断言 **`sessions_list_v1`** 与 **`sessions`** 数组类型。
 
 ---
 
@@ -241,7 +247,7 @@
 
 **Exit**：`list`：`hooks.json` 缺失或文档无效时，**文本模式与 `--json` 均为 `2`**。`run-event`：见各分支（缺文件等 `2`）。
 
-**冒烟**：`scripts/smoke_new_features.py` 在隔离临时目录写入最小 **`cai-agent.toml`** + **`hooks/hooks.json`**，执行 **`hooks list --json`**，断言 **`hooks_catalog_v1`** 与非空 **`hooks[]`**。
+**冒烟**：`scripts/smoke_new_features.py` 在隔离临时目录写入最小 **`cai-agent.toml`** + **`hooks/hooks.json`**，执行 **`hooks list --json`**（**`hooks_catalog_v1`**、非空 **`hooks[]`**），并执行 **`hooks run-event observe_start --dry-run --json`**（**`hooks_run_event_result_v1`**、**`dry_run`: true**、**`results`** 为数组）。
 
 ---
 
@@ -270,7 +276,7 @@
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**，断言根对象 **`schema_version`=`1.0`**、**`grade`**（A–D）与数值型 **`health_score`**。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）与 **`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）。
 
 ---
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -121,3 +122,14 @@ class SessionObserveAggregationTests(unittest.TestCase):
                 with redirect_stdout(buf_bad):
                     rc2 = main(["observe", "--json", "--fail-on-max-failure-rate", "0.5"])
             self.assertEqual(rc2, 2)
+
+    def test_sessions_list_json_empty_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=td):
+                with redirect_stdout(buf):
+                    rc = main(["sessions", "--json", "--limit", "5"])
+            self.assertEqual(rc, 0)
+            doc = json.loads(buf.getvalue().strip())
+            self.assertEqual(doc.get("schema_version"), "sessions_list_v1")
+            self.assertEqual(doc.get("sessions"), [])

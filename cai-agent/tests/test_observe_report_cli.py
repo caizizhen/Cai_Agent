@@ -13,6 +13,20 @@ from cai_agent.session import save_session
 
 
 class ObserveReportCliTests(unittest.TestCase):
+    def test_observe_report_json_empty_workspace_state_pass(self) -> None:
+        with TemporaryDirectory() as td:
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(td)):
+                with redirect_stdout(buf):
+                    rc = main(["observe-report", "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "observe_report_v1")
+            self.assertEqual(payload.get("state"), "pass")
+            obs = payload.get("observe")
+            self.assertIsInstance(obs, dict)
+            self.assertEqual(int(obs.get("sessions_count") or 0), 0)
+
     def test_observe_report_json_alerts_and_state(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

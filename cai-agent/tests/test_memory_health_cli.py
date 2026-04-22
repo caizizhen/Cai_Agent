@@ -34,6 +34,19 @@ class MemoryHealthCliTests(unittest.TestCase):
             self.assertIn("conflict_rate", p)
             self.assertIsInstance(p.get("actions"), list)
 
+    def test_memory_state_json_empty_workspace(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["memory", "state", "--json"])
+            self.assertEqual(rc, 0)
+            p = json.loads(buf.getvalue().strip())
+            self.assertEqual(p.get("schema_version"), "memory_state_eval_v1")
+            self.assertIsInstance(p.get("counts"), dict)
+            self.assertEqual(int(p.get("total_entries") or 0), 0)
+
     def test_health_fail_on_grade_c_exits_2_when_d(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

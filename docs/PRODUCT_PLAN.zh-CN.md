@@ -59,8 +59,8 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **347 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md` |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **350 passed**（以本机 `pytest cai-agent/tests` 为准） |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -81,7 +81,7 @@
 |------|----------|------------|
 | **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 18、19）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 77%**（20÷26≈76.9%） |
 | **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34；括号内为 ⚠️ **3** 条各按 **0.5** 条计入 | **约 50%**（17÷34）；**约 54%**（18.5÷34≈54.4%） |
-| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **347 passed**（见上表 T1） |
+| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **350 passed**（见上表 T1） |
 
 ### 3.1 §二 开发项（1–26）状态计数
 
@@ -110,9 +110,9 @@
 
 | 序号 | 测试对象 | 类型 | 建议执行人 | 操作说明 | 当前证据（开发侧） |
 |------|----------|------|------------|----------|---------------------|
-| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**347 passed**（以执行机 `pytest cai-agent/tests` 为准） |
+| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**350 passed**（以执行机 `pytest cai-agent/tests` 为准） |
 | **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；**`smoke_new_features`** 亦 **`python -m cai_agent`** |
-| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`** JSON 信封、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
 | **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 21–26 对应段落待开发完成后再测** | 计划已写 |
@@ -141,4 +141,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0** 完成度不变：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；S8-01：**`smoke_new_features`** 已校验 **`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health --json`**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**（空工作区 **0 命中**），且与 **`run_regression`** 同用 **`python -m cai_agent` + `PYTHONPATH`**；**`insights`** 空窗口快速路径见 `__main__._build_insights_payload`；S1-02：`schema` README 已互链上述冒烟断言；T1/QA-1 **347 passed**；**开发项 21–26** 见 §三之二。）*
+*文档版本：2026-04-23（§三之二 **3.0** 完成度不变：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；S8-01：**`smoke_new_features`** 已校验 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health`/`memory state` --json**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**（空工作区 **0 命中**），且与 **`run_regression`** 同用 **`python -m cai_agent` + `PYTHONPATH`**；**`insights`** 空窗口快速路径见 `__main__._build_insights_payload`；S1-02：`schema` README 已互链上述冒烟断言；T1/QA-1 **350 passed**；**开发项 21–26** 见 §三之二。）*
