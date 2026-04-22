@@ -19,10 +19,10 @@
 
 ## 2. 测试用例
 
-### RCL-RANK-001：`--sort recent`（默认）与时间顺序一致
+### RCL-RANK-001：`--sort recent`（默认）与评分+时间 tie-break 一致
 - **前置条件**：3 个会话，时间各不同，均命中关键词
 - **执行**：`cai-agent recall --query "test" --json`
-- **期望**：`results` 列表按 `mtime` 降序排列
+- **期望**：`schema_version=1.2`，`sort=recent`；`results` 按 `score` 降序、`mtime` 新者优先（与默认 hybrid 评分一致；若三会话得分相同则等价于 mtime 降序）
 
 ### RCL-RANK-002：`--sort density` 命中密度优先
 - **前置条件**：A 会话命中 5 次（旧）、B 会话命中 1 次（新）

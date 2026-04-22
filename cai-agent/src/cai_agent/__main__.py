@@ -513,6 +513,82 @@ def _recall_row_score(
     }
 
 
+def _recall_sort_mode(sort: str | None) -> str:
+    s = (sort or "recent").strip().lower()
+    if s in ("recent", "default", ""):
+        return "recent"
+    if s == "density":
+        return "density"
+    if s == "combined":
+        return "combined"
+    return "recent"
+
+
+def _recall_ranking_for_sort(sort_mode: str) -> dict[str, Any]:
+    if sort_mode == "density":
+        return {
+            "strategy": "density(keyword_density,hit_strength,recency)",
+            "weights": {"keyword_density": 0.7, "hit_strength": 0.2, "recency": 0.1},
+        }
+    if sort_mode == "combined":
+        return {
+            "strategy": "combined(recency*keyword_density,hit_strength)",
+            "weights": {"recency_times_density": 0.65, "hit_strength": 0.35},
+        }
+    return {
+        "strategy": "hybrid(recency,hit_strength,keyword_density)",
+        "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
+    }
+
+
+def _recall_score_for_sort_mode(
+    sort_mode: str,
+    *,
+    mtime: int,
+    now_ts: int,
+    hits_count: int,
+    query: str,
+    text_for_density: str,
+    case_sensitive: bool,
+) -> tuple[float, dict[str, float]]:
+    """按 ``sort_mode`` 计算最终 ``score`` 与分解（始终含 recency / hit_strength / keyword_density）。"""
+    base, br = _recall_row_score(
+        mtime=mtime,
+        now_ts=now_ts,
+        hits_count=hits_count,
+        query=query,
+        text_for_density=text_for_density,
+        case_sensitive=case_sensitive,
+    )
+    rec = float(br.get("recency") or 0.0)
+    hs = float(br.get("hit_strength") or 0.0)
+    den = float(br.get("keyword_density") or 0.0)
+    if sort_mode == "density":
+        score = round((den * 0.7) + (hs * 0.2) + (rec * 0.1), 4)
+    elif sort_mode == "combined":
+        score = round((rec * den * 0.65) + (hs * 0.35), 4)
+    else:
+        score = base
+    out = dict(br)
+    out["sort_mode"] = sort_mode
+    return score, out
+
+
+def _sort_recall_rows(
+    rows: list[dict[str, Any]],
+    *,
+    sort_mode: str,
+) -> None:
+    """就地排序；tie-break 用 mtime 新者优先。"""
+    rows.sort(
+        key=lambda x: (
+            float(x.get("score") or 0.0),
+            int(x.get("mtime") or 0),
+        ),
+        reverse=True,
+    )
+
+
 def _build_recall_payload(
     *,
     cwd: str,
@@ -524,7 +600,9 @@ def _build_recall_payload(
     case_sensitive: bool,
     hits_per_session: int,
     session_limit: int,
+    sort: str | None = None,
 ) -> dict[str, Any]:
+    sort_mode = _recall_sort_mode(sort)
     now = datetime.now(UTC)
     now_ts = int(now.timestamp())
     since = now - timedelta(days=max(days, 1))
@@ -562,8 +640,26 @@ def _build_recall_payload(
             if isinstance(answer, str) and answer.strip()
             else ""
         )
-        density_blob = " ".join(str(h.get("snippet") or "") for h in selected)
-        score, score_breakdown = _recall_row_score(
+        density_parts: list[str] = []
+        msgs = sess.get("messages")
+        if isinstance(msgs, list):
+            for h in selected:
+                if not isinstance(h, dict):
+                    continue
+                mi = h.get("message_index")
+                if isinstance(mi, int) and 1 <= mi <= len(msgs):
+                    m = msgs[mi - 1]
+                    if isinstance(m, dict):
+                        c = m.get("content")
+                        if isinstance(c, str) and c.strip():
+                            density_parts.append(c)
+        density_blob = (
+            " ".join(density_parts)
+            if density_parts
+            else " ".join(str(h.get("snippet") or "") for h in selected)
+        )
+        score, score_breakdown = _recall_score_for_sort_mode(
+            sort_mode,
             mtime=int(p.stat().st_mtime),
             now_ts=now_ts,
             hits_count=len(selected),
@@ -588,20 +684,15 @@ def _build_recall_payload(
                 "score_breakdown": score_breakdown,
             },
         )
-    result_rows.sort(
-        key=lambda x: (
-            float(x.get("score") or 0.0),
-            int(x.get("mtime") or 0),
-        ),
-        reverse=True,
-    )
+    _sort_recall_rows(result_rows, sort_mode=sort_mode)
     trimmed = result_rows[: max(1, session_limit)]
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "generated_at": now.isoformat(),
         "query": query,
         "regex": use_regex,
         "case_sensitive": case_sensitive,
+        "sort": sort_mode,
         "window": {
             "days": max(days, 1),
             "since": since.isoformat(),
@@ -609,16 +700,14 @@ def _build_recall_payload(
             "limit": limit,
             "hits_per_session": max(1, hits_per_session),
             "session_limit": max(1, session_limit),
+            "sort": sort_mode,
         },
         "sessions_scanned": sessions_scanned,
         "sessions_with_hits": len(trimmed),
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": parse_skipped,
         "results": trimmed,
-        "ranking": {
-            "strategy": "hybrid(recency,hit_strength,keyword_density)",
-            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
-        },
+        "ranking": _recall_ranking_for_sort(sort_mode),
     }
 
 
@@ -841,7 +930,9 @@ def _build_recall_payload_from_index(
     use_regex: bool,
     case_sensitive: bool,
     session_limit: int,
+    sort: str | None = None,
 ) -> dict[str, Any]:
+    sort_mode = _recall_sort_mode(sort)
     now_ts = int(time.time())
     doc = json.loads(Path(index_file).expanduser().resolve().read_text(encoding="utf-8"))
     if not isinstance(doc, dict):
@@ -871,7 +962,8 @@ def _build_recall_payload_from_index(
             continue
         total_hits += len(hits)
         density_blob = " ".join(str(h.get("snippet") or "") for h in hits[:3])
-        score, score_breakdown = _recall_row_score(
+        score, score_breakdown = _recall_score_for_sort_mode(
+            sort_mode,
             mtime=int(row.get("mtime") or 0),
             now_ts=now_ts,
             hits_count=len(hits),
@@ -892,19 +984,14 @@ def _build_recall_payload_from_index(
                 "score_breakdown": score_breakdown,
             },
         )
-    rows.sort(
-        key=lambda x: (
-            float(x.get("score") or 0.0),
-            int(x.get("mtime") or 0),
-        ),
-        reverse=True,
-    )
+    _sort_recall_rows(rows, sort_mode=sort_mode)
     trimmed = rows[: max(1, session_limit)]
     return {
-        "schema_version": "1.1",
+        "schema_version": "1.2",
         "query": query,
         "regex": use_regex,
         "case_sensitive": case_sensitive,
+        "sort": sort_mode,
         "source": "index",
         "index_file": str(Path(index_file).expanduser().resolve()),
         "sessions_scanned": len(entries),
@@ -912,10 +999,7 @@ def _build_recall_payload_from_index(
         "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
         "parse_skipped": 0,
         "results": trimmed,
-        "ranking": {
-            "strategy": "hybrid(recency,hit_strength,keyword_density)",
-            "weights": {"recency": 0.45, "hit_strength": 0.35, "keyword_density": 0.2},
-        },
+        "ranking": _recall_ranking_for_sort(sort_mode),
     }
 
 
@@ -927,6 +1011,7 @@ def _search_recall_index(
     case_sensitive: bool,
     max_hits: int,
     index_path: str | None = None,
+    sort: str | None = None,
 ) -> dict[str, Any]:
     idx_path = _resolve_recall_index_path(cwd=cwd, index_path=index_path)
     return _build_recall_payload_from_index(
@@ -935,6 +1020,7 @@ def _search_recall_index(
         use_regex=regex,
         case_sensitive=case_sensitive,
         session_limit=max(1, max_hits),
+        sort=sort,
     )
 
 
@@ -951,6 +1037,7 @@ def _benchmark_recall_index(
     ensure_index: bool,
     runs: int,
     index_path: str | None,
+    sort: str | None = None,
 ) -> dict[str, Any]:
     """对比直扫 recall 与索引 recall 的耗时与命中质量。"""
     started_scan = time.perf_counter()
@@ -964,6 +1051,7 @@ def _benchmark_recall_index(
         case_sensitive=case_sensitive,
         hits_per_session=3,
         session_limit=max(1, max_hits),
+        sort=sort,
     )
     scan_ms = int((time.perf_counter() - started_scan) * 1000)
 
@@ -984,6 +1072,7 @@ def _benchmark_recall_index(
         use_regex=regex,
         case_sensitive=case_sensitive,
         session_limit=max(1, max_hits),
+        sort=sort,
     )
     index_ms = int((time.perf_counter() - started_idx) * 1000)
 
@@ -2884,6 +2973,12 @@ def main(argv: list[str] | None = None) -> int:
         help="仅检索最近 N 天会话",
     )
     recall_p.add_argument(
+        "--sort",
+        default="recent",
+        choices=("recent", "density", "combined"),
+        help="结果排序：recent=时间衰减混合（默认）；density=命中密度优先；combined=recency×density 与命中强度混合",
+    )
+    recall_p.add_argument(
         "--max-hits",
         type=int,
         default=20,
@@ -2947,6 +3042,12 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_search.add_argument("--regex", action="store_true", default=False)
     recall_idx_search.add_argument("--days", type=int, default=30)
     recall_idx_search.add_argument("--max-hits", type=int, default=20)
+    recall_idx_search.add_argument(
+        "--sort",
+        default="recent",
+        choices=("recent", "density", "combined"),
+        help="与 `recall` 一致的排序策略（默认 recent）",
+    )
     recall_idx_search.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_search.add_argument("--index-path", default=None, dest="index_path")
 
@@ -2960,6 +3061,12 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_bench.add_argument("--pattern", default=".cai-session*.json")
     recall_idx_bench.add_argument("--limit", type=int, default=200)
     recall_idx_bench.add_argument("--max-hits", type=int, default=20)
+    recall_idx_bench.add_argument(
+        "--sort",
+        default="recent",
+        choices=("recent", "density", "combined"),
+        help="与 `recall` 一致的排序策略（默认 recent）",
+    )
     recall_idx_bench.add_argument("--runs", type=int, default=3, help="基准重复次数（默认 3）")
     recall_idx_bench.add_argument(
         "--ensure-index",
@@ -4280,6 +4387,7 @@ def main(argv: list[str] | None = None) -> int:
                     use_regex=bool(args.regex),
                     case_sensitive=bool(getattr(args, "case_sensitive", False)),
                     session_limit=int(args.limit),
+                    sort=str(getattr(args, "sort", "recent") or "recent"),
                 )
             except FileNotFoundError:
                 if bool(args.json_output):
@@ -4320,6 +4428,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.max_matches if args.max_matches is not None else args.max_hits
                 ),
                 session_limit=int(args.limit),
+                sort=str(getattr(args, "sort", "recent") or "recent"),
             )
         if bool(args.json_output):
             print(json.dumps(payload, ensure_ascii=False))
@@ -4393,6 +4502,7 @@ def main(argv: list[str] | None = None) -> int:
                 case_sensitive=bool(getattr(args, "case_sensitive", False)),
                 max_hits=int(args.max_hits),
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                sort=str(getattr(args, "sort", "recent") or "recent"),
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -4428,6 +4538,7 @@ def main(argv: list[str] | None = None) -> int:
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
                 ensure_index=bool(getattr(args, "ensure_index", False)),
                 runs=int(getattr(args, "runs", 3)),
+                sort=str(getattr(args, "sort", "recent") or "recent"),
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
