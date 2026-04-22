@@ -99,12 +99,12 @@
 ### SCH-SLA-001：`schedule stats` 基础输出
 - **前置条件**：至少一个任务有运行历史
 - **执行**：`cai-agent schedule stats --json`
-- **期望**：包含 `schema_version`、per-task `success_rate`、`avg_elapsed_ms`、`run_count`
+- **期望**：包含 **`schema_version`**（`schedule_stats_v1`）、**`tasks`** 数组；每项含 **`success_rate`**、**`avg_elapsed_ms`**、**`p95_elapsed_ms`**、**`run_count`**、**`fail_count`**
 
 ### SCH-SLA-002：`--days` 时间窗口过滤
 - **前置条件**：任务在 31 天前有运行记录，30 天内没有
 - **执行**：`cai-agent schedule stats --json --days 30`
-- **期望**：该任务 `run_count=0`（窗口内无数据）
+- **期望**：该任务 **`run_count=0`**（窗口内无审计事件）；或该 `task_id` 不出现在 `tasks` 中（若 schedule 中已无该任务定义且窗口内无事件）
 
 ---
 

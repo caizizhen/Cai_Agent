@@ -24,6 +24,7 @@
 - **S4-02**：`schedule daemon --max-concurrent`（默认 1，`0`→1）；每轮最多执行 N 个到点任务，其余跳过并在 `.cai-schedule-audit.jsonl` 与可选 `--jsonl-log` 记录 **`skipped_due_to_concurrency`**；JSON 汇总 `total_skipped_due_to_concurrency` 与每轮 `skipped_due_to_concurrency`
 - **S4-03**：`add_schedule_task` 检测 `depends_on` 有向环（含自环），拒绝写入；`schedule add` 失败 exit 2 + `--json` 的 `schedule_add_invalid`；`schedule list` 文本列 deps / dep_blocked / dependents / dep_chain；`list --json` 增加 `depends_on_status`、`dependency_blocked`、`dependents`、`depends_on_chain`（仅输出）
 - **S4-04**：`append_schedule_audit_event` 写入 `schema_version`/`event`/`goal_preview`/`elapsed_ms`/`error`；`daemon --jsonl-log` 与审计文件同 schema 镜像；`run-due --execute` / `daemon --execute` 增加 `task.started`；`daemon.cycle` 经审计 API 写入；文档 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`
+- **S4-05**：`compute_schedule_stats_from_audit` + CLI **`schedule stats`**（`--days`、`--audit-file`、`--json`）；`schema_version=schedule_stats_v1`；文档 `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`
 - `.cai-schedule-audit.jsonl` 审计日志
 - `run-due --execute` 与 `daemon --execute` 行为对齐（重试、审计、attempts）
 

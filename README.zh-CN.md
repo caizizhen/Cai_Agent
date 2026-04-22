@@ -499,6 +499,7 @@ cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --max-concurrent 1 -
 - `schedule daemon` 会按固定间隔轮询并执行到点任务；可用 **`--max-concurrent`**（默认 1，`0` 视为 1）限制**每轮**最多执行多少个到点任务，超限任务本跳过并在审计 / `--jsonl-log` 中记 **`skipped_due_to_concurrency`**；可用 `--max-cycles` 限制轮询次数（便于 CI / QA）。
 - `schedule list`：文本模式展示 **`deps` / `dep_blocked` / `dependents` / `dep_chain`**；`--json` 每任务附带 **`depends_on_status`**、**`dependency_blocked`**、**`dependents`**、**`depends_on_chain`**（不落盘）。**`depends_on` 若会形成有向环**（含自环），`schedule add` 拒绝写入并 **exit 2**（`--json` 含 `schedule_add_invalid`）。
 - **审计 JSONL（S4-04）**：`.cai-schedule-audit.jsonl` 与 **`daemon --jsonl-log`** 每行字段一致（`schema_version`、`event`、`task_id`、`goal_preview`、`elapsed_ms`、`error` 等），说明见 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**。
+- **`schedule stats`**（S4-05）：**`cai-agent schedule stats [--days N] [--audit-file PATH] [--json]`**，从审计文件聚合每任务的 **`success_rate`**、**`avg_elapsed_ms`**、**`p95_elapsed_ms`**、**`run_count`** 等；说明见 **`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`**。
 - `schedule add-memory-nudge` 可一键创建记忆巡检任务，默认目标为 `cai-agent memory nudge --json --write-file ./memory/nudge-latest.json --fail-on-severity high`。
 
 ### `cai-agent insights --json`

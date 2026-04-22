@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 16     | 47%      |
+| ✅ 已完成        | 17     | 50%      |
 | ⚠️ 部分完成（需补齐） | 3      | 9%       |
-| ❌ 未开发        | 15     | 44%      |
+| ❌ 未开发        | 14     | 41%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -42,6 +42,7 @@
 | **S4-02**   | `schedule daemon` 并发上限 | `schedule daemon --max-concurrent <N>`（默认 1，`0` 视为 1）；每轮仅执行前 N 个 `due` 任务，其余本跳过、下轮再判；`.cai-schedule-audit.jsonl` 与可选 `--jsonl-log` 写入 **`skipped_due_to_concurrency`**；JSON 汇总含 `max_concurrent`、`total_skipped_due_to_concurrency`、每轮 `skipped_due_to_concurrency`；`tests/test_schedule_daemon_cli.py` |
 | **S4-03**   | 任务依赖链与环检测 | `add_schedule_task` 写入前检测 `depends_on` 有向环（含自环），拒绝并 `ValueError`；`schedule add` 失败 **exit 2**，`--json` 输出 `schedule_add_invalid`；`schedule list` 文本列 **`deps` / `dep_blocked` / `dependents` / `dep_chain`**；`--json` 每行增加 **`depends_on_status`**、**`dependency_blocked`**、**`dependents`**、**`depends_on_chain`**（不落盘）；`tests/test_schedule_depends_s4_03.py` |
 | **S4-04**   | 调度审计 JSONL 统一 schema | `.cai-schedule-audit.jsonl` 与 `daemon --jsonl-log` **同行结构**：`schema_version=1.0`、`event` ∈ `task.started` / `task.completed` / `task.failed` / `task.retrying` / `task.skipped` / `daemon.cycle` / `daemon.started`，以及 `task_id`、`goal_preview`、`elapsed_ms`、`error`、`status`、`action`、`details`；`run-due --execute` 增加 **task.started**；文档 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**；`tests/test_schedule_audit_schema_s4_04.py` |
+| **S4-05**   | `schedule stats` SLA 聚合 | **`cai-agent schedule stats [--days N] [--audit-file PATH] [--json]`**；`schema_version=schedule_stats_v1`；每任务 **`run_count`** / **`success_count`** / **`fail_count`** / **`success_rate`** / **`avg_elapsed_ms`** / **`p95_elapsed_ms`**；兼容无 `event` 的旧审计行；文档 **`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`**；`tests/test_schedule_stats_cli.py` |
 
 
 ---
@@ -50,13 +51,13 @@
 
 ### S1-03 错误码规范（补齐剩余命令）
 
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）等已实现 exit 0/2；`schedule stats`、`observe report` 等新命令的错误码仍待补齐
+- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）等已实现 exit 0/2；`observe report` 等仍待补齐
 - **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
 - **QA**：随每个新命令提测时同步验证
 
 ### S1-02 错误码规范文档（需补文档）
 
-- **现状**：已新增 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`（S4-04）；其余命令 schema 仍待补
+- **现状**：已新增 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`（S4-04）、`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`（S4-05）；其余命令 schema 仍待补
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 
@@ -84,17 +85,14 @@
 
 ### Sprint 4：Scheduler 2.0
 
-
-| Story ID      | 标题                        | 优先级 | 估算  | 测试计划                                                                                      |
-| ------------- | ------------------------- | --- | --- | ----------------------------------------------------------------------------------------- |
-| **S4-05**     | `schedule stats` SLA 指标命令 | P2  | M   | SCH-SLA-001~002                                                                           |
+**本 Sprint（S4-01 ~ S4-05）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
 
 
 **开发关键文件**：
 
-- `cai-agent/src/cai_agent/schedule.py`：`schema_version` 1.1；跨轮次重试；`depends_on` 环检测；`enrich_schedule_tasks_for_display`
-- `__main__.py`：`schedule daemon --max-concurrent`；`schedule stats` 仍待办  
-**QA 等待信号**：S4-01~S4-04：**SCH-RETRY**、**SCH-CONC**、**SCH-DEP**、**SCH-AUDIT**
+- `cai-agent/src/cai_agent/schedule.py`：`schema_version` 1.1；跨轮次重试；`depends_on` 环检测；`enrich_schedule_tasks_for_display`；**`compute_schedule_stats_from_audit`**
+- `__main__.py`：`schedule daemon --max-concurrent`；**`schedule stats`**  
+**QA 等待信号**：S4-01~S4-05：**SCH-RETRY**、**SCH-CONC**、**SCH-DEP**、**SCH-AUDIT**、**SCH-SLA**
 
 ---
 
@@ -208,7 +206,7 @@ Sprint 8（GA）
 | ------ | -------------------------- | ------------------------------------------------- |
 | S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
 | S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
-| S4     | S4-01~S4-04 已合并主线（PR #18~#21） | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT；故障注入 SCH-FI-001~003 |
+| S4     | S4-01~S4-05 已合并或待合并 PR | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT + SCH-SLA；故障注入 SCH-FI-001~003 |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01/S6-03 合并             | 自动化 GTW-SEC-001~004；准备 Bot Token 待手工测             |
 | S7     | S7-01/S7-02 合并             | 运行 `test_observe*.py` + OBS-RPT-001~006           |
@@ -228,6 +226,7 @@ Sprint 8（GA）
 | [qa/sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) | S3 专项测试 |
 | [qa/sprint4-scheduler-v2-testplan.md](qa/sprint4-scheduler-v2-testplan.md) | S4 专项测试 |
 | [schema/SCHEDULE_AUDIT_JSONL.zh-CN.md](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) | S4-04 调度审计 JSONL 字段与 `event` 枚举 |
+| [schema/SCHEDULE_STATS_JSON.zh-CN.md](schema/SCHEDULE_STATS_JSON.zh-CN.md) | S4-05 `schedule stats --json` 输出说明 |
 | [qa/sprint5-subagents-testplan.md](qa/sprint5-subagents-testplan.md) | S5 专项测试 |
 | [qa/sprint6-gateway-telegram-testplan.md](qa/sprint6-gateway-telegram-testplan.md) | S6 专项测试（含安全） |
 | [qa/sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md) | S7 专项测试 |
@@ -241,4 +240,5 @@ Sprint 8（GA）
 - **2026-04-22 · Sprint 4 Scheduler（S4-02，已合并 PR #19）**：`schedule daemon --max-concurrent`、审计与 JSONL **`skipped_due_to_concurrency`**、汇总计数。
 - **2026-04-22 · Sprint 4 Scheduler（S4-03，已合并 PR #20）**：`depends_on` 环检测；`schedule list` 依赖链/阻塞/反向依赖展示；`schedule add` 环时 exit 2 + JSON `schedule_add_invalid`。
 - **2026-04-22 · Sprint 4 Scheduler（S4-04，已合并 PR #21）**：审计与 `--jsonl-log` 统一 `schema_version`/`event`/`goal_preview`/`elapsed_ms`；`task.started`；文档 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`。
+- **2026-04-22 · Sprint 4 Scheduler（S4-05，待合并 PR）**：`schedule stats --json` + `compute_schedule_stats_from_audit`；文档 `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`。
 - **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。

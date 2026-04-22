@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import time
 import uuid
 from datetime import UTC, datetime
@@ -515,3 +516,150 @@ def _schedule_audit_event_from_legacy(*, action: str, status: str, details: dict
     if act.startswith("schedule."):
         return "task.failed"
     return "task.failed"
+
+
+SCHEDULE_STATS_SCHEMA_VERSION = "schedule_stats_v1"
+SCHEDULE_AUDIT_FILE = ".cai-schedule-audit.jsonl"
+
+
+def _schedule_audit_path(cwd: str | None = None) -> Path:
+    return Path(cwd or ".").expanduser().resolve() / SCHEDULE_AUDIT_FILE
+
+
+def _parse_audit_row_ts(row: dict[str, Any]) -> datetime | None:
+    raw = row.get("ts")
+    if not isinstance(raw, str) or not raw.strip():
+        return None
+    try:
+        dt = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=UTC)
+        return dt
+    except Exception:
+        return None
+
+
+def _percentile_ms(values: list[int], p: float = 0.95) -> int:
+    if not values:
+        return 0
+    xs = sorted(int(x) for x in values if int(x) >= 0)
+    if not xs:
+        return 0
+    k = int(math.ceil(float(p) * float(len(xs)))) - 1
+    k = max(0, min(len(xs) - 1, k))
+    return xs[k]
+
+
+def compute_schedule_stats_from_audit(
+    *,
+    cwd: str | None = None,
+    days: int = 30,
+    audit_path: Path | str | None = None,
+) -> dict[str, Any]:
+    """S4-05：基于审计 JSONL 聚合每任务 SLA 指标（``days`` 天窗口，按行 ``ts`` 过滤）。"""
+    d = max(1, min(int(days), 366))
+    cutoff = datetime.now(UTC).timestamp() - float(d) * 86400.0
+    ap = Path(audit_path).expanduser().resolve() if audit_path else _schedule_audit_path(cwd)
+    goal_by_id: dict[str, str] = {}
+    for row in list_schedule_tasks(cwd):
+        if not isinstance(row, dict):
+            continue
+        tid = str(row.get("id") or "").strip()
+        if tid:
+            g = str(row.get("goal") or "").strip()
+            goal_by_id[tid] = g[:120] + ("…" if len(g) > 120 else "") if g else ""
+
+    acc: dict[str, dict[str, Any]] = {}
+
+    def _acc(tid: str) -> dict[str, Any]:
+        if tid not in acc:
+            acc[tid] = {
+                "success_count": 0,
+                "fail_count": 0,
+                "latencies_ms": [],
+            }
+        return acc[tid]
+
+    lines_used = 0
+    if ap.is_file():
+        try:
+            text = ap.read_text(encoding="utf-8")
+        except Exception:
+            text = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(row, dict):
+                continue
+            if not str(row.get("event") or "").strip():
+                det0 = row.get("details") if isinstance(row.get("details"), dict) else {}
+                row = {
+                    **row,
+                    "event": _schedule_audit_event_from_legacy(
+                        action=str(row.get("action") or ""),
+                        status=str(row.get("status") or ""),
+                        details=det0,
+                    ),
+                }
+            dt = _parse_audit_row_ts(row)
+            if dt is None:
+                continue
+            if dt.timestamp() < cutoff:
+                continue
+            lines_used += 1
+            ev = str(row.get("event") or "").strip()
+            tid = str(row.get("task_id") or "").strip()
+            if not tid or ev not in ("task.completed", "task.failed", "task.retrying"):
+                continue
+            em = row.get("elapsed_ms")
+            elapsed = int(em) if isinstance(em, int) and em >= 0 else 0
+            a = _acc(tid)
+            if not goal_by_id.get(tid):
+                gpa = str(row.get("goal_preview") or "").strip()
+                if gpa:
+                    goal_by_id[tid] = gpa[:120] + ("…" if len(gpa) > 120 else "")
+            if ev == "task.completed":
+                a["success_count"] = int(a["success_count"]) + 1
+            else:
+                a["fail_count"] = int(a["fail_count"]) + 1
+            if elapsed > 0:
+                a["latencies_ms"].append(elapsed)
+
+    all_ids = set(goal_by_id.keys()) | set(acc.keys())
+    tasks_out: list[dict[str, Any]] = []
+    for tid in sorted(all_ids):
+        a = acc.get(tid) or {"success_count": 0, "fail_count": 0, "latencies_ms": []}
+        sc = int(a.get("success_count") or 0)
+        fc = int(a.get("fail_count") or 0)
+        rc = sc + fc
+        lat: list[int] = list(a.get("latencies_ms") or [])
+        avg = int(sum(lat) / len(lat)) if lat else 0
+        p95 = _percentile_ms(lat, 0.95)
+        rate = (float(sc) / float(rc)) if rc > 0 else None
+        gp = goal_by_id.get(tid) or ""
+        tasks_out.append(
+            {
+                "task_id": tid,
+                "goal_preview": gp,
+                "run_count": rc,
+                "success_count": sc,
+                "fail_count": fc,
+                "success_rate": rate,
+                "avg_elapsed_ms": avg,
+                "p95_elapsed_ms": p95,
+            },
+        )
+
+    return {
+        "schema_version": SCHEDULE_STATS_SCHEMA_VERSION,
+        "generated_at": _utc_now_iso(),
+        "days": d,
+        "audit_file": str(ap),
+        "audit_lines_in_window": lines_used,
+        "tasks": tasks_out,
+    }
