@@ -52,9 +52,13 @@ class ScheduleDependencyAndAuditTests(unittest.TestCase):
             self.assertTrue(p.is_file())
             rows = [json.loads(x) for x in p.read_text(encoding="utf-8").splitlines() if x.strip()]
             self.assertEqual(len(rows), 1)
+            self.assertEqual(rows[0].get("schema_version"), "1.0")
+            self.assertEqual(rows[0].get("event"), "task.completed")
             self.assertEqual(rows[0].get("task_id"), "sched-1")
             self.assertEqual(rows[0].get("status"), "completed")
             self.assertEqual(rows[0].get("action"), "schedule.run_due")
+            self.assertIn("elapsed_ms", rows[0])
+            self.assertIn("goal_preview", rows[0])
 
 
 if __name__ == "__main__":

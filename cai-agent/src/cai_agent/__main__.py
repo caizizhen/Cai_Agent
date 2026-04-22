@@ -5530,6 +5530,9 @@ def main(argv: list[str] | None = None) -> int:
                 status="created",
                 action="schedule.add",
                 cwd=str(root),
+                event="task.completed",
+                goal_preview=str(job.get("goal") or "")[:120],
+                elapsed_ms=0,
                 details={
                     "every_minutes": job.get("every_minutes"),
                     "depends_on": job.get("depends_on"),
@@ -5679,6 +5682,10 @@ def main(argv: list[str] | None = None) -> int:
                         status=st_eg,
                         action="schedule.run_due",
                         cwd=str(root),
+                        event="task.failed",
+                        goal_preview="",
+                        elapsed_ms=0,
+                        error="empty_goal",
                         details={"reason": "empty_goal", "retry_count": snap_eg.get("retry_count")},
                     )
                     continue
@@ -5688,9 +5695,21 @@ def main(argv: list[str] | None = None) -> int:
                 backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
                 if backoff_sec < 0:
                     backoff_sec = 0.0
+                gp120 = str(goal)[:120] + ("…" if len(str(goal)) > 120 else "")
+                append_schedule_audit_event(
+                    task_id=tid,
+                    status="running",
+                    action="schedule.run_due",
+                    cwd=str(root),
+                    event="task.started",
+                    goal_preview=gp120,
+                    elapsed_ms=0,
+                    details={"mode": "run-due"},
+                )
                 attempts = 0
                 ok = False
                 out = ""
+                t_run0 = time.perf_counter()
                 while attempts < max_attempts:
                     attempts += 1
                     ok, out = _execute_scheduled_goal(
@@ -5704,6 +5723,7 @@ def main(argv: list[str] | None = None) -> int:
                         break
                     if attempts < max_attempts and backoff_sec > 0:
                         time.sleep(backoff_sec)
+                elapsed_ms_run = int(max(0.0, (time.perf_counter() - t_run0) * 1000.0))
                 if ok:
                     mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                     preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -5723,6 +5743,9 @@ def main(argv: list[str] | None = None) -> int:
                         status="completed",
                         action="schedule.run_due",
                         cwd=str(root),
+                        event="task.completed",
+                        goal_preview=gp120,
+                        elapsed_ms=elapsed_ms_run,
                         details={"attempts": attempts},
                     )
                 else:
@@ -5734,6 +5757,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     snap = _schedule_task_row_snapshot(str(root), tid)
                     persisted = str(snap.get("last_status") or "failed")
+                    ev_fail = "task.retrying" if persisted == "retrying" else "task.failed"
                     executed.append(
                         {
                             "id": tid,
@@ -5753,9 +5777,13 @@ def main(argv: list[str] | None = None) -> int:
                         status=persisted,
                         action="schedule.run_due",
                         cwd=str(root),
+                        event=ev_fail,
+                        goal_preview=gp120,
+                        elapsed_ms=elapsed_ms_run,
+                        error=str(out)[:500] if out else None,
                         details={
                             "attempts": attempts,
-                            "error": out[:500],
+                            "error": str(out)[:500],
                             "retry_count": snap.get("retry_count"),
                             "next_retry_at": snap.get("next_retry_at"),
                         },
@@ -5785,6 +5813,23 @@ def main(argv: list[str] | None = None) -> int:
 
             log_path_raw = getattr(args, "jsonl_log", None)
             log_path = _resolve_schedule_path(root, log_path_raw, ".cai-schedule-daemon.jsonl") if log_path_raw else None
+            append_schedule_audit_event(
+                task_id="",
+                status="running",
+                action="schedule.daemon",
+                cwd=str(root),
+                event="daemon.started",
+                goal_preview="",
+                elapsed_ms=0,
+                details={
+                    "execute": execute,
+                    "interval_sec": interval_sec,
+                    "max_cycles": max_cycles,
+                    "max_concurrent": max_concurrent,
+                    "lock_file": str(lock_path),
+                },
+                mirror_jsonl_path=log_path,
+            )
 
             cycles = 0
             total_due = 0
@@ -5821,24 +5866,17 @@ def main(argv: list[str] | None = None) -> int:
                                     status="skipped",
                                     action="schedule.daemon",
                                     cwd=str(root),
+                                    event="task.skipped",
+                                    goal_preview=str(skip_row.get("goal_preview") or ""),
+                                    elapsed_ms=0,
+                                    error="skipped_due_to_concurrency",
                                     details={
                                         "reason": "skipped_due_to_concurrency",
                                         "max_concurrent": max_concurrent,
                                         "cycle": cycles,
                                     },
+                                    mirror_jsonl_path=log_path,
                                 )
-                                if log_path is not None:
-                                    _append_schedule_daemon_log(
-                                        log_path,
-                                        {
-                                            "event": "skipped_due_to_concurrency",
-                                            "ts": datetime.now(UTC).isoformat(),
-                                            "task_id": tid,
-                                            "cycle": cycles,
-                                            "max_concurrent": max_concurrent,
-                                            "goal_preview": skip_row.get("goal_preview") or "",
-                                        },
-                                    )
                                 continue
                             ran_this_cycle += 1
                             goal = str(j.get("goal") or "").strip()
@@ -5874,11 +5912,16 @@ def main(argv: list[str] | None = None) -> int:
                                     status=st_eg,
                                     action="schedule.daemon",
                                     cwd=str(root),
+                                    event="task.failed",
+                                    goal_preview="",
+                                    elapsed_ms=0,
+                                    error="empty_goal",
                                     details={
                                         "reason": "empty_goal",
                                         "cycle": cycles,
                                         "retry_count": snap_eg.get("retry_count"),
                                     },
+                                    mirror_jsonl_path=log_path,
                                 )
                                 continue
                             max_attempts = int(j.get("retry_max_attempts") or 1)
@@ -5887,9 +5930,22 @@ def main(argv: list[str] | None = None) -> int:
                             backoff_sec = float(j.get("retry_backoff_sec") or 0.0)
                             if backoff_sec < 0:
                                 backoff_sec = 0.0
+                            gp120d = str(goal)[:120] + ("…" if len(str(goal)) > 120 else "")
+                            append_schedule_audit_event(
+                                task_id=tid,
+                                status="running",
+                                action="schedule.daemon",
+                                cwd=str(root),
+                                event="task.started",
+                                goal_preview=gp120d,
+                                elapsed_ms=0,
+                                details={"mode": "daemon", "cycle": cycles},
+                                mirror_jsonl_path=log_path,
+                            )
                             attempts = 0
                             ok = False
                             out = ""
+                            t_dm0 = time.perf_counter()
                             while attempts < max_attempts:
                                 attempts += 1
                                 ok, out = _execute_scheduled_goal(
@@ -5903,6 +5959,7 @@ def main(argv: list[str] | None = None) -> int:
                                     break
                                 if attempts < max_attempts and backoff_sec > 0:
                                     time.sleep(backoff_sec)
+                            elapsed_ms_dm = int(max(0.0, (time.perf_counter() - t_dm0) * 1000.0))
                             if ok:
                                 mark_schedule_task_run(task_id=tid, status="completed", cwd=str(root))
                                 preview = out[:160] + ("…" if len(out) > 160 else "")
@@ -5920,7 +5977,11 @@ def main(argv: list[str] | None = None) -> int:
                                     status="completed",
                                     action="schedule.daemon",
                                     cwd=str(root),
+                                    event="task.completed",
+                                    goal_preview=gp120d,
+                                    elapsed_ms=elapsed_ms_dm,
                                     details={"attempts": attempts, "cycle": cycles},
+                                    mirror_jsonl_path=log_path,
                                 )
                             else:
                                 mark_schedule_task_run(
@@ -5931,6 +5992,7 @@ def main(argv: list[str] | None = None) -> int:
                                 )
                                 snap = _schedule_task_row_snapshot(str(root), tid)
                                 persisted = str(snap.get("last_status") or "failed")
+                                ev_dm = "task.retrying" if persisted == "retrying" else "task.failed"
                                 cycle_exec.append(
                                     {
                                         "id": tid,
@@ -5948,13 +6010,18 @@ def main(argv: list[str] | None = None) -> int:
                                     status=persisted,
                                     action="schedule.daemon",
                                     cwd=str(root),
+                                    event=ev_dm,
+                                    goal_preview=gp120d,
+                                    elapsed_ms=elapsed_ms_dm,
+                                    error=str(out)[:500] if out else None,
                                     details={
                                         "attempts": attempts,
-                                        "error": out[:500],
+                                        "error": str(out)[:500],
                                         "cycle": cycles,
                                         "retry_count": snap.get("retry_count"),
                                         "next_retry_at": snap.get("next_retry_at"),
                                     },
+                                    mirror_jsonl_path=log_path,
                                 )
                     total_executed += len(cycle_exec)
                     cycle_row = {
@@ -5968,13 +6035,16 @@ def main(argv: list[str] | None = None) -> int:
                     }
                     results.append(cycle_row)
                     if log_path is not None:
-                        _append_schedule_daemon_log(
-                            log_path,
-                            {
-                                "event": "schedule.daemon.cycle",
-                                "ts": datetime.now(UTC).isoformat(),
-                                **cycle_row,
-                            },
+                        append_schedule_audit_event(
+                            task_id="",
+                            status="ok",
+                            action="schedule.daemon",
+                            cwd=str(root),
+                            event="daemon.cycle",
+                            goal_preview="",
+                            elapsed_ms=0,
+                            details=cycle_row,
+                            mirror_jsonl_path=log_path,
                         )
                     if max_cycles > 0 and cycles >= max_cycles:
                         break

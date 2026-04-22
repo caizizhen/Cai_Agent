@@ -63,10 +63,13 @@ class ScheduleDaemonGuardrailTests(unittest.TestCase):
             self.assertTrue(log_path.is_file())
             lines = [ln.strip() for ln in log_path.read_text(encoding="utf-8").splitlines() if ln.strip()]
             self.assertTrue(lines)
-            first = json.loads(lines[0])
-            self.assertIn("event", first)
-            self.assertIn(
-                first.get("event"),
-                {"schedule.daemon.started", "schedule.daemon.cycle", "schedule.daemon.finished"},
-            )
+            events = [json.loads(ln).get("event") for ln in lines]
+            self.assertIn("daemon.started", events)
+            self.assertTrue(any(e == "task.started" for e in events))
+            self.assertTrue(any(e == "task.completed" for e in events))
+            self.assertIn("daemon.cycle", events)
+            for row in map(json.loads, lines):
+                self.assertEqual(row.get("schema_version"), "1.0")
+                for k in ("ts", "event", "task_id", "goal_preview", "elapsed_ms", "error", "details"):
+                    self.assertIn(k, row)
 

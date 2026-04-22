@@ -74,7 +74,7 @@
 ### SCH-AUDIT-001：JSONL 日志事件字段完整
 - **前置条件**：启用 `--jsonl-log`，运行一个任务
 - **执行**：解析 JSONL 文件
-- **期望**：每行包含 `ts`、`event`、`task_id`、`goal_preview`、`elapsed_ms`
+- **期望**：每行包含 `schema_version`、`ts`、`event`、`task_id`、`goal_preview`、`elapsed_ms`、`error`、`details`（与 `.cai-schedule-audit.jsonl` 顶层一致）
 
 ### SCH-AUDIT-002：所有事件类型均有覆盖
 - **前置条件**：运行多轮（含成功/失败/重试/跳过）
@@ -86,6 +86,7 @@
   - `task.retrying`
   - `task.skipped`
   - `daemon.cycle`
+  - `daemon.started`
 
 ### SCH-AUDIT-003：JSONL 每行均为合法 JSON
 - **执行**：`cat .cai-schedule-daemon.jsonl | python3 -c "import sys,json;[json.loads(l) for l in sys.stdin]"`
