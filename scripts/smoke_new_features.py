@@ -2,11 +2,12 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
-``plugins --json`` (``plugins_surface_v1``), temp-dir ``hooks list --json``
-(``hooks_catalog_v1``) and ``memory health --json`` (S2-01 schema ``1.0``),
-plus init --json, schedule add + list + rm + stats --json, gateway telegram
-list --json, recall --json (empty workspace), memory list/search/export-entries
-/export --json envelopes.
+``plugins --json`` / ``doctor --json`` (``plugins_surface_v1`` / ``doctor_v1``),
+temp-dir ``hooks list --json`` (``hooks_catalog_v1``), empty-cwd ``insights
+--json`` (``1.1``) and ``board --json`` (``board_v1``), ``memory health --json``
+(S2-01 schema ``1.0``), plus init --json, schedule add + list + rm + stats
+--json, gateway telegram list --json, recall --json, memory list/search/
+export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -24,6 +25,11 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+
+# Minimal TOML for isolated hook smoke dirs (no network; satisfies Settings).
+_MINIMAL_LLM_TOML = (
+    '[llm]\nbase_url = "http://127.0.0.1:1/v1"\nmodel = "m"\napi_key = "k"\n'
+)
 
 
 def _root() -> Path:
@@ -176,7 +182,7 @@ def main() -> int:
 
     cfg_repo = root / "cai-agent.toml"
     if not cfg_repo.is_file():
-        errs.append("smoke expects repo-root cai-agent.toml for plugins --json")
+        errs.append("smoke expects repo-root cai-agent.toml for plugins/doctor --json")
     else:
         pp = _run(
             [*cli, "plugins", "--json", "--config", str(cfg_repo)],
@@ -191,14 +197,52 @@ def main() -> int:
             comps = po.get("components")
             if not isinstance(comps, dict):
                 errs.append("plugins components not object")
+        pd = _run(
+            [*cli, "doctor", "--json", "--config", str(cfg_repo)],
+            cwd=str(root),
+        )
+        if pd.returncode != 0:
+            errs.append(f"doctor json exit {pd.returncode} stderr={pd.stderr!r}")
+        else:
+            do = json.loads((pd.stdout or "").strip())
+            if do.get("schema_version") != "doctor_v1":
+                errs.append(f"doctor schema_version {do.get('schema_version')!r}")
+            if not isinstance(do.get("workspace"), str) or not str(do.get("workspace")).strip():
+                errs.append("doctor workspace missing")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-insights-") as ins_td:
+        pi = _run(
+            [*cli, "insights", "--json", "--days", "7", "--limit", "5"],
+            cwd=ins_td,
+        )
+        if pi.returncode != 0:
+            errs.append(f"insights json exit {pi.returncode} stderr={pi.stderr!r}")
+        else:
+            io = json.loads((pi.stdout or "").strip())
+            if io.get("schema_version") != "1.1":
+                errs.append(f"insights schema_version {io.get('schema_version')!r}")
+            siw = io.get("sessions_in_window")
+            if type(siw) is not int or siw != 0:
+                errs.append(f"insights sessions_in_window want 0 got {siw!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-board-") as brd_td:
+        pb = _run([*cli, "board", "--json"], cwd=brd_td)
+        if pb.returncode != 0:
+            errs.append(f"board json exit {pb.returncode} stderr={pb.stderr!r}")
+        else:
+            bo = json.loads((pb.stdout or "").strip())
+            if bo.get("schema_version") != "board_v1":
+                errs.append(f"board schema_version {bo.get('schema_version')!r}")
+            if bo.get("observe_schema_version") != "1.1":
+                errs.append(f"board observe_schema_version {bo.get('observe_schema_version')!r}")
+            obs = bo.get("observe")
+            if not isinstance(obs, dict) or obs.get("schema_version") != "1.1":
+                errs.append(f"board observe envelope: {bo!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-hooks-") as hk_td:
         hp = Path(hk_td)
         (hp / "hooks").mkdir(parents=True, exist_ok=True)
-        (hp / "cai-agent.toml").write_text(
-            '[llm]\nbase_url = "http://127.0.0.1:1/v1"\nmodel = "m"\napi_key = "k"\n',
-            encoding="utf-8",
-        )
+        (hp / "cai-agent.toml").write_text(_MINIMAL_LLM_TOML, encoding="utf-8")
         (hp / "hooks" / "hooks.json").write_text(
             json.dumps(
                 {

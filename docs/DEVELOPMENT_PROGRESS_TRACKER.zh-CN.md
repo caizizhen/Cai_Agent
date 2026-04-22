@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`plugins --json`**（**`plugins_surface_v1`**）、**`hooks list --json`**（**`hooks_catalog_v1`**）、**`memory health --json`**（S2-01 **根 `schema_version`=`1.0`**）、**`schedule stats --json`**（**`schedule_stats_v1`**）、**`gateway telegram list --json`**（**`gateway_telegram_map_v1`**）、**`recall --json`**（**`schema_version` 1.3**、**`no_hit_reason`**）；入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步，**347 passed**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**（**`hooks_catalog_v1`**）、**`memory health --json`**（S2-01 **根 `schema_version`=`1.0`**）、**`schedule stats --json`**（**`schedule_stats_v1`**）、**`gateway telegram list --json`**（**`gateway_telegram_map_v1`**）、**`recall --json`**（**`schema_version` 1.3**、**`no_hit_reason`**）；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
 
 ## 对照基线
 
@@ -32,6 +32,7 @@
 
 ### C. Hooks / 可观测
 
+- **`insights --json`**：窗口内无会话时 **`_build_insights_payload`** **早返回**（与零会话循环同形 **`schema_version`=`1.1`**）；单测 **`test_insights_json_empty_workspace_fast_path`**、冒烟脚本覆盖
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
 - `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务
 - `board` 新增失败摘要：输出 `failed_summary`（count/recent），文本模式增加 `[failed_summary]` 区块便于值班排障

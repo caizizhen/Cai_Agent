@@ -130,8 +130,31 @@ def _build_insights_payload(
 ) -> dict[str, Any]:
     now = datetime.now(UTC)
     since = now - timedelta(days=max(days, 1))
+    window_meta: dict[str, Any] = {
+        "days": max(days, 1),
+        "since": since.isoformat(),
+        "pattern": pattern,
+        "limit": limit,
+    }
     files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     window_files = [p for p in files if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since]
+    if not window_files:
+        return {
+            "schema_version": "1.1",
+            "generated_at": now.isoformat(),
+            "window": window_meta,
+            "sessions_in_window": 0,
+            "parse_skipped": 0,
+            "failure_rate": 0.0,
+            "total_tokens": 0,
+            "tool_calls_total": 0,
+            "avg_tokens_per_session": 0,
+            "avg_tool_calls_per_session": 0.0,
+            "models_top": [],
+            "tools_top": [],
+            "latest_session_path": None,
+            "top_error_sessions": [],
+        }
 
     model_counts: Counter[str] = Counter()
     tool_counts: Counter[str] = Counter()
@@ -182,12 +205,7 @@ def _build_insights_payload(
     return {
         "schema_version": "1.1",
         "generated_at": now.isoformat(),
-        "window": {
-            "days": max(days, 1),
-            "since": since.isoformat(),
-            "pattern": pattern,
-            "limit": limit,
-        },
+        "window": window_meta,
         "sessions_in_window": total,
         "parse_skipped": parse_skipped,
         "failure_rate": (float(error_sessions) / total) if total else 0.0,

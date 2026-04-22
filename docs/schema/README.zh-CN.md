@@ -57,6 +57,8 @@
 
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`：`failure_rate >= RATE` → `2`。
 
+**冒烟**：`scripts/smoke_new_features.py` 在**空临时工作区**执行 **`insights --json`**，断言 **`schema_version`=`1.1`** 且 **`sessions_in_window`=`0`**（无窗口内会话时的快速路径与完整路径输出一致）。
+
 ---
 
 ## `board` / `board --json`
@@ -67,6 +69,8 @@
 内嵌 `observe` 与 `observe --json` 根对象同源；筛选后 `sessions` / `sessions_count` 会更新，`aggregates` 可能仍为全量扫描值（实现细节以代码为准）。
 
 **Exit**：默认 `0`。`--fail-on-failed-sessions`：当前 **`observe.sessions` 列表**中存在 `error_count > 0` → `2`。
+
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`board --json`**，断言 **`board_v1`**、**`observe_schema_version`=`1.1`** 与内嵌 **`observe.schema_version`=`1.1`**。
 
 ---
 
@@ -200,6 +204,8 @@
 顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
+
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`doctor --json`**，断言 **`doctor_v1`** 与非空 **`workspace`**。
 
 ---
 
