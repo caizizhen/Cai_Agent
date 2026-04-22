@@ -254,8 +254,31 @@
 
 ---
 
+## `schedule run-due` / `schedule run-due --json`
+
+- **实现**：`__main__.py` `schedule run-due` 分支
+- **`schema_version`**：`schedule_run_due_v1`
+- **`mode`=`dry-run`**（无 `--execute`）：`due_jobs`、`executed`（空数组）
+- **`mode`=`execute`**（`--execute`）：`due_jobs`、**`executed`**（每任务 `ok` / `status` / `answer_preview` / `attempts` / `retry_count` / `next_retry_at` 等，见实现）
+
+**Exit**：见代码路径（dry-run 恒 `0`；execute 见任务结果与审计）。
+
+---
+
+## `schedule daemon` / `schedule daemon --json`
+
+- **实现**：`__main__.py` `schedule daemon` 分支
+- **`schema_version`**：`schedule_daemon_summary_v1`
+- **锁冲突**（未能获取锁）：`ok`=`false`，`error`=`lock_conflict`，`message`；**exit `2`**
+- **正常结束**：`mode`=`daemon`，`execute`、`interval_sec`、`max_cycles`、`max_concurrent`、`cycles`、`total_due`、`total_executed`、`total_skipped_due_to_concurrency`、`interrupted`、`results[]`（每轮 `cycle` / `due_count` / `executed` / `skipped_due_to_concurrency` 等）、`lock_file`、`jsonl_log`
+
+**审计 JSONL**（`--jsonl-log` / `.cai-schedule-audit.jsonl`）仍为每行 **`schema_version`=`1.0`**，见 [SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)。
+
+---
+
 ## 破坏性变更
 
+- **`schedule run-due --json` / `schedule daemon --json`**：stdout 根对象新增 **`schema_version`**（分别为 **`schedule_run_due_v1`**、**`schedule_daemon_summary_v1`**）；其余字段保持，**若脚本以固定键集合校验需放行新键**。
 - **`sessions --json`**：自 **`sessions_list_v1`** 起，根对象为 `{ "schema_version", "pattern", "limit", "details", "sessions" }`；**不再**直接输出裸数组（旧脚本请改为读 **`sessions`** 字段）。
 - **`commands --json` / `agents --json`**：自 **`commands_list_v1` / `agents_list_v1`** 起，根对象为 `{ "schema_version", "commands"|"agents" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 **`commands`** / **`agents`** 字段）。
 - **`models fetch --json`**：自 **`models_fetch_v1`** 起，根对象固定为 `{ "schema_version", "models" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 `models` 字段）。

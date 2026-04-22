@@ -56,6 +56,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("mode"), "daemon")
             self.assertEqual(payload.get("cycles"), 1)
             self.assertEqual(payload.get("total_executed"), 1)
@@ -96,6 +97,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("total_executed"), 0)
             self.assertEqual(exec_goal.call_count, 0)
 
@@ -148,6 +150,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("total_executed"), 1)
             results = payload.get("results") or []
             self.assertTrue(results)
@@ -213,6 +216,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("max_concurrent"), 1)
             self.assertEqual(payload.get("total_executed"), 1)
             self.assertEqual(payload.get("total_skipped_due_to_concurrency"), 1)
@@ -277,6 +281,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("max_concurrent"), 1)
             self.assertEqual(payload.get("total_skipped_due_to_concurrency"), 1)
 
@@ -320,6 +325,7 @@ class ScheduleDaemonCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("max_concurrent"), 3)
             self.assertEqual(payload.get("total_executed"), 3)
             self.assertEqual(payload.get("total_skipped_due_to_concurrency"), 2)

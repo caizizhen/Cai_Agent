@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **`cai-agent schedule run-due --json` / `schedule daemon --json`**: Stdout payloads now include **`schema_version`: `schedule_run_due_v1`** / **`schedule_daemon_summary_v1`** (including the daemon lock-conflict JSON). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent cost budget`**: The always-JSON stdout payload now includes **`schema_version`: `cost_budget_v1`** (alongside `state` / `total_tokens` / `max_tokens`; still no `--json` flag). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent sessions --json`**: Output is now a versioned object **`sessions_list_v1`** with **`sessions`** (plus **`pattern`**, **`limit`**, **`details`**) (**breaking change**: previously a bare JSON array). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent commands --json` / `agents --json`**: Output is now versioned objects **`commands_list_v1`** / **`agents_list_v1`** with **`commands`** / **`agents`** arrays (**breaking change**: previously bare JSON string arrays). See `docs/schema/README.zh-CN.md`.

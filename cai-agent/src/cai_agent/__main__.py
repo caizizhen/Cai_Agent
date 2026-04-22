@@ -5769,7 +5769,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.schedule_action == "run-due":
             due = compute_due_tasks(cwd=str(root))
             if not bool(args.execute):
-                payload = {"mode": "dry-run", "due_jobs": due, "executed": []}
+                payload = {
+                    "schema_version": "schedule_run_due_v1",
+                    "mode": "dry-run",
+                    "due_jobs": due,
+                    "executed": [],
+                }
                 if bool(args.json_output):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -5920,7 +5925,12 @@ def main(argv: list[str] | None = None) -> int:
                             "next_retry_at": snap.get("next_retry_at"),
                         },
                     )
-            payload = {"mode": "execute", "due_jobs": due, "executed": executed}
+            payload = {
+                "schema_version": "schedule_run_due_v1",
+                "mode": "execute",
+                "due_jobs": due,
+                "executed": executed,
+            }
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -5936,7 +5946,13 @@ def main(argv: list[str] | None = None) -> int:
             stale_lock_sec = max(0.0, float(getattr(args, "stale_lock_sec", 0.0) or 0.0))
             ok_lock, lock_msg = _acquire_schedule_daemon_lock(lock_path=lock_path, stale_lock_sec=stale_lock_sec)
             if not ok_lock:
-                payload = {"mode": "daemon", "ok": False, "error": "lock_conflict", "message": lock_msg}
+                payload = {
+                    "schema_version": "schedule_daemon_summary_v1",
+                    "mode": "daemon",
+                    "ok": False,
+                    "error": "lock_conflict",
+                    "message": lock_msg,
+                }
                 if bool(args.json_output):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -6190,6 +6206,7 @@ def main(argv: list[str] | None = None) -> int:
                     pass
 
             payload = {
+                "schema_version": "schedule_daemon_summary_v1",
                 "mode": "daemon",
                 "execute": execute,
                 "interval_sec": interval_sec,

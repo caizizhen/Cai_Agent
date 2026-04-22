@@ -62,6 +62,7 @@ class ScheduleExecuteTests(unittest.TestCase):
                     rc = main(["schedule", "run-due", "--execute", "--json"])
             self.assertEqual(rc, 0)
             payload = json.loads(out.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_run_due_v1")
             self.assertEqual(payload.get("mode"), "execute")
             executed = payload.get("executed") or []
             self.assertTrue(executed)

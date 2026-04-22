@@ -152,6 +152,7 @@ class ScheduleCliTests(unittest.TestCase):
                     rc_dry = main(["schedule", "run-due", "--json"])
             self.assertEqual(rc_dry, 0)
             dry = json.loads(buf_dry.getvalue().strip())
+            self.assertEqual(dry.get("schema_version"), "schedule_run_due_v1")
             self.assertEqual(dry.get("mode"), "dry-run")
             self.assertTrue((dry.get("due_jobs") or []))
             self.assertEqual((dry.get("executed") or []), [])
@@ -191,6 +192,7 @@ class ScheduleCliTests(unittest.TestCase):
                     rc_exec = main(["schedule", "run-due", "--json", "--execute"])
             self.assertEqual(rc_exec, 0)
             ex = json.loads(buf_exec.getvalue().strip())
+            self.assertEqual(ex.get("schema_version"), "schedule_run_due_v1")
             self.assertEqual(ex.get("mode"), "execute")
             executed = ex.get("executed") or []
             self.assertTrue(executed)

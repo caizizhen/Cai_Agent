@@ -24,6 +24,7 @@ class ScheduleDaemonGuardrailTests(unittest.TestCase):
                     rc = main(["schedule", "daemon", "--max-cycles", "1", "--json"])
             self.assertEqual(rc, 2)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_daemon_summary_v1")
             self.assertEqual(payload.get("ok"), False)
             self.assertEqual(payload.get("error"), "lock_conflict")
 
