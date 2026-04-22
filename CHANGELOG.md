@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **`cai-agent plugins --json`**: Payload now includes **`schema_version`: `plugins_surface_v1`** alongside the existing **`plugin_version`** (`list_plugin_surface`).
 - **`cai-agent models fetch --json` contract**: Output is now **`{"schema_version":"models_fetch_v1","models":[…]}`** (**breaking change**: previously a bare JSON string array; automation should read **`models`**). See `docs/schema/README.zh-CN.md`.
 - **Schedule stats SLA rollup (Hermes S4-05)**: Added **`cai-agent schedule stats`** with **`--json`**, **`--days`** (1–366, default 30), and optional **`--audit-file`**. Output **`schema_version`: `schedule_stats_v1`** and per-task **`success_rate`**, **`avg_elapsed_ms`**, **`p95_elapsed_ms`**, **`run_count`**, **`fail_count`** derived from **`task.completed` / `task.failed` / `task.retrying`** lines in `.cai-schedule-audit.jsonl` (legacy rows without `event` are mapped). See `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`.
 - **Schedule audit JSONL schema (Hermes S4-04)**: `.cai-schedule-audit.jsonl` and `schedule daemon --jsonl-log` now emit **one consistent JSON shape** per line: `schema_version` (**`1.0`**), `event` (`task.started` / `task.completed` / `task.failed` / `task.retrying` / `task.skipped` / `daemon.cycle` / `daemon.started`), plus `task_id`, `goal_preview`, `elapsed_ms`, `error`, `status`, `action`, and `details`. `schedule run-due --execute` logs **`task.started`** before invoking the agent. See `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`.

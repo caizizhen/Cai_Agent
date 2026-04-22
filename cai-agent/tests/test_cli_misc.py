@@ -95,6 +95,7 @@ class PluginsCliTests(unittest.TestCase):
             rc = main(["plugins", "--json"])
         self.assertEqual(rc, 0)
         payload = json.loads(buf.getvalue().strip())
+        self.assertEqual(payload.get("schema_version"), "plugins_surface_v1")
         self.assertIn("project_root", payload)
         self.assertIn("components", payload)
 

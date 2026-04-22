@@ -72,6 +72,7 @@ def list_plugin_surface(settings: Settings) -> dict[str, object]:
         }
     health = _compute_health_score(root, components)
     return {
+        "schema_version": "plugins_surface_v1",
         "project_root": str(root),
         "plugin_version": PLUGIN_VERSION,
         "compatibility": {

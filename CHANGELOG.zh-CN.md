@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **CLI `plugins --json`**：负载增加 **`schema_version`：`plugins_surface_v1`**（与既有 **`plugin_version`** 并存；`cai_agent.plugin_registry.list_plugin_surface`）。
 - **CLI `models fetch --json` 契约**：输出固定为 **`{"schema_version":"models_fetch_v1","models":[…]}`**（**破坏性变更**：此前为裸字符串数组；自动化脚本请改为读取 **`models`** 字段）。说明见 **`docs/schema/README.zh-CN.md`**。
 - **Schedule stats SLA 聚合（Hermes S4-05）**：新增 **`cai-agent schedule stats`**，支持 **`--json`**、**`--days`**（默认 30，最大 366）、**`--audit-file`**。JSON **`schema_version=schedule_stats_v1`**，**`tasks`** 每项含 **`success_rate`**、**`avg_elapsed_ms`**、**`p95_elapsed_ms`**、**`run_count`**、**`fail_count`** 等，数据源为 **`.cai-schedule-audit.jsonl`** 中的 **`task.completed` / `task.failed` / `task.retrying`**（无 `event` 的旧行会推导后统计）。说明见 **`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`**。
 - **Schedule 审计 JSONL 统一 schema（Hermes S4-04）**：`.cai-schedule-audit.jsonl` 与 **`schedule daemon --jsonl-log`** 每行统一为 **`schema_version=1.0`**、**`event`**（`task.started` / `task.completed` / `task.failed` / `task.retrying` / `task.skipped` / `daemon.cycle` / `daemon.started`）及 **`task_id`**、**`goal_preview`**、**`elapsed_ms`**、**`error`**、**`status`**、**`action`**、**`details`**。`schedule run-due --execute` 在执行前追加 **`task.started`**。字段说明见 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**。

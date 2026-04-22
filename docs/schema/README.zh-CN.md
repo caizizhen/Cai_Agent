@@ -71,7 +71,7 @@
 ## `plugins` / `plugins --json`
 
 - **实现**：`cai_agent.plugin_registry.list_plugin_surface`
-- **无**顶层 `schema_version` 字段；含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
+- **`schema_version`**：`plugins_surface_v1`；另含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
 
 **Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`。
 
