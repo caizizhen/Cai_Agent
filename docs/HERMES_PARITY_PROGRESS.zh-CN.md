@@ -18,6 +18,7 @@
 | ❌ 未开发        | 14     | 41%      |
 | **合计**       | **34** | **100%** |
 
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 同口径）**：仅计 ✅ 为 **17/34 ≈ 50%**；将 ⚠️ 三条各按半条计入为 **(17+1.5)/34 ≈ 54%**。
 
 ---
 
@@ -57,7 +58,7 @@
 
 ### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`schedule add`/`list`/`rm`/`add-memory-nudge`（`schedule_add_v1`/`schedule_list_v1`/`schedule_rm_v1`/`schedule_add_memory_nudge_v1` 与 `schedule_add_invalid_v1`）** / **`schedule run-due`（`schedule_run_due_v1`）** / **`schedule daemon`（`schedule_daemon_summary_v1`）** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / **`init --json` → `init_cli_v1`** / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory（**`memory_extract_v1` / `memory_list_v1` / `memory_search_v1` / `memory_instincts_list_v1` / `memory_instincts_import_v1` / `memory_instincts_export_v1` / `memory_entries_export_result_v1` / `memory_entries_import_*`** 等）/ recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
+- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / **`gateway telegram`（`gateway_telegram_map_v1`，bind/get/list/unbind/resolve-update/serve-webhook）** / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`schedule add`/`list`/`rm`/`add-memory-nudge`（`schedule_add_v1`/`schedule_list_v1`/`schedule_rm_v1`/`schedule_add_memory_nudge_v1` 与 `schedule_add_invalid_v1`）** / **`schedule run-due`（`schedule_run_due_v1`）** / **`schedule daemon`（`schedule_daemon_summary_v1`）** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / **`init --json` → `init_cli_v1`** / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory（**`memory_extract_v1` / `memory_list_v1` / `memory_search_v1` / `memory_instincts_list_v1` / `memory_instincts_import_v1` / `memory_instincts_export_v1` / `memory_entries_export_result_v1` / `memory_entries_import_*`** 等）/ recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 

@@ -43,7 +43,7 @@
 | 15 | `gateway telegram` 映射与解析 CLI | **完成** | `test_gateway_telegram_cli.py` |
 | 16 | `export` 多 harness | **完成（基础）** | |
 | 17 | Hermes backlog **S2-02～S2-05**（freshness / conflict_rate / coverage 指标、nudge-report 与 health 联动） | **完成** | 与 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 已完成表一致；**已在 `main`** |
-| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / **`init --json` → `init_cli_v1`** / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon` 等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**，**`memory import`/`import-entries` stdout → `memory_instincts_import_v1`/`memory_entries_import_result_v1`/`memory_entries_import_dry_run_v1`**；**`memory export`/`export-entries --json` → `memory_instincts_export_v1`/`memory_entries_export_result_v1`**（见 schema README 与 memory 表）；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
+| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`gateway telegram`（`gateway_telegram_map_v1`）**、**`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / **`init --json` → `init_cli_v1`** / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon` 等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**，**`memory import`/`import-entries` stdout → `memory_instincts_import_v1`/`memory_entries_import_result_v1`/`memory_entries_import_dry_run_v1`**；**`memory export`/`export-entries --json` → `memory_instincts_export_v1`/`memory_entries_export_result_v1`**（见 schema README 与 memory 表）；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
 | 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | **`main()` 兜底**：未分发子命令 **exit `2`** + stderr 诊断（此前 **`1`**）；**`init`**：**`config_exists`** / 模板或目录失败 **exit `2`**；**`models ping`** 非全 **`OK`** **默认 exit `2`**（**`--fail-on-any-error`** 同义）；**`hooks list --json`** 目录错误 **exit `2`**；另有 doctor / plugins / workflow 等；其余子命令仍按需对齐 0/2 叙事 |
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
 | 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **未开始** | |
@@ -72,6 +72,16 @@
 ## 三之二、开发进度统计 · 未开发项标记 · 测试移交（QA）
 
 > **说明**：本节为 **进度统计** 与 **给测试人员的执行清单**。**开发项 21–26** 与 Hermes Sprint 5+  backlog 为 **大颗粒能力**，**未**在主线以「单提交全部实现」的方式交付；以下「未开发」表为 **全量列出并标记状态**，避免与「已完成」混淆。
+
+### 3.0 同步完成度（百分比）
+
+> **口径**：下表为 **文档化估算**，便于干系人对齐预期；**不以百分比替代 §二逐条状态**。每次合并主线后随 §三之二一并更新。
+
+| 口径 | 计算方式 | **当前值** |
+|------|----------|------------|
+| **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 18、19）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 77%**（20÷26≈76.9%） |
+| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34；括号内为 ⚠️ **3** 条各按 **0.5** 条计入 | **约 50%**（17÷34）；**约 54%**（18.5÷34≈54.4%） |
+| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **346 passed**（见上表 T1） |
 
 ### 3.1 §二 开发项（1–26）状态计数
 
@@ -131,4 +141,4 @@
 
 ---
 
-*文档版本：2026-04-23（§二 S1-03：补充 **`main()` 分发兜底 exit `2`** 与 **`init`** 等；T1/QA-1 **346 passed**；S1-02 仍以 **`docs/schema/README.zh-CN.md`** 为准；**开发项 21–26** 见 §三之二。）*
+*文档版本：2026-04-23（§三之二 **3.0** 同步完成度：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；§二 S1-02 补充 **`gateway telegram`** 契约索引；T1/QA-1 **346 passed**；**开发项 21–26** 见 §三之二。）*

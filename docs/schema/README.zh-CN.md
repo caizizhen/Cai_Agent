@@ -157,6 +157,22 @@
 
 ---
 
+## `gateway telegram`（`--json`）
+
+- **实现**：`__main__.py` `gateway` → `telegram` 子命令；会话映射默认文件 **`.cai/gateway/telegram-session-map.json`**（可用 **`--map-file`** 覆盖，相对路径以工作区根解析）。
+- **`schema_version`**：stdout JSON 均为 **`gateway_telegram_map_v1`**；顶层含 **`action`**（`bind` / `get` / `list` / `unbind` / `resolve-update` / `serve-webhook`）及 **`map_file`** 等。
+- **字段摘要（随子命令变化）**：
+  - **bind**：`ok`、`binding`（`chat_id` / `user_id` / `session_file`）、`bindings_count`
+  - **get**：`ok`（是否命中）、`binding`（未命中时为 `null`）
+  - **list**：`ok`、`bindings`（数组）、`bindings_count`
+  - **unbind**：`ok`、`removed`、`binding`、`bindings_count`
+  - **resolve-update**：失败时 `ok:false` 与 **`error`**（`invalid_args` / `read_update_failed` / `invalid_update`）及 `message`；成功时 `created`、`chat_id`、`user_id`、`binding`
+  - **serve-webhook**：服务结束后的单行摘要含 `ok`、`host`、`port`、`path`、`events_handled`、`log_file`、`create_missing` 等（与运行态一致）
+
+**Exit**：缺参、读 update 失败、`resolve-update` 无映射且未创建等 → **`2`**；**`get`/`unbind`/`resolve-update`** 在「未找到绑定 / 无移除 / 无映射且未 `--create-missing`」等业务失败时 → **`2`**；**`serve-webhook`** 正常结束 → **`0`**；未知 `telegram` 子命令 → **`2`**。
+
+---
+
 ## `init`
 
 - **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
