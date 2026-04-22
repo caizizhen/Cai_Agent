@@ -64,12 +64,15 @@ Do not commit real API keys.
 | `docs/PRODUCT_VISION_FUSION.zh-CN.md` | Product vision: fused “full stack” on unified runtime (L1/L2/L3) |
 | `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
+| `docs/PRODUCT_PLAN.zh-CN.md` | **Single execution plan**: Hermes gap summary, ordered dev items, test progress |
+| `docs/HERMES_PARITY_BACKLOG.zh-CN.md` | Hermes-aligned story backlog (importable IDs + AC) |
+| `docs/HERMES_PARITY_PROGRESS.zh-CN.md` | Hermes parity progress rollup vs backlog |
 | `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
 | `docs/MODEL_SWITCHER_BACKLOG.zh-CN.md` | Feature pack: in-UI model switcher + profile management + routing |
 | `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA); Sprint 3 acceptance is §4 |
 | `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` | P1 decision: MCP-first WebSearch/Notebook + how `board --json` aligns with `observe` |
 | `docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md` | Optimization backlog vs claude-code + ECC; Dev/QA sync |
-| `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
+| `docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` | Hermes parity sprint plan (companion to PRODUCT_PLAN) |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
 | `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
 | `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md` | Long-form backlog vs fusion vision |
@@ -165,7 +168,7 @@ cai-agent workflow workflow.json --json
   - **Safety**: path confinement, command allowlist, read-only git tools, MCP timeouts/auth.
 - **Content**: `rules/common`, `rules/python`, `skills/`, plus `commands/`, `agents/`, `hooks/` as the extensibility surface.
 
-See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/ROADMAP_EXECUTION.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
+See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/PRODUCT_PLAN.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
 
 ## Architecture (high level)
 

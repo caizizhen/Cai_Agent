@@ -15,11 +15,12 @@
 - **产品愿景（完全体）**：[docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)（三源融合、统一运行时、L1/L2/L3 验收）。
 - **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
 - **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
-- **对标双参考源的本版功能清单（Dev/QA/用户）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)（[claude-code](https://github.com/anthropics/claude-code) + [everything-claude-code](https://github.com/affaan-m/everything-claude-code)）。
-- **功能包：界面化模型切换 / 新模型配置**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)（TUI 面板 + `cai-agent models` CLI + 主/子代理路由 + 多供应商：ChatGPT / Claude / 本地）；Sprint 3 验收以 [MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md) **§4** 为准。
-- **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)（默认 MCP；`board`/`observe` schema 关系）。
-- **开发计划（Sprint 1–3，含 Alpha/Beta/GA 节奏）**：[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（分工、时间片、DoD、QA 回归矩阵、内测公告模板）。
-- **对标 Claude Code / ECC 的优化清单 + 开发/QA 同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)（可继续优化项、Parity `Next` 汇总、Sprint3 与后续 P1）。
+- **唯一产品计划（开发顺序 + Hermes 对比 + 测试进度）**：[docs/PRODUCT_PLAN.zh-CN.md](docs/PRODUCT_PLAN.zh-CN.md)（**排期以此为准**；与 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 差异摘要、已合并 `memory health` 分支说明见内文）。
+- **Hermes 对齐（Story / 进度 / Sprint）**：[docs/HERMES_PARITY_BACKLOG.zh-CN.md](docs/HERMES_PARITY_BACKLOG.zh-CN.md)（34 条可导入 backlog）、[docs/HERMES_PARITY_PROGRESS.zh-CN.md](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md](docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md)；总测计划 [docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md](docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md)。
+- **对标双参考源（Claude Code + ECC）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)。
+- **模型切换功能包（细节）**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)、[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（§4 Sprint 3 DoD）。
+- **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)。
+- **对标 Claude Code / ECC 优化同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)。
 - **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
 - **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
@@ -132,7 +133,7 @@ cai-agent workflow workflow.json --json
 - `docs/PRODUCT_VISION_FUSION.zh-CN.md`（三源融合愿景与 L1/L2/L3）
 - `docs/PARITY_MATRIX.zh-CN.md`（子系统 parity 与发版约定）
 - `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（能力对比、缺口与发布门禁）
-- `docs/ROADMAP_EXECUTION.zh-CN.md`（P0/P1/P2 落地清单）
+- `docs/PRODUCT_PLAN.zh-CN.md`（唯一执行清单：Hermes 对比 + 开发项 + 测试进度）
 - `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`（记忆与成本治理方案）
 - `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`（跨工具兼容映射）
 - `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`（补齐总册 backlog）

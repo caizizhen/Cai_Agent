@@ -5,7 +5,7 @@
 | 状态代码 | 含义 |
 |----------|------|
 | `Done` | 已在本仓库默认路径落地 |
-| `Next` | 已排入 [ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) 的近期里程碑 |
+| `Next` | 已排入 [PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md) 的近期里程碑 |
 | `MCP` | 不内置，以 **经文档认证的 MCP 配方** 作为等价能力（需在 `docs/` 或示例配置中可复现） |
 | `OOS` | **Out of scope**：明确不做，或依赖封闭/商业能力（简短理由见备注） |
 

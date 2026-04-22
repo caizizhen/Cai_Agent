@@ -48,5 +48,5 @@
 
 - 维度级缺口与发布门禁：[PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md)
 - 子系统级勾选矩阵（维护中）：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)
-- 执行阶段清单：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md)
+- 执行阶段清单（唯一）：[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)
 - 仓库入口说明：[README.zh-CN.md](../README.zh-CN.md)、[README.md](../README.md)

@@ -8,6 +8,8 @@ Writes a Markdown report under docs/qa/runs/ unless QA_SKIP_LOG=1.
 See docs/QA_REGRESSION_LOGGING.md (EN) and docs/QA_REGRESSION_LOGGING.zh-CN.md (ZH).
 
 Notes:
+  - Uses `python -m cai_agent` and prepends `cai-agent/src` on PYTHONPATH so this
+    checkout is exercised even when another `cai-agent` entrypoint is earlier on PATH.
   - mcp-check may exit 2 when MCP is disabled or unreachable; that is expected.
   - models may exit 0 or 2 depending on LM_BASE_URL; set REGRESSION_STRICT_MODELS=1
     to require exit 0.
@@ -29,6 +31,13 @@ from pathlib import Path
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def _ensure_repo_pythonpath(root: Path) -> None:
+    """Prepend cai-agent/src so unittest and `python -m cai_agent` use this checkout."""
+    src = str((root / "cai-agent" / "src").resolve())
+    prev = os.environ.get("PYTHONPATH", "").strip()
+    os.environ["PYTHONPATH"] = src if not prev else f"{src}{os.pathsep}{prev}"
 
 
 def _git_head(root: Path) -> str:
@@ -207,7 +216,8 @@ def main() -> int:
     started_at = datetime.now()
     root = _repo_root()
     os.chdir(root)
-    exe = "cai-agent"
+    _ensure_repo_pythonpath(root)
+    cli = [sys.executable, "-m", "cai_agent"]
     records: list[StepRecord] = []
 
     strict_models = os.environ.get("REGRESSION_STRICT_MODELS", "").lower() in (
@@ -239,20 +249,20 @@ def main() -> int:
             [sys.executable, "scripts/smoke_new_features.py"],
             (0,),
         ),
-        ("version", [exe, "--version"], (0,)),
-        ("doctor", [exe, "doctor"], (0,)),
-        ("plugins", [exe, "plugins", "--json"], (0,)),
-        ("commands", [exe, "commands", "--json"], (0,)),
-        ("agents", [exe, "agents", "--json"], (0,)),
-        ("sessions", [exe, "sessions", "--json"], (0,)),
-        ("stats", [exe, "stats", "--json"], (0,)),
-        ("observe", [exe, "observe", "--json", "--limit", "20"], (0,)),
-        ("cost budget", [exe, "cost", "budget"], (0,)),
-        ("security-scan", [exe, "security-scan", "--json"], (0,)),
-        ("quality-gate", [exe, "quality-gate", "--json"], (0, 2)),
-        ("mcp-check", [exe, "mcp-check", "--json"], (0, 2)),
-        ("models", [exe, "models", "--json"], models_expected),
-        ("workflow missing", [exe, "workflow", "missing-workflow.json", "--json"], (2,)),
+        ("version", [*cli, "--version"], (0,)),
+        ("doctor", [*cli, "doctor"], (0,)),
+        ("plugins", [*cli, "plugins", "--json"], (0,)),
+        ("commands", [*cli, "commands", "--json"], (0,)),
+        ("agents", [*cli, "agents", "--json"], (0,)),
+        ("sessions", [*cli, "sessions", "--json"], (0,)),
+        ("stats", [*cli, "stats", "--json"], (0,)),
+        ("observe", [*cli, "observe", "--json", "--limit", "20"], (0,)),
+        ("cost budget", [*cli, "cost", "budget"], (0,)),
+        ("security-scan", [*cli, "security-scan", "--json"], (0,)),
+        ("quality-gate", [*cli, "quality-gate", "--json"], (0, 2)),
+        ("mcp-check", [*cli, "mcp-check", "--json"], (0, 2)),
+        ("models", [*cli, "models", "--json"], models_expected),
+        ("workflow missing", [*cli, "workflow", "missing-workflow.json", "--json"], (2,)),
     ]
 
     all_ok = True
@@ -270,7 +280,7 @@ def main() -> int:
         wf_ok = _run_step(
             root,
             "workflow mock",
-            [exe, "workflow", str(wf), "--json"],
+            [*cli, "workflow", str(wf), "--json"],
             (0,),
             env=env,
             records=records,
@@ -280,7 +290,7 @@ def main() -> int:
         wf.unlink(missing_ok=True)
 
     proc_board = subprocess.run(
-        [exe, "board", "--json", "--limit", "20"],
+        [*cli, "board", "--json", "--limit", "20"],
         cwd=str(root),
         capture_output=True,
         text=True,
@@ -304,7 +314,7 @@ def main() -> int:
     records.append(
         StepRecord(
             name="board --json",
-            argv=[exe, "board", "--json", "--limit", "20"],
+            argv=[*cli, "board", "--json", "--limit", "20"],
             expected=(0,),
             exit_code=int(proc_board.returncode),
             passed=board_ok,
@@ -332,7 +342,7 @@ def main() -> int:
         env_mock["CAI_MOCK"] = "1"
         proc_plan = subprocess.run(
             [
-                exe,
+                *cli,
                 "plan",
                 "regression write-plan",
                 "--write-plan",
@@ -348,7 +358,7 @@ def main() -> int:
         )
         plan_ok = proc_plan.returncode == 0 and plan_file.is_file() and plan_file.stat().st_size > 0
         plan_argv = [
-            exe,
+                    *cli,
             "plan",
             "regression write-plan",
             "--write-plan",
@@ -381,7 +391,7 @@ def main() -> int:
 
         proc_run_pf = subprocess.run(
             [
-                exe,
+                *cli,
                 "run",
                 "--plan-file",
                 str(plan_file),
@@ -400,7 +410,7 @@ def main() -> int:
             StepRecord(
                 name="run --plan-file",
                 argv=[
-                    exe,
+                    *cli,
                     "run",
                     "--plan-file",
                     str(plan_file),
@@ -427,7 +437,7 @@ def main() -> int:
 
         proc_seed = subprocess.run(
             [
-                exe,
+                *cli,
                 "run",
                 "--json",
                 "--save-session",
@@ -446,7 +456,7 @@ def main() -> int:
             StepRecord(
                 name="run --save-session (seed)",
                 argv=[
-                    exe,
+                    *cli,
                     "run",
                     "--json",
                     "--save-session",
@@ -469,7 +479,7 @@ def main() -> int:
         else:
             proc_cont = subprocess.run(
                 [
-                    exe,
+                    *cli,
                     "continue",
                     str(sess_file),
                     "--plan-file",
@@ -490,7 +500,7 @@ def main() -> int:
                 StepRecord(
                     name="continue --plan-file --auto-approve",
                     argv=[
-                        exe,
+                        *cli,
                         "continue",
                         str(sess_file),
                         "--plan-file",
@@ -521,7 +531,7 @@ def main() -> int:
         all_ok = all_ok and seed_ok
 
         proc_cost = subprocess.run(
-            [exe, "cost", "budget", "--check"],
+            [*cli, "cost", "budget", "--check"],
             cwd=str(root),
             capture_output=True,
             text=True,
@@ -532,7 +542,7 @@ def main() -> int:
         records.append(
             StepRecord(
                 name="cost budget --check",
-                argv=[exe, "cost", "budget", "--check"],
+                argv=[*cli, "cost", "budget", "--check"],
                 expected=(0, 2),
                 exit_code=int(proc_cost.returncode),
                 passed=cost_ok,
@@ -561,7 +571,7 @@ def main() -> int:
         rep_dir.mkdir(parents=True, exist_ok=True)
         proc_qg = subprocess.run(
             [
-                exe,
+                *cli,
                 "quality-gate",
                 "--json",
                 "--report-dir",
@@ -578,7 +588,7 @@ def main() -> int:
             StepRecord(
                 name="quality-gate --report-dir",
                 argv=[
-                    exe,
+                    *cli,
                     "quality-gate",
                     "--json",
                     "--report-dir",
@@ -603,7 +613,7 @@ def main() -> int:
         all_ok = all_ok and qg_rep_ok
 
         proc_mem = subprocess.run(
-            [exe, "memory", "list", "--json", "--limit", "3"],
+            [*cli, "memory", "list", "--json", "--limit", "3"],
             cwd=str(root),
             capture_output=True,
             text=True,
@@ -614,7 +624,7 @@ def main() -> int:
         records.append(
             StepRecord(
                 name="memory list --json",
-                argv=[exe, "memory", "list", "--json", "--limit", "3"],
+                argv=[*cli, "memory", "list", "--json", "--limit", "3"],
                 expected=(0,),
                 exit_code=int(proc_mem.returncode),
                 passed=mem_ok,
@@ -654,7 +664,7 @@ def main() -> int:
         )
         mem_out = tmp / "mem-export.json"
         proc_mimp = subprocess.run(
-            [exe, "memory", "import-entries", str(mem_bundle)],
+            [*cli, "memory", "import-entries", str(mem_bundle)],
             cwd=str(tmp),
             capture_output=True,
             text=True,
@@ -665,7 +675,7 @@ def main() -> int:
         records.append(
             StepRecord(
                 name="memory import-entries",
-                argv=[exe, "memory", "import-entries", str(mem_bundle)],
+                argv=[*cli, "memory", "import-entries", str(mem_bundle)],
                 expected=(0,),
                 exit_code=int(proc_mimp.returncode),
                 passed=imp_ok,
@@ -683,7 +693,7 @@ def main() -> int:
         all_ok = all_ok and imp_ok
 
         proc_mexp = subprocess.run(
-            [exe, "memory", "export-entries", str(mem_out)],
+            [*cli, "memory", "export-entries", str(mem_out)],
             cwd=str(tmp),
             capture_output=True,
             text=True,
@@ -704,7 +714,7 @@ def main() -> int:
         records.append(
             StepRecord(
                 name="memory export-entries",
-                argv=[exe, "memory", "export-entries", str(mem_out)],
+                argv=[*cli, "memory", "export-entries", str(mem_out)],
                 expected=(0,),
                 exit_code=int(proc_mexp.returncode),
                 passed=exp_ok,

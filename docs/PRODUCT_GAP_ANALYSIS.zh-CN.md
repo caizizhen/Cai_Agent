@@ -58,4 +58,4 @@
 - 三源融合愿景（一页纸）：[PRODUCT_VISION_FUSION.zh-CN.md](PRODUCT_VISION_FUSION.zh-CN.md)
 - 新用户路径与 CI 示例：[ONBOARDING.zh-CN.md](ONBOARDING.zh-CN.md)
 - 上下文压缩与成本联动说明：[CONTEXT_AND_COMPACT.zh-CN.md](CONTEXT_AND_COMPACT.zh-CN.md)
-- 执行清单：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md)
+- 执行清单（唯一）：[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)
