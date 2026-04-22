@@ -208,7 +208,7 @@ Sprint 8（GA）
 | ------ | -------------------------- | ------------------------------------------------- |
 | S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
 | S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
-| S4     | S4-01~S4-04 已合并或待合并 PR | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT；故障注入 SCH-FI-001~003 |
+| S4     | S4-01~S4-04 已合并主线（PR #18~#21） | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT；故障注入 SCH-FI-001~003 |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01/S6-03 合并             | 自动化 GTW-SEC-001~004；准备 Bot Token 待手工测             |
 | S7     | S7-01/S7-02 合并             | 运行 `test_observe*.py` + OBS-RPT-001~006           |
@@ -240,5 +240,5 @@ Sprint 8（GA）
 - **2026-04-22 · Sprint 4 Scheduler（S4-01，已合并 PR #18）**：跨轮次失败重试与指数退避（`retrying` / `failed_exhausted`、`schedule add --max-retries`）。
 - **2026-04-22 · Sprint 4 Scheduler（S4-02，已合并 PR #19）**：`schedule daemon --max-concurrent`、审计与 JSONL **`skipped_due_to_concurrency`**、汇总计数。
 - **2026-04-22 · Sprint 4 Scheduler（S4-03，已合并 PR #20）**：`depends_on` 环检测；`schedule list` 依赖链/阻塞/反向依赖展示；`schedule add` 环时 exit 2 + JSON `schedule_add_invalid`。
-- **2026-04-22 · Sprint 4 Scheduler（S4-04，待合并 PR）**：审计与 `--jsonl-log` 统一 `schema_version`/`event`/`goal_preview`/`elapsed_ms`；`task.started`；文档 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`。
+- **2026-04-22 · Sprint 4 Scheduler（S4-04，已合并 PR #21）**：审计与 `--jsonl-log` 统一 `schema_version`/`event`/`goal_preview`/`elapsed_ms`；`task.started`；文档 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`。
 - **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。
