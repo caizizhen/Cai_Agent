@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **Schedule daemon 并发上限（Hermes S4-02）**：`cai-agent schedule daemon` 新增 **`--max-concurrent`**（默认 **1**，**0** 视为 **1**）。每轮最多执行 N 个到点任务，其余本跳过、下轮再判；在 **`.cai-schedule-audit.jsonl`** 与可选 **`--jsonl-log`** 中写入 **`skipped_due_to_concurrency`** 事件。汇总 JSON 含 `max_concurrent`、`total_skipped_due_to_concurrency` 及每轮 `skipped_due_to_concurrency` / `skipped_due_to_concurrency_count`。
 - **Schedule 跨轮次失败重试（Hermes S4-01）**：`.cai-schedule.json` 任务持久化 **`max_retries`**（默认 3，CLI **`schedule add --max-retries`**）、**`retry_count`**、**`next_retry_at`**。`run-due --execute` / `daemon --execute` 失败后 **`last_status=retrying`**，按 **`60 * 2^(retry_count-1)`** 秒退避再入队，用尽后为 **`failed_exhausted`**；成功则清零重试计数。`compute_due_tasks` 对 `retrying` 仅在 **`now >= next_retry_at`**（或缺失时间戳）时视为到期。执行 JSON 与 `.cai-schedule-audit.jsonl` 的失败行与上述持久化字段对齐。单次执行内连跑仍由 **`--retry-max-attempts` / `--retry-backoff-sec`** 控制。
 - **Recall 排序策略（Hermes S3-01）**：`cai-agent recall --json` 与 `recall-index search|benchmark` 支持 **`--sort recent|density|combined`**（默认 `recent`）。包含 `sort` 与 `ranking` 说明；关键词密度评分基于**完整命中消息正文**（而非仅 snippet），排序更稳定。
 - **Recall 无命中解释（Hermes S3-02）**：0 命中时 JSON 增加 **`no_hit_reason`**（`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`），`schema_version` 为 **`1.3`**；非 JSON 模式追加一行可读提示。索引检索的密度分使用索引 `content` 全文。

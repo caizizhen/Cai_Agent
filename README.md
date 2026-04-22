@@ -23,7 +23,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Session recall search | `cai-agent recall --query "auth timeout" --json` (optional `--sort recent|density|combined`; `--use-index` + `--index-path` for `.cai-recall-index.json`) |
 | Recall index (incremental) | `cai-agent recall-index build` then `cai-agent recall-index refresh` (skip unchanged mtime; `refresh --prune` drops missing/out-of-window paths); `recall-index doctor [--fix] [--json]` checks index vs disk (exit 0 healthy / 2 issues); `python3 scripts/perf_recall_bench.py --sessions 10 50 200` writes a Markdown timing report under `docs/qa/runs/` |
 | Cross-session recall | `cai-agent recall --query "auth" --days 14 --json` → matched session snippets with file/time metadata |
-| Scheduled automations | `cai-agent schedule add --every-minutes 60 --goal "Daily repo health summary"` (optional `--max-retries` for cross-run exponential backoff after failures) then `cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --execute --json` |
+| Scheduled automations | `cai-agent schedule add --every-minutes 60 --goal "Daily repo health summary"` (optional `--max-retries` for cross-run exponential backoff after failures) then `cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --max-concurrent 1 --execute --json` |
 | Memory nudge schedule template | `cai-agent schedule scaffold memory-nudge --json` (optional `--every-minutes`, `--output-file`, `--fail-on-severity`, `--add-task`) |
 | Save plan to disk | `cai-agent plan "..." --write-plan ./PLAN.md` |
 | Run with an existing plan | `cai-agent run --plan-file ./PLAN.md "Implement step 1"` |

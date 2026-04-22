@@ -50,7 +50,7 @@
 ### SCH-CONC-002：`--max-concurrent 3` 时允许 3 个并发
 - **前置条件**：同时有 5 个到期任务
 - **执行**：`cai-agent schedule daemon --max-concurrent 3 --max-cycles 1 --execute --json`
-- **期望**：`total_executed=3`，日志中有 `skipped_due_to_concurrency` 事件
+- **期望**：`total_executed=3`、`total_skipped_due_to_concurrency=2`；`.cai-schedule-audit.jsonl` 或 `--jsonl-log` 路径下存在 **`skipped_due_to_concurrency`** 事件（审计行 `details.reason` 同值）
 
 ### SCH-CONC-003：并发为 0 时使用默认值（不崩溃）
 - **执行**：`cai-agent schedule daemon --max-concurrent 0`
