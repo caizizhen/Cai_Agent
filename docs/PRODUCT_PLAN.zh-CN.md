@@ -60,7 +60,7 @@
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
 | T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **346 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm`**、**`memory … --json`** 等契约校验；见 `docs/qa/runs/regression-*.md` |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`memory … --json`** 等契约校验；见 `docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -112,7 +112,7 @@
 |------|----------|------|------------|----------|---------------------|
 | **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**346 passed**（以执行机 `pytest cai-agent/tests` 为准） |
 | **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；含 **`scripts/smoke_new_features.py`** |
-| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 `init`（含二次 **`config_exists`**）、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 `init`（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
 | **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 21–26 对应段落待开发完成后再测** | 计划已写 |
@@ -141,4 +141,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0** 完成度不变：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；§二 S1-02：`schema` README 已索引 **`schedule stats`（`schedule_stats_v1`）** 与 **`gateway telegram`**；T1/QA-1 **346 passed**；**开发项 21–26** 见 §三之二。）*
+*文档版本：2026-04-23（§三之二 **3.0** 完成度不变：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；S8-01：**`smoke_new_features`** 已校验 **`schedule stats --json`**；S1-02：`schema` README 已索引 **`schedule stats`/`gateway telegram`**；T1/QA-1 **346 passed**；**开发项 21–26** 见 §三之二。）*

@@ -2,8 +2,8 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
-temporary cwd, init --json, schedule add + list + rm envelopes, memory
-list/search/export-entries/export --json envelopes.
+temporary cwd, init --json, schedule add + list + rm + stats --json envelopes,
+memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -217,6 +217,18 @@ def main() -> int:
                     errs.append(f"schedule rm schema_version {rm_o.get('schema_version')!r}")
                 if rm_o.get("removed") is not True:
                     errs.append(f"schedule rm removed: {rm_o!r}")
+            pst = _run(
+                [exe, "schedule", "stats", "--json", "--days", "7"],
+                cwd=sched_td,
+            )
+            if pst.returncode != 0:
+                errs.append(f"schedule stats exit {pst.returncode} stderr={pst.stderr!r}")
+            else:
+                st_o = json.loads((pst.stdout or "").strip())
+                if st_o.get("schema_version") != "schedule_stats_v1":
+                    errs.append(f"schedule stats schema_version {st_o.get('schema_version')!r}")
+                if not isinstance(st_o.get("tasks"), list):
+                    errs.append("schedule stats tasks not list")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
         pm = _run([exe, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
