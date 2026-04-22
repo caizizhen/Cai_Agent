@@ -6,6 +6,11 @@
 
 **仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)。其余命令契约 **以本节为准**，更新时只改本文件与上述两文件，勿再新增平行 schema 文档。
 
+### S1-02 / S1-03 收口口径（本仓）
+
+- **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**）。
+- **S1-03**：**`0`** 成功；**`2`** 配置/参数/阈值/逻辑失败及未知子命令、**`argparse` 用法错误**；**`run`/`continue`/… 族** 用户 **Ctrl+C** 中断 → **exit `130`**（与 shell 约定一致）；**不将 `1` 作为稳定 CLI 契约**。
+
 ---
 
 ## `observe` / `observe --json`
@@ -153,8 +158,9 @@
 
 - **实现**：`__main__.py` 共享 `invoke` 路径
 - **版本键**：**`run_schema_version`**：`1.0`（与 `--save-session` 落盘 JSON 对齐；**不设**第二个顶层 `schema_version`，避免与 `run_schema_version` 重复）
+- **根级 `task_id`（开发项 21 MVP）**：与 **`task.task_id`** 同源字符串，便于与 `sessions`/`observe` 行内 `task_id` 及调度审计 **`task_id`** 对齐消费。
 - **成功结束**：`answer`、`iteration`、`finished`、`config`、`workspace`、`provider`、`model`、`mcp_enabled`、`elapsed_ms`、`prompt_tokens` / `completion_tokens` / `total_tokens`、`tool_calls_count`、`used_tools`、`last_tool`、`error_count`、`task`、`events`（`run.started` / `run.finished`）、`post_gate`（仅 **`fix-build`** 且未 `--no-gate` 时有对象；内含 **`schema_version`：`quality_gate_result_v1`**）
-- **Ctrl+C 中断**：仍打印一行 JSON；`finished: false`、`error: interrupted`、`message`；**exit `130`**（与 shell 约定一致）
+- **Ctrl+C 中断**：仍打印一行 JSON；含 **`task_id`**；`finished: false`、`error: interrupted`、`message`；**exit `130`**（与 shell 约定一致）
 
 **Exit**：会话读取/校验失败、模板缺失等 → `2`；正常完成 → `0`（未 `finished` 时 `task.status` 可为 `failed`，exit 仍为 `0`，由负载字段判断）。
 
@@ -255,6 +261,8 @@
 
 - **`quality-gate --json`**：`cai_agent.quality_gate.run_quality_gate` 返回对象含 **`schema_version`：`quality_gate_result_v1`**，以及 `task`、`workspace`、`config`（各阶段开关）、`checks[]`（`name` / `exit_code` / `elapsed_ms` / `skipped` 等）、`ok`、`failed_count`。
 - **`security-scan --json`**：`run_security_scan` 返回 **`schema_version`：`security_scan_result_v1`**，以及 `workspace`、`ok`、`scanned_files`、`findings_count`、`findings[]`、`rule_flags` 等。
+
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`、`-w` 指向空临时目录** 执行 **`security-scan --json`**，断言 **`security_scan_result_v1`** 与 **`scanned_files`** 为 int（**exit `0`/`2`** 均接受）。
 
 **Exit**：`quality-gate`：`ok == false` → `2`；`security-scan`：`ok == false`（存在 **high** 级命中）→ `2`；配置不可读 → `2`。
 

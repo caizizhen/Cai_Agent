@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步，**350 passed**）。**冒烟**：`scripts/smoke_new_features.py`（版本库脚本）已覆盖 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health`/`memory state` --json**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**、**`recall-index doctor --json`**（无索引 exit `2`）、**`recall-index info --json`**（无索引 exit `0`）；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 81%**（**21÷26**）；**Hermes 34 Story 约 56%**（**19÷34**）；T1 **351 passed**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`mcp-check`/`security-scan`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`run --json` 根级 `task_id`**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list`/`memory health`/`memory state`**、**`schedule stats`/`gateway telegram list`/`recall`/`recall-index doctor|info`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
 
 ## 对照基线
 

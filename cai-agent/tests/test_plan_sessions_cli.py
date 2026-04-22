@@ -137,6 +137,57 @@ class PlanJsonSchemaTests(unittest.TestCase):
         self.assertEqual(payload.get("error"), "config_not_found")
         self.assertIs(payload.get("ok"), False)
 
+    def test_run_json_top_level_task_id_matches_task_object(self) -> None:
+        prev_mock = os.environ.get("CAI_MOCK")
+        prev_cfg = os.environ.get("CAI_CONFIG")
+        os.environ["CAI_MOCK"] = "1"
+        cfg: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                suffix=".toml",
+                delete=False,
+                encoding="utf-8",
+            ) as f:
+                f.write(
+                    textwrap.dedent(
+                        """
+                        [llm]
+                        base_url = "http://127.0.0.1:9/v1"
+                        model = "m"
+                        api_key = "k"
+                        """,
+                    ),
+                )
+                cfg = f.name
+            os.environ["CAI_CONFIG"] = cfg
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["run", "--json", "task id envelope"])
+        finally:
+            if prev_mock is None:
+                os.environ.pop("CAI_MOCK", None)
+            else:
+                os.environ["CAI_MOCK"] = prev_mock
+            if prev_cfg is None:
+                os.environ.pop("CAI_CONFIG", None)
+            else:
+                os.environ["CAI_CONFIG"] = prev_cfg
+            if cfg:
+                try:
+                    os.unlink(cfg)
+                except OSError:
+                    pass
+
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue().strip())
+        self.assertEqual(payload.get("run_schema_version"), "1.0")
+        tid = str(payload.get("task_id") or "").strip()
+        self.assertTrue(tid.startswith("run-"))
+        td = payload.get("task")
+        self.assertIsInstance(td, dict)
+        self.assertEqual(tid, str(td.get("task_id") or "").strip())
+
 
 class SessionsJsonExtraTests(unittest.TestCase):
     def test_sessions_json_includes_events_without_details(self) -> None:

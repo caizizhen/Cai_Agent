@@ -2,7 +2,7 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
-``plugins``/``doctor``/``mcp-check --json``, empty cwd ``sessions`` +
+``plugins``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
@@ -116,6 +116,11 @@ def main() -> int:
         ev = o.get("events")
         if not isinstance(ev, list) or len(ev) < 1:
             errs.append(f"run events: {ev!r}")
+        tid = str(o.get("task_id") or "").strip()
+        td = o.get("task") if isinstance(o.get("task"), dict) else {}
+        ntid = str((td or {}).get("task_id") or "").strip()
+        if not tid or tid != ntid:
+            errs.append(f"run json task_id mismatch top={tid!r} nested={ntid!r}")
 
     p = _run([*cli, "cost", "budget"])
     if p.returncode not in (0, 2):
@@ -226,6 +231,34 @@ def main() -> int:
                     errs.append(f"mcp-check schema_version {mco.get('schema_version')!r}")
                 if "mcp_enabled" not in mco:
                     errs.append("mcp-check missing mcp_enabled")
+
+        with tempfile.TemporaryDirectory(prefix="cai-smoke-secscan-") as sec_td:
+            psec = _run(
+                [
+                    *cli,
+                    "security-scan",
+                    "--json",
+                    "--config",
+                    str(cfg_repo),
+                    "-w",
+                    sec_td,
+                ],
+                cwd=str(root),
+            )
+            if psec.returncode not in (0, 2):
+                errs.append(f"security-scan json exit {psec.returncode} stderr={psec.stderr!r}")
+            else:
+                try:
+                    so = json.loads((psec.stdout or "").strip())
+                except json.JSONDecodeError as e:
+                    errs.append(f"security-scan json parse: {e}")
+                else:
+                    if so.get("schema_version") != "security_scan_result_v1":
+                        errs.append(
+                            f"security-scan schema_version {so.get('schema_version')!r}",
+                        )
+                    if not isinstance(so.get("scanned_files"), int):
+                        errs.append("security-scan scanned_files not int")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-insights-") as ins_td:
         pi = _run(

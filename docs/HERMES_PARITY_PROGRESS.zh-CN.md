@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 17     | 50%      |
-| ⚠️ 部分完成（需补齐） | 3      | 9%       |
-| ❌ 未开发        | 14     | 41%      |
+| ✅ 已完成        | 19     | 56%      |
+| ⚠️ 部分完成（需补齐） | 0      | 0%       |
+| ❌ 未开发        | 15     | 44%      |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 同口径）**：仅计 ✅ 为 **17/34 ≈ 50%**；将 ⚠️ 三条各按半条计入为 **(17+1.5)/34 ≈ 54%**。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **19/34 ≈ 56%**（较上版 **+5.9pp**）。
 
 ---
 
@@ -28,8 +28,10 @@
 | Story ID    | 标题               | 说明                                                              |
 | ----------- | ---------------- | --------------------------------------------------------------- |
 | S1-01       | 命令参数命名一致性        | `--json`/`--days`/`--limit`/`--index-path`/`--history-file` 已统一 |
+| **S1-02**   | JSON schema 契约索引 | `docs/schema/README.zh-CN.md` **§ S1-02/S1-03** 收口；`smoke_new_features` 跨命令抽样；`SCHEDULE_*` 独立长文 |
+| **S1-03**   | 错误码 exit 0/2 / 130 | 见 schema README；主流失败路径 **exit `2`**；`run` 族 Ctrl+C **exit `130`** |
 | S1-04       | Parity Matrix 基础 | `docs/PARITY_MATRIX.zh-CN.md` 已有，需按新格式补充 Gap 列                  |
-| S1-03（基础部分） | 错误码 exit 0/2     | `--fail-on-severity`、`--fail-on-grade` 接口已规范，部分命令已实现            |
+| **S8-01**   | 回归与冒烟套件 | `scripts/run_regression.py` + `scripts/smoke_new_features.py`（`PYTHONPATH` + `python -m cai_agent`）；随 Sprint 扩充 |
 | **S2-01**   | `memory health` 统一评分 | `cai-agent memory health --json`（`schema_version`=`1.0`）、`--fail-on-grade` exit 0/2；实现见 `memory.build_memory_health_payload` + `tests/test_memory_health_cli.py` |
 | **S2-02**   | freshness 指标 | `compute_memory_freshness_metrics` 与 `memory health` 共用；`memory nudge-report --json` 输出 `freshness` / `freshness_days` / `since_freshness` / `fresh_entries`；CLI `--freshness-days` |
 | **S2-05**   | nudge-report health_score | `nudge-report --json` 升级为 `schema_version`=`1.2`，含 `health_score` 与 `health_grade`（与当前工作区 `memory health` 一致） |
@@ -50,23 +52,7 @@
 
 ## ⚠️ 部分完成（开发需补齐，QA 需扩充测试）
 
-### S1-03 错误码规范（补齐剩余命令）
-
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、**`models ping`（任一非 `OK` 默认 exit `2`；`--fail-on-any-error` 为同义显式别名）**、**`init`（`config_exists` / 模板或目录失败 exit `2`）**、**`main()` 未分发子命令兜底 exit `2` + stderr**、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
-- **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
-- **QA**：随每个新命令提测时同步验证
-
-### S1-02 JSON schema 文档（需补文档）
-
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / **`gateway telegram`（`gateway_telegram_map_v1`，bind/get/list/unbind/resolve-update/serve-webhook）** / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`schedule add`/`list`/`rm`/`add-memory-nudge`（`schedule_add_v1`/`schedule_list_v1`/`schedule_rm_v1`/`schedule_add_memory_nudge_v1` 与 `schedule_add_invalid_v1`）** / **`schedule run-due`（`schedule_run_due_v1`）** / **`schedule daemon`（`schedule_daemon_summary_v1`）** / **`schedule stats`（`schedule_stats_v1`，详表 `SCHEDULE_STATS_JSON.zh-CN.md`）** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / **`init --json` → `init_cli_v1`** / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory（**`memory_extract_v1` / `memory_list_v1` / `memory_search_v1` / `memory_instincts_list_v1` / `memory_instincts_import_v1` / `memory_instincts_export_v1` / `memory_entries_export_result_v1` / `memory_entries_import_*`** 等）/ recall 摘要；`SCHEDULE_AUDIT` / `SCHEDULE_STATS` 长文仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
-- **需要**：每个命令一份 schema 描述（字段/类型/版本）
-- **QA**：文档验证 + 契约测试
-
-### S8-01 全量回归套件（需扩充覆盖新功能）
-
-- **现状**：`scripts/run_regression.py` 已有，覆盖基础 27 个回归点；**`scripts/smoke_new_features.py`**（主线版本库）已校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1` + `observe` 1.1）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（`schema_version` 1.0 / `grade`）**、**`init --json`**（**`init_cli_v1`**）、**二次 init（`config_exists`，exit `2`）**、**`schedule add|list|rm`** 的 **`schedule_*_v1`**、**`schedule stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3、`no_hit_reason`）**、**`recall-index doctor --json`（无索引、`recall_index_doctor_v1`、exit `2`）**、**`recall-index info --json`（无索引、`index_not_found`、exit `0`）** 及 **`memory list|search|export|export-entries --json`** 等 JSON 信封；**`insights`** 无窗口内会话时 **`_build_insights_payload`** 早返回（与零会话循环同形）。**`python -m cai_agent`** + 仓库 **`cai-agent/src`** 在 **`PYTHONPATH`**，与回归主流程一致；隔离临时工作目录，避免污染仓库根）
-- **需要**：随每个 Sprint 新增用例时同步扩充
-- **QA**：每个 Sprint 结束必须更新回归脚本
+*（当前 **0** 条 Story 置于此区；**S1-02 / S1-03 / S8-01** 已迁入 ✅ 表。新 Sprint 若出现增量 Story，再在此登记。）*
 
 ---
 

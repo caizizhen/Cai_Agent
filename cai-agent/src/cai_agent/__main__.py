@@ -7304,6 +7304,7 @@ def main(argv: list[str] | None = None) -> int:
                 if args.json_output:
                     payload = {
                         "run_schema_version": "1.0",
+                        "task_id": task.task_id,
                         "answer": "",
                         "iteration": None,
                         "finished": False,
@@ -7392,6 +7393,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.json_output:
                 payload = {
                     "run_schema_version": "1.0",
+                    "task_id": task.task_id,
                     "answer": (final.get("answer") or "").strip(),
                     "iteration": final.get("iteration"),
                     "finished": final.get("finished"),

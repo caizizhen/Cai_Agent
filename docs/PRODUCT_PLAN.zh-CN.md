@@ -43,11 +43,11 @@
 | 15 | `gateway telegram` 映射与解析 CLI | **完成** | `test_gateway_telegram_cli.py` |
 | 16 | `export` 多 harness | **完成（基础）** | |
 | 17 | Hermes backlog **S2-02～S2-05**（freshness / conflict_rate / coverage 指标、nudge-report 与 health 联动） | **完成** | 与 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 已完成表一致；**已在 `main`** |
-| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`gateway telegram`（`gateway_telegram_map_v1`）**、**`plugins` → `plugins_surface_v1`**（**冒烟** `smoke_new_features` 已抽样 **`plugins --json`**）、**`hooks list` → `hooks_catalog_v1`**（**冒烟** 已抽样）、**`memory health` → `1.0`**（**冒烟** 已抽样 **`memory health --json`**）、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / **`init --json` → `init_cli_v1`** / memory / recall、**`recall-index doctor`（`recall_index_doctor_v1`；冒烟无索引 exit `2`）**、**`recall-index info`（无索引 JSON：`ok`/`error`；冒烟 exit `0`）**）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon`/`stats`（**`schedule_stats_v1`**，详表 [`SCHEDULE_STATS_JSON.zh-CN.md`](schema/SCHEDULE_STATS_JSON.zh-CN.md)）等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**，**`memory import`/`import-entries` stdout → `memory_instincts_import_v1`/`memory_entries_import_result_v1`/`memory_entries_import_dry_run_v1`**；**`memory export`/`export-entries --json` → `memory_instincts_export_v1`/`memory_entries_export_result_v1`**（见 schema README 与 memory 表）；调度审计长文仍为 [`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) |
-| 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | **`main()` 兜底**：未分发子命令 **exit `2`** + stderr 诊断（此前 **`1`**）；**`init`**：**`config_exists`** / 模板或目录失败 **exit `2`**；**`models ping`** 非全 **`OK`** **默认 exit `2`**（**`--fail-on-any-error`** 同义）；**`hooks list --json`** 目录错误 **exit `2`**；另有 doctor / plugins / workflow 等；其余子命令仍按需对齐 0/2 叙事 |
+| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **完成** | **收口口径**：[`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；契约索引 + `SCHEDULE_*` 长文 + **`smoke_new_features`**（**含** **`security-scan --json` / `security_scan_result_v1`**）；Backlog「每命令独立 md」以本节聚合为满足 **P1** 的交付定义；字段级清单见同文件（含 observe … **`gateway telegram`（`gateway_telegram_map_v1`）**、**`plugins` → `plugins_surface_v1`**（**冒烟** `smoke_new_features` 已抽样 **`plugins --json`**）、**`hooks list` → `hooks_catalog_v1`**（**冒烟** 已抽样）、**`memory health` → `1.0`**（**冒烟** 已抽样 **`memory health --json`**）、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / **`init --json` → `init_cli_v1`** / memory / recall、**`recall-index doctor`（`recall_index_doctor_v1`；冒烟无索引 exit `2`）**、**`recall-index info`（无索引 JSON：`ok`/`error`；冒烟 exit `0`）**）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon`/`stats`（**`schedule_stats_v1`**，详表 [`SCHEDULE_STATS_JSON.zh-CN.md`](schema/SCHEDULE_STATS_JSON.zh-CN.md)）等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**，**`memory import`/`import-entries` stdout → `memory_instincts_import_v1`/`memory_entries_import_result_v1`/`memory_entries_import_dry_run_v1`**；**`memory export`/`export-entries --json` → `memory_instincts_export_v1`/`memory_entries_export_result_v1`**（见 schema README 与 memory 表）；调度审计长文仍为 [`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) |
+| 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **完成** | **收口口径**：[`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-03**；**`main()`** 未知子命令 **`2`**；阈值/配置类失败主流命令 **`2`**；**`run` 族 Ctrl+C → `130`**；**`init`/`models ping`/`hooks list --json`** 等已对齐；长尾子命令随 Story 迭代 |
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
-| 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **未开始** | |
-| 22 | 敏感信息扫描、高危命令二次确认 | **未开始** | |
+| 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **部分完成** | **MVP**：**`run`/`continue`/`command`/`agent`/`fix-build` `--json`** 根级 **`task_id`**（与 **`task.task_id`** 同源）；`sessions`/`observe` 行内 **`task_id`** 已存在；**全链路状态机 + Dashboard** 仍为后续增量 |
+| 22 | 敏感信息扫描、高危命令二次确认 | **部分完成** | **MVP**：**`security-scan --json`**（**`security_scan_result_v1`**）+ **`smoke_new_features`** 空工作区抽样；**高危命令二次确认** 仍依赖 `sandbox`/`permissions` 与 [`NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`](NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md) 已述策略，未单列闭环 |
 | 23 | 子 Agent 标准 IO、多 Agent 编排模板 | **未开始** | Hermes Sprint 5–6 backlog |
 | 24 | 多平台 Gateway 与 Hermes 对齐（Discord/Slack/…） | **未开始** | 大项；依赖产品与密钥策略 |
 | 25 | 技能自进化 / Skills Hub 式分发 | **未开始** | Hermes 核心差异 |
@@ -59,8 +59,8 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **350 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 exit `2` / `recall_index_doctor_v1`）**、**`recall-index info --json`（无索引 `ok`=`false` / `index_not_found`，exit `0`）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md` |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **351 passed**（以本机 `pytest cai-agent/tests` 为准） |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`security-scan --json`（`security_scan_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 exit `2` / `recall_index_doctor_v1`）**、**`recall-index info --json`（无索引 `ok`=`false` / `index_not_found`，exit `0`）**、**`run --json`（`CAI_MOCK=1` 时根级 `task_id` 与 `task.task_id` 一致）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -79,28 +79,26 @@
 
 | 口径 | 计算方式 | **当前值** |
 |------|----------|------------|
-| **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 18、19）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 77%**（20÷26≈76.9%） |
-| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34；括号内为 ⚠️ **3** 条各按 **0.5** 条计入 | **约 50%**（17÷34）；**约 54%**（18.5÷34≈54.4%） |
-| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **350 passed**（见上表 T1） |
+| **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 **21、22**）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 81%**（**21÷26≈80.8%**；较上版 **+3.9pp**） |
+| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34 | **约 56%**（**19÷34**；较上版 **+5.9pp**） |
+| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **351 passed**（见上表 T1，以本机为准） |
 
 ### 3.1 §二 开发项（1–26）状态计数
 
 | 状态 | 数量 | 含开发项编号 / 说明 |
 |------|------|---------------------|
-| **完成** | **17** | 1–7、9–17、20 |
+| **完成** | **19** | 1–7、9–20（**含** 18、19） |
 | **定案（产品决策，无对等代码里程碑）** | **1** | 8（WebSearch/Notebook **MCP 优先**） |
 | **完成（持续演进）** | **1** | 9（记忆 CLI 仍随需求迭代） |
-| **部分完成** | **2** | 18（S1-02 JSON 契约与文档）、19（S1-03 exit 0/2 叙事） |
-| **未开始** | **6** | **21、22、23、24、25、26**（见下表 **已全部标记**） |
+| **部分完成** | **2** | **21**（`task_id` JSON MVP）、**22**（`security-scan` JSON + 冒烟；高危命令确认仍增量） |
+| **未开始** | **4** | **23、24、25、26**（见下表 **已全部标记**） |
 
 ### 3.2 未开发项全表（**标记：待分 Sprint / 立项后开发**）
 
-以下各项 **当前主线未实现业务闭环**；开发需按 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) / [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) **拆 Story、排期、再编码**。**不可**期望在未排期的情况下「一次开发全部落地」。
+以下各项 **当前主线未实现业务闭环**（**开发项 21、22** 另有 **§二「部分完成」MVP** 说明）；开发需按 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) / [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) **拆 Story、排期、再编码**。**不可**期望在未排期的情况下「一次开发全部落地」。
 
 | 开发项 | 主题 | 依赖 / 风险摘要 |
 |--------|------|-----------------|
-| **21** | 统一任务 ID、全链路状态机、Dashboard 消费 | 跨 `run` / `schedule` / `workflow` 数据模型；需架构设计 |
-| **22** | 敏感信息扫描、高危命令二次确认 | 安全策略、误报率、与 `sandbox` 联动 |
 | **23** | 子 Agent 标准 IO、多 Agent 编排模板 | Hermes **S5**；见 `docs/qa/sprint5-subagents-testplan.md` |
 | **24** | 多平台 Gateway（Discord/Slack/…） | 密钥与合规；**S6** 起 |
 | **25** | 技能自进化 / Skills Hub 式分发 | 与 **§一**「技能自进化」维度同源；产品未定稿前保持 **未开始** |
@@ -110,14 +108,14 @@
 
 | 序号 | 测试对象 | 类型 | 建议执行人 | 操作说明 | 当前证据（开发侧） |
 |------|----------|------|------------|----------|---------------------|
-| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**350 passed**（以执行机 `pytest cai-agent/tests` 为准） |
+| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**351 passed**（以执行机 `pytest cai-agent/tests` 为准） |
 | **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；**`smoke_new_features`** 亦 **`python -m cai_agent`** |
-| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 / exit `2`）**、**`recall-index info --json`（无索引 / exit `0`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`security-scan`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`run --json` `task_id`**、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 / exit `2`）**、**`recall-index info --json`（无索引 / exit `0`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
-| **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 21–26 对应段落待开发完成后再测** | 计划已写 |
+| **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 23–26 对应段落待开发完成后再测**（**21、22** 见 §二 **部分完成** MVP） | 计划已写 |
 | **QA-7** | S3 TUI 模型面板 | 手工 | 测试 | [`s3-tui-model-panel-testplan.md`](qa/s3-tui-model-panel-testplan.md) | 40 用例 |
-| **QA-8** | 发版前 gate | 人工 | 测试 / 发布 | `doctor`、Parity、CHANGELOG、**§二 18–19 契约抽样** | T7 **部分完成** |
+| **QA-8** | 发版前 gate | 人工 | 测试 / 发布 | `doctor`、Parity、CHANGELOG、**§二 21–22 MVP 与 schema README 抽样** | T7 **部分完成** |
 
 **回填方式**：测试负责人在本表右侧「当前证据」列追加日期与结论（或仅在 `docs/qa/runs/` 新增回归 Markdown 由流程约定处理）；**不必**在本文件重复粘贴大段日志。
 
@@ -141,4 +139,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0** 完成度不变：**§二 加权约 77%**、**Hermes Story 约 50%（加权约 54%）**；S8-01：**`smoke_new_features`**（**已纳入版本库**）已校验 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health`/`memory state` --json**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**（空工作区 **0 命中**）、**`recall-index doctor --json`**（无索引 **exit `2`** / **`index_file_missing`**）、**`recall-index info --json`**（无索引 **`ok`=`false`** / **`index_not_found`**，**exit `0`**），且与 **`run_regression`** 同用 **`python -m cai_agent` + `PYTHONPATH`**；**`insights`** 空窗口快速路径见 `__main__._build_insights_payload`；S1-02：`schema` README 已互链上述冒烟断言；T1/QA-1 **350 passed**；**开发项 21–26** 见 §三之二。）*
+*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 81%**（**21÷26**，**+3.9pp**）；**Hermes 34 Story 约 56%**（**19÷34**，**+5.9pp**）；**开发项 18、19** 已 **完成**；**21、22** **部分完成**（`run` JSON **`task_id`**、`security-scan` 冒烟）；**`smoke_new_features`** 已含 **`security-scan --json`**、**`run --json` `task_id`** 断言；S1-02/S1-03 收口见 **`docs/schema/README.zh-CN.md`** §头；T1/QA-1 **351 passed**；Hermes 表见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**。）*
