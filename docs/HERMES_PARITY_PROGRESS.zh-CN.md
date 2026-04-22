@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 14     | 41%      |
+| ✅ 已完成        | 15     | 44%      |
 | ⚠️ 部分完成（需补齐） | 4      | 12%      |
-| ❌ 未开发        | 16     | 47%      |
+| ❌ 未开发        | 15     | 44%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -40,6 +40,7 @@
 | **S3-04**   | recall 性能基准 | `scripts/perf_recall_bench.py`：生成会话并测 scan / index_build / index_search（可选 `--include-refresh`）；Markdown 默认落 `docs/qa/runs/`；`tests/test_perf_recall_bench.py` 冒烟 |
 | **S4-01**   | 调度失败跨轮次重试与指数退避 | `.cai-schedule.json`：`max_retries`（默认 3）/`retry_count`/`next_retry_at`；失败写入 `last_status=retrying`，超限 `failed_exhausted`；退避 `schedule_retry_backoff_seconds` = `60*2^(retry_count-1)` 秒；`compute_due_tasks` 对 `retrying` 仅当 `now>=next_retry_at`（或缺失时间戳）时到期；成功清零 `retry_count`；CLI `schedule add --max-retries`；`run-due --execute` / `daemon --execute` 的 JSON 与审计行携带持久化 `status`/`retry_count`/`next_retry_at`；`tests/test_schedule_retry_backoff.py`、`test_schedule_run_due_retry_json.py` |
 | **S4-02**   | `schedule daemon` 并发上限 | `schedule daemon --max-concurrent <N>`（默认 1，`0` 视为 1）；每轮仅执行前 N 个 `due` 任务，其余本跳过、下轮再判；`.cai-schedule-audit.jsonl` 与可选 `--jsonl-log` 写入 **`skipped_due_to_concurrency`**；JSON 汇总含 `max_concurrent`、`total_skipped_due_to_concurrency`、每轮 `skipped_due_to_concurrency`；`tests/test_schedule_daemon_cli.py` |
+| **S4-03**   | 任务依赖链与环检测 | `add_schedule_task` 写入前检测 `depends_on` 有向环（含自环），拒绝并 `ValueError`；`schedule add` 失败 **exit 2**，`--json` 输出 `schedule_add_invalid`；`schedule list` 文本列 **`deps` / `dep_blocked` / `dependents` / `dep_chain`**；`--json` 每行增加 **`depends_on_status`**、**`dependency_blocked`**、**`dependents`**、**`depends_on_chain`**（不落盘）；`tests/test_schedule_depends_s4_03.py` |
 
 
 ---
@@ -92,16 +93,15 @@
 
 | Story ID      | 标题                        | 优先级 | 估算  | 测试计划                                                                                      |
 | ------------- | ------------------------- | --- | --- | ----------------------------------------------------------------------------------------- |
-| **S4-03**     | 任务依赖（`--depends-on`）      | P2  | L   | SCH-DEP-001~003                                                                           |
 | **S4-04**（补齐） | 审计日志事件类型统一                | P1  | M   | SCH-AUDIT-001~004                                                                         |
 | **S4-05**     | `schedule stats` SLA 指标命令 | P2  | M   | SCH-SLA-001~002                                                                           |
 
 
 **开发关键文件**：
 
-- `cai-agent/src/cai_agent/schedule.py`：`schema_version` 1.1；跨轮次 `max_retries` / `retry_count` / `next_retry_at`；与 `compute_due_tasks` 到期判定
+- `cai-agent/src/cai_agent/schedule.py`：`schema_version` 1.1；跨轮次重试；`depends_on` 环检测；`enrich_schedule_tasks_for_display`
 - `__main__.py`：`schedule daemon --max-concurrent`；`schedule stats` 仍待办  
-**QA 等待信号**：S4-01/S4-02 已可开测 **SCH-RETRY** + **SCH-CONC-001~003**
+**QA 等待信号**：S4-01~S4-03：**SCH-RETRY**、**SCH-CONC**、**SCH-DEP**
 
 ---
 
@@ -215,7 +215,7 @@ Sprint 8（GA）
 | ------ | -------------------------- | ------------------------------------------------- |
 | S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
 | S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
-| S4     | S4-01/S4-02 已合并主线（PR #18、#19） | `test_schedule*.py` + SCH-RETRY + SCH-CONC；故障注入 SCH-FI-001~003 |
+| S4     | S4-01~S4-03 已合并或待合并 PR | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP；故障注入 SCH-FI-001~003 |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01/S6-03 合并             | 自动化 GTW-SEC-001~004；准备 Bot Token 待手工测             |
 | S7     | S7-01/S7-02 合并             | 运行 `test_observe*.py` + OBS-RPT-001~006           |
@@ -245,4 +245,5 @@ Sprint 8（GA）
 
 - **2026-04-22 · Sprint 4 Scheduler（S4-01，已合并 PR #18）**：跨轮次失败重试与指数退避（`retrying` / `failed_exhausted`、`schedule add --max-retries`）。
 - **2026-04-22 · Sprint 4 Scheduler（S4-02，已合并 PR #19）**：`schedule daemon --max-concurrent`、审计与 JSONL **`skipped_due_to_concurrency`**、汇总计数。
+- **2026-04-22 · Sprint 4 Scheduler（S4-03，待合并 PR）**：`depends_on` 环检测；`schedule list` 依赖链/阻塞/反向依赖展示；`schedule add` 环时 exit 2 + JSON `schedule_add_invalid`。
 - **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。

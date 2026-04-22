@@ -72,6 +72,111 @@ def list_schedule_tasks(cwd: str | None = None) -> list[dict[str, Any]]:
     return out
 
 
+def _task_dep_ids(row: dict[str, Any]) -> list[str]:
+    raw = row.get("depends_on")
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for dep in raw:
+        d = str(dep or "").strip()
+        if d and d not in out:
+            out.append(d)
+    return out
+
+
+def schedule_tasks_dependency_adjacency(rows: list[dict[str, Any]]) -> dict[str, list[str]]:
+    """Directed edges task_id -> dependency_id (task waits for dependency)."""
+    adj: dict[str, list[str]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        tid = str(row.get("id") or "").strip()
+        if not tid:
+            continue
+        adj[tid] = _task_dep_ids(row)
+    return adj
+
+
+def schedule_dependency_graph_has_cycle(rows: list[dict[str, Any]]) -> bool:
+    """True if the depends_on graph contains any directed cycle."""
+    adj = schedule_tasks_dependency_adjacency(rows)
+    visited: set[str] = set()
+    stack: set[str] = set()
+
+    def dfs(u: str) -> bool:
+        if u in stack:
+            return True
+        if u in visited:
+            return False
+        visited.add(u)
+        stack.add(u)
+        for v in adj.get(u, []):
+            if dfs(v):
+                return True
+        stack.remove(u)
+        return False
+
+    for node in list(adj.keys()):
+        if node not in visited:
+            if dfs(node):
+                return True
+    return False
+
+
+def enrich_schedule_tasks_for_display(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """S4-03：为 list / JSON 输出补充依赖链与阻塞摘要（不写入磁盘）。"""
+    known: dict[str, dict[str, Any]] = {}
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        tid = str(row.get("id") or "").strip()
+        if tid:
+            known[tid] = row
+    rev: dict[str, list[str]] = {tid: [] for tid in known}
+    for tid, row in known.items():
+        for dep in _task_dep_ids(row):
+            if dep in known:
+                rev[dep].append(tid)
+    for k in rev:
+        rev[k] = sorted(rev[k])
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        r = dict(row)
+        tid = str(r.get("id") or "").strip()
+        deps = _task_dep_ids(r)
+        dep_statuses: list[dict[str, Any]] = []
+        blocked = False
+        for dep_id in deps:
+            if dep_id not in known:
+                dep_statuses.append({"id": dep_id, "last_status": None, "known": False})
+                blocked = True
+                continue
+            st = known[dep_id].get("last_status")
+            st_s = str(st).strip() if isinstance(st, str) and st.strip() else None
+            dep_statuses.append({"id": dep_id, "last_status": st_s, "known": True})
+            if st_s != "completed":
+                blocked = True
+        r["depends_on_status"] = dep_statuses
+        r["dependency_blocked"] = bool(deps) and blocked
+        r["dependents"] = sorted(rev.get(tid, [])) if tid else []
+        if dep_statuses:
+            parts: list[str] = []
+            for ds in dep_statuses:
+                did = str(ds.get("id") or "")
+                if not ds.get("known"):
+                    parts.append(f"{did}?")
+                else:
+                    st = ds.get("last_status") or "none"
+                    parts.append(f"{did}({st})")
+            r["depends_on_chain"] = " -> ".join(parts)
+        else:
+            r["depends_on_chain"] = ""
+        out.append(r)
+    return out
+
+
 def add_schedule_task(
     *,
     goal: str,
@@ -98,6 +203,24 @@ def add_schedule_task(
         d = str(dep or "").strip()
         if d and d not in deps_clean:
             deps_clean.append(d)
+    item_id = f"sched-{uuid.uuid4().hex[:10]}"
+    if item_id in deps_clean:
+        raise ValueError("任务不能依赖自身（depends_on 含本任务 id）")
+    preview = {
+        "id": item_id,
+        "goal": g,
+        "every_minutes": int(every_minutes),
+        "enabled": True,
+        "workspace": str(workspace).strip() if isinstance(workspace, str) and workspace.strip() else None,
+        "model": str(model).strip() if isinstance(model, str) and model.strip() else None,
+        "depends_on": deps_clean,
+        "retry_max_attempts": int(retry_max_attempts if retry_max_attempts is not None else 1),
+        "retry_backoff_sec": float(retry_backoff_sec if retry_backoff_sec is not None else 0.0),
+        "max_retries": int(max_retries if max_retries is not None else 3),
+    }
+    combined = [t for t in tasks if isinstance(t, dict)] + [preview]
+    if schedule_dependency_graph_has_cycle(combined):
+        raise ValueError("循环依赖：depends_on 会形成有向环，已拒绝写入")
     retry_attempts = int(retry_max_attempts if retry_max_attempts is not None else 1)
     retry_attempts = max(1, min(retry_attempts, 20))
     backoff = float(retry_backoff_sec if retry_backoff_sec is not None else 0.0)
@@ -105,7 +228,7 @@ def add_schedule_task(
     mr = int(max_retries if max_retries is not None else 3)
     mr = max(0, min(mr, 50))
     item = {
-        "id": f"sched-{uuid.uuid4().hex[:10]}",
+        "id": item_id,
         "goal": g,
         "every_minutes": int(every_minutes),
         "enabled": True,
