@@ -31,3 +31,8 @@
 ## 兼容
 
 若审计行缺少 `event` 字段（S4-04 前旧格式），统计时会用 `action`/`status`/`details` 推导等价事件后再归类。
+
+## Exit 码
+
+- 默认：成功 `0`。
+- `--fail-on-min-success-rate RATE`（0~1）：任一任务 `run_count >= 1` 且 `success_rate < RATE` 时 `2`。

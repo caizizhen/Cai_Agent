@@ -57,6 +57,43 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
             finally:
                 os.chdir(old)
 
+    def test_board_fail_on_failed_sessions(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            old = os.getcwd()
+            try:
+                os.chdir(root)
+                good = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-ok", "type": "run", "status": "completed"},
+                    "events": [{"event": "run.started"}],
+                    "error_count": 0,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "elapsed_ms": 1,
+                }
+                bad = {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "task": {"task_id": "run-bad", "type": "run", "status": "failed"},
+                    "events": [{"event": "run.started"}],
+                    "error_count": 1,
+                    "total_tokens": 2,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 1,
+                    "elapsed_ms": 2,
+                }
+                (root / ".cai-session-good.json").write_text(json.dumps(good), encoding="utf-8")
+                (root / ".cai-session-bad.json").write_text(json.dumps(bad), encoding="utf-8")
+                rc_fail = main(["board", "--fail-on-failed-sessions"])
+                self.assertEqual(rc_fail, 2)
+                rc_ok = main(["board", "--json", "--failed-only", "--task-id", "run-ok", "--fail-on-failed-sessions"])
+                self.assertEqual(rc_ok, 0)
+            finally:
+                os.chdir(old)
+
     def test_board_json_filters_failed_only_and_task_id(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

@@ -3193,6 +3193,13 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出洞察结果",
     )
+    insights_p.add_argument(
+        "--fail-on-max-failure-rate",
+        type=float,
+        default=None,
+        metavar="RATE",
+        help="可选：窗口内 failure_rate >= RATE（0~1）时 exit 2，便于 CI",
+    )
     recall_p = sub.add_parser(
         "recall",
         help="跨会话检索：按关键词/正则匹配历史会话内容（Hermes-style recall）",
@@ -3777,6 +3784,13 @@ def main(argv: list[str] | None = None) -> int:
         help="覆盖默认审计路径（默认工作区 .cai-schedule-audit.jsonl）",
     )
     schedule_stats.add_argument("--json", action="store_true", dest="json_output")
+    schedule_stats.add_argument(
+        "--fail-on-min-success-rate",
+        type=float,
+        default=None,
+        metavar="RATE",
+        help="可选：任一任务 run_count>=1 且 success_rate < RATE（0~1）时 exit 2",
+    )
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
@@ -3864,6 +3878,11 @@ def main(argv: list[str] | None = None) -> int:
     obs_report_p.add_argument("--fail-token-budget", type=int, default=80_000)
     obs_report_p.add_argument("--warn-tool-errors", type=int, default=3)
     obs_report_p.add_argument("--fail-tool-errors", type=int, default=8)
+    obs_report_p.add_argument(
+        "--fail-on-warn",
+        action="store_true",
+        help="将 state=warn 视为失败（exit 2）；默认仅在 state=fail 时 exit 2",
+    )
     obs_report_p.add_argument("--json", action="store_true", dest="json_output")
 
     board_p = sub.add_parser(
@@ -3917,6 +3936,11 @@ def main(argv: list[str] | None = None) -> int:
         type=int,
         default=20,
         help="趋势视图 baseline 窗口大小（紧随 recent 之前，最小 1）",
+    )
+    board_p.add_argument(
+        "--fail-on-failed-sessions",
+        action="store_true",
+        help="当前 board 输出中的会话列表含 error_count>0 时 exit 2（与筛选后列表一致，CI 门禁）",
     )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
@@ -4665,6 +4689,11 @@ def main(argv: list[str] | None = None) -> int:
                     if not isinstance(row, dict):
                         continue
                     print(f"  {row.get('path')} errors={row.get('error_count')}")
+        mx = getattr(args, "fail_on_max_failure_rate", None)
+        if isinstance(mx, (int, float)):
+            fr = float(payload.get("failure_rate") or 0.0)
+            if fr + 1e-12 >= float(mx):
+                return 2
         return 0
 
     if args.command == "recall":
@@ -6123,6 +6152,20 @@ def main(argv: list[str] | None = None) -> int:
                         f"rate={sr_s}\tavg_ms={t.get('avg_elapsed_ms')} p95_ms={t.get('p95_elapsed_ms')}\t"
                         f"goal={(str(t.get('goal_preview') or '')[:60])}",
                     )
+            min_sr = getattr(args, "fail_on_min_success_rate", None)
+            if isinstance(min_sr, (int, float)):
+                thr = float(min_sr)
+                for t in payload.get("tasks") or []:
+                    if not isinstance(t, dict):
+                        continue
+                    rc = int(t.get("run_count") or 0)
+                    if rc < 1:
+                        continue
+                    sr2 = t.get("success_rate")
+                    if not isinstance(sr2, (int, float)):
+                        continue
+                    if float(sr2) + 1e-9 < thr:
+                        return 2
             return 0
 
     if args.command == "cost":
@@ -6262,7 +6305,12 @@ def main(argv: list[str] | None = None) -> int:
                     if not isinstance(a, dict):
                         continue
                     print(f"- {a.get('severity')} {a.get('name')}: {a.get('detail')}")
-        return 0 if str(payload.get("state")) != "fail" else 2
+        st = str(payload.get("state") or "")
+        if st == "fail":
+            return 2
+        if bool(getattr(args, "fail_on_warn", False)) and st == "warn":
+            return 2
+        return 0
 
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
@@ -6412,6 +6460,16 @@ def main(argv: list[str] | None = None) -> int:
                 event="board_end",
                 json_output=board_json,
             )
+        if bool(getattr(args, "fail_on_failed_sessions", False)):
+            obs2 = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
+            sess_rows = obs2.get("sessions") if isinstance(obs2.get("sessions"), list) else []
+            n_fail = sum(
+                1
+                for s in sess_rows
+                if isinstance(s, dict) and int(s.get("error_count") or 0) > 0
+            )
+            if n_fail > 0:
+                return 2
         return 0
 
     if args.command == "gateway":

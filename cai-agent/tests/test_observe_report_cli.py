@@ -63,6 +63,74 @@ class ObserveReportCliTests(unittest.TestCase):
             self.assertIn("failure_rate", names)
             self.assertIn("total_tokens", names)
 
+    def test_observe_report_warn_exit_0_unless_fail_on_warn(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {
+                    "version": 2,
+                    "elapsed_ms": 15,
+                    "total_tokens": 500,
+                    "prompt_tokens": 300,
+                    "completion_tokens": 200,
+                    "error_count": 1,
+                    "events": [{"event": "run.started"}, {"event": "run.finished"}],
+                },
+            )
+            save_session(
+                str(root / ".cai-session-b.json"),
+                {
+                    "version": 2,
+                    "elapsed_ms": 10,
+                    "total_tokens": 600,
+                    "prompt_tokens": 350,
+                    "completion_tokens": 250,
+                    "error_count": 0,
+                    "events": [{"event": "run.started"}],
+                },
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "observe-report",
+                            "--json",
+                            "--warn-failure-rate",
+                            "0.4",
+                            "--fail-failure-rate",
+                            "0.6",
+                            "--fail-token-budget",
+                            "100000",
+                            "--fail-tool-errors",
+                            "100",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("state"), "warn")
+
+            buf2 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf2):
+                    rc2 = main(
+                        [
+                            "observe-report",
+                            "--json",
+                            "--fail-on-warn",
+                            "--warn-failure-rate",
+                            "0.4",
+                            "--fail-failure-rate",
+                            "0.6",
+                            "--fail-token-budget",
+                            "100000",
+                            "--fail-tool-errors",
+                            "100",
+                        ],
+                    )
+            self.assertEqual(rc2, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

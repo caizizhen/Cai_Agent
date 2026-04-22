@@ -138,6 +138,7 @@ cai-agent workflow workflow.json --json
 - `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`（跨工具兼容映射）
 - `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`（补齐总册 backlog）
 - `docs/MCP_WEB_RECIPE.zh-CN.md`（Web 能力 MCP 配方）
+- `docs/schema/README.zh-CN.md`（**JSON 输出契约索引**：`schema_version`、主要字段、exit 约定 S1-02）
 
 ## 高层架构示意
 

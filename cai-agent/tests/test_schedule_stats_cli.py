@@ -108,6 +108,45 @@ class ScheduleStatsTests(unittest.TestCase):
             tasks = {str(x.get("task_id")): x for x in (st.get("tasks") or [])}
             self.assertIn("legacy-1", tasks)
 
+    def test_stats_cli_fail_on_min_success_rate(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            append_schedule_audit_event(
+                task_id="t-rate",
+                status="completed",
+                action="schedule.run_due",
+                cwd=str(root),
+                event="task.completed",
+                goal_preview="g",
+                elapsed_ms=10,
+                details={},
+            )
+            append_schedule_audit_event(
+                task_id="t-rate",
+                status="failed",
+                action="schedule.run_due",
+                cwd=str(root),
+                event="task.failed",
+                goal_preview="g",
+                elapsed_ms=20,
+                details={},
+            )
+            buf_ok = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_ok):
+                    rc0 = main(
+                        ["schedule", "stats", "--days", "7", "--json", "--fail-on-min-success-rate", "0.4"],
+                    )
+            self.assertEqual(rc0, 0)
+
+            buf_bad = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_bad):
+                    rc2 = main(
+                        ["schedule", "stats", "--days", "7", "--json", "--fail-on-min-success-rate", "0.51"],
+                    )
+            self.assertEqual(rc2, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

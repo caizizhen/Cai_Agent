@@ -51,13 +51,13 @@
 
 ### S1-03 错误码规范（补齐剩余命令）
 
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）等已实现 exit 0/2；`observe report` 等仍待补齐
+- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）等已支持可预测的 exit 0/2；其余子命令仍按需补齐
 - **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
 - **QA**：随每个新命令提测时同步验证
 
-### S1-02 错误码规范文档（需补文档）
+### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：已新增 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`（S4-04）、`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`（S4-05）；其余命令 schema 仍待补
+- **现状**：已有 `docs/schema/README.zh-CN.md` 索引；`OBSERVE_*` / `INSIGHTS` / `BOARD` + `SCHEDULE_*`；`memory` / `recall*` 等仍待补
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 

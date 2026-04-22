@@ -64,3 +64,42 @@ class InsightsCliTests(unittest.TestCase):
             self.assertTrue(any(row.get("tool") == "read_file" for row in tools_top))
             self.assertTrue(any(row.get("tool") == "search_text" for row in tools_top))
 
+    def test_insights_fail_on_max_failure_rate(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {
+                    "version": 2,
+                    "model": "model-a",
+                    "total_tokens": 100,
+                    "error_count": 0,
+                    "messages": [],
+                },
+            )
+            save_session(
+                str(root / ".cai-session-b.json"),
+                {
+                    "version": 2,
+                    "model": "model-b",
+                    "total_tokens": 50,
+                    "error_count": 2,
+                    "messages": [],
+                },
+            )
+            buf_ok = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_ok):
+                    rc0 = main(
+                        ["insights", "--json", "--days", "7", "--limit", "10", "--fail-on-max-failure-rate", "0.6"],
+                    )
+            self.assertEqual(rc0, 0)
+
+            buf_bad = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_bad):
+                    rc2 = main(
+                        ["insights", "--json", "--days", "7", "--limit", "10", "--fail-on-max-failure-rate", "0.5"],
+                    )
+            self.assertEqual(rc2, 2)
+

@@ -65,6 +65,7 @@ Do not commit real API keys.
 | `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
 | `docs/PRODUCT_PLAN.zh-CN.md` | **Single execution plan**: Hermes gap summary, ordered dev items, test progress |
+| `docs/schema/README.zh-CN.md` | JSON `--json` schema index (`schema_version`, fields, exit conventions; S1-02) |
 | `docs/HERMES_PARITY_BACKLOG.zh-CN.md` | Hermes-aligned story backlog (importable IDs + AC) |
 | `docs/HERMES_PARITY_PROGRESS.zh-CN.md` | Hermes parity progress rollup vs backlog |
 | `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
