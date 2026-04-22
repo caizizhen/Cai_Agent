@@ -2382,9 +2382,10 @@ def _cmd_models(args: argparse.Namespace) -> int:
                     extra += f" msg={msg}"
                 print(f"{r.get('profile_id')}: {status}{extra}")
         fail = any(r.get("status") != "OK" for r in results)
-        if bool(getattr(args, "fail_on_ping_error", False)):
-            return 2 if fail else 0
-        return 1 if fail else 0
+        # Back-compat: `--fail-on-any-error` is a no-op alias (exit rules match default since S1-03).
+        _ = bool(getattr(args, "fail_on_ping_error", False))
+        # S1-03: align with exit 0/2 — any non-OK ping is exit 2.
+        return 2 if fail else 0
 
     if action == "route":
         if not settings.profiles_explicit:
@@ -2878,7 +2879,7 @@ def main(argv: list[str] | None = None) -> int:
         "--fail-on-any-error",
         action="store_true",
         dest="fail_on_ping_error",
-        help="任一 ping 结果 status 非 OK 时 exit 2（默认非全 OK 为 exit 1）",
+        help="显式门禁别名：与默认一致，任一 status 非 OK 时 exit 2（兼容旧脚本）",
     )
 
     _mf = models_sub.add_parser(

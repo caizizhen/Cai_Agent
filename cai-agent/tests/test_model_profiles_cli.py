@@ -250,6 +250,28 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertEqual(payload.get("schema_version"), "models_ping_v1")
         self.assertEqual(len(payload.get("results") or []), 1)
 
+    def test_models_ping_default_exit_2_when_not_all_ok(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "py", "--preset", "lmstudio", "--model", "m", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        with patch(
+            "cai_agent.__main__.ping_profile",
+            return_value={"profile_id": "py", "status": "NET_FAIL", "message": "down"},
+        ):
+            rc2, out = self._cli(
+                "models",
+                "--config",
+                str(self.cfg),
+                "ping",
+                "py",
+                "--json",
+            )
+        self.assertEqual(rc2, 2)
+        payload = json.loads(out.strip().splitlines()[-1])
+        self.assertEqual(payload.get("schema_version"), "models_ping_v1")
+
     def test_models_fetch_json_has_schema_version(self) -> None:
         rc, _ = self._cli(
             "models", "--config", str(self.cfg), "add",
