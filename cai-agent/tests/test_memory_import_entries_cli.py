@@ -30,6 +30,42 @@ class MemoryImportEntriesCliTests(unittest.TestCase):
             self.assertEqual(payload.get("schema_version"), "memory_instincts_import_v1")
             self.assertEqual(payload.get("imported"), 1)
 
+    def test_memory_export_instincts_json_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            inst = root / "memory" / "instincts"
+            inst.mkdir(parents=True, exist_ok=True)
+            (inst / "instincts-smoke.md").write_text("# x\n", encoding="utf-8")
+            out = io.StringIO()
+            outp = root / "bundle-out.json"
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(out):
+                    rc = main(["memory", "export", str(outp), "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "memory_instincts_export_v1")
+            self.assertEqual(payload.get("snapshots_exported"), 1)
+            self.assertEqual(str(payload.get("output_file")), str(outp.resolve()))
+            self.assertTrue(outp.is_file())
+
+    def test_memory_export_entries_json_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            mem = root / "memory"
+            mem.mkdir(parents=True, exist_ok=True)
+            (mem / "entries.jsonl").write_text("", encoding="utf-8")
+            out = io.StringIO()
+            outp = root / "entries-bundle.json"
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(out):
+                    rc = main(["memory", "export-entries", str(outp), "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(out.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "memory_entries_export_result_v1")
+            self.assertEqual(payload.get("entries_count"), 0)
+            self.assertEqual(payload.get("export_warnings"), [])
+            self.assertTrue(outp.is_file())
+
     def test_dry_run_writes_error_report_and_human_summary(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

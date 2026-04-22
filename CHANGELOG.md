@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **`cai-agent memory export --json` / `memory export-entries --json`**: Optional JSON stdout summaries **`memory_instincts_export_v1`** (`output_file`, `snapshots_exported`) and **`memory_entries_export_result_v1`** (`output_file`, `entries_count`, `export_warnings`). Default stdout (path only) unchanged. See `docs/schema/README.zh-CN.md`.
 - **`cai-agent models ping` exit codes (S1-03)**: Any result with `status != OK` now returns **exit `2`** by default (previously **`1`**). **`--fail-on-any-error`** remains a **no-op alias** for backward-compatible scripts. See `docs/schema/README.zh-CN.md` breaking-changes section.
 - **`cai-agent memory import` / `memory import-entries` stdout**: **`memory_instincts_import_v1`** (**`imported`**), **`memory_entries_import_result_v1`** (**`imported`**), and **`memory import-entries --dry-run`** → **`memory_entries_import_dry_run_v1`** (adds **`schema_version`** alongside existing fields). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent memory list|search|instincts --json` / `memory extract` stdout**: **`memory_list_v1`** (**`entries`**, `limit`, `sort`), **`memory_search_v1`** (**`hits`**, `query`, `limit`, `sort`), **`memory_instincts_list_v1`** (**`paths`**, `limit`), and **`memory_extract_v1`** (**`written`**, **`entries_appended`**). **`list`/`search`/`instincts` `--json` is a breaking change** (was a bare JSON array). See `docs/schema/README.zh-CN.md`.

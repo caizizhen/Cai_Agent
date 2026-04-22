@@ -236,8 +236,8 @@
 | `memory instincts` | 对象 **`memory_instincts_list_v1`**：`paths`（字符串数组）、`limit` | |
 | `memory prune` | `memory_prune_result_v1` | 含 `removed_total`、`removed_by_reason` 等 |
 | `memory state` | `memory_state_eval_v1` | |
-| `memory export` / `import` | `export` 仅 stdout 输出目标路径（非 JSON）；**`import`** stdout 单行 JSON **`memory_instincts_import_v1`**（**`imported`**） | 导入文件为 **JSON 数组**（元素含 `content`） |
-| `memory export-entries` / `import-entries` | `export-entries` 写出 **`memory_entries_bundle_v1`**；**`import-entries --dry-run`** stdout：**`memory_entries_import_dry_run_v1`**（`validated`、`errors` 等）；成功导入 stdout：**`memory_entries_import_result_v1`**（**`imported`**）；失败时可选 **`memory_entries_import_errors_v1`** 报告文件 | 与 `memory.py` 校验一致 |
+| `memory export` / `import` | **`export --json`** stdout：**`memory_instincts_export_v1`**（**`output_file`**、**`snapshots_exported`**）；默认仅打印目标路径字符串。**`import`** stdout：**`memory_instincts_import_v1`**（**`imported`**） | 导入文件为 **JSON 数组**（元素含 `content`） |
+| `memory export-entries` / `import-entries` | **`export-entries --json`** stdout：**`memory_entries_export_result_v1`**（**`output_file`**、**`entries_count`**、**`export_warnings`**）；磁盘文件仍为 **`memory_entries_bundle_v1`**。**`import-entries --dry-run`** stdout：**`memory_entries_import_dry_run_v1`**；成功导入 stdout：**`memory_entries_import_result_v1`**；失败时可选 **`memory_entries_import_errors_v1`** 报告文件 | 与 `memory.py` 校验一致 |
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |

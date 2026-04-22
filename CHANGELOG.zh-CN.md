@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **CLI `memory export --json` / `memory export-entries --json`**：可选 JSON stdout **`memory_instincts_export_v1`**（**`output_file`**、**`snapshots_exported`**）与 **`memory_entries_export_result_v1`**（**`output_file`**、**`entries_count`**、**`export_warnings`**）；默认仍仅打印输出路径。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `models ping` exit（S1-03）**：任一 **`status`≠`OK`** 时 **默认 exit `2`**（此前为 **`1`**）；**`--fail-on-any-error`** 保留为与默认一致的显式别名（兼容旧脚本）。破坏性说明见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `memory import` / `memory import-entries` stdout**：**`memory_instincts_import_v1`**（**`imported`**）、**`memory_entries_import_result_v1`**（**`imported`**）；**`memory import-entries --dry-run`** 为 **`memory_entries_import_dry_run_v1`**（在原有 `validated` / `errors` 等字段上增加 **`schema_version`**）。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `memory list`/`search`/`instincts --json` 与 `memory extract` stdout**：**`memory_list_v1`**（**`entries`**、`limit`、`sort`）、**`memory_search_v1`**（**`hits`**、`query`、`limit`、`sort`）、**`memory_instincts_list_v1`**（**`paths`**、`limit`）、**`memory_extract_v1`**（**`written`**、**`entries_appended`**）。**`list`/`search`/`instincts` 的 `--json` 为破坏性变更**（此前根节点为裸数组）。见 **`docs/schema/README.zh-CN.md`**。

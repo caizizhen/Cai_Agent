@@ -3611,6 +3611,12 @@ def main(argv: list[str] | None = None) -> int:
     memory_health.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
+    memory_export.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 输出 memory_instincts_export_v1（含 output_file、snapshots_exported）",
+    )
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
     memory_import.add_argument("file")
     memory_export_entries = memory_sub.add_parser(
@@ -3618,6 +3624,12 @@ def main(argv: list[str] | None = None) -> int:
         help="导出校验后的 memory/entries.jsonl 为 JSON bundle（schema: memory_entries_bundle_v1）",
     )
     memory_export_entries.add_argument("file")
+    memory_export_entries.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 输出 memory_entries_export_result_v1（含 output_file、entries_count、export_warnings）",
+    )
     memory_import_entries = memory_sub.add_parser(
         "import-entries",
         help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
@@ -5479,7 +5491,19 @@ def main(argv: list[str] | None = None) -> int:
                     json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
                     encoding="utf-8",
                 )
-                print(str(target))
+                if bool(getattr(args, "json_output", False)):
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_instincts_export_v1",
+                                "output_file": str(target),
+                                "snapshots_exported": len(files),
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(str(target))
                 return 0
             if args.memory_action == "import":
                 src = Path(args.file).expanduser().resolve()
@@ -5513,7 +5537,20 @@ def main(argv: list[str] | None = None) -> int:
                 warns = bundle.get("export_warnings") or []
                 for w in warns:
                     print(f"[memory] {w}", file=sys.stderr)
-                print(str(target))
+                if bool(getattr(args, "json_output", False)):
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_entries_export_result_v1",
+                                "output_file": str(target),
+                                "entries_count": len(bundle.get("entries") or []),
+                                "export_warnings": list(warns) if isinstance(warns, list) else [],
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(str(target))
                 return 0
             if args.memory_action == "import-entries":
                 src = Path(args.file).expanduser().resolve()

@@ -2,7 +2,8 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
-temporary cwd, schedule add + list + rm envelopes and memory list --json.
+temporary cwd, schedule add + list + rm envelopes, memory list --json, and
+memory export --json.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -204,6 +205,18 @@ def main() -> int:
                 errs.append(f"memory list schema_version {mo.get('schema_version')!r}")
             if not isinstance(mo.get("entries"), list):
                 errs.append("memory list entries not list")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-memexp-") as exp_td:
+        (Path(exp_td) / "memory" / "instincts").mkdir(parents=True, exist_ok=True)
+        pe = _run([exe, "memory", "export", "smoke-inst.json", "--json"], cwd=exp_td)
+        if pe.returncode != 0:
+            errs.append(f"memory export json exit {pe.returncode}")
+        else:
+            eo = json.loads((pe.stdout or "").strip())
+            if eo.get("schema_version") != "memory_instincts_export_v1":
+                errs.append(f"memory export schema_version {eo.get('schema_version')!r}")
+            if not isinstance(eo.get("snapshots_exported"), int):
+                errs.append("memory export snapshots_exported not int")
 
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)
