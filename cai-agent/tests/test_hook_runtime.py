@@ -9,6 +9,7 @@ from pathlib import Path
 
 from cai_agent.config import Settings
 from cai_agent.hook_runtime import (
+    _normalize_hook_argv_for_platform,
     enabled_hook_ids,
     resolve_hooks_json_path,
     run_project_hooks,
@@ -60,6 +61,7 @@ class HookRuntimeTests(unittest.TestCase):
     def test_disabled_id_removed_from_enabled_list(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
+            cmd = [sys.executable, "-c", "print(1)"]
             _write_hooks(
                 root,
                 [
@@ -67,17 +69,57 @@ class HookRuntimeTests(unittest.TestCase):
                         "id": "a",
                         "event": "workflow_start",
                         "enabled": True,
+                        "command": cmd,
                     },
                     {
                         "id": "b",
                         "event": "workflow_start",
                         "enabled": True,
+                        "command": cmd,
                     },
                 ],
             )
             s = _settings_for_root(root, hooks_disabled_ids=("b",))
             ids = enabled_hook_ids(s, "workflow_start")
             self.assertEqual(ids, ["a"])
+
+    def test_enabled_hook_ids_respects_minimal_profile(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_hooks(
+                root,
+                [
+                    {
+                        "id": "run-echo",
+                        "event": "observe_start",
+                        "enabled": True,
+                        "command": [sys.executable, "-c", "print(1)"],
+                    },
+                ],
+            )
+            s = _settings_for_root(root, hooks_profile="minimal")
+            self.assertEqual(enabled_hook_ids(s, "observe_start"), [])
+
+    def test_enabled_hook_ids_excludes_blocked_dangerous(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_hooks(
+                root,
+                [
+                    {
+                        "id": "bad",
+                        "event": "observe_start",
+                        "enabled": True,
+                        "command": [sys.executable, "-c", "rm -rf /"],
+                    },
+                ],
+            )
+            s = _settings_for_root(root, hooks_profile="standard")
+            self.assertEqual(enabled_hook_ids(s, "observe_start"), [])
+
+    def test_normalize_argv_no_slashes_unchanged(self) -> None:
+        argv = [sys.executable, "-c", "print(1)"]
+        self.assertEqual(_normalize_hook_argv_for_platform(argv), argv)
 
     def test_minimal_profile_skips_command_hooks(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

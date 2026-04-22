@@ -160,6 +160,11 @@
   - 依赖现有 hook 摘要输出能力。
   - 风险：跨平台执行差异，需要最小公约数命令策略。
 
+完成记录（进行中）：
+- `enabled_hook_ids` 与 `run_project_hooks` / `preview_project_hooks` 使用同一套分类逻辑，避免 `[hook:…]` 状态行将「将被跳过/阻断」的条目误标为 enabled。
+- Windows：`run_project_hooks` 在子进程执行前对 `command` argv 中含路径分隔符的片段做 `Path` 规范化，便于跨平台 hooks.json（POSIX 风格路径）可执行。
+- 单测：`enabled_hook_ids` 在 minimal profile 与危险命令阻断场景下的行为；无斜杠 argv 规范化不变。
+
 ### Sprint 6：上下文压缩与成本策略联动
 
 - 范围

@@ -6,6 +6,7 @@
 
 - `docs/ROADMAP_EXECUTION.zh-CN.md`
 - `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`
+- `docs/HERMES_PARITY_PROGRESS.zh-CN.md`（轻量进度视图，权威计划见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md`）
 - `docs/PARITY_MATRIX.zh-CN.md`
 - 用户提供的目标族：Architecture/Memory/Recall/Scheduler/Subagents/Gateway/Observability/Security/Release GA
 
@@ -34,6 +35,7 @@
 - `board` 新增趋势对比：支持 `--trend-window`（或 `--trend-recent` + `--trend-baseline`）输出 `trend_summary`，给出 recent/baseline 的失败率与平均 tokens 差值
 - `hooks.json` 解析顺序：`hooks/hooks.json` → `.cai/hooks/hooks.json`；`plugins` 健康分与 `_print_hook_status` / `run_project_hooks` 与此一致
 - 新增 CLI：`cai-agent hooks list`（`hooks_catalog_v1`）与 `cai-agent hooks run-event <event>`（`--dry-run` 输出 `hooks_run_event_result_v1`；执行时同 schema 含 `results`）
+- Hooks（Sprint 5 增量）：`enabled_hook_ids` 与执行器分类一致（仅返回将实际执行的 hook id）；Windows 上 hook `command` argv 路径片段规范化，与跨平台 hooks.json 对齐；对应单测补充
 
 ### J. MCP / WebSearch / Notebook 对齐（Sprint 3）
 
