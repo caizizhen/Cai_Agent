@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -69,6 +70,23 @@ def _hook_command_argv(hook: dict[str, Any]) -> list[str] | None:
     return None
 
 
+def _normalize_hook_argv_for_platform(argv: list[str]) -> list[str]:
+    """在 Windows 上将 hooks.json 中的 POSIX 路径转为原生路径，便于 subprocess 定位脚本/解释器。"""
+    if sys.platform != "win32":
+        return argv
+    out: list[str] = []
+    for part in argv:
+        if "/" not in part and "\\" not in part:
+            out.append(part)
+            continue
+        try:
+            p = Path(part)
+            out.append(str(p))
+        except (OSError, ValueError):
+            out.append(part)
+    return out
+
+
 _DANGEROUS_STANDARD = (
     "rm -rf",
     "rm / ",
@@ -116,27 +134,28 @@ def enabled_hook_ids(
     *,
     hooks_path: Path | None = None,
 ) -> list[str]:
+    """列出在当前 profile / 禁用列表 / 安全规则下**将会执行**（非 skipped/blocked）的 hook id。
+
+    与 `run_project_hooks` / `preview_project_hooks` 的分类规则一致，避免状态行误报。
+    """
     doc = _load_hooks_doc(settings, hooks_path=hooks_path)
     if doc is None:
         return []
     hooks = doc.get("hooks")
     if not isinstance(hooks, list):
         return []
-    disabled = _disabled_ids(settings)
     out: list[str] = []
     for h in hooks:
         if not isinstance(h, dict):
             continue
-        if str(h.get("event", "")).strip() != event:
+        row = _classify_hook_for_event(settings, event, h, dry_run=False)
+        if row is None:
             continue
-        if not bool(h.get("enabled", True)):
+        if row.get("status") != "_run":
             continue
-        hid = str(h.get("id", "")).strip()
-        if not hid:
-            continue
-        if hid.lower() in disabled:
-            continue
-        out.append(hid)
+        hid = str(row.get("id", "")).strip()
+        if hid:
+            out.append(hid)
     return out
 
 
@@ -316,6 +335,7 @@ def run_project_hooks(
         argv = _hook_command_argv(h)
         if argv is None:
             continue
+        argv = _normalize_hook_argv_for_platform(argv)
         try:
             cp = subprocess.run(
                 argv,

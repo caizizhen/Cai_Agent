@@ -222,3 +222,9 @@ Sprint 8（GA）
 | [qa/sprint6-gateway-telegram-testplan.md](qa/sprint6-gateway-telegram-testplan.md) | S6 专项测试（含安全） |
 | [qa/sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md) | S7 专项测试 |
 | [qa/sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) | S8 发布门禁 |
+
+---
+
+## 工程注记（合并记录）
+
+- **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。
