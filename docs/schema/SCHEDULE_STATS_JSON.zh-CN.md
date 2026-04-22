@@ -1,6 +1,6 @@
 # `cai-agent schedule stats --json`（S4-05）
 
-> **Exit / 其它命令 JSON 索引**：见同目录 [`README.zh-CN.md`](README.zh-CN.md)（`observe` / `insights` / `board` / `memory` / `recall` 等）。
+> **Exit / 其它命令 JSON 索引**：见同目录 [`README.zh-CN.md`](README.zh-CN.md)（含 **`schedule stats` / `schedule_stats_v1`** 摘要行，以及 `observe` / `insights` / `board` / `memory` / `recall` 等）。
 
 ## 用途
 

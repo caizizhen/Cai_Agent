@@ -6,7 +6,7 @@
 
 ### 0.5.0（当前开发）
 
-- **文档**：[`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) **§三之二**（开发项 1–26 状态计数、**未开发项 21–26**、**QA 清单**）及 **§三之二 · 3.0 同步完成度（百分比）**（§二加权、Hermes 34 Story、T1）；[`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) 增加 **`gateway telegram` / `gateway_telegram_map_v1`**（S1-02）；[`HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](docs/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 与上述口径交叉引用。
+- **文档**：[`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) **§三之二**（开发项 1–26 状态计数、**未开发项 21–26**、**QA 清单**）及 **§三之二 · 3.0 同步完成度（百分比）**（§二加权、Hermes 34 Story、T1）；[`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) 增加 **`gateway telegram` / `gateway_telegram_map_v1`**、**`schedule stats` / `schedule_stats_v1`**（S1-02，与 [`SCHEDULE_STATS_JSON.zh-CN.md`](docs/schema/SCHEDULE_STATS_JSON.zh-CN.md) 互链）；[`HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](docs/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 与上述口径交叉引用。
 - **CLI `init --json`**：stdout **单行 `init_cli_v1`**（成功时 **`ok`**、**`config_path`**、**`preset`**、**`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等）。无 **`--json`** 时仍为原有文本输出。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `init` exit（S1-03）**：**`config_exists`**（无 **`--force`**）、**`template_read_failed`**、**`mkdir_failed`** 等失败路径 **exit `2`**（此前为 **`1`**）；JSON 仍为 **`init_cli_v1`**（**`ok: false`** + **`error`**）。破坏性说明见 **`docs/schema/README.zh-CN.md`**「破坏性变更」。
 - **CLI `main()` 分发兜底（S1-03）**：若 **`args.command`** 未被任何分支处理（内部不同步），进程 **exit `2`** 且 stderr 一行诊断（此前 **exit `1`** 且无输出）。见 **`docs/schema/README.zh-CN.md`**。

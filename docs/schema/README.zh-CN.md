@@ -305,6 +305,16 @@
 
 ---
 
+## `schedule stats` / `schedule stats --json`
+
+- **实现**：`cai_agent.schedule.compute_schedule_stats_from_audit`；CLI **`cai-agent schedule stats`**（`__main__.py`）。
+- **`schema_version`**：**`schedule_stats_v1`**；支持 **`--days`**（1–366）、**`--audit-file`**、**`--fail-on-min-success-rate`**。
+- **主要字段（摘要）**：`generated_at`、`days`、`audit_file`、`audit_lines_in_window`、**`tasks[]`**（每任务 **`task_id`**、**`goal_preview`**、**`run_count`** / **`success_count`** / **`fail_count`**、**`success_rate`**、**`avg_elapsed_ms`**、**`p95_elapsed_ms`** 等）。完整列说明见 [SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)。
+
+**Exit**：默认 **`0`**；**`--fail-on-min-success-rate RATE`**（0~1）：任一任务 **`run_count` ≥ 1** 且 **`success_rate` < `RATE`** → **`2`**（与独立文档「Exit 码」节一致）。
+
+---
+
 ## 破坏性变更
 
 - **`memory list --json` / `memory search --json` / `memory instincts --json`**：根对象分别为 **`memory_list_v1`**（读 **`entries`**）、**`memory_search_v1`**（读 **`hits`**）、**`memory_instincts_list_v1`**（读 **`paths`**）；**不再**直接输出裸数组。
