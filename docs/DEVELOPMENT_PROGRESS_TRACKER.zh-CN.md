@@ -32,6 +32,8 @@
 - `board` 新增分组聚合：支持 `--group-top` 输出模型与 task 维度 TopN（`group_summary`），文本模式增加 `[group_summary]` 摘要
 - `board` 新增组合过滤：支持 `--status`（可多值/逗号分隔）并与 `--failed-only` / `--task-id` 联合生效
 - `board` 新增趋势对比：支持 `--trend-window`（或 `--trend-recent` + `--trend-baseline`）输出 `trend_summary`，给出 recent/baseline 的失败率与平均 tokens 差值
+- `hooks.json` 解析顺序：`hooks/hooks.json` → `.cai/hooks/hooks.json`；`plugins` 健康分与 `_print_hook_status` / `run_project_hooks` 与此一致
+- 新增 CLI：`cai-agent hooks list`（`hooks_catalog_v1`）与 `cai-agent hooks run-event <event>`（`--dry-run` 输出 `hooks_run_event_result_v1`；执行时同 schema 含 `results`）
 
 ### J. MCP / WebSearch / Notebook 对齐（Sprint 3）
 

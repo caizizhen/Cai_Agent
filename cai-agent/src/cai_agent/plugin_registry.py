@@ -25,16 +25,19 @@ def _project_root(settings: Settings) -> Path:
 
 def _compute_health_score(root: Path, components: dict[str, dict[str, object]]) -> int:
     score = 100
-    hooks_dir = root / "hooks"
-    hooks_json = hooks_dir / "hooks.json"
-    if hooks_json.is_file():
+    hooks_json_candidates = [
+        root / "hooks" / "hooks.json",
+        root / ".cai" / "hooks" / "hooks.json",
+    ]
+    hooks_json = next((p for p in hooks_json_candidates if p.is_file()), None)
+    if hooks_json is not None:
         try:
             data = json.loads(hooks_json.read_text(encoding="utf-8"))
             if not isinstance(data, dict) and not isinstance(data, list):
                 score -= 15
         except (OSError, json.JSONDecodeError):
             score -= 40
-    elif hooks_dir.is_dir():
+    elif (root / "hooks").is_dir() or (root / ".cai" / "hooks").is_dir():
         score -= 8
 
     readme = root / "README.md"

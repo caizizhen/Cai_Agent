@@ -14,3 +14,12 @@
 4. 加入日志与监控字段；
 5. 验证正常路径与异常路径。
 
+### 项目级 `hooks.json` 与 CLI
+
+- 配置文件路径：优先 `hooks/hooks.json`，否则 `.cai/hooks/hooks.json`（可用 `cai-agent hooks list` 确认实际解析到的文件）。
+- 运行配置：`cai-agent.toml` 中 `[hooks]` 的 `profile`、`disabled`、`timeout_sec`，或环境变量 `CAI_HOOKS_PROFILE` / `CAI_HOOKS_DISABLED` / `CAI_HOOKS_TIMEOUT_SEC`。
+- 自检命令：
+  - `cai-agent hooks list`：列出全部 hook 条目及在当前 profile 下是否会跳过/阻断（输出 `hooks_catalog_v1`）。
+  - `cai-agent hooks run-event <event> --dry-run`：仅分类、不执行子进程（`hooks_run_event_result_v1`）。
+  - `cai-agent hooks run-event <event> --payload '{...}'`：执行匹配且含 `command` 数组的外部钩子。
+

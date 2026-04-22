@@ -38,7 +38,7 @@
 | 会话与历史 | claude-code-analysis | `Done` / `Next` | 已落地：`workflow` 事件流、`run`/`continue` 的 `run_schema_version` + `events`、`observe` 汇总 `run_events_total`、`sessions_with_events`、逐文件 `events_count`；新增 `hooks` 执行结果状态摘要（stderr）与 release-ga 聚合门禁。TUI/全量 Dashboard 深化仍待办 |
 | 上下文压缩策略 | claude-code-analysis | `Next` | 与 `[context]`、`observe` 联动深化 |
 | 成本 / token 策略 | claude-code-analysis | `Next` | 由统计升级为可配置策略 |
-| 钩子扩展 | claude-code-analysis | `Next` | 另含 `security_scan_*`、`memory_*`、`export_*`、`observe_*`、`cost_budget_*`；执行器与 `hooks.json` 深度集成仍待办 |
+| 钩子扩展 | claude-code-analysis | `Done` / `Next` | 已落地：`hooks.json` 外部 command 钩子（`[hooks]` profile `minimal|standard|strict`、禁用列表、危险命令阻断）；`hooks/hooks.json` 与 `.cai/hooks/hooks.json` 双路径；CLI `cai-agent hooks list` / `hooks run-event`（含 `--dry-run`）；运行期 `_print_hook_status` 与上述解析一致。事件注册表/更多内置钩子类型仍待办 |
 
 ## L3 — ECC 式治理与跨 harness
 
