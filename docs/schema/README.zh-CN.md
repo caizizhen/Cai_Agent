@@ -117,6 +117,29 @@
 
 ---
 
+## `models` 子命令 JSON 摘要
+
+| 子命令 | `--json` 形态 | `schema_version` / 说明 |
+|--------|----------------|-------------------------|
+| `models list` | 对象：`active`、`subagent`、`planner`、`profiles[]` | **`models_list_v1`**（`profile_to_public_dict` 行） |
+| `models fetch` | 数组或对象（随上游 `/models` 响应封装） | 无固定顶层版本号 |
+| `models ping` | `{"results": [ {profile_id, status, http_status?, message?}, … ]}` | 无顶层 `schema_version` |
+
+**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；**默认** 存在非 `OK` 的 ping → **`1`**；成功全 `OK` → **`0`**。`ping --fail-on-any-error`：存在非 `OK` → **`2`**（便于与 CI 的 exit 2 约定对齐）。
+
+---
+
+## `hooks` 子命令 JSON 摘要
+
+| 子命令 | `--json` | `schema_version` |
+|--------|----------|------------------|
+| `hooks list` | `describe_hooks_catalog` 输出 | **`hooks_catalog_v1`**；错误时仍输出 JSON 且含 `error`：`hooks_json_not_found` / `invalid_hooks_document` |
+| `hooks run-event` | 见实现 | **`hooks_run_event_result_v1`** |
+
+**Exit**：`list`：`hooks.json` 缺失或文档无效时，**文本模式与 `--json` 均为 `2`**。`run-event`：见各分支（缺文件等 `2`）。
+
+---
+
 ## `memory` 子命令 JSON 摘要
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |

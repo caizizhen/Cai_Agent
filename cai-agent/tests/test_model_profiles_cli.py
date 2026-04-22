@@ -12,6 +12,7 @@ import tomllib
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 import httpx
 
@@ -74,6 +75,7 @@ class ModelsCliEndToEnd(unittest.TestCase):
         rc, out = self._cli("models", "--config", str(self.cfg), "list", "--json")
         self.assertEqual(rc, 0)
         payload = json.loads(out.strip())
+        self.assertEqual(payload.get("schema_version"), "models_list_v1")
         self.assertEqual(payload["active"], "p1")
         ids = [p["id"] for p in payload["profiles"]]
         self.assertEqual(sorted(ids), ["p1", "p2"])
@@ -222,6 +224,27 @@ class ModelsCliEndToEnd(unittest.TestCase):
             "pb",
             "--unset-subagent",
         )
+        self.assertEqual(rc2, 2)
+
+    def test_models_ping_fail_on_any_error_uses_exit_2(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "px", "--preset", "lmstudio", "--model", "m", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        with patch(
+            "cai_agent.__main__.ping_profile",
+            return_value={"profile_id": "px", "status": "AUTH_FAIL", "message": "nope"},
+        ):
+            rc2, _ = self._cli(
+                "models",
+                "--config",
+                str(self.cfg),
+                "ping",
+                "px",
+                "--json",
+                "--fail-on-any-error",
+            )
         self.assertEqual(rc2, 2)
 
 

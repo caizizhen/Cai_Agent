@@ -2265,6 +2265,7 @@ def _cmd_models_list(settings: Settings, *, json_output: bool) -> int:
     active = settings.active_profile_id
     if json_output:
         payload = {
+            "schema_version": "models_list_v1",
             "active": active,
             "subagent": settings.subagent_profile_id,
             "planner": settings.planner_profile_id,
@@ -2371,6 +2372,8 @@ def _cmd_models(args: argparse.Namespace) -> int:
                     extra += f" msg={msg}"
                 print(f"{r.get('profile_id')}: {status}{extra}")
         fail = any(r.get("status") != "OK" for r in results)
+        if bool(getattr(args, "fail_on_ping_error", False)):
+            return 2 if fail else 0
         return 1 if fail else 0
 
     if action == "route":
@@ -2861,6 +2864,12 @@ def main(argv: list[str] | None = None) -> int:
     _mp.add_argument("id", nargs="?", default=None, help="profile id（缺省 ping 全部）")
     _mp.add_argument("--json", action="store_true", dest="json_output")
     _mp.add_argument("--timeout-sec", type=float, default=10.0, dest="timeout_sec")
+    _mp.add_argument(
+        "--fail-on-any-error",
+        action="store_true",
+        dest="fail_on_ping_error",
+        help="任一 ping 结果 status 非 OK 时 exit 2（默认非全 OK 为 exit 1）",
+    )
 
     _mf = models_sub.add_parser(
         "fetch",
@@ -5132,6 +5141,9 @@ def main(argv: list[str] | None = None) -> int:
             cat = describe_hooks_catalog(settings, hooks_path=hp)
             if bool(getattr(args, "json_output", False)):
                 print(json.dumps(cat, ensure_ascii=False))
+                err = cat.get("error")
+                if err in ("hooks_json_not_found", "invalid_hooks_document"):
+                    return 2
             else:
                 if cat.get("error") == "hooks_json_not_found":
                     print("[hooks] 未找到 hooks.json（尝试 hooks/ 与 .cai/hooks/）", file=sys.stderr)

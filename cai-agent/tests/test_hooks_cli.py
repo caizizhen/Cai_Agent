@@ -59,6 +59,22 @@ class HooksCliTests(unittest.TestCase):
             self.assertIsInstance(rows, list)
             self.assertEqual(len(rows), 2)
 
+    def test_hooks_list_json_missing_hooks_returns_2(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["hooks", "--config", str(cfg), "list", "--json"])
+            self.assertEqual(rc, 2)
+            doc = json.loads(buf.getvalue().strip())
+            self.assertEqual(doc.get("error"), "hooks_json_not_found")
+
     def test_hooks_run_event_dry_run_and_execute(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
