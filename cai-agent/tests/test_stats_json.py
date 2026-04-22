@@ -64,3 +64,49 @@ class StatsJsonTests(unittest.TestCase):
             self.assertEqual(len(summ), 1)
             self.assertEqual(summ[0].get("events_count"), 2)
             self.assertEqual(summ[0].get("task_id"), "run-stats1234")
+
+    def test_stats_json_normalizes_blank_task_id_to_none(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-stats-blank-task.json"),
+                {
+                    "version": 2,
+                    "run_schema_version": "1.0",
+                    "goal": "g",
+                    "workspace": td,
+                    "elapsed_ms": 5,
+                    "total_tokens": 10,
+                    "prompt_tokens": 6,
+                    "completion_tokens": 4,
+                    "error_count": 0,
+                    "task": {
+                        "task_id": "   ",
+                        "type": "run",
+                        "status": "completed",
+                        "started_at": 0.0,
+                        "ended_at": 1.0,
+                        "elapsed_ms": 5,
+                        "error": None,
+                    },
+                    "events": [{"e": 1}],
+                },
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "stats",
+                            "--pattern",
+                            ".cai-session*.json",
+                            "--limit",
+                            "10",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            summ = payload.get("session_summaries") or []
+            self.assertEqual(len(summ), 1)
+            self.assertIsNone(summ[0].get("task_id"))

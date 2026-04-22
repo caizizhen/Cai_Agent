@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -92,3 +93,222 @@ def build_board_payload(
         "observe": obs,
         "last_workflow": wf,
     }
+
+
+def filter_board_payload(
+    payload: dict[str, Any],
+    *,
+    failed_only: bool = False,
+    task_id: str | None = None,
+    status_filters: list[str] | None = None,
+) -> dict[str, Any]:
+    """按最小看板诉求筛选会话行，不改变顶层 schema。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    allowed_status: set[str] = set()
+    if isinstance(status_filters, list):
+        for st in status_filters:
+            s = str(st or "").strip().lower()
+            if s in ("pending", "running", "completed", "failed", "unknown"):
+                allowed_status.add(s)
+    if allowed_status:
+        filtered_rows: list[dict[str, Any]] = []
+        for r in rows:
+            st_raw = str(r.get("task_status") or "").strip().lower()
+            ec = int(r.get("error_count") or 0)
+            derived = st_raw if st_raw in ("pending", "running", "completed", "failed") else (
+                "failed" if ec > 0 else "unknown"
+            )
+            if derived in allowed_status:
+                filtered_rows.append(r)
+        rows = filtered_rows
+    if failed_only:
+        rows = [r for r in rows if int(r.get("error_count") or 0) > 0]
+    tid = str(task_id or "").strip()
+    if tid:
+        rows = [r for r in rows if str(r.get("task_id") or "") == tid]
+    obs2 = dict(obs)
+    obs2["sessions"] = rows
+    obs2["sessions_count"] = len(rows)
+    out["observe"] = obs2
+    return out
+
+
+def attach_failed_summary(
+    payload: dict[str, Any],
+    *,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """附加失败会话摘要，便于快速排障。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["failed_summary"] = {"count": 0, "recent": []}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["failed_summary"] = {"count": 0, "recent": []}
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    failed = [r for r in rows if int(r.get("error_count") or 0) > 0]
+    failed.sort(key=lambda r: int(r.get("mtime") or 0), reverse=True)
+    recent: list[dict[str, Any]] = []
+    for r in failed[: max(limit, 1)]:
+        recent.append(
+            {
+                "path": r.get("path"),
+                "task_id": r.get("task_id"),
+                "error_count": r.get("error_count"),
+                "model": r.get("model"),
+                "elapsed_ms": r.get("elapsed_ms"),
+            },
+        )
+    out["failed_summary"] = {
+        "count": len(failed),
+        "recent": recent,
+    }
+    return out
+
+
+def attach_status_summary(payload: dict[str, Any]) -> dict[str, Any]:
+    """附加会话状态分布统计，便于看板快速识别运行态。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        empty = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+        out["status_counts"] = dict(empty)
+        out["status_summary"] = {"total": 0, "counts": dict(empty)}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        empty = {"pending": 0, "running": 0, "completed": 0, "failed": 0}
+        out["status_counts"] = dict(empty)
+        out["status_summary"] = {"total": 0, "counts": dict(empty)}
+        return out
+    counts = {
+        "pending": 0,
+        "running": 0,
+        "completed": 0,
+        "failed": 0,
+        "unknown": 0,
+    }
+    for row in sessions:
+        if not isinstance(row, dict):
+            continue
+        st_raw = str(row.get("task_status") or "").strip().lower()
+        ec = int(row.get("error_count") or 0)
+        if st_raw in ("pending", "running", "completed", "failed"):
+            counts[st_raw] += 1
+        elif ec > 0:
+            counts["failed"] += 1
+        else:
+            counts["unknown"] += 1
+    out["status_counts"] = dict(counts)
+    out["status_summary"] = {
+        "total": sum(counts.values()),
+        "counts": counts,
+    }
+    return out
+
+
+def attach_group_summary(
+    payload: dict[str, Any],
+    *,
+    top_n: int = 5,
+) -> dict[str, Any]:
+    """附加按模型与任务维度的 TopN 聚合统计。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["group_summary"] = {"top_n": max(1, int(top_n)), "models_top": [], "tasks_top": []}
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["group_summary"] = {"top_n": max(1, int(top_n)), "models_top": [], "tasks_top": []}
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    m_counter: Counter[str] = Counter()
+    t_counter: Counter[str] = Counter()
+    for r in rows:
+        model = str(r.get("model") or "").strip() or "unknown"
+        task_id = str(r.get("task_id") or "").strip() or "unknown"
+        m_counter[model] += 1
+        t_counter[task_id] += 1
+    n = max(1, int(top_n))
+    out["group_summary"] = {
+        "top_n": n,
+        "models_top": [{"key": k, "count": v} for k, v in m_counter.most_common(n)],
+        "tasks_top": [{"key": k, "count": v} for k, v in t_counter.most_common(n)],
+    }
+    # backward-compatible alias for early adopters
+    out["topn_summary"] = {
+        "top_n": n,
+        "models": list(out["group_summary"]["models_top"]),
+        "tasks": list(out["group_summary"]["tasks_top"]),
+    }
+    return out
+
+
+def attach_trend_summary(
+    payload: dict[str, Any],
+    *,
+    recent_window: int = 10,
+) -> dict[str, Any]:
+    """基于最近窗口与历史基线窗口计算趋势对比。"""
+    out = dict(payload)
+    obs = out.get("observe")
+    if not isinstance(obs, dict):
+        out["trend_summary"] = {
+            "window": max(1, int(recent_window)),
+            "recent": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "baseline": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "delta": {"failure_rate": 0.0, "avg_total_tokens": 0.0},
+        }
+        return out
+    sessions = obs.get("sessions")
+    if not isinstance(sessions, list):
+        out["trend_summary"] = {
+            "window": max(1, int(recent_window)),
+            "recent": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "baseline": {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0},
+            "delta": {"failure_rate": 0.0, "avg_total_tokens": 0.0},
+        }
+        return out
+    rows = [r for r in sessions if isinstance(r, dict)]
+    rows.sort(key=lambda r: int(r.get("mtime") or 0), reverse=True)
+    w = max(1, int(recent_window))
+    recent_rows = rows[:w]
+    baseline_rows = rows[w : (2 * w)]
+    if not baseline_rows:
+        baseline_rows = rows[w:]
+
+    def _slice_stats(slice_rows: list[dict[str, Any]]) -> dict[str, float | int]:
+        n = len(slice_rows)
+        if n <= 0:
+            return {"sessions": 0, "failure_rate": 0.0, "avg_total_tokens": 0.0}
+        failed = sum(1 for r in slice_rows if int(r.get("error_count") or 0) > 0)
+        total_tokens = sum(int(r.get("total_tokens") or 0) for r in slice_rows)
+        return {
+            "sessions": n,
+            "failure_rate": float(failed) / n,
+            "avg_total_tokens": float(total_tokens) / n,
+        }
+
+    recent = _slice_stats(recent_rows)
+    baseline = _slice_stats(baseline_rows)
+    out["trend_summary"] = {
+        "window": w,
+        "recent": recent,
+        "baseline": baseline,
+        "delta": {
+            "failure_rate": float(recent["failure_rate"]) - float(baseline["failure_rate"]),
+            "avg_total_tokens": float(recent["avg_total_tokens"]) - float(baseline["avg_total_tokens"]),
+        },
+    }
+    return out

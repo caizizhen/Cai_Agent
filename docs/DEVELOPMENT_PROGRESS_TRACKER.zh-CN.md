@@ -25,9 +25,27 @@
 ### C. Hooks / 可观测
 
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
+- `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务
+- `board` 新增失败摘要：输出 `failed_summary`（count/recent），文本模式增加 `[failed_summary]` 区块便于值班排障
+- `board` 新增状态统计：输出 `status_summary` 与 `status_counts`（`pending/running/completed/failed/unknown`），文本模式增加 `[status_summary]` 分组统计
+- `board` 失败摘要增强：支持 `--failed-top` 配置 recent 失败条数，按会话文件 mtime 降序输出（最近失败优先）
+- `board` 新增分组聚合：支持 `--group-top` 输出模型与 task 维度 TopN（`group_summary`），文本模式增加 `[group_summary]` 摘要
+- `board` 新增组合过滤：支持 `--status`（可多值/逗号分隔）并与 `--failed-only` / `--task-id` 联合生效
+- `board` 新增趋势对比：支持 `--trend-window`（或 `--trend-recent` + `--trend-baseline`）输出 `trend_summary`，给出 recent/baseline 的失败率与平均 tokens 差值
+
+### J. MCP / WebSearch / Notebook 对齐（Sprint 3）
+
+- `mcp-check` 增强预设自检：支持 `--preset websearch|notebook`，输出推荐关键词命中情况与缺失项
+- `mcp-check` 增强探测策略：支持 `--list-only`（仅列工具不探活），避免在未准备好参数时误触工具调用
+- JSON 输出新增 `preset` 结构化摘要（`name/recommended_tools/matched_tools/missing_tools/ok`），可直接用于 CI 或 onboarding 诊断
+- `mcp-check` 新增降级提示：当 preset 未命中时输出 `fallback_hint`（含文档路径、建议命令、缺失关键词），用于接入阻塞场景快速定位
+- `mcp-check` 新增模板输出：支持 `--print-template`，按 `websearch/notebook` 生成可复制的最小 MCP 配置片段（文本/JSON 双输出）
+- `mcp-check` 模板细化：`--print-template` 按 preset 输出差异化模板（WebSearch/Notebook 各自示例工具名、环境变量占位、最小命令），降低首次接入歧义
 
 ### D. Memory Loop
 
+- `memory import-entries` 严格化：新增 `--dry-run` 仅校验不落盘路径，支持在导入前做批量 schema 预检
+- `memory import-entries` 错误语义增强：无效 bundle 返回结构化错误（entry_index/path/errors），便于快速定位坏数据行
 - `memory nudge` schema 升级至 `1.1`
 - 新增 `threshold_policy` / `risk_score` / `trend`
 - 新增记忆状态机评估：`active/stale/expired`（`memory state`）
@@ -102,8 +120,8 @@
 
 ## 下一阶段建议（按价值）
 
-1. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
-2. Recall 结果缓存与大规模索引压测脚本
-3. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
-4. Gateway/Memory 的策略参数文档与默认值分层（prod/dev）细化
+1. Sprint 4 持续推进：补 memory import/export CLI 的错误分级码与迁移向导文档
+2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
+3. Recall 结果缓存与大规模索引压测脚本
+4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
 
