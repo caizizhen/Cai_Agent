@@ -7,7 +7,7 @@ drops the TCP connection mid-request. These errors surface as
 
 Before this fix, a single ``httpx.TransportError`` propagated unhandled all
 the way up and crashed the agent. After the fix:
-- The retry loop retries up to ``CAI_LLM_MAX_RETRIES`` attempts (default 10)
+- The retry loop retries up to ``CAI_LLM_MAX_RETRIES`` attempts (default 20)
   with exponential backoff.
 - If the error clears before the last attempt the call succeeds normally.
 - If all attempts fail, a descriptive ``RuntimeError`` is raised (which is
@@ -256,7 +256,7 @@ class LlmMaxRetriesEnvTests(unittest.TestCase):
 
     def test_llm_max_retries_default(self) -> None:
         os.environ.pop("CAI_LLM_MAX_RETRIES", None)
-        self.assertEqual(llm_mod.llm_max_retries(), 10)
+        self.assertEqual(llm_mod.llm_max_retries(), 20)
 
     def test_llm_max_retries_from_env(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "8"
@@ -264,7 +264,7 @@ class LlmMaxRetriesEnvTests(unittest.TestCase):
 
     def test_llm_max_retries_invalid_falls_back(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "not-a-number"
-        self.assertEqual(llm_mod.llm_max_retries(), 10)
+        self.assertEqual(llm_mod.llm_max_retries(), 20)
 
     def test_llm_max_retries_clamped(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "0"
