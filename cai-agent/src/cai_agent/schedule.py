@@ -9,6 +9,18 @@ from typing import Any
 
 SCHEDULE_SCHEMA_VERSION = "1.1"
 SCHEDULE_FILE = ".cai-schedule.json"
+SCHEDULE_AUDIT_SCHEMA_VERSION = "1.0"
+SCHEDULE_AUDIT_EVENT_NAMES = frozenset(
+    {
+        "task.started",
+        "task.completed",
+        "task.failed",
+        "task.retrying",
+        "task.skipped",
+        "daemon.cycle",
+        "daemon.started",
+    },
+)
 
 
 def _utc_now_iso() -> str:
@@ -389,6 +401,62 @@ def mark_schedule_task_run(
     return changed
 
 
+def _goal_preview(goal: str | None, limit: int = 120) -> str:
+    g = str(goal or "").strip()
+    if not g:
+        return ""
+    if len(g) <= limit:
+        return g
+    return g[: limit - 1] + "…"
+
+
+def build_schedule_audit_row(
+    *,
+    task_id: str,
+    status: str,
+    action: str,
+    details: dict[str, Any] | None = None,
+    event: str | None = None,
+    goal_preview: str | None = None,
+    elapsed_ms: int | None = None,
+    error: str | None = None,
+) -> dict[str, Any]:
+    """构建单行审计 JSON（与 ``append_schedule_audit_event`` 写入内容一致）。"""
+    det = dict(details or {})
+    if isinstance(event, str) and event.strip():
+        ev = str(event).strip()
+    else:
+        ev = _schedule_audit_event_from_legacy(
+            action=str(action).strip(),
+            status=str(status).strip(),
+            details=det,
+        )
+    if ev not in SCHEDULE_AUDIT_EVENT_NAMES:
+        ev = "task.failed"
+    tid = str(task_id).strip()
+    gp = str(goal_preview).strip() if isinstance(goal_preview, str) else ""
+    if not gp and isinstance(det.get("goal_preview"), str):
+        gp = str(det.get("goal_preview") or "").strip()
+    em = int(elapsed_ms) if isinstance(elapsed_ms, int) and elapsed_ms >= 0 else None
+    if em is None and isinstance(det.get("elapsed_ms"), int) and det["elapsed_ms"] >= 0:
+        em = int(det["elapsed_ms"])
+    err = str(error).strip() if isinstance(error, str) and error.strip() else None
+    if err is None and isinstance(det.get("error"), str) and det["error"].strip():
+        err = str(det["error"]).strip()[:500]
+    return {
+        "schema_version": SCHEDULE_AUDIT_SCHEMA_VERSION,
+        "ts": _utc_now_iso(),
+        "event": ev,
+        "task_id": tid,
+        "goal_preview": gp,
+        "elapsed_ms": em if em is not None else 0,
+        "error": err,
+        "status": str(status).strip(),
+        "action": str(action).strip(),
+        "details": det,
+    }
+
+
 def append_schedule_audit_event(
     *,
     task_id: str,
@@ -396,17 +464,54 @@ def append_schedule_audit_event(
     action: str,
     cwd: str | None = None,
     details: dict[str, Any] | None = None,
+    event: str | None = None,
+    goal_preview: str | None = None,
+    elapsed_ms: int | None = None,
+    error: str | None = None,
+    mirror_jsonl_path: Path | str | None = None,
 ) -> None:
-    """向 `.cai-schedule-audit.jsonl` 追加审计记录。"""
+    """向 `.cai-schedule-audit.jsonl` 追加一行 **S4-04** 统一 schema（`schema_version`=`SCHEDULE_AUDIT_SCHEMA_VERSION`）。"""
     base = Path(cwd or ".").expanduser().resolve()
     p = base / ".cai-schedule-audit.jsonl"
     p.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "ts": _utc_now_iso(),
-        "task_id": str(task_id).strip(),
-        "status": str(status).strip(),
-        "action": str(action).strip(),
-        "details": details or {},
-    }
+    row = build_schedule_audit_row(
+        task_id=task_id,
+        status=status,
+        action=action,
+        details=details,
+        event=event,
+        goal_preview=goal_preview,
+        elapsed_ms=elapsed_ms,
+        error=error,
+    )
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    if mirror_jsonl_path is not None:
+        mp = Path(mirror_jsonl_path).expanduser().resolve()
+        mp.parent.mkdir(parents=True, exist_ok=True)
+        with mp.open("a", encoding="utf-8") as f2:
+            f2.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def _schedule_audit_event_from_legacy(*, action: str, status: str, details: dict[str, Any]) -> str:
+    """由旧 action/status 推导 S4-04 `event` 名称。"""
+    st = str(status or "").strip().lower()
+    act = str(action or "").strip().lower()
+    reason = str(details.get("reason") or "").strip().lower()
+    if act == "schedule.add":
+        return "task.completed"
+    if reason == "skipped_due_to_concurrency" or st == "skipped":
+        return "task.skipped"
+    if st == "retrying":
+        return "task.retrying"
+    if st == "failed_exhausted":
+        return "task.failed"
+    if st == "completed":
+        return "task.completed"
+    if st == "failed":
+        return "task.failed"
+    if act.startswith("schedule.daemon"):
+        return "daemon.started"
+    if act.startswith("schedule."):
+        return "task.failed"
+    return "task.failed"
