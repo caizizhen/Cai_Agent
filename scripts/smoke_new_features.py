@@ -7,6 +7,7 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
@@ -505,6 +506,23 @@ def main() -> int:
                 issues = djo.get("issues") or []
                 if not isinstance(issues, list) or "index_file_missing" not in issues:
                     errs.append(f"recall-index doctor issues want index_file_missing: {issues!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-idx-info-") as rii_td:
+        pri = _run([*cli, "recall-index", "info", "--json"], cwd=rii_td)
+        if pri.returncode != 0:
+            errs.append(f"recall-index info (no index) exit {pri.returncode} want 0")
+        else:
+            try:
+                inf = json.loads((pri.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"recall-index info json parse: {e}")
+            else:
+                if inf.get("ok") is not False:
+                    errs.append(f"recall-index info ok want false: {inf!r}")
+                if inf.get("error") != "index_not_found":
+                    errs.append(f"recall-index info error want index_not_found: {inf!r}")
+                if not isinstance(inf.get("index_file"), str) or not str(inf.get("index_file")).strip():
+                    errs.append(f"recall-index info index_file missing: {inf!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
         pm = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)

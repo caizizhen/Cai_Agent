@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步，**350 passed**）。**冒烟**：`scripts/smoke_new_features.py`（版本库脚本）已覆盖 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health`/`memory state` --json**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**、**`recall-index doctor --json`**（无索引 exit `2`）；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 开发项 1–26 加权约 77%**；**Hermes 34 Story 约 50% / 加权约 54%**；与 T1 pytest 通过数同步，**350 passed**）。**冒烟**：`scripts/smoke_new_features.py`（版本库脚本）已覆盖 **`mcp-check`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board` --json**、**`hooks list --json`**、**`memory health`/`memory state` --json**、**`schedule stats --json`**、**`gateway telegram list --json`**、**`recall --json`**、**`recall-index doctor --json`**（无索引 exit `2`）、**`recall-index info --json`**（无索引 exit `0`）；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** 并设置 **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。
 
 ## 对照基线
 
@@ -32,7 +32,7 @@
 
 ### C. Hooks / 可观测
 
-- **冒烟扩展**：**`mcp-check --json`**、空目录 **`sessions`/`observe-report --json`**、**`hooks run-event … --dry-run --json`**、**`memory state --json`**、**`recall-index doctor --json`（无索引）** 与 **`hooks list`** 同批校验（`scripts/smoke_new_features.py`）；单测 **`test_sessions_list_json_empty_directory`**、**`test_observe_report_json_empty_workspace_state_pass`**、**`test_memory_state_json_empty_workspace`**
+- **冒烟扩展**：**`mcp-check --json`**、空目录 **`sessions`/`observe-report --json`**、**`hooks run-event … --dry-run --json`**、**`memory state --json`**、**`recall-index doctor`/`info --json`（无索引）** 与 **`hooks list`** 同批校验（`scripts/smoke_new_features.py`）；单测 **`test_sessions_list_json_empty_directory`**、**`test_observe_report_json_empty_workspace_state_pass`**、**`test_memory_state_json_empty_workspace`**
 - **`insights --json`**：窗口内无会话时 **`_build_insights_payload`** **早返回**（与零会话循环同形 **`schema_version`=`1.1`**）；单测 **`test_insights_json_empty_workspace_fast_path`**、冒烟脚本覆盖
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
 - `board` 看板增强筛选：支持 `--failed-only` 与 `--task-id`，可快速聚焦失败会话与指定任务

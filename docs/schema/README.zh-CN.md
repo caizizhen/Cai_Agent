@@ -287,9 +287,10 @@
 | `recall --json`（扫描） | **`1.3`**；含 `no_hit_reason`、`sort`、`ranking` 等 |
 | `recall-index search` / `benchmark` | 负载内含 `recall_index_schema_version`（索引文件 **`1.1`**） |
 | `recall-index doctor --json` | **`recall_index_doctor_v1`**；不健康 exit `2` |
+| `recall-index info --json` | 轻量对象：**`ok`**（bool）、**`index_file`**；无索引时 **`ok`=`false`**、**`error`=`index_not_found`**，**exit `0`**（与 doctor 的「不健康即 2」区分） |
 | `recall-index` 性能脚本输出 | `recall_benchmark_v1`（见 `scripts/perf_recall_bench.py`） |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`recall --json`**（**`1.3`**、`hits_total`=`0`、`no_hit_reason`）；另在空目录执行 **`recall-index doctor --json`**，断言 **exit `2`**、**`recall_index_doctor_v1`**、**`is_healthy`=`false`**、**`issues`** 含 **`index_file_missing`**（无索引文件的契约路径）。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`recall --json`**（**`1.3`**、`hits_total`=`0`、`no_hit_reason`）；空目录 **`recall-index doctor --json`**：**exit `2`**、**`recall_index_doctor_v1`**、**`issues`** 含 **`index_file_missing`**；同场景 **`recall-index info --json`**：**exit `0`**、**`ok`=`false`**、**`error`=`index_not_found`**。
 
 ---
 
