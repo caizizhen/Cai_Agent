@@ -64,8 +64,9 @@
 
 ### E. Recall Loop
 
-- `recall` / `recall-index search|benchmark` JSON `schema_version` **1.2**；`--sort recent|density|combined` 与 `ranking` 策略字段对齐（S3-01）
-- 混合排序：`recency` + `hit_strength` + `keyword_density`；`keyword_density` 基于完整命中消息正文（非仅 snippet）
+- `recall` / `recall-index search` JSON `schema_version` **1.3**；`--sort recent|density|combined` 与 `ranking` 策略字段对齐（S3-01）
+- **S3-02**：0 命中时 `no_hit_reason`（`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`）；文本模式输出可读 `no_hit_reason` 行
+- 混合排序：`recency` + `hit_strength` + `keyword_density`；直扫路径 `keyword_density` 基于完整命中消息正文；索引路径密度基于索引 `content` 全文
 - 行级评分：`score` + `score_breakdown`（含 `sort_mode`）
 - `recall-index search` 与主 recall 评分模型对齐
 

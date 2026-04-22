@@ -36,7 +36,7 @@
 | Query 式主循环 | claude-code-analysis | `Done` | `graph.py` |
 | 工具注册与权限 | claude-code-analysis | `Done` | `tools.py` + `[permissions]` |
 | 会话与历史 | claude-code-analysis | `Done` / `Next` | 已落地：`workflow` 事件流、`run`/`continue` 的 `run_schema_version` + `events`、`observe` 汇总 `run_events_total`、`sessions_with_events`、逐文件 `events_count`；新增 `hooks` 执行结果状态摘要（stderr）与 release-ga 聚合门禁。TUI/全量 Dashboard 深化仍待办 |
-| 跨会话 recall | claude-code / Hermes | `Done` / `Next` | `recall` / `recall-index`；JSON `schema_version=1.2`，`--sort recent|density|combined`（与 `ranking` 描述一致）；`keyword_density` 基于完整命中消息正文。`no_hit_reason`、`recall-index doctor`、压测脚本等待办 |
+| 跨会话 recall | claude-code / Hermes | `Done` / `Next` | `recall` / `recall-index`；JSON `schema_version=1.3`，`--sort recent|density|combined`；0 命中时 `no_hit_reason`（`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`）。`recall-index doctor`、压测脚本仍待办 |
 | 上下文压缩策略 | claude-code-analysis | `Next` | 与 `[context]`、`observe` 联动深化 |
 | 成本 / token 策略 | claude-code-analysis | `Next` | 由统计升级为可配置策略 |
 | 钩子扩展 | claude-code-analysis | `Done` / `Next` | 已落地：`hooks.json` 外部 command 钩子（`[hooks]` profile `minimal|standard|strict`、禁用列表、危险命令阻断）；`hooks/hooks.json` 与 `.cai/hooks/hooks.json` 双路径；CLI `cai-agent hooks list` / `hooks run-event`（含 `--dry-run`）；运行期 `_print_hook_status` 与执行器分类一致（`enabled_hook_ids` 仅含将实际执行的条目）；Windows 上对 argv 路径片段做规范化。事件注册表/更多内置钩子类型仍待办 |
