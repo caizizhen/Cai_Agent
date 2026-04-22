@@ -64,9 +64,9 @@
 
 ### E. Recall Loop
 
-- `recall` schema 升级至 `1.1`
-- 混合排序：`recency` + `hit_strength` + `keyword_density`
-- 行级评分：`score` + `score_breakdown`
+- `recall` / `recall-index search|benchmark` JSON `schema_version` **1.2**；`--sort recent|density|combined` 与 `ranking` 策略字段对齐（S3-01）
+- 混合排序：`recency` + `hit_strength` + `keyword_density`；`keyword_density` 基于完整命中消息正文（非仅 snippet）
+- 行级评分：`score` + `score_breakdown`（含 `sort_mode`）
 - `recall-index search` 与主 recall 评分模型对齐
 
 ### F. Workflow / Subagents 编排

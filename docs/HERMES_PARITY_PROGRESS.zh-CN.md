@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 8      | 24%      |
+| ✅ 已完成        | 9      | 26%      |
 | ⚠️ 部分完成（需补齐） | 4      | 12%      |
-| ❌ 未开发        | 22     | 65%      |
+| ❌ 未开发        | 21     | 62%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -34,6 +34,7 @@
 | **S2-05**   | nudge-report health_score | `nudge-report --json` 升级为 `schema_version`=`1.2`，含 `health_score` 与 `health_grade`（与当前工作区 `memory health` 一致） |
 | **S2-03**   | conflict_rate 指标 | `memory health --json`：`conflict_pair_count`、`conflict_compared_entries`、`conflict_max_compare_entries`、`conflict_similarity_metric`；`--max-conflict-compare-entries` 可调采样规模 |
 | **S2-04**   | coverage 指标 | `coverage` 分母为 `--days` 窗口内 **可评估会话**（goal≥8 且解析成功）；`counts.sessions_considered_for_coverage` 与跳过计数可观测 |
+| **S3-01**   | recall `--sort` 策略 | `recall` / `recall-index search|benchmark`：`--sort recent|density|combined`；JSON `schema_version=1.2`，`ranking` 随策略变化 |
 
 
 ---
@@ -80,7 +81,6 @@
 
 | Story ID  | 标题                                       | 优先级 | 估算  | 测试计划                                                                               |
 | --------- | ---------------------------------------- | --- | --- | ---------------------------------------------------------------------------------- |
-| **S3-01** | recall 排序策略升级（`--sort density/combined`） | P1  | L   | [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) RCL-RANK-001~006 |
 | **S3-02** | 无命中解释（`no_hit_reason` 字段）                | P1  | M   | RCL-NOHIT-001~005                                                                  |
 | **S3-03** | `recall-index doctor` 命令                 | P1  | M   | RCL-DOC-001~006                                                                    |
 | **S3-04** | recall 性能基准脚本                            | P2  | M   | PERF-RCL-001~005                                                                   |
@@ -88,7 +88,7 @@
 
 **开发关键文件**：
 
-- `__main__.py`：`recall` 新增 `--sort` 参数；`recall-index` 新增 `doctor` 子命令
+- `__main__.py`：`recall` / `recall-index search|benchmark` 已支持 `--sort`；`recall-index doctor` 仍待办
 - `scripts/perf_recall_bench.py`：新建性能基准脚本  
 **QA 等待信号**：S3-01/S3-02/S3-03 均提测后，整体运行 `python3 -m pytest -q tests/test_recall*.py`
 
@@ -223,7 +223,7 @@ Sprint 8（GA）
 | Sprint | 开发完成信号                     | QA 开始动作                                           |
 | ------ | -------------------------- | ------------------------------------------------- |
 | S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
-| S3     | S3-01/S3-02/S3-03 合并       | 运行 `test_recall*.py` + 手工 RCL-RANK/NOHIT/DOC 系列   |
+| S3     | S3-02/S3-03 合并（S3-01 已合主线） | 运行 `test_recall*.py` + 手工 RCL-NOHIT/DOC 系列（RCL-RANK 中 S3-01 相关可回归） |
 | S4     | S4-01/S4-02 合并             | 运行 `test_schedule*.py` + 故障注入测试 SCH-FI-001~003    |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01/S6-03 合并             | 自动化 GTW-SEC-001~004；准备 Bot Token 待手工测             |
