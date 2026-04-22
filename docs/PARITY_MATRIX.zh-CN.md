@@ -46,7 +46,7 @@
 |--------|------|------|------|
 | 质量门禁 | ECC / 官方 CI 习惯 | `Done` | `quality-gate` |
 | 安全扫描 | ECC | `Done` | `security-scan` |
-| 记忆 / 本能 | ECC | `Done` / `Next` | 已落地：`entries.jsonl` 写入前 **v1 schema** 校验；`memory import-entries --dry-run` 结构化校验；`memory import-entries --error-report` 坏数据隔离报告导出（`memory_entries_import_errors_v1`）与人类可读失败摘要；`memory prune --json` 输出 `memory_prune_result_v1`（`removed_by_reason` 分桶、`invalid_json_lines`）；`memory nudge` schema 升级到 `1.1`（`threshold_policy` / `risk_score` / `trend`）+ `nudge-report` 趋势汇总；**`memory health --json`**（`schema_version`=`1.0`，`health_score`/`grade`/`freshness`/`coverage`/`conflict_rate`，`--fail-on-grade` CI 门禁）。TTL/自动化提炼仍待办 |
+| 记忆 / 本能 | ECC | `Done` / `Next` | 已落地：`entries.jsonl` 写入前 **v1 schema** 校验；`memory import-entries --dry-run` 结构化校验；`memory import-entries --error-report` 坏数据隔离报告导出（`memory_entries_import_errors_v1`）与人类可读失败摘要；`memory prune --json` 输出 `memory_prune_result_v1`（`removed_by_reason` 分桶、`invalid_json_lines`）；`memory nudge` schema 升级到 `1.1`（`threshold_policy` / `risk_score` / `trend`）+ `nudge-report` 趋势汇总；**`memory health --json`**（`schema_version`=`1.0`，`health_score`/`grade`/`freshness`/`coverage`/`conflict_rate`，`--fail-on-grade` CI 门禁）；**`memory nudge-report --json`** 含同源 `freshness` 与 `health_score`（`schema_version`=`1.2`）。TTL/自动化提炼仍待办 |
 | 成本预算 | ECC | `Done` / `Next` | `cost budget`；新增 `release-ga` 汇总 budget 与会话失败率门禁；策略深化见 L2 |
 | 跨工具导出 | ECC | `Done` / `Next` | `export`；manifest 维度持续对齐 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
 | 可视化运营面板 | ECC | `Next` | P2+，见路线图 |

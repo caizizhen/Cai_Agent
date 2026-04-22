@@ -582,6 +582,32 @@ def _word_jaccard_similarity(a: str, b: str) -> float:
     return float(inter) / float(union) if union else 0.0
 
 
+def compute_memory_freshness_metrics(
+    entries: list[dict[str, Any]],
+    *,
+    now: datetime | None = None,
+    freshness_days: int = 14,
+) -> dict[str, Any]:
+    """S2-02：记忆条目新鲜度 = 最近 ``freshness_days`` 天内创建的条目 / 总有效条目数。"""
+    now_dt = now or datetime.now(UTC)
+    window = max(1, int(freshness_days))
+    since = now_dt - timedelta(days=window)
+    n = len(entries)
+    fresh = 0
+    for row in entries:
+        ct = _parse_dt(row.get("created_at"))
+        if ct is not None and ct >= since:
+            fresh += 1
+    ratio = (float(fresh) / float(n)) if n else 0.0
+    return {
+        "freshness": round(ratio, 4),
+        "freshness_days": window,
+        "since_freshness": since.isoformat(),
+        "memory_entries": n,
+        "fresh_entries": fresh,
+    }
+
+
 def compute_memory_conflict_pairs(
     entries: list[dict[str, Any]],
     *,
@@ -644,9 +670,16 @@ def build_memory_health_payload(
     root_path = Path(root).expanduser().resolve()
     now = datetime.now(UTC)
     since_sessions = now - timedelta(days=max(1, int(days)))
-    since_fresh = now - timedelta(days=max(1, int(freshness_days)))
 
     entries, memory_warnings = load_memory_entries_validated(root_path)
+    fresh_metrics = compute_memory_freshness_metrics(
+        entries,
+        now=now,
+        freshness_days=int(freshness_days),
+    )
+    n_entries = int(fresh_metrics["memory_entries"])
+    fresh_count = int(fresh_metrics["fresh_entries"])
+    freshness = float(fresh_metrics["freshness"])
     session_paths = list_session_files(
         cwd=str(root_path),
         pattern=str(session_pattern),
@@ -659,14 +692,6 @@ def build_memory_health_payload(
                 recent_sessions.append(p)
         except OSError:
             continue
-
-    n_entries = len(entries)
-    fresh_count = 0
-    for row in entries:
-        ct = _parse_dt(row.get("created_at"))
-        if ct is not None and ct >= since_fresh:
-            fresh_count += 1
-    freshness = (float(fresh_count) / float(n_entries)) if n_entries else 0.0
 
     covered = 0
     for sp in recent_sessions:
@@ -741,8 +766,8 @@ def build_memory_health_payload(
         "window": {
             "days": max(1, int(days)),
             "since_sessions": since_sessions.isoformat(),
-            "freshness_days": max(1, int(freshness_days)),
-            "since_freshness": since_fresh.isoformat(),
+            "freshness_days": int(fresh_metrics["freshness_days"]),
+            "since_freshness": str(fresh_metrics["since_freshness"]),
             "session_pattern": session_pattern,
             "session_limit": max(1, int(session_limit)),
         },

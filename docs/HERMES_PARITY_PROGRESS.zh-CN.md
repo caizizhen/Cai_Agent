@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 4      | 12%      |
+| ✅ 已完成        | 6      | 18%      |
 | ⚠️ 部分完成（需补齐） | 4      | 12%      |
-| ❌ 未开发        | 26     | 76%      |
+| ❌ 未开发        | 24     | 71%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -30,6 +30,8 @@
 | S1-04       | Parity Matrix 基础 | `docs/PARITY_MATRIX.zh-CN.md` 已有，需按新格式补充 Gap 列                  |
 | S1-03（基础部分） | 错误码 exit 0/2     | `--fail-on-severity`、`--fail-on-grade` 接口已规范，部分命令已实现            |
 | **S2-01**   | `memory health` 统一评分 | `cai-agent memory health --json`（`schema_version`=`1.0`）、`--fail-on-grade` exit 0/2；实现见 `memory.build_memory_health_payload` + `tests/test_memory_health_cli.py` |
+| **S2-02**   | freshness 指标 | `compute_memory_freshness_metrics` 与 `memory health` 共用；`memory nudge-report --json` 输出 `freshness` / `freshness_days` / `since_freshness` / `fresh_entries`；CLI `--freshness-days` |
+| **S2-05**   | nudge-report health_score | `nudge-report --json` 升级为 `schema_version`=`1.2`，含 `health_score` 与 `health_grade`（与当前工作区 `memory health` 一致） |
 
 
 ---
@@ -70,14 +72,12 @@
 
 | Story ID  | 标题                              | 优先级 | 估算  | 测试计划                                                                      |
 | --------- | ------------------------------- | --- | --- | ------------------------------------------------------------------------- |
-| **S2-02** | freshness 指标                    | P1  | M   | MEM-FSH-001~002                                                           |
 | **S2-03** | conflict_rate 指标                | P2  | L   | MEM-CFT-001~003                                                           |
 | **S2-04** | coverage 指标                     | P2  | M   | MEM-COV-001                                                               |
-| **S2-05** | nudge-report 增加 health_score 字段 | P2  | S   | MEM-NDG-020~025                                                           |
 
 
-**开发关键文件**：`cai-agent/src/cai_agent/memory.py`（`build_memory_health_payload`）、`__main__.py`（`memory health` 子命令）  
-**QA 等待信号**：S2-01 已合并后，运行 `python3 -m pytest -q tests/test_memory_health*.py`；S2-02 起按专项计划继续
+**开发关键文件**：`cai-agent/src/cai_agent/memory.py`、`__main__.py`（`memory health` / `memory nudge-report`）  
+**QA 等待信号**：`python3 -m pytest -q tests/test_memory_health*.py tests/test_memory_nudge_report_cli.py tests/test_memory_freshness_metrics.py`
 
 ---
 

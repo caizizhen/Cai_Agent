@@ -59,6 +59,7 @@
 - `memory prune` 新增 `--drop-non-active`，可按状态机删除非 active 条目
 - `memory prune --json` 输出增强：`schema_version=memory_prune_result_v1`、`removed_by_reason`（按原因分桶）、`invalid_json_lines`（文件中无法解析为 JSON 的行数，不自动删除）；文本模式补充 `non_active` 与 `removed_by_reason` 摘要行
 - **S2-01**：`memory health`（`build_memory_health_payload`）：综合 `health_score`/`grade`（A~D）、`freshness`/`coverage`/`conflict_rate`/`conflict_pairs`；`--fail-on-grade` 返回 exit 2；修复 `memory state` 对 `evaluate_memory_entry_states` 的错误传参；`memory_state_eval_v1` 增加 `total_entries`
+- **S2-02 / S2-05**：`compute_memory_freshness_metrics` 与 health 共用；`memory nudge-report --json` 升至 `schema_version=1.2`，输出 `freshness*` 与 `health_score`/`health_grade`，CLI 增加 `--freshness-days`
 
 ### E. Recall Loop
 
