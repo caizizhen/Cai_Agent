@@ -30,6 +30,60 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn("ok", payload)
         self.assertEqual(rc == 0, bool(payload["ok"]))
 
+    def test_mcp_check_json_with_websearch_preset(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["mcp-check", "--json", "--preset", "websearch", "--list-only"])
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        payload = json.loads(buf.getvalue().strip())
+        preset = payload.get("preset")
+        self.assertTrue(isinstance(preset, dict))
+        self.assertEqual(preset.get("name"), "websearch")
+        self.assertIn("recommended_tools", preset)
+        self.assertIn("matched_tools", preset)
+        self.assertIn("missing_tools", preset)
+        self.assertIn("fallback_hint", payload)
+        hint = payload.get("fallback_hint") or {}
+        self.assertTrue(isinstance(hint, dict))
+        self.assertEqual(hint.get("doc_path"), "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md")
+
+    def test_mcp_check_json_print_template_for_notebook(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "mcp-check",
+                        "--json",
+                        "--preset",
+                        "notebook",
+                        "--print-template",
+                    ],
+                )
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        payload = json.loads(buf.getvalue().strip())
+        tmpl = payload.get("template")
+        self.assertTrue(isinstance(tmpl, str))
+        self.assertIn("mcp_enabled = true", str(tmpl))
+        self.assertIn("preset = notebook", str(tmpl))
+
 
 class PluginsCliTests(unittest.TestCase):
     def test_plugins_json_returns_0(self) -> None:

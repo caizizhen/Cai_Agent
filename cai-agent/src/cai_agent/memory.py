@@ -189,6 +189,29 @@ def import_memory_entries_bundle(root: str | Path, bundle: dict[str, Any]) -> in
     return len(to_write)
 
 
+def validate_memory_entries_bundle(
+    bundle: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """校验 bundle 内容并返回可写行与结构化错误（不写入磁盘）。"""
+    if not isinstance(bundle, dict):
+        return [], [{"entry_index": None, "path": "root", "errors": ["根对象须为 JSON object"]}]
+    entries = bundle.get("entries")
+    if not isinstance(entries, list):
+        return [], [{"entry_index": None, "path": "root.entries", "errors": ["缺少 entries 数组"]}]
+    valid_rows: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for i, row in enumerate(entries, start=1):
+        if not isinstance(row, dict):
+            errors.append({"entry_index": i, "path": f"entries[{i}]", "errors": ["须为 object"]})
+            continue
+        row_errs = validate_memory_entry_row(row)
+        if row_errs:
+            errors.append({"entry_index": i, "path": f"entries[{i}]", "errors": list(row_errs)})
+            continue
+        valid_rows.append(row)
+    return valid_rows, errors
+
+
 def _parse_created_at(row: dict[str, Any]) -> float:
     raw = row.get("created_at")
     if not isinstance(raw, str) or not raw.strip():
@@ -338,6 +361,27 @@ def search_memory_entries(
     return hits[:limit]
 
 
+def _prune_non_active_reason(
+    row: dict[str, Any],
+    *,
+    now: datetime,
+    stale_after_days: int,
+    min_active_confidence: float,
+) -> str:
+    """与 `annotate_memory_states` 的 state_reason 一致，用于 prune 分桶（仅非 active 路径）。"""
+    exp = _parse_dt(row.get("expires_at"))
+    created = _parse_dt(row.get("created_at"))
+    conf = _confidence_val(row)
+    stale_after = max(1, int(stale_after_days))
+    if exp is not None and exp < now:
+        return "expired_by_ttl"
+    if created is not None and created < (now - timedelta(days=stale_after)):
+        return "stale_by_age"
+    if conf < max(0.0, min(1.0, float(min_active_confidence))):
+        return "stale_by_confidence"
+    return "unknown"
+
+
 def prune_expired_memory_entries(
     root: str | Path,
     *,
@@ -346,7 +390,7 @@ def prune_expired_memory_entries(
     drop_non_active: bool = False,
     stale_after_days: int = 30,
     min_active_confidence: float = 0.4,
-) -> dict[str, int]:
+) -> dict[str, Any]:
     """按策略清理记忆条目并返回统计。
 
     清理顺序：
@@ -357,10 +401,21 @@ def prune_expired_memory_entries(
     path = _entries_path(root)
     if not path.is_file():
         return {
+            "schema_version": "memory_prune_result_v1",
             "removed_total": 0,
             "removed_expired": 0,
             "removed_low_confidence": 0,
             "removed_over_limit": 0,
+            "removed_non_active": 0,
+            "invalid_json_lines": 0,
+            "removed_by_reason": {
+                "expired_by_ttl": 0,
+                "low_confidence": 0,
+                "over_limit": 0,
+                "stale_by_age": 0,
+                "stale_by_confidence": 0,
+                "unknown_non_active": 0,
+            },
             "kept_total": 0,
         }
     now = datetime.now(UTC)
@@ -368,6 +423,15 @@ def prune_expired_memory_entries(
     remove_low_conf = 0
     remove_limit = 0
     remove_non_active = 0
+    invalid_json_lines = 0
+    by_reason: dict[str, int] = {
+        "expired_by_ttl": 0,
+        "low_confidence": 0,
+        "over_limit": 0,
+        "stale_by_age": 0,
+        "stale_by_confidence": 0,
+        "unknown_non_active": 0,
+    }
     cand: list[dict[str, Any]] = []
 
     low_conf_cutoff = None
@@ -381,6 +445,7 @@ def prune_expired_memory_entries(
         try:
             obj = json.loads(raw)
         except json.JSONDecodeError:
+            invalid_json_lines += 1
             cand.append({"raw": raw, "created_ts": 0.0})
             continue
         exp = obj.get("expires_at")
@@ -391,6 +456,7 @@ def prune_expired_memory_entries(
                     exp_dt = exp_dt.replace(tzinfo=UTC)
                 if exp_dt < now:
                     remove_expired += 1
+                    by_reason["expired_by_ttl"] += 1
                     continue
             except ValueError:
                 pass
@@ -399,6 +465,7 @@ def prune_expired_memory_entries(
             conf_val = float(conf) if isinstance(conf, int | float) and not isinstance(conf, bool) else 0.0
             if conf_val < low_conf_cutoff:
                 remove_low_conf += 1
+                by_reason["low_confidence"] += 1
                 continue
         if bool(drop_non_active) and isinstance(obj, dict):
             st = memory_entry_state(
@@ -408,6 +475,20 @@ def prune_expired_memory_entries(
             )
             if st != "active":
                 remove_non_active += 1
+                reason = _prune_non_active_reason(
+                    obj,
+                    now=now,
+                    stale_after_days=int(max(1, stale_after_days)),
+                    min_active_confidence=float(max(0.0, min(1.0, min_active_confidence))),
+                )
+                if reason == "stale_by_age":
+                    by_reason["stale_by_age"] += 1
+                elif reason == "stale_by_confidence":
+                    by_reason["stale_by_confidence"] += 1
+                elif reason == "expired_by_ttl":
+                    by_reason["expired_by_ttl"] += 1
+                else:
+                    by_reason["unknown_non_active"] += 1
                 continue
         created_ts = _parse_created_at(obj) if isinstance(obj, dict) else 0.0
         cand.append({"raw": raw, "created_ts": created_ts})
@@ -419,16 +500,20 @@ def prune_expired_memory_entries(
             sorted_cand = sorted(cand, key=lambda x: float(x["created_ts"]), reverse=True)
             kept_set = {str(x["raw"]) for x in sorted_cand[:cap]}
             remove_limit = len(cand) - len(kept_set)
+            by_reason["over_limit"] += remove_limit
             kept = [str(x["raw"]) for x in cand if str(x["raw"]) in kept_set]
 
     path.write_text("\n".join(kept) + ("\n" if kept else ""), encoding="utf-8")
     removed_total = remove_expired + remove_low_conf + remove_limit + remove_non_active
     return {
+        "schema_version": "memory_prune_result_v1",
         "removed_total": removed_total,
         "removed_expired": remove_expired,
         "removed_low_confidence": remove_low_conf,
         "removed_over_limit": remove_limit,
         "removed_non_active": remove_non_active,
+        "invalid_json_lines": invalid_json_lines,
+        "removed_by_reason": by_reason,
         "kept_total": len(kept),
     }
 

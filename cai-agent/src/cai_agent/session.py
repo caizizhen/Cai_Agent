@@ -119,7 +119,13 @@ def build_observe_payload(
         ev = s.get("events")
         events_count = len(ev) if isinstance(ev, list) else 0
         td = s.get("task")
-        task_id = str(td.get("task_id", "")) if isinstance(td, dict) else None
+        task_id: str | None = None
+        task_status: str | None = None
+        if isinstance(td, dict):
+            tid = str(td.get("task_id") or "").strip()
+            task_id = tid or None
+            st = str(td.get("status") or "").strip().lower()
+            task_status = st or None
         try:
             rel_path = str(p.relative_to(base))
         except ValueError:
@@ -127,6 +133,7 @@ def build_observe_payload(
         sessions.append(
             {
                 "path": rel_path,
+                "mtime": int(p.stat().st_mtime),
                 "total_tokens": tt,
                 "prompt_tokens": pt,
                 "completion_tokens": ct,
@@ -134,6 +141,7 @@ def build_observe_payload(
                 "elapsed_ms": em,
                 "model": model if isinstance(model, str) else None,
                 "task_id": task_id,
+                "task_status": task_status,
                 "events_count": events_count,
                 "run_schema_version": s.get("run_schema_version")
                 if isinstance(s.get("run_schema_version"), str)

@@ -24,7 +24,15 @@ from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
-from cai_agent.board_state import build_board_payload, save_last_workflow_snapshot
+from cai_agent.board_state import (
+    attach_group_summary,
+    attach_status_summary,
+    attach_failed_summary,
+    attach_trend_summary,
+    build_board_payload,
+    filter_board_payload,
+    save_last_workflow_snapshot,
+)
 from cai_agent.hook_runtime import (
     describe_hooks_catalog,
     enabled_hook_ids,
@@ -60,6 +68,7 @@ from cai_agent.memory import (
     save_instincts,
     search_memory_entries,
     sort_memory_rows,
+    validate_memory_entries_bundle,
 )
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
@@ -2730,6 +2739,22 @@ def main(argv: list[str] | None = None) -> int:
         metavar="JSON",
         help="与 --tool 配合使用的 JSON 参数，默认 {}",
     )
+    mcp_p.add_argument(
+        "--preset",
+        choices=["websearch", "notebook"],
+        default=None,
+        help="按预设能力进行工具存在性诊断（websearch/notebook）",
+    )
+    mcp_p.add_argument(
+        "--list-only",
+        action="store_true",
+        help="仅做工具列表探测，不执行 --tool 探活",
+    )
+    mcp_p.add_argument(
+        "--print-template",
+        action="store_true",
+        help="当使用 --preset 时输出可复制的 MCP 配置模板片段",
+    )
     sess_p = sub.add_parser(
         "sessions",
         help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
@@ -3118,6 +3143,16 @@ def main(argv: list[str] | None = None) -> int:
         help="从 bundle 导入条目（任一行无效则整批失败，不写入）",
     )
     memory_import_entries.add_argument("file")
+    memory_import_entries.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="仅校验 bundle，不写入 entries.jsonl",
+    )
+    memory_import_entries.add_argument(
+        "--error-report",
+        default=None,
+        help="可选：校验失败时将结构化错误写入文件（相对工作区或绝对路径）",
+    )
     memory_nudge = memory_sub.add_parser(
         "nudge",
         help="根据近期会话与记忆状态给出沉淀提醒（Hermes-style memory nudge）",
@@ -3372,6 +3407,52 @@ def main(argv: list[str] | None = None) -> int:
     )
     board_p.add_argument("--pattern", default=".cai-session*.json")
     board_p.add_argument("--limit", type=int, default=100)
+    board_p.add_argument(
+        "--failed-only",
+        action="store_true",
+        help="仅展示失败会话（error_count > 0）的看板视图",
+    )
+    board_p.add_argument(
+        "--task-id",
+        default="",
+        help="按 task_id 精确过滤会话",
+    )
+    board_p.add_argument(
+        "--status",
+        action="append",
+        default=[],
+        help="按任务状态过滤（可重复）：pending/running/completed/failed/unknown",
+    )
+    board_p.add_argument(
+        "--failed-top",
+        type=int,
+        default=5,
+        help="失败摘要 recent 列表的最大条数（最小为 1）",
+    )
+    board_p.add_argument(
+        "--group-top",
+        type=int,
+        default=5,
+        help="聚合视图（模型/任务）TopN 条数（最小为 1）",
+    )
+    board_p.add_argument(
+        "--trend-window",
+        type=int,
+        default=5,
+        help="趋势对比窗口大小（recent/baseline 各取 N 条，最小为 1）",
+    )
+    board_p.add_argument(
+        "--trend-recent",
+        type=int,
+        default=20,
+        help="趋势视图 recent 窗口大小（按最新会话计数，最小 1）",
+    )
+    board_p.add_argument(
+        "--trend-baseline",
+        type=int,
+        default=20,
+        help="趋势视图 baseline 窗口大小（紧随 recent 之前，最小 1）",
+    )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
     gateway_p = sub.add_parser(
@@ -3773,8 +3854,31 @@ def main(argv: list[str] | None = None) -> int:
         except Exception as e:
             ok = False
             txt = f"{type(e).__name__}: {e}"
+        tool_list: list[str] = []
+        if isinstance(txt, str):
+            for line in txt.splitlines():
+                s = line.strip()
+                if s.startswith("- "):
+                    name = s[2:].strip()
+                    if name:
+                        tool_list.append(name)
+        preset = str(getattr(args, "preset", "") or "").strip().lower() or None
+        preset_keywords: dict[str, list[str]] = {
+            "websearch": ["search", "web", "serp", "tavily", "duckduckgo", "google", "bing"],
+            "notebook": ["notebook", "jupyter", "ipynb", "cell"],
+        }
+        preset_matches: list[str] = []
+        preset_missing: list[str] = []
+        if preset in preset_keywords:
+            kws = preset_keywords[preset]
+            for kw in kws:
+                hit = next((t for t in tool_list if kw in t.lower()), None)
+                if hit is not None:
+                    preset_matches.append(hit)
+                else:
+                    preset_missing.append(kw)
         probe_result = None
-        if ok and args.tool:
+        if ok and args.tool and not bool(getattr(args, "list_only", False)):
             try:
                 probe_args = json.loads(args.args)
                 if not isinstance(probe_args, dict):
@@ -3790,6 +3894,46 @@ def main(argv: list[str] | None = None) -> int:
                 ok = False
                 probe_result = f"{type(e).__name__}: {e}"
         elapsed_ms = int((time.perf_counter() - started) * 1000)
+        preset_payload: dict[str, Any] | None = None
+        preset_hint: dict[str, Any] | None = None
+        template_text: str | None = None
+        if preset in preset_keywords:
+            doc_path = "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+            suggested_cmd = f"cai-agent mcp-check --json --preset {preset} --list-only"
+            if bool(getattr(args, "print_template", False)):
+                template_text = (
+                    "# cai-agent.toml (MCP 示例片段)\n"
+                    "[agent]\n"
+                    "mcp_enabled = true\n"
+                    "mcp_base_url = \"http://127.0.0.1:8787\"\n\n"
+                    "[permissions]\n"
+                    "mcp_list_tools = \"allow\"\n"
+                    "mcp_call_tool = \"ask\"\n\n"
+                    "# 期望能力关键词\n"
+                    f"# preset = {preset}\n"
+                    f"# recommended_tools = {', '.join(preset_keywords[preset])}\n"
+                )
+            preset_payload = {
+                "name": preset,
+                "recommended_tools": list(preset_keywords[preset]),
+                "matched_tools": preset_matches,
+                "matches": preset_matches,
+                "missing_tools": preset_missing,
+                "missing_keywords": preset_missing,
+                "ok": len(preset_matches) > 0,
+                "doc_path": doc_path,
+                "suggested_command": suggested_cmd,
+            }
+            if len(preset_matches) <= 0:
+                preset_hint = {
+                    "kind": "preset_missing_tools",
+                    "message": (
+                        f"未检测到 {preset} 相关 MCP 工具；请先按文档完成服务配置后重试。"
+                    ),
+                    "doc_path": doc_path,
+                    "recommended_keywords": list(preset_keywords[preset]),
+                    "suggested_command": suggested_cmd,
+                }
         if args.json_output:
             payload = {
                 "ok": ok,
@@ -3799,8 +3943,15 @@ def main(argv: list[str] | None = None) -> int:
                 "mcp_base_url": settings.mcp_base_url,
                 "force": bool(args.force),
                 "tool": args.tool,
+                "list_only": bool(getattr(args, "list_only", False)),
+                "preset": preset_payload,
                 "elapsed_ms": elapsed_ms,
                 "result": txt,
+                "tool_names": tool_list,
+                "preset_matches": preset_matches,
+                "preset_missing_keywords": preset_missing,
+                "fallback_hint": preset_hint,
+                "template": template_text,
                 "probe_result": probe_result,
             }
             print(json.dumps(payload, ensure_ascii=False))
@@ -3815,6 +3966,22 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"tool={args.tool}")
                 print(f"elapsed_ms={elapsed_ms}")
             print(txt)
+            if preset_payload is not None:
+                print(
+                    "[preset] "
+                    f"name={preset_payload.get('name')} "
+                    f"ok={preset_payload.get('ok')} "
+                    f"matched={len(preset_matches)} "
+                    f"missing={len(preset_missing)}"
+                )
+            if preset_hint is not None:
+                print("--- preset fallback hint ---")
+                print(str(preset_hint.get("message") or ""))
+                print(f"doc={preset_hint.get('doc_path')}")
+                print(f"suggested={preset_hint.get('suggested_command')}")
+            if template_text is not None:
+                print("--- preset template ---")
+                print(template_text)
             if probe_result is not None:
                 print("--- tool probe ---")
                 print(probe_result)
@@ -4614,8 +4781,16 @@ def main(argv: list[str] | None = None) -> int:
                         f"expired={n.get('removed_expired', 0)} "
                         f"low_confidence={n.get('removed_low_confidence', 0)} "
                         f"over_limit={n.get('removed_over_limit', 0)} "
+                        f"non_active={n.get('removed_non_active', 0)} "
+                        f"invalid_json_lines={n.get('invalid_json_lines', 0)} "
                         f"kept_total={n.get('kept_total', 0)}",
                     )
+                    br = n.get("removed_by_reason")
+                    if isinstance(br, dict) and any(int(v or 0) > 0 for v in br.values()):
+                        print(
+                            "removed_by_reason="
+                            + json.dumps(br, ensure_ascii=False, sort_keys=True),
+                        )
                 return 0
             if args.memory_action == "state":
                 rows, vwarn = load_memory_entries_validated(root)
@@ -4685,6 +4860,55 @@ def main(argv: list[str] | None = None) -> int:
             if args.memory_action == "import-entries":
                 src = Path(args.file).expanduser().resolve()
                 doc = json.loads(src.read_text(encoding="utf-8"))
+                dry_run = bool(getattr(args, "dry_run", False))
+                valid_rows, errors = validate_memory_entries_bundle(doc)
+                report_path_raw = getattr(args, "error_report", None)
+                report_path: Path | None = None
+                if errors and isinstance(report_path_raw, str) and report_path_raw.strip():
+                    report_path = Path(report_path_raw).expanduser()
+                    if not report_path.is_absolute():
+                        report_path = (root / report_path).resolve()
+                    report_payload = {
+                        "schema_version": "memory_entries_import_errors_v1",
+                        "source_file": str(src),
+                        "errors_count": len(errors),
+                        "errors": errors,
+                    }
+                    report_path.parent.mkdir(parents=True, exist_ok=True)
+                    report_path.write_text(
+                        json.dumps(report_payload, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
+                if dry_run:
+                    payload: dict[str, Any] = {
+                        "validated": len(valid_rows),
+                        "dry_run": True,
+                        "errors_count": len(errors),
+                        "errors": errors,
+                    }
+                    if report_path is not None:
+                        payload["error_report"] = str(report_path)
+                    print(json.dumps(payload, ensure_ascii=False))
+                if errors:
+                    summary = (
+                        f"[memory] 导入校验失败: total={len(valid_rows) + len(errors)} "
+                        f"validated={len(valid_rows)} invalid={len(errors)}"
+                    )
+                    print(summary, file=sys.stderr)
+                    first = errors[0] if isinstance(errors[0], dict) else {}
+                    idx = first.get("entry_index")
+                    path = first.get("path")
+                    first_errs = first.get("errors") if isinstance(first.get("errors"), list) else []
+                    if first_errs:
+                        print(
+                            f"[memory] 首个错误: entry_index={idx} path={path} reason={first_errs[0]}",
+                            file=sys.stderr,
+                        )
+                    if report_path is not None:
+                        print(f"[memory] 详细错误报告已写入: {report_path}", file=sys.stderr)
+                    return 2
+                if dry_run:
+                    return 0
                 n = import_memory_entries_bundle(root, doc)
                 print(json.dumps({"imported": n}, ensure_ascii=False))
                 return 0
@@ -5304,6 +5528,16 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
         board_json = bool(getattr(args, "json_output", False))
+        failed_only = bool(getattr(args, "failed_only", False))
+        task_id_filter = str(getattr(args, "task_id", "") or "").strip()
+        raw_statuses = getattr(args, "status", []) or []
+        statuses_filter: list[str] = []
+        if isinstance(raw_statuses, list):
+            for raw in raw_statuses:
+                parts = [p.strip().lower() for p in str(raw or "").split(",")]
+                for s in parts:
+                    if s and s not in statuses_filter:
+                        statuses_filter.append(s)
         _print_hook_status(
             settings_board,
             event="board_start",
@@ -5315,17 +5549,108 @@ def main(argv: list[str] | None = None) -> int:
                 observe_pattern=str(args.pattern),
                 observe_limit=int(args.limit),
             )
+            payload = filter_board_payload(
+                payload,
+                failed_only=failed_only,
+                task_id=task_id_filter or None,
+                status_filters=statuses_filter,
+            )
+            payload = attach_failed_summary(
+                payload,
+                limit=max(1, int(getattr(args, "failed_top", 5))),
+            )
+            payload = attach_status_summary(payload)
+            payload = attach_group_summary(
+                payload,
+                top_n=max(1, int(getattr(args, "group_top", 5))),
+            )
+            payload = attach_trend_summary(
+                payload,
+                recent_window=max(1, int(getattr(args, "trend_window", 10))),
+            )
+            payload["filters"] = {
+                "failed_only": failed_only,
+                "task_id": task_id_filter or None,
+                "status": sorted(
+                    {
+                        str(s).strip().lower()
+                        for s in statuses_filter
+                        if str(s).strip()
+                    },
+                ),
+            }
             if board_json:
                 print(json.dumps(payload, ensure_ascii=False))
             else:
                 obs = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
                 ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+                status_summary = payload.get("status_summary")
                 print(
                     f"[observe] schema={obs.get('schema_version')} "
                     f"sessions={obs.get('sessions_count')} "
                     f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
                     f"run_events_total={ag.get('run_events_total', 0)}",
                 )
+                if isinstance(status_summary, dict):
+                    counts = status_summary.get("counts")
+                    if isinstance(counts, dict):
+                        print(
+                            "[status_summary] "
+                            f"pending={counts.get('pending', 0)} "
+                            f"running={counts.get('running', 0)} "
+                            f"completed={counts.get('completed', 0)} "
+                            f"failed={counts.get('failed', 0)}",
+                        )
+                failed_summary = payload.get("failed_summary")
+                group_summary = payload.get("group_summary")
+                recent_failed = (
+                    failed_summary.get("recent")
+                    if isinstance(failed_summary, dict)
+                    else None
+                )
+                if isinstance(recent_failed, list) and recent_failed:
+                    print("[recent_failed]")
+                    for row in recent_failed:
+                        if not isinstance(row, dict):
+                            continue
+                        print(
+                            "  "
+                            f"path={row.get('path')} "
+                            f"task_id={row.get('task_id')} "
+                            f"errors={row.get('error_count')}",
+                        )
+                if isinstance(group_summary, dict):
+                    models_top = group_summary.get("models_top")
+                    tasks_top = group_summary.get("tasks_top")
+                    if isinstance(models_top, list) and models_top:
+                        print("[models_top]")
+                        for row in models_top:
+                            if not isinstance(row, dict):
+                                continue
+                            print(f"  model={row.get('key')} count={row.get('count')}")
+                    if isinstance(tasks_top, list) and tasks_top:
+                        print("[tasks_top]")
+                        for row in tasks_top:
+                            if not isinstance(row, dict):
+                                continue
+                            print(f"  task_id={row.get('key')} count={row.get('count')}")
+                trend_summary = payload.get("trend_summary")
+                if isinstance(trend_summary, dict):
+                    recent = trend_summary.get("recent")
+                    baseline = trend_summary.get("baseline")
+                    delta = trend_summary.get("delta")
+                    if (
+                        isinstance(recent, dict)
+                        and isinstance(baseline, dict)
+                        and isinstance(delta, dict)
+                    ):
+                        print(
+                            "[trend] "
+                            f"recent_n={recent.get('sessions_count')} "
+                            f"baseline_n={baseline.get('sessions_count')} "
+                            f"failure_rate_delta={delta.get('failure_rate_delta')} "
+                            f"avg_tokens_delta={delta.get('avg_tokens_delta')}",
+                        )
                 wf = payload.get("last_workflow")
                 if isinstance(wf, dict):
                     task = wf.get("task") if isinstance(wf.get("task"), dict) else {}

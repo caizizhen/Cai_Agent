@@ -322,6 +322,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             events.append(
                 {
                     "event": "workflow.step.started",
+                    "task_id": wf_task.task_id,
                     "workflow_task_id": wf_task.task_id,
                     "step_index": bi,
                     "name": bname,
@@ -345,6 +346,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         batch_results.sort(key=lambda x: int((x[0].get("index") or 0)))
         for step_result, step_event, workspace in batch_results:
             results.append(step_result)
+            step_event["task_id"] = wf_task.task_id
             step_event["workflow_task_id"] = wf_task.task_id
             events.append(step_event)
             total_elapsed += int(step_result.get("elapsed_ms") or 0)
@@ -411,6 +413,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     events.append(
         {
             "event": "workflow.finished",
+            "task_id": wf_task.task_id,
             "workflow_task_id": wf_task.task_id,
             "steps_count": len(results),
             "merge_decision": merge_decision,
@@ -419,6 +422,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         },
     )
     return {
+        "schema_version": "workflow_run_v1",
         "task": wf_task.to_dict(),
         "subagent_io_schema_version": "1.0",
         "subagent_io": subagent_io,
