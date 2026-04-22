@@ -67,6 +67,7 @@ Do not commit real API keys.
 | `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` | P1 decision: MCP-first WebSearch/Notebook + how `board --json` aligns with `observe` |
 | `docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md` | Optimization backlog vs claude-code + ECC; Dev/QA sync |
 | `docs/ROADMAP_EXECUTION.zh-CN.md` | Execution roadmap |
+| `docs/HERMES_PARITY_BACKLOG.zh-CN.md` | Hermes parity backlog (Epic/Story/AC for all 8 sprints) |
 | `docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` | Hermes parity sprint roadmap (Dev master plan) |
 | `docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md` | Hermes parity master QA test plan |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |

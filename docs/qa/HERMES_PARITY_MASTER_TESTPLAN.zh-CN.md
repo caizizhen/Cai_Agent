@@ -148,3 +148,17 @@
 - QA 反馈后：开发需在 PR 中补“修复点 -> 新增测试”映射
 - 每个 Sprint 结束：更新本文件 + 对应 feature testplan
 
+---
+
+## 9. 各 Sprint 独立测试计划文件
+
+| Sprint | 文件 | 重点 |
+|--------|------|------|
+| S1 基线收敛 | （包含在本文档 §2 中） | 命令一致性、schema |
+| S2 Memory 2.0 | [sprint2-memory-health-testplan.md](sprint2-memory-health-testplan.md) | health score、freshness、coverage |
+| S3 Recall 2.0 | [sprint3-recall-v2-testplan.md](sprint3-recall-v2-testplan.md) | 排序、无命中解释、索引体检 |
+| S4 Scheduler 2.0 | [sprint4-scheduler-v2-testplan.md](sprint4-scheduler-v2-testplan.md) | 重试、并发、依赖、审计 |
+| S5 Subagents | [sprint5-subagents-testplan.md](sprint5-subagents-testplan.md) | 并行编排、fan-out/fan-in |
+| S6 Gateway | [sprint6-gateway-telegram-testplan.md](sprint6-gateway-telegram-testplan.md) | Telegram MVP、安全策略 |
+| S7 Observability | [sprint7-observability-pro-testplan.md](sprint7-observability-pro-testplan.md) | 指标、报告导出 |
+| S8 GA | [sprint8-ga-testplan.md](sprint8-ga-testplan.md) | 全量回归、性能、发布门禁 |
