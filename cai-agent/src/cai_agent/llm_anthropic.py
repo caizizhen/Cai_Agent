@@ -170,17 +170,19 @@ def chat_completion(
     last: httpx.Response | None = None
     data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
+    max_retries = _usage_mod.llm_max_retries()
+    last_attempt = max_retries - 1
     # Fresh Client per attempt so a broken pooled connection is not reused.
-    for attempt in range(5):
+    for attempt in range(max_retries):
         with httpx.Client(**client_kwargs) as client:
             try:
                 last = client.post(url, json=payload, headers=headers)
                 last_transport_exc = None
             except httpx.TransportError as exc:
                 last_transport_exc = exc
-                if attempt == 4:
+                if attempt == last_attempt:
                     raise RuntimeError(
-                        f"Anthropic 连接失败（传输层错误，已重试 5 次）: {exc}",
+                        f"Anthropic 连接失败（传输层错误，已重试 {max_retries} 次）: {exc}",
                     ) from exc
                 delay = min(2.0**attempt, 12.0)
                 time.sleep(delay)
@@ -189,26 +191,26 @@ def chat_completion(
                 try:
                     parsed = last.json()
                 except (ValueError,) as exc:
-                    if attempt == 4:
+                    if attempt == last_attempt:
                         snippet = (last.text or "")[:500]
                         raise RuntimeError(
-                            "Anthropic 返回了非 JSON 响应（已重试 5 次）: "
+                            f"Anthropic 返回了非 JSON 响应（已重试 {max_retries} 次）: "
                             f"{exc}; body_snippet={snippet!r}",
                         ) from exc
                     delay = min(2.0**attempt, 12.0)
                     time.sleep(delay)
                     continue
                 if not isinstance(parsed, dict):
-                    if attempt == 4:
+                    if attempt == last_attempt:
                         raise RuntimeError(
-                            "Anthropic 返回 JSON 根对象不是 dict（已重试 5 次）",
+                            f"Anthropic 返回 JSON 根对象不是 dict（已重试 {max_retries} 次）",
                         )
                     delay = min(2.0**attempt, 12.0)
                     time.sleep(delay)
                     continue
                 data = parsed
                 break
-            if last.status_code not in _RETRYABLE_STATUS or attempt == 4:
+            if last.status_code not in _RETRYABLE_STATUS or attempt == last_attempt:
                 hdr = "\n".join(f"  {k}: {v}" for k, v in last.headers.items())
                 raise RuntimeError(
                     f"Anthropic HTTP {last.status_code} url={url}\n"

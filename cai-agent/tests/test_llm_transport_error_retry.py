@@ -15,6 +15,7 @@ the way up and crashed the agent. After the fix:
 
 from __future__ import annotations
 
+import os
 import unittest
 from dataclasses import dataclass
 from types import SimpleNamespace
@@ -244,6 +245,62 @@ class AnthropicTransportErrorRetryTests(unittest.TestCase):
             )
         self.assertIn("finish", out)
         self.assertEqual(calls["n"], 2)
+
+
+class LlmMaxRetriesEnvTests(unittest.TestCase):
+    """``CAI_LLM_MAX_RETRIES`` controls total HTTP attempts in LLM adapters."""
+
+    def tearDown(self) -> None:
+        os.environ.pop("CAI_LLM_MAX_RETRIES", None)
+
+    def test_llm_max_retries_default(self) -> None:
+        os.environ.pop("CAI_LLM_MAX_RETRIES", None)
+        self.assertEqual(llm_mod.llm_max_retries(), 5)
+
+    def test_llm_max_retries_from_env(self) -> None:
+        os.environ["CAI_LLM_MAX_RETRIES"] = "8"
+        self.assertEqual(llm_mod.llm_max_retries(), 8)
+
+    def test_llm_max_retries_invalid_falls_back(self) -> None:
+        os.environ["CAI_LLM_MAX_RETRIES"] = "not-a-number"
+        self.assertEqual(llm_mod.llm_max_retries(), 5)
+
+    def test_llm_max_retries_clamped(self) -> None:
+        os.environ["CAI_LLM_MAX_RETRIES"] = "0"
+        self.assertEqual(llm_mod.llm_max_retries(), 1)
+        os.environ["CAI_LLM_MAX_RETRIES"] = "99"
+        self.assertEqual(llm_mod.llm_max_retries(), 50)
+
+    def test_transport_errors_respect_env_retry_count(self) -> None:
+        """3 attempts when CAI_LLM_MAX_RETRIES=3."""
+        os.environ["CAI_LLM_MAX_RETRIES"] = "3"
+        llm_mod.reset_usage_counters()
+        calls = {"n": 0}
+
+        class _AlwaysFailTransport(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                raise httpx.RemoteProtocolError("Channel Error", request=request)
+
+        real_cls = httpx.Client
+
+        def fake_client(*args, **kwargs):
+            kwargs["transport"] = _AlwaysFailTransport()
+            return real_cls(*args, **kwargs)
+
+        llm_mod.httpx.Client = fake_client  # type: ignore[attr-defined]
+        try:
+            with patch.object(llm_mod.time, "sleep", return_value=None):
+                with self.assertRaises(RuntimeError) as ctx:
+                    llm_mod.chat_completion(
+                        _OAISettings(),
+                        [{"role": "user", "content": "ping"}],
+                    )
+        finally:
+            llm_mod.httpx.Client = real_cls  # type: ignore[attr-defined]
+
+        self.assertEqual(calls["n"], 3)
+        self.assertIn("已重试 3 次", str(ctx.exception))
 
 
 if __name__ == "__main__":

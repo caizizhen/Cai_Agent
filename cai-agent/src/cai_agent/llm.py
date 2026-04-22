@@ -13,6 +13,24 @@ from cai_agent.http_trust import effective_http_trust_env
 
 _RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
+_DEFAULT_LLM_MAX_RETRIES = 5
+
+
+def llm_max_retries() -> int:
+    """Max HTTP attempts per ``chat_completion`` (including the first try).
+
+    Env ``CAI_LLM_MAX_RETRIES``: unset or empty → 5; invalid → 5; clamped to 1..50.
+    """
+    raw = os.getenv("CAI_LLM_MAX_RETRIES", "").strip()
+    if not raw:
+        return _DEFAULT_LLM_MAX_RETRIES
+    try:
+        n = int(raw, 10)
+    except ValueError:
+        return _DEFAULT_LLM_MAX_RETRIES
+    return max(1, min(50, n))
+
+
 _USAGE_PROMPT_TOKENS = 0
 _USAGE_COMPLETION_TOKENS = 0
 _USAGE_TOTAL_TOKENS = 0
@@ -192,9 +210,11 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     last: httpx.Response | None = None
     data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
+    max_retries = llm_max_retries()
+    last_attempt = max_retries - 1
     # Fresh Client per attempt so a broken connection from llama.cpp
     # ("Channel Error") is not reused from the pool on retry.
-    for attempt in range(5):
+    for attempt in range(max_retries):
         with httpx.Client(timeout=timeout, trust_env=trust) as client:
             try:
                 last = client.post(url, json=payload, headers=headers)
@@ -203,9 +223,9 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
                 # Network/channel errors (e.g. "Channel Error" from llama.cpp,
                 # RemoteProtocolError, ReadError) — retry with backoff.
                 last_transport_exc = exc
-                if attempt == 4:
+                if attempt == last_attempt:
                     raise RuntimeError(
-                        f"LLM 连接失败（传输层错误，已重试 5 次）: {exc}",
+                        f"LLM 连接失败（传输层错误，已重试 {max_retries} 次）: {exc}",
                     ) from exc
                 delay = min(2.0**attempt, 12.0)
                 time.sleep(delay)
@@ -214,26 +234,26 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
                 try:
                     parsed = last.json()
                 except (json.JSONDecodeError, ValueError) as exc:
-                    if attempt == 4:
+                    if attempt == last_attempt:
                         snippet = (last.text or "")[:500]
                         raise RuntimeError(
-                            "LLM 返回了非 JSON 响应（已重试 5 次）: "
+                            f"LLM 返回了非 JSON 响应（已重试 {max_retries} 次）: "
                             f"{exc}; body_snippet={snippet!r}",
                         ) from exc
                     delay = min(2.0**attempt, 12.0)
                     time.sleep(delay)
                     continue
                 if not isinstance(parsed, dict):
-                    if attempt == 4:
+                    if attempt == last_attempt:
                         raise RuntimeError(
-                            "LLM 返回 JSON 根对象不是 dict（已重试 5 次）",
+                            f"LLM 返回 JSON 根对象不是 dict（已重试 {max_retries} 次）",
                         )
                     delay = min(2.0**attempt, 12.0)
                     time.sleep(delay)
                     continue
                 data = parsed
                 break
-            if last.status_code not in _RETRYABLE_STATUS or attempt == 4:
+            if last.status_code not in _RETRYABLE_STATUS or attempt == last_attempt:
                 hdr = "\n".join(f"  {k}: {v}" for k, v in last.headers.items())
                 raise RuntimeError(
                     f"LLM HTTP {last.status_code} url={url}\nbody={last.text!r}\nheaders:\n{hdr}",
