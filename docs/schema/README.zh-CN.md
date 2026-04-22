@@ -86,6 +86,64 @@
 
 ---
 
+## `mcp-check` / `mcp-check --json`
+
+- **实现**：`__main__.py` `mcp-check` 分支
+- **`schema_version`**：`mcp_check_result_v1`（`--json` 单行对象）
+- **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等
+
+**Exit**：`ok == true` → `0`；否则 → `2`。
+
+---
+
+## `sessions` / `sessions --json`
+
+- **根形态**：**JSON 数组**（无顶层 `schema_version`）。元素至少含 `name`、`path`、`mtime`、`size`；成功解析会话时通过 `_session_file_json_extra` 合并 `events_count`、`run_schema_version`、`task_id`、`total_tokens`、`error_count`。
+- **`--details`**：解析失败项含 `error: parse_failed`；成功项可含 `messages_count`、`tool_calls_count`、`used_tools`、`last_tool`、`answer_preview` 等。
+- **无 `--details`**：尽力解析；失败时元素可含 **`parse_error: true`**。
+
+**Exit**：默认 `0`。
+
+---
+
+## `stats` / `stats --json`
+
+- **实现**：`__main__.py` `stats` 分支
+- **`stats_schema_version`**：`1.0`（与 `plan_schema_version` 类似，为顶层版本键）
+- **主要字段**：`sessions_count`、`elapsed_ms_total` / `elapsed_ms_avg`、`tool_calls_total` / `tool_calls_avg`、`tool_errors_total` / `tool_errors_avg`、`models_distribution`、`run_events_total`、`sessions_with_events`、`parse_skipped`、`session_summaries[]`（`name`、`events_count`、`task_id`、`tool_calls_count` 等）
+
+**Exit**：默认 `0`。
+
+---
+
+## `run` / `continue` / `command` / `agent` / `fix-build`（`--json`）
+
+- **实现**：`__main__.py` 共享 `invoke` 路径
+- **版本键**：**`run_schema_version`**：`1.0`（与 `--save-session` 落盘 JSON 对齐；**不设**第二个顶层 `schema_version`，避免与 `run_schema_version` 重复）
+- **成功结束**：`answer`、`iteration`、`finished`、`config`、`workspace`、`provider`、`model`、`mcp_enabled`、`elapsed_ms`、`prompt_tokens` / `completion_tokens` / `total_tokens`、`tool_calls_count`、`used_tools`、`last_tool`、`error_count`、`task`、`events`（`run.started` / `run.finished`）、`post_gate`（仅 **`fix-build`** 且未 `--no-gate` 时有对象；内含 **`schema_version`：`quality_gate_result_v1`**）
+- **Ctrl+C 中断**：仍打印一行 JSON；`finished: false`、`error: interrupted`、`message`；**exit `130`**（与 shell 约定一致）
+
+**Exit**：会话读取/校验失败、模板缺失等 → `2`；正常完成 → `0`（未 `finished` 时 `task.status` 可为 `failed`，exit 仍为 `0`，由负载字段判断）。
+
+---
+
+## `export`（单行 JSON）
+
+- **实现**：`cai_agent.exporter.export_target` → `print(json.dumps(result))`
+- **无**顶层 `schema_version`；返回对象含 `target`、`output_dir`、`manifest`（路径）、`copied`（`cursor` 模式）、`mode` 等。磁盘上的 `cai-export-manifest.json` 使用 **`manifest_version`** 与内嵌 **`schema`: `export-v2`**（见实现）。
+
+**Exit**：配置不可读 → `2`；不支持 `--target` → 异常前由 argparse 约束；成功 → `0`。
+
+---
+
+## `init`
+
+- **输出**：文本（写入 `cai-agent.toml` 路径提示）；**无** `--json`。
+
+**Exit**：目标已存在且无 `--force` → **`1`**；模板读取失败等 → **`1`**。
+
+---
+
 ## `workflow` / `workflow <file> --json`
 
 - **实现**：`cai_agent.workflow.run_workflow`

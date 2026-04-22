@@ -57,7 +57,7 @@
 
 ### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins / commands / agents / workflow / doctor / plan / models / hooks / **quality-gate / security-scan** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
+- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins / commands / agents / **`mcp-check`（`mcp_check_result_v1`）** / **`sessions` / `stats`** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export` / `init`** / workflow / doctor / plan / models / hooks / **quality-gate / security-scan** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 

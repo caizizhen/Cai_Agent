@@ -29,6 +29,7 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn(rc, (0, 2))
         line = buf.getvalue().strip().splitlines()[-1]
         payload = json.loads(line)
+        self.assertEqual(payload.get("schema_version"), "mcp_check_result_v1")
         self.assertIn("ok", payload)
         self.assertEqual(rc == 0, bool(payload["ok"]))
 

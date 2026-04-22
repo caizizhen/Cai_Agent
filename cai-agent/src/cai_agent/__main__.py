@@ -4475,6 +4475,7 @@ def main(argv: list[str] | None = None) -> int:
                 }
         if args.json_output:
             payload = {
+                "schema_version": "mcp_check_result_v1",
                 "ok": ok,
                 "provider": settings.provider,
                 "model": settings.model,
