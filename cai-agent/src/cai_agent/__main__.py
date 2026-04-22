@@ -2576,7 +2576,8 @@ def _cmd_init(
                 f"{label} 配置已存在: {dest}；若需覆盖请添加 --force",
                 file=sys.stderr,
             )
-        return 1
+        # S1-03: logical / precondition failure → exit 2 (not 1).
+        return 2
     tpl_name = (
         "templates/cai-agent.starter.toml"
         if preset_norm == "starter"
@@ -2601,7 +2602,7 @@ def _cmd_init(
             )
         else:
             print(f"读取内置配置模板失败: {e}", file=sys.stderr)
-        return 1
+        return 2
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e:
@@ -2620,7 +2621,7 @@ def _cmd_init(
             )
         else:
             print(f"创建目录失败 {dest.parent}: {e}", file=sys.stderr)
-        return 1
+        return 2
     dest.write_bytes(data)
     if json_output:
         print(

@@ -78,7 +78,7 @@ class InitPresetTests(unittest.TestCase):
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
                 with redirect_stdout(buf):
                     rc = main(["init", "--json"])
-            self.assertEqual(rc, 1)
+            self.assertEqual(rc, 2)
             payload = json.loads(buf.getvalue().strip())
             self.assertEqual(payload.get("schema_version"), "init_cli_v1")
             self.assertIs(payload.get("ok"), False)

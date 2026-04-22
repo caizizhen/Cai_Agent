@@ -159,7 +159,7 @@
 
 - **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
 
-**Exit**：目标已存在且无 `--force` → **`1`**；模板读取失败等 → **`1`**；成功 → **`0`**。
+**Exit**：自 **S1-03** 起，失败路径（目标已存在且无 `--force`、模板读取失败、创建目录失败）均为 **`2`**（此前为 **`1`**）；成功 → **`0`**。
 
 ---
 
@@ -298,5 +298,6 @@
 - **`commands --json` / `agents --json`**：自 **`commands_list_v1` / `agents_list_v1`** 起，根对象为 `{ "schema_version", "commands"|"agents" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 **`commands`** / **`agents`** 字段）。
 - **`models fetch --json`**：自 **`models_fetch_v1`** 起，根对象固定为 `{ "schema_version", "models" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 `models` 字段）。
 - **`models ping`**：自 **S1-03 收口** 起，任一结果非 `OK` 时 **默认 exit `2`**（此前为 **`1`**）；依赖 exit `1` 表示「部分失败」的 CI 脚本需改为识别 **`2`** 或仅以 JSON `results[].status` 判定。
+- **`init`**（含 **`init --json`**）：**`config_exists`** / **`template_read_failed`** / **`mkdir_failed`** 等失败路径 **exit `2`**（此前为 **`1`**）；JSON 负载仍为 **`init_cli_v1`**（`ok: false` + `error`）。
 
 升级对应 **`schema_version`**（或索引 `recall_index_schema_version`）时，请同步更新 **本节**、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[`SCHEDULE_STATS_JSON.zh-CN.md`](SCHEDULE_STATS_JSON.zh-CN.md) 及 `CHANGELOG`。

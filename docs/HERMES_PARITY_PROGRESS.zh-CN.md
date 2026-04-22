@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-22（进度统计与 **QA 测试移交清单** 同步见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**）  
+> 生成时间：2026-04-23（进度统计与 **QA 测试移交清单** 同步见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**）  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -51,7 +51,7 @@
 
 ### S1-03 错误码规范（补齐剩余命令）
 
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、**`models ping`（任一非 `OK` 默认 exit `2`；`--fail-on-any-error` 为同义显式别名）**、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
+- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、**`models ping`（任一非 `OK` 默认 exit `2`；`--fail-on-any-error` 为同义显式别名）**、**`init`（`config_exists` / 模板或目录失败 exit `2`）**、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
 - **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
 - **QA**：随每个新命令提测时同步验证
 
