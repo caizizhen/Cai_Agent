@@ -589,6 +589,43 @@ def _sort_recall_rows(
     )
 
 
+_RECALL_NO_HIT_HINTS: dict[str, str] = {
+    "window_too_narrow": "时间窗口内没有可检索的会话文件，请尝试增大 --days 或检查会话 mtime。",
+    "pattern_no_match": "窗口内有会话，但没有任何消息内容与查询/正则匹配；请检查关键词或改用 --regex。",
+    "index_empty": "索引中没有条目（entries 为空）；请先运行 cai-agent recall-index build。",
+    "all_skipped": "窗口内的会话文件均无法解析为有效 JSON（或全部被跳过），请检查文件是否损坏。",
+}
+
+
+def _recall_no_hit_reason_scan(
+    *,
+    files_seen: int,
+    candidates_in_window: int,
+    sessions_scanned: int,
+    parse_skipped: int,
+) -> str | None:
+    """0 命中时的原因枚举（S3-02）；有命中时返回 None。"""
+    if candidates_in_window <= 0:
+        if files_seen <= 0:
+            return "pattern_no_match"
+        return "window_too_narrow"
+    if sessions_scanned <= 0 and parse_skipped >= candidates_in_window:
+        return "all_skipped"
+    return "pattern_no_match"
+
+
+def _recall_no_hit_reason_index(
+    *,
+    entries_len: int,
+    rows_len: int,
+) -> str | None:
+    if entries_len <= 0:
+        return "index_empty"
+    if rows_len <= 0:
+        return "pattern_no_match"
+    return None
+
+
 def _build_recall_payload(
     *,
     cwd: str,
@@ -607,15 +644,18 @@ def _build_recall_payload(
     now_ts = int(now.timestamp())
     since = now - timedelta(days=max(days, 1))
     files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
+    files_seen = len(files)
     parse_skipped = 0
     sessions_scanned = 0
     sessions_with_hits = 0
     hits_total = 0
     result_rows: list[dict[str, Any]] = []
+    candidates_in_window = 0
     for p in files:
         mtime = datetime.fromtimestamp(p.stat().st_mtime, UTC)
         if mtime < since:
             continue
+        candidates_in_window += 1
         try:
             sess = load_session(str(p))
         except Exception:
@@ -686,13 +726,23 @@ def _build_recall_payload(
         )
     _sort_recall_rows(result_rows, sort_mode=sort_mode)
     trimmed = result_rows[: max(1, session_limit)]
+    hits_sum = sum(int(x.get("hits_count") or 0) for x in trimmed)
+    no_hit: str | None = None
+    if hits_sum <= 0:
+        no_hit = _recall_no_hit_reason_scan(
+            files_seen=files_seen,
+            candidates_in_window=candidates_in_window,
+            sessions_scanned=sessions_scanned,
+            parse_skipped=parse_skipped,
+        )
     return {
-        "schema_version": "1.2",
+        "schema_version": "1.3",
         "generated_at": now.isoformat(),
         "query": query,
         "regex": use_regex,
         "case_sensitive": case_sensitive,
         "sort": sort_mode,
+        "no_hit_reason": no_hit,
         "window": {
             "days": max(days, 1),
             "since": since.isoformat(),
@@ -704,7 +754,7 @@ def _build_recall_payload(
         },
         "sessions_scanned": sessions_scanned,
         "sessions_with_hits": len(trimmed),
-        "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
+        "hits_total": hits_sum,
         "parse_skipped": parse_skipped,
         "results": trimmed,
         "ranking": _recall_ranking_for_sort(sort_mode),
@@ -940,6 +990,7 @@ def _build_recall_payload_from_index(
     entries = doc.get("entries")
     if not isinstance(entries, list):
         entries = []
+    entries_len = len(entries)
     rows: list[dict[str, Any]] = []
     total_hits = 0
     for row in entries:
@@ -961,7 +1012,7 @@ def _build_recall_payload_from_index(
         if not hits:
             continue
         total_hits += len(hits)
-        density_blob = " ".join(str(h.get("snippet") or "") for h in hits[:3])
+        density_blob = txt.strip()
         score, score_breakdown = _recall_score_for_sort_mode(
             sort_mode,
             mtime=int(row.get("mtime") or 0),
@@ -986,17 +1037,20 @@ def _build_recall_payload_from_index(
         )
     _sort_recall_rows(rows, sort_mode=sort_mode)
     trimmed = rows[: max(1, session_limit)]
+    hits_sum = sum(int(x.get("hits_count") or 0) for x in trimmed)
+    no_hit = _recall_no_hit_reason_index(entries_len=entries_len, rows_len=len(rows)) if hits_sum <= 0 else None
     return {
-        "schema_version": "1.2",
+        "schema_version": "1.3",
         "query": query,
         "regex": use_regex,
         "case_sensitive": case_sensitive,
         "sort": sort_mode,
+        "no_hit_reason": no_hit,
         "source": "index",
         "index_file": str(Path(index_file).expanduser().resolve()),
         "sessions_scanned": len(entries),
         "sessions_with_hits": len(trimmed),
-        "hits_total": sum(int(x.get("hits_count") or 0) for x in trimmed),
+        "hits_total": hits_sum,
         "parse_skipped": 0,
         "results": trimmed,
         "ranking": _recall_ranking_for_sort(sort_mode),
@@ -4438,6 +4492,10 @@ def main(argv: list[str] | None = None) -> int:
                 f"matched_sessions={payload.get('sessions_with_hits')} "
                 f"parse_skipped={payload.get('parse_skipped')}",
             )
+            nhr = payload.get("no_hit_reason")
+            if isinstance(nhr, str) and nhr.strip() and int(payload.get("hits_total") or 0) <= 0:
+                hint = _RECALL_NO_HIT_HINTS.get(nhr.strip(), "")
+                print(f"no_hit_reason={nhr}" + (f" — {hint}" if hint else ""))
             results = payload.get("results")
             if isinstance(results, list):
                 for i, row in enumerate(results, start=1):
@@ -4511,6 +4569,10 @@ def main(argv: list[str] | None = None) -> int:
                     f"hits_total={payload.get('hits_total')} sessions_scanned={payload.get('sessions_scanned')} "
                     f"index_file={payload.get('index_file')}",
                 )
+                nhr2 = payload.get("no_hit_reason")
+                if isinstance(nhr2, str) and nhr2.strip() and int(payload.get("hits_total") or 0) <= 0:
+                    hint2 = _RECALL_NO_HIT_HINTS.get(nhr2.strip(), "")
+                    print(f"no_hit_reason={nhr2}" + (f" — {hint2}" if hint2 else ""))
                 results = payload.get("results")
                 if isinstance(results, list):
                     for i, row in enumerate(results, start=1):

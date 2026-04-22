@@ -509,7 +509,7 @@ cai-agent insights --json --days 7
 
 ### `cai-agent recall --json`
 
-跨会话检索（对标 Hermes 的 recall/search 体验）：在近期会话文件中按关键词或正则查找命中片段，适合快速回忆“之前在哪个会话里讨论过某问题”。支持 **`--sort recent|density|combined`**（默认 `recent`：时间衰减 + 命中强度 + 关键词密度；`density` 偏重密度；`combined` 为 recency×density 与命中强度混合）。JSON 输出 `schema_version=1.2`，含 `sort` 与 `ranking` 说明。
+跨会话检索（对标 Hermes 的 recall/search 体验）：在近期会话文件中按关键词或正则查找命中片段，适合快速回忆“之前在哪个会话里讨论过某问题”。支持 **`--sort recent|density|combined`**（默认 `recent`：时间衰减 + 命中强度 + 关键词密度；`density` 偏重密度；`combined` 为 recency×density 与命中强度混合）。JSON 输出 `schema_version=1.3`，含 `sort`、`ranking`；**0 命中**时含 `no_hit_reason`（`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`），文本模式会打印一行可读说明。
 
 ```bash
 cai-agent recall --query "TODO" --days 14 --json

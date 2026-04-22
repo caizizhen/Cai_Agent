@@ -58,9 +58,9 @@
 - **期望**：`no_hit_reason="pattern_no_match"`
 
 ### RCL-NOHIT-003：索引为空
-- **前置条件**：使用 `--use-index`，但索引文件不存在
-- **执行**：`cai-agent recall --query "test" --use-index --json`
-- **期望**：`no_hit_reason="index_empty"` 或 exit 2 + 提示先 build
+- **前置条件**：索引文件存在但 `entries` 为空数组（或 `recall-index search` 对空索引）
+- **执行**：`cai-agent recall-index search --query "test" --json`（在仅含 `entries: []` 的 `.cai-recall-index.json` 工作区）
+- **期望**：`hits_total=0`，`no_hit_reason="index_empty"`，exit 0；若使用 `recall --use-index` 且索引文件不存在则仍为 exit 2 + `index_not_found`
 
 ### RCL-NOHIT-004：所有会话均解析失败
 - **前置条件**：所有 session 文件均不可解析（空文件或乱码）

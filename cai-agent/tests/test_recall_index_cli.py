@@ -55,8 +55,10 @@ class RecallIndexCliTests(unittest.TestCase):
                     rc_search = main(["recall-index", "search", "--query", "auth", "--json"])
             self.assertEqual(rc_search, 0)
             search_payload = json.loads(buf_search.getvalue().strip())
+            self.assertEqual(search_payload.get("schema_version"), "1.3")
             self.assertEqual(search_payload.get("source"), "index")
             self.assertGreaterEqual(int(search_payload.get("hits_total") or 0), 1)
+            self.assertIsNone(search_payload.get("no_hit_reason"))
             self.assertIn("ranking", search_payload)
             rows = search_payload.get("results") or []
             self.assertTrue(rows)
@@ -178,3 +180,45 @@ class RecallIndexCliTests(unittest.TestCase):
             self.assertIn("comparison", payload)
             comp = payload.get("comparison") or {}
             self.assertIn("speedup_scan_over_index", comp)
+
+    def test_recall_index_search_no_hit_index_empty(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            idx = root / ".cai-recall-index.json"
+            idx.write_text(
+                json.dumps(
+                    {"recall_index_schema_version": "1.1", "entries": []},
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "search", "--query", "x", "--json"])
+            self.assertEqual(rc, 0)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertEqual(pl.get("schema_version"), "1.3")
+            self.assertEqual(pl.get("hits_total"), 0)
+            self.assertEqual(pl.get("no_hit_reason"), "index_empty")
+
+    def test_recall_index_search_no_hit_pattern(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-only.json"),
+                {
+                    "version": 2,
+                    "model": "m",
+                    "messages": [{"role": "assistant", "content": "alpha beta"}],
+                },
+            )
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                main(["recall-index", "build", "--json"])
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall-index", "search", "--query", "zzznomatch", "--json"])
+            self.assertEqual(rc, 0)
+            pl = json.loads(buf.getvalue().strip())
+            self.assertEqual(pl.get("no_hit_reason"), "pattern_no_match")

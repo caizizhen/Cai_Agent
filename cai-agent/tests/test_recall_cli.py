@@ -64,8 +64,9 @@ class RecallCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
-            self.assertEqual(payload.get("schema_version"), "1.2")
+            self.assertEqual(payload.get("schema_version"), "1.3")
             self.assertEqual(payload.get("sort"), "recent")
+            self.assertIsNone(payload.get("no_hit_reason"))
             results = payload.get("results") or []
             self.assertEqual(len(results), 2)
             # Newest first.
@@ -115,6 +116,69 @@ class RecallCliTests(unittest.TestCase):
             payload = json.loads(buf.getvalue().strip())
             self.assertEqual(payload.get("hits_total"), 0)
             self.assertEqual(payload.get("sessions_scanned"), 0)
+            self.assertEqual(payload.get("no_hit_reason"), "window_too_narrow")
+
+    def test_recall_no_hit_pattern_no_match(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            now = int(time.time())
+            p = root / ".cai-session-x.json"
+            save_session(
+                str(p),
+                {
+                    "version": 2,
+                    "model": "m",
+                    "answer": "hello world",
+                    "messages": [{"role": "assistant", "content": "hello world"}],
+                },
+            )
+            os.utime(p, (now, now))
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "recall",
+                            "--query",
+                            "notfoundtoken",
+                            "--json",
+                            "--days",
+                            "30",
+                            "--limit",
+                            "10",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "1.3")
+            self.assertEqual(payload.get("hits_total"), 0)
+            self.assertEqual(payload.get("no_hit_reason"), "pattern_no_match")
+
+    def test_recall_no_hit_all_skipped(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            now = int(time.time())
+            p = root / ".cai-session-bad.json"
+            p.write_text("{not json", encoding="utf-8")
+            os.utime(p, (now, now))
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "recall",
+                            "--query",
+                            "x",
+                            "--json",
+                            "--days",
+                            "30",
+                            "--limit",
+                            "10",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("no_hit_reason"), "all_skipped")
 
     def test_recall_sort_density_differs_from_recent(self) -> None:
         """S3-01: --sort density prioritizes keyword concentration vs default recent blend."""

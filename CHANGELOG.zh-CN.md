@@ -6,7 +6,8 @@
 
 ### 0.5.0（当前开发）
 
-- **Recall 排序策略（Hermes S3-01）**：`cai-agent recall --json` 与 `recall-index search|benchmark` 支持 **`--sort recent|density|combined`**（默认 `recent`）。JSON `schema_version` 升至 **`1.2`**，包含 `sort` 与 `ranking` 说明；关键词密度评分基于**完整命中消息正文**（而非仅 snippet），排序更稳定。
+- **Recall 排序策略（Hermes S3-01）**：`cai-agent recall --json` 与 `recall-index search|benchmark` 支持 **`--sort recent|density|combined`**（默认 `recent`）。包含 `sort` 与 `ranking` 说明；关键词密度评分基于**完整命中消息正文**（而非仅 snippet），排序更稳定。
+- **Recall 无命中解释（Hermes S3-02）**：0 命中时 JSON 增加 **`no_hit_reason`**（`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`），`schema_version` 为 **`1.3`**；非 JSON 模式追加一行可读提示。索引检索的密度分使用索引 `content` 全文。
 - **Memory health（Hermes Sprint 2）**：新增 `cai-agent memory health --json`（`schema_version=1.0`），输出综合 `health_score` / `grade`（A~D）及 `freshness`、`coverage`、`conflict_rate`，并附带冲突与覆盖的可观测子字段（如 `conflict_pair_count`、`conflict_compared_entries`、`sessions_considered_for_coverage` 等）。支持 `--days`、`--freshness-days`、`--session-pattern`、`--session-limit`、`--conflict-threshold`、`--max-conflict-compare-entries`、`--fail-on-grade`（门禁不通过时 exit 2）。
 - **Memory Nudge 历史报告**：新增 `cai-agent memory nudge-report`，从 `memory/nudge-history.jsonl`（或 `--history-file`）聚合历史快照并输出趋势统计（`schema_version=1.2`、`severity_counts`、`severity_trend`、`latest_severity`、`severity_jumps`、`avg_recent_sessions`、`avg_memory_entries`，以及与 `memory health` 同源的 `health_score` / `health_grade` / `freshness`）。支持 `--days`（时间窗口过滤）、`--freshness-days`、`--limit` 与 `--json`，可用于 QA/运维观察记忆健康变化。`memory nudge --write-file` 会同步把同一条 JSON 追加到默认历史文件（可用 `--history-file` 覆盖；若与 `--write-file` 同路径则只写一次）。
 - **Schedule Memory Nudge 模板任务**：新增 `cai-agent schedule add-memory-nudge`，一条命令生成标准化巡检任务（自动拼接 `memory nudge --json --write-file ... --fail-on-severity ...` 目标），支持 `--every-minutes`、`--output-file`、`--fail-on-severity`、`--disabled`、`--workspace`、`--model`，减少手工配置成本并提升可复用性。
