@@ -13,13 +13,13 @@ from cai_agent.http_trust import effective_http_trust_env
 
 _RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
-_DEFAULT_LLM_MAX_RETRIES = 5
+_DEFAULT_LLM_MAX_RETRIES = 10
 
 
 def llm_max_retries() -> int:
     """Max HTTP attempts per ``chat_completion`` (including the first try).
 
-    Env ``CAI_LLM_MAX_RETRIES``: unset or empty → 5; invalid → 5; clamped to 1..50.
+    Env ``CAI_LLM_MAX_RETRIES``: unset or empty → 10; invalid → 10; clamped to 1..50.
     """
     raw = os.getenv("CAI_LLM_MAX_RETRIES", "").strip()
     if not raw:

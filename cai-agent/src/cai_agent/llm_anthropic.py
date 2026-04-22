@@ -1,7 +1,8 @@
 """Anthropic `/v1/messages` 原生适配器（M10 骨架）。
 
 契约与 ``cai_agent.llm.chat_completion`` 对齐：同签名、**共用** 该模块的 token
-usage 计数器（避免多套统计口径），同 retry 表（429/502/503/504）。差异处：
+usage 计数器（避免多套统计口径），同 retry 表（429/502/503/504）及
+``CAI_LLM_MAX_RETRIES``（见 ``cai_agent.llm.llm_max_retries``）。差异处：
 
 - 请求 URL：``{base_url}/v1/messages``；若 ``base_url`` 已含 `/v1` 后缀会自动修剪。
 - Headers：``x-api-key``、``anthropic-version``、``content-type``。

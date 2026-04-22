@@ -7,9 +7,10 @@ drops the TCP connection mid-request. These errors surface as
 
 Before this fix, a single ``httpx.TransportError`` propagated unhandled all
 the way up and crashed the agent. After the fix:
-- The retry loop retries up to 5 times with exponential backoff.
-- If the error clears before the 5th attempt the call succeeds normally.
-- If all 5 attempts fail, a descriptive ``RuntimeError`` is raised (which is
+- The retry loop retries up to ``CAI_LLM_MAX_RETRIES`` attempts (default 10)
+  with exponential backoff.
+- If the error clears before the last attempt the call succeeds normally.
+- If all attempts fail, a descriptive ``RuntimeError`` is raised (which is
   then caught by ``graph.llm_node`` and turned into a graceful agent error).
 """
 
@@ -116,7 +117,7 @@ class OpenAICompatTransportErrorRetryTests(unittest.TestCase):
         self.assertEqual(calls["n"], 2)
 
     def test_all_transport_errors_raises_runtime_error(self) -> None:
-        """5 consecutive RemoteProtocolError raises RuntimeError after retries."""
+        """Repeated RemoteProtocolError raises RuntimeError after all attempts."""
         calls = {"n": 0}
 
         class _AlwaysFailTransport(httpx.BaseTransport):
@@ -131,7 +132,7 @@ class OpenAICompatTransportErrorRetryTests(unittest.TestCase):
                     _OAISettings(),
                     [{"role": "user", "content": "ping"}],
                 )
-        self.assertEqual(calls["n"], 5)
+        self.assertEqual(calls["n"], llm_mod.llm_max_retries())
         self.assertIn("传输层错误", str(ctx.exception))
 
     def test_read_error_is_also_retried(self) -> None:
@@ -224,7 +225,7 @@ class AnthropicTransportErrorRetryTests(unittest.TestCase):
                     [{"role": "user", "content": "ping"}],
                     transport=_AlwaysFailTransport(),
                 )
-        self.assertEqual(calls["n"], 5)
+        self.assertEqual(calls["n"], llm_mod.llm_max_retries())
         self.assertIn("传输层错误", str(ctx.exception))
 
     def test_invalid_json_response_is_retried_then_succeeds(self) -> None:
@@ -255,7 +256,7 @@ class LlmMaxRetriesEnvTests(unittest.TestCase):
 
     def test_llm_max_retries_default(self) -> None:
         os.environ.pop("CAI_LLM_MAX_RETRIES", None)
-        self.assertEqual(llm_mod.llm_max_retries(), 5)
+        self.assertEqual(llm_mod.llm_max_retries(), 10)
 
     def test_llm_max_retries_from_env(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "8"
@@ -263,7 +264,7 @@ class LlmMaxRetriesEnvTests(unittest.TestCase):
 
     def test_llm_max_retries_invalid_falls_back(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "not-a-number"
-        self.assertEqual(llm_mod.llm_max_retries(), 5)
+        self.assertEqual(llm_mod.llm_max_retries(), 10)
 
     def test_llm_max_retries_clamped(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "0"
