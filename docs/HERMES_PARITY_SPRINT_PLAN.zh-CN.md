@@ -135,10 +135,14 @@
   - 依赖现有 memory schema 文件。
   - 风险：老数据兼容，需要迁移/忽略策略。
 
-完成记录（进行中）：
+完成记录（Sprint 4 已收口）：
 - 已落地 `memory import-entries --dry-run`：导入前可先做纯校验，不写入磁盘。
 - 已强化 bundle 校验错误语义：返回结构化错误（`entry_index/path/errors`），并在 CLI 失败时输出 `error=memory_bundle_invalid` + `validation_errors`。
+- 已补齐坏数据隔离报告导出：`memory import-entries` 新增 `--error-report <path>`，当存在无效行时输出 `memory_entries_import_errors_v1` 报告（含 `source_file/errors_count/errors`）。
+- 已增强 CLI 人类可读失败摘要：校验失败时在 stderr 输出总览（total/validated/invalid）与首个错误定位（entry_index/path/reason），并提示报告文件路径。
+- 已落地 `memory prune` 可解释统计：`schema_version=memory_prune_result_v1`，新增 `removed_by_reason`（按 expired_by_ttl / low_confidence / over_limit / stale_by_age / stale_by_confidence 等分桶）、`invalid_json_lines`（未删除的坏行计数）；文本模式追加 `non_active` 与 `removed_by_reason` JSON 一行。
 - 目的：让坏数据导入失败具备可定位、可修复、可自动化消费的错误结构，降低批量数据迁移风险。
+- 待办（文档/迁移）：字段定义与迁移说明可单独补一篇 MEMORY 专题；老数据兼容策略仍以「校验跳过 + 导出修复」为主。
 
 ### Sprint 5：Hooks Runtime 深化（执行器 + profile）
 

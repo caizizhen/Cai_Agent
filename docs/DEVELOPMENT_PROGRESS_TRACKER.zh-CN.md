@@ -46,11 +46,14 @@
 
 - `memory import-entries` 严格化：新增 `--dry-run` 仅校验不落盘路径，支持在导入前做批量 schema 预检
 - `memory import-entries` 错误语义增强：无效 bundle 返回结构化错误（entry_index/path/errors），便于快速定位坏数据行
+- `memory import-entries` 新增坏数据隔离报告导出：支持 `--error-report <path>` 将无效行报告落盘（`memory_entries_import_errors_v1`，含 `source_file/errors_count/errors`）
+- `memory import-entries` 失败摘要可读性增强：stderr 输出总览（total/validated/invalid）与首个错误定位（entry_index/path/reason）
 - `memory nudge` schema 升级至 `1.1`
 - 新增 `threshold_policy` / `risk_score` / `trend`
 - 新增记忆状态机评估：`active/stale/expired`（`memory state`）
 - `memory list --json` 输出补充 `state` / `state_reason`
 - `memory prune` 新增 `--drop-non-active`，可按状态机删除非 active 条目
+- `memory prune --json` 输出增强：`schema_version=memory_prune_result_v1`、`removed_by_reason`（按原因分桶）、`invalid_json_lines`（文件中无法解析为 JSON 的行数，不自动删除）；文本模式补充 `non_active` 与 `removed_by_reason` 摘要行
 
 ### E. Recall Loop
 
@@ -120,7 +123,7 @@
 
 ## 下一阶段建议（按价值）
 
-1. Sprint 4 持续推进：补 memory import/export CLI 的错误分级码与迁移向导文档
+1. Sprint 5+：Hooks Runtime 深化与其它 Sprint 按计划推进；Sprint 4 可选补 memory 字段定义与迁移向导专题文档
 2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
