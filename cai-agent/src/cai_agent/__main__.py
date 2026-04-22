@@ -5495,7 +5495,12 @@ def main(argv: list[str] | None = None) -> int:
                     p = mem_dir / f"instincts-import-{i:04d}.md"
                     p.write_text(content, encoding="utf-8")
                     count += 1
-                print(json.dumps({"imported": count}, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {"schema_version": "memory_instincts_import_v1", "imported": count},
+                        ensure_ascii=False,
+                    ),
+                )
                 return 0
             if args.memory_action == "export-entries":
                 target = Path(args.file).expanduser().resolve()
@@ -5533,6 +5538,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 if dry_run:
                     payload: dict[str, Any] = {
+                        "schema_version": "memory_entries_import_dry_run_v1",
                         "validated": len(valid_rows),
                         "dry_run": True,
                         "errors_count": len(errors),
@@ -5562,7 +5568,12 @@ def main(argv: list[str] | None = None) -> int:
                 if dry_run:
                     return 0
                 n = import_memory_entries_bundle(root, doc)
-                print(json.dumps({"imported": n}, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {"schema_version": "memory_entries_import_result_v1", "imported": n},
+                        ensure_ascii=False,
+                    ),
+                )
                 return 0
             if args.memory_action == "health":
                 payload = build_memory_health_payload(

@@ -236,7 +236,8 @@
 | `memory instincts` | 对象 **`memory_instincts_list_v1`**：`paths`（字符串数组）、`limit` | |
 | `memory prune` | `memory_prune_result_v1` | 含 `removed_total`、`removed_by_reason` 等 |
 | `memory state` | `memory_state_eval_v1` | |
-| `memory export` / `import` / `export-entries` / `import-entries` | 见实现 | `memory_entries_bundle_v1` / `memory_entries_import_errors_v1` 等 |
+| `memory export` / `import` | `export` 仅 stdout 输出目标路径（非 JSON）；**`import`** stdout 单行 JSON **`memory_instincts_import_v1`**（**`imported`**） | 导入文件为 **JSON 数组**（元素含 `content`） |
+| `memory export-entries` / `import-entries` | `export-entries` 写出 **`memory_entries_bundle_v1`**；**`import-entries --dry-run`** stdout：**`memory_entries_import_dry_run_v1`**（`validated`、`errors` 等）；成功导入 stdout：**`memory_entries_import_result_v1`**（**`imported`**）；失败时可选 **`memory_entries_import_errors_v1`** 报告文件 | 与 `memory.py` 校验一致 |
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
@@ -290,6 +291,7 @@
 
 - **`memory list --json` / `memory search --json` / `memory instincts --json`**：根对象分别为 **`memory_list_v1`**（读 **`entries`**）、**`memory_search_v1`**（读 **`hits`**）、**`memory_instincts_list_v1`**（读 **`paths`**）；**不再**直接输出裸数组。
 - **`memory extract`**：stdout JSON 增加顶层 **`schema_version`：`memory_extract_v1`**（字段 **`written`** / **`entries_appended`** 不变）。
+- **`memory import`**（instincts 数组文件）与 **`memory import-entries`** 成功路径：stdout 增加 **`schema_version`**（分别为 **`memory_instincts_import_v1`**、**`memory_entries_import_result_v1`**）；**`import-entries --dry-run`** stdout 增加 **`memory_entries_import_dry_run_v1`**（原有 `validated` / `errors` 等字段不变）。
 - **`schedule list --json`**：自 **`schedule_list_v1`** 起，根对象为 **`{ "schema_version", "jobs" }`**；**不再**直接输出任务数组（旧脚本请读 **`jobs`**）。
 - **`schedule run-due --json` / `schedule daemon --json`**：stdout 根对象新增 **`schema_version`**（分别为 **`schedule_run_due_v1`**、**`schedule_daemon_summary_v1`**）；其余字段保持，**若脚本以固定键集合校验需放行新键**。
 - **`sessions --json`**：自 **`sessions_list_v1`** 起，根对象为 `{ "schema_version", "pattern", "limit", "details", "sessions" }`；**不再**直接输出裸数组（旧脚本请改为读 **`sessions`** 字段）。
