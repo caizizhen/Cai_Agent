@@ -230,6 +230,7 @@ def run_quality_gate(
     task.status = "completed" if not failed else "failed"
     task.error = None if not failed else "one_or_more_checks_failed"
     result: dict[str, object] = {
+        "schema_version": "quality_gate_result_v1",
         "task": task.to_dict(),
         "workspace": str(root),
         "config": {

@@ -3,8 +3,10 @@ from __future__ import annotations
 import io
 import json
 import os
+import tempfile
 import unittest
 from contextlib import redirect_stdout
+from pathlib import Path
 
 from cai_agent.__main__ import main
 
@@ -102,6 +104,49 @@ class PluginsCliTests(unittest.TestCase):
         self.assertEqual(rc, 2)
         payload = json.loads(buf.getvalue().strip())
         self.assertLess(int(payload.get("health_score") or 0), 101)
+
+
+class GateSecuritySchemaTests(unittest.TestCase):
+    def test_quality_gate_result_has_schema_version(self) -> None:
+        from dataclasses import replace
+
+        from cai_agent.config import Settings
+        from cai_agent.quality_gate import run_quality_gate
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "cai-agent.toml").write_text(
+                '[llm]\nbase_url = "http://x/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            s = Settings.from_env(config_path=str(root / "cai-agent.toml"))
+            s = replace(s, workspace=str(root))
+            out = run_quality_gate(
+                s,
+                enable_compile=False,
+                enable_test=False,
+                enable_lint=False,
+                enable_typecheck=False,
+                enable_security_scan=False,
+            )
+            self.assertEqual(out.get("schema_version"), "quality_gate_result_v1")
+
+    def test_security_scan_result_has_schema_version(self) -> None:
+        from dataclasses import replace
+
+        from cai_agent.config import Settings
+        from cai_agent.security_scan import run_security_scan
+
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "cai-agent.toml").write_text(
+                '[llm]\nbase_url = "http://x/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            s = Settings.from_env(config_path=str(root / "cai-agent.toml"))
+            s = replace(s, workspace=str(root))
+            out = run_security_scan(s)
+            self.assertEqual(out.get("schema_version"), "security_scan_result_v1")
 
 
 class ObserveCliTests(unittest.TestCase):

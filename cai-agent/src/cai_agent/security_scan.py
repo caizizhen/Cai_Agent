@@ -263,6 +263,7 @@ def run_security_scan(
     blocking = [f for f in findings if str(f.get("severity")) == "high"]
     ok = len(blocking) == 0
     return {
+        "schema_version": "security_scan_result_v1",
         "workspace": str(root),
         "ok": ok,
         "scanned_files": scanned_files,

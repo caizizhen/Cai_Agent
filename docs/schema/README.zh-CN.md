@@ -140,6 +140,15 @@
 
 ---
 
+## `quality-gate` / `security-scan`（`--json`）
+
+- **`quality-gate --json`**：`cai_agent.quality_gate.run_quality_gate` 返回对象含 **`schema_version`：`quality_gate_result_v1`**，以及 `task`、`workspace`、`config`（各阶段开关）、`checks[]`（`name` / `exit_code` / `elapsed_ms` / `skipped` 等）、`ok`、`failed_count`。
+- **`security-scan --json`**：`run_security_scan` 返回 **`schema_version`：`security_scan_result_v1`**，以及 `workspace`、`ok`、`scanned_files`、`findings_count`、`findings[]`、`rule_flags` 等。
+
+**Exit**：`quality-gate`：`ok == false` → `2`；`security-scan`：`ok == false`（存在 **high** 级命中）→ `2`；配置不可读 → `2`。
+
+---
+
 ## `memory` 子命令 JSON 摘要
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |
