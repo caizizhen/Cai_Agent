@@ -35,7 +35,7 @@
 | 7 | `fetch_url` + MCP Web 配方 | **完成** | `MCP_WEB_RECIPE.zh-CN.md` |
 | 8 | WebSearch/Notebook | **定案 MCP 优先** | `WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` |
 | 9 | 记忆 CLI：`extract` / `list` / `search` / `prune`、instincts、`nudge`、`nudge-report`、import/export、状态机、prune 策略 | **完成（持续演进）** | `memory.py`、`__main__.py`；pytest `test_memory_*` |
-| 10 | **S2-01 `memory health` 综合评分**（`health_score`、`grade` A–D、`--fail-on-grade`） | **完成** | 与 `origin/cursor/hermes-s2-01-memory-health-9ed2` 同能力；**已在 `main`**（`build_memory_health_payload`、`cai-agent memory health`、`tests/test_memory_health_cli.py`） |
+| 10 | **S2-01 `memory health` 综合评分**（`health_score`、`grade` A–D、`--fail-on-grade`） | **完成** | **已在 `main`**（`build_memory_health_payload`、`cai-agent memory health`、`tests/test_memory_health_cli.py`）；原 [PR #12](https://github.com/caizizhen/Cai_Agent/pull/12) 单提交已由主线 Sprint 合入取代，见 §四。 |
 | 11 | 跨会话 `insights`、`recall`、`recall-index` | **完成** | |
 | 12 | `schedule` / `daemon` / 依赖与审计 | **完成** | |
 | 13 | Hooks：`hooks` CLI、路径解析、与 runner 对齐 | **完成** | `hook_runtime.py`、`test_hooks_cli.py` |
@@ -69,12 +69,22 @@
 
 ---
 
-## 四、分支与合并记录
+## 四、[PR #12](https://github.com/caizizhen/Cai_Agent/pull/12)（`cursor/hermes-s2-01-memory-health-9ed2`）处理说明
 
-| 分支 | 说明 |
-|------|------|
-| `origin/cursor/hermes-s2-01-memory-health-9ed2` | **能力已合入 `main`**（与远端 `main` 上的 `memory health` 实现一致；若本地曾单独 FF 该分支，可与 `git log main --grep=memory.health` 对照）。 |
+| 项 | 说明 |
+|----|------|
+| **PR 状态** | Draft「单提交 `6df633f`」与当前 **`main` 历史不一致**：S2-01 `memory health` 等能力已由主线上的 **Hermes Sprint 2** 等提交合入（例如 `git log main --oneline --grep=Sprint` / `memory` 可见），**请勿再合并 PR #12**（会引入重复或冲突历史）。 |
+| **远端分支** | **`origin/cursor/hermes-s2-01-memory-health-9ed2` 已删除**（2026-04-22），避免与主线双轨。 |
+| **请在 GitHub 上** | 打开 [PR #12](https://github.com/caizizhen/Cai_Agent/pull/12) → **Close pull request**（建议选 *Close as not planned* 或说明 *Superseded by main*），保持仓库 PR 列表干净。 |
 
 ---
 
-*文档版本：2026-04-22（合并 Hermes S2-01 memory health 分支后修订）。*
+## 五、分支策略（团队约定）
+
+- **默认集成分支**：`main`；功能与修复经 **PR 合入**，合入前保持 CI 绿。
+- **不要随意新建长期 `cursor/*` 或平行功能分支**：优先在 **已有 PR 分支上追加 commit**，或 **一个功能一个短生命周期分支**，合入后立即删除远端分支。
+- **Hermes 对标迭代**：以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 认领 Story，避免同一 Story 开多条平行分支。
+
+---
+
+*文档版本：2026-04-22；§四更新：PR #12 / 远端 head 分支已处理。*
