@@ -68,6 +68,33 @@
 
 ---
 
+## `plugins` / `plugins --json`
+
+- **实现**：`cai_agent.plugin_registry.list_plugin_surface`
+- **无**顶层 `schema_version` 字段；含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
+
+**Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`。
+
+---
+
+## `commands` / `agents` / `--json`
+
+- **`commands --json`**：`list_command_names` → **字符串数组**（斜杠命令名，无 `schema_version`）。
+- **`agents --json`**：`list_agent_names` → **字符串数组**。
+
+**Exit**：配置可读 `0`；`Settings.from_env` 失败（如缺配置）→ `2`。
+
+---
+
+## `workflow` / `workflow <file> --json`
+
+- **实现**：`cai_agent.workflow.run_workflow`
+- **`schema_version`**：`workflow_run_v1`；另有 **`subagent_io_schema_version`**：`1.0` 与 `subagent_io`（`inputs` / `merge` / `outputs`）、`steps`、`summary`、`events`、`task`。
+
+**Exit**：文件缺失/解析失败 → `2`；默认成功 `0`。`--fail-on-step-errors`：`task.status == failed` 或 `summary.tool_errors_total > 0` 或任一步 `error_count > 0` → `2`。
+
+---
+
 ## `memory` 子命令 JSON 摘要
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |

@@ -2899,6 +2899,13 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出扩展面信息",
     )
+    plugins_p.add_argument(
+        "--fail-on-min-health",
+        type=int,
+        default=None,
+        metavar="SCORE",
+        help="可选：扩展面 health_score < SCORE（0~100）时 exit 2，便于 CI",
+    )
     cmd_list_p = sub.add_parser(
         "commands",
         parents=[common],
@@ -4053,6 +4060,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 对象输出全部步骤结果与汇总",
     )
+    wf_p.add_argument(
+        "--fail-on-step-errors",
+        action="store_true",
+        help="任一 step 的 error_count>0 或 workflow task.status==failed 时 exit 2",
+    )
 
     ui_p = sub.add_parser(
         "ui",
@@ -4288,6 +4300,11 @@ def main(argv: list[str] | None = None) -> int:
                     exists = bool(meta.get("exists"))
                     files_count = int(meta.get("files_count", 0))
                     print(f"- {name}: exists={exists} files={files_count}")
+        min_h = getattr(args, "fail_on_min_health", None)
+        if isinstance(min_h, int):
+            hs = int(surface.get("health_score") or 0)
+            if hs < int(min_h):
+                return 2
         return 0
 
     if args.command == "commands":
@@ -6815,6 +6832,16 @@ def main(argv: list[str] | None = None) -> int:
                     f"- [{name}] elapsed_ms={elapsed_ms} "
                     f"tool_calls={tools} errors={errors} goal={goal!r}"
                 )
+        if bool(getattr(args, "fail_on_step_errors", False)):
+            tk = result.get("task") if isinstance(result.get("task"), dict) else {}
+            if str(tk.get("status") or "").strip().lower() == "failed":
+                return 2
+            sm = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+            if int(sm.get("tool_errors_total") or 0) > 0:
+                return 2
+            for st in result.get("steps") or []:
+                if isinstance(st, dict) and int(st.get("error_count") or 0) > 0:
+                    return 2
         return 0
 
     if args.command == "release-ga":

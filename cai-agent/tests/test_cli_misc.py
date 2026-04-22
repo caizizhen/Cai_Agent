@@ -95,6 +95,14 @@ class PluginsCliTests(unittest.TestCase):
         self.assertIn("project_root", payload)
         self.assertIn("components", payload)
 
+    def test_plugins_fail_on_min_health(self) -> None:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["plugins", "--json", "--fail-on-min-health", "101"])
+        self.assertEqual(rc, 2)
+        payload = json.loads(buf.getvalue().strip())
+        self.assertLess(int(payload.get("health_score") or 0), 101)
+
 
 class ObserveCliTests(unittest.TestCase):
     def test_observe_json_returns_0(self) -> None:

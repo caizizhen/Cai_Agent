@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from cai_agent.__main__ import main
 
@@ -92,6 +93,40 @@ class WorkflowCliTests(unittest.TestCase):
         self.assertIn("decision", merge)
         self.assertIn("confidence", merge)
         self.assertIn("conflicts", merge)
+
+    def test_workflow_fail_on_step_errors_after_successful_json(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps({"steps": [{"name": "s1", "goal": "ignored under patch"}]}),
+                encoding="utf-8",
+            )
+            fake = {
+                "schema_version": "workflow_run_v1",
+                "task": {
+                    "task_id": "wf-test",
+                    "type": "workflow",
+                    "status": "completed",
+                },
+                "subagent_io_schema_version": "1.0",
+                "subagent_io": {"inputs": {}, "merge": {"conflicts": []}, "outputs": []},
+                "steps": [{"name": "s1", "index": 1, "error_count": 2}],
+                "summary": {
+                    "steps_count": 1,
+                    "tool_errors_total": 2,
+                    "elapsed_ms_total": 1,
+                    "elapsed_ms_avg": 1,
+                    "tool_calls_total": 0,
+                },
+                "events": [],
+            }
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.run_workflow", return_value=fake):
+                with redirect_stdout(buf):
+                    rc = main(["workflow", str(wf_path), "--json", "--fail-on-step-errors"])
+            self.assertEqual(rc, 2)
+            out = json.loads(buf.getvalue().strip())
+            self.assertEqual(out.get("schema_version"), "workflow_run_v1")
 
 
 if __name__ == "__main__":
