@@ -20,6 +20,7 @@
 
 - `depends_on` 依赖链
 - `retry_max_attempts` / `retry_backoff_sec` 重试策略
+- **S4-01（跨轮次）**：`max_retries` / `retry_count` / `next_retry_at`；失败 → `retrying` + 指数退避（`60*2^(n-1)`s），用尽 → `failed_exhausted`；成功清零；`compute_due_tasks` 对 `retrying` 按 `next_retry_at` 到期；CLI `schedule add --max-retries`；`run-due`/`daemon` 执行 JSON 与审计行同步持久化 `status`/`retry_count`/`next_retry_at`
 - `.cai-schedule-audit.jsonl` 审计日志
 - `run-due --execute` 与 `daemon --execute` 行为对齐（重试、审计、attempts）
 

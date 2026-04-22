@@ -1726,6 +1726,24 @@ def _execute_scheduled_goal(
     return True, answer
 
 
+def _schedule_task_row_snapshot(cwd: str, task_id: str) -> dict[str, Any]:
+    tid = str(task_id or "").strip()
+    if not tid:
+        return {}
+    for row in list_schedule_tasks(cwd):
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("id") or "").strip() != tid:
+            continue
+        return {
+            "last_status": row.get("last_status"),
+            "retry_count": row.get("retry_count"),
+            "next_retry_at": row.get("next_retry_at"),
+            "max_retries": row.get("max_retries"),
+        }
+    return {}
+
+
 def _resolve_schedule_path(root: Path, raw_path: str | None, default_name: str) -> Path:
     if isinstance(raw_path, str) and raw_path.strip():
         p = Path(raw_path.strip()).expanduser()
@@ -3641,7 +3659,13 @@ def main(argv: list[str] | None = None) -> int:
         "--retry-backoff-sec",
         type=float,
         default=0.0,
-        help="失败重试退避秒数（默认 0）",
+        help="单次 run-due/daemon 内连续执行同一 goal 时的退避秒数（默认 0）",
+    )
+    schedule_add.add_argument(
+        "--max-retries",
+        type=int,
+        default=3,
+        help="跨轮次失败后的最大重试次数（指数退避 60*2^(n-1)s；达到上限后为 failed_exhausted，默认 3）",
     )
     schedule_add.add_argument("--disabled", action="store_true", default=False, help="创建后默认禁用")
     schedule_add.add_argument("--json", action="store_true", dest="json_output")
@@ -5481,6 +5505,7 @@ def main(argv: list[str] | None = None) -> int:
                 depends_on=[str(x) for x in list(getattr(args, "depends_on", []) or [])],
                 retry_max_attempts=int(getattr(args, "retry_max_attempts", 1)),
                 retry_backoff_sec=float(getattr(args, "retry_backoff_sec", 0.0)),
+                max_retries=int(getattr(args, "max_retries", 3)),
                 cwd=str(root),
             )
             append_schedule_audit_event(
@@ -5493,6 +5518,7 @@ def main(argv: list[str] | None = None) -> int:
                     "depends_on": job.get("depends_on"),
                     "retry_max_attempts": job.get("retry_max_attempts"),
                     "retry_backoff_sec": job.get("retry_backoff_sec"),
+                    "max_retries": job.get("max_retries"),
                 },
             )
             if bool(args.disabled):
@@ -5606,20 +5632,24 @@ def main(argv: list[str] | None = None) -> int:
                         error="empty_goal",
                         cwd=str(root),
                     )
+                    snap_eg = _schedule_task_row_snapshot(str(root), tid)
+                    st_eg = str(snap_eg.get("last_status") or "failed")
                     executed.append(
                         {
                             "id": tid,
                             "ok": False,
-                            "status": "failed",
+                            "status": st_eg,
                             "error": "empty_goal",
+                            "retry_count": snap_eg.get("retry_count"),
+                            "next_retry_at": snap_eg.get("next_retry_at"),
                         },
                     )
                     append_schedule_audit_event(
                         task_id=tid,
-                        status="failed",
+                        status=st_eg,
                         action="schedule.run_due",
                         cwd=str(root),
-                        details={"reason": "empty_goal"},
+                        details={"reason": "empty_goal", "retry_count": snap_eg.get("retry_count")},
                     )
                     continue
                 max_attempts = int(j.get("retry_max_attempts") or 1)
@@ -5672,23 +5702,33 @@ def main(argv: list[str] | None = None) -> int:
                         error=out,
                         cwd=str(root),
                     )
+                    snap = _schedule_task_row_snapshot(str(root), tid)
+                    persisted = str(snap.get("last_status") or "failed")
                     executed.append(
                         {
                             "id": tid,
                             "ok": False,
-                            "status": "failed",
+                            "status": persisted,
                             "error": out,
                             "workspace": workspace_override,
                             "model": model_override,
                             "attempts": attempts,
+                            "retry_count": snap.get("retry_count"),
+                            "next_retry_at": snap.get("next_retry_at"),
+                            "max_retries": snap.get("max_retries"),
                         },
                     )
                     append_schedule_audit_event(
                         task_id=tid,
-                        status="failed",
+                        status=persisted,
                         action="schedule.run_due",
                         cwd=str(root),
-                        details={"attempts": attempts, "error": out[:500]},
+                        details={
+                            "attempts": attempts,
+                            "error": out[:500],
+                            "retry_count": snap.get("retry_count"),
+                            "next_retry_at": snap.get("next_retry_at"),
+                        },
                     )
             payload = {"mode": "execute", "due_jobs": due, "executed": executed}
             if bool(args.json_output):
@@ -5746,15 +5786,28 @@ def main(argv: list[str] | None = None) -> int:
                                     error="empty_goal",
                                     cwd=str(root),
                                 )
+                                snap_eg = _schedule_task_row_snapshot(str(root), tid)
+                                st_eg = str(snap_eg.get("last_status") or "failed")
                                 cycle_exec.append(
-                                    {"id": tid, "ok": False, "status": "failed", "error": "empty_goal"},
+                                    {
+                                        "id": tid,
+                                        "ok": False,
+                                        "status": st_eg,
+                                        "error": "empty_goal",
+                                        "retry_count": snap_eg.get("retry_count"),
+                                        "next_retry_at": snap_eg.get("next_retry_at"),
+                                    },
                                 )
                                 append_schedule_audit_event(
                                     task_id=tid,
-                                    status="failed",
+                                    status=st_eg,
                                     action="schedule.daemon",
                                     cwd=str(root),
-                                    details={"reason": "empty_goal", "cycle": cycles},
+                                    details={
+                                        "reason": "empty_goal",
+                                        "cycle": cycles,
+                                        "retry_count": snap_eg.get("retry_count"),
+                                    },
                                 )
                                 continue
                             max_attempts = int(j.get("retry_max_attempts") or 1)
@@ -5805,21 +5858,32 @@ def main(argv: list[str] | None = None) -> int:
                                     error=out,
                                     cwd=str(root),
                                 )
+                                snap = _schedule_task_row_snapshot(str(root), tid)
+                                persisted = str(snap.get("last_status") or "failed")
                                 cycle_exec.append(
                                     {
                                         "id": tid,
                                         "ok": False,
-                                        "status": "failed",
+                                        "status": persisted,
                                         "error": out,
                                         "attempts": attempts,
+                                        "retry_count": snap.get("retry_count"),
+                                        "next_retry_at": snap.get("next_retry_at"),
+                                        "max_retries": snap.get("max_retries"),
                                     },
                                 )
                                 append_schedule_audit_event(
                                     task_id=tid,
-                                    status="failed",
+                                    status=persisted,
                                     action="schedule.daemon",
                                     cwd=str(root),
-                                    details={"attempts": attempts, "error": out[:500], "cycle": cycles},
+                                    details={
+                                        "attempts": attempts,
+                                        "error": out[:500],
+                                        "cycle": cycles,
+                                        "retry_count": snap.get("retry_count"),
+                                        "next_retry_at": snap.get("next_retry_at"),
+                                    },
                                 )
                     total_executed += len(cycle_exec)
                     cycle_row = {

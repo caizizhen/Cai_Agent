@@ -25,7 +25,7 @@
 - **执行**：`cai-agent schedule run-due --execute --json`（连续执行多次）
 - **期望**：
   - 失败后 `retry_count` 递增
-  - `next_retry_at` 设置为 `now + 2^retry_count * 60s`
+  - `next_retry_at` 设置为 `now + 60 * 2^(retry_count-1)` 秒（第 1 次失败 60s，第 2 次 120s，第 3 次 240s）
   - 状态为 `retrying` 而非 `failed`
 
 ### SCH-RETRY-002：达到最大重试次数后放弃
