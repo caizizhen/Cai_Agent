@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 11     | 32%      |
+| ✅ 已完成        | 12     | 35%      |
 | ⚠️ 部分完成（需补齐） | 4      | 12%      |
-| ❌ 未开发        | 19     | 56%      |
+| ❌ 未开发        | 18     | 53%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -37,6 +37,7 @@
 | **S3-01**   | recall `--sort` 策略 | `recall` / `recall-index search|benchmark`：`--sort recent|density|combined`；`ranking` 随策略变化；JSON `schema_version` 演进见 S3-02 |
 | **S3-02**   | recall 无命中解释 | 0 命中时 JSON `no_hit_reason`：`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`；`schema_version=1.3`；文本模式打印可读提示 |
 | **S3-03**   | `recall-index doctor` | `recall-index doctor [--fix] [--json]`：`schema_version=recall_index_doctor_v1`，`is_healthy` / `issues` / `stale_paths` / `missing_files` / `schema_version_ok`；`--fix` 剔除缺失与相对索引窗口过旧条目；健康 exit 0、有问题 exit 2 |
+| **S3-04**   | recall 性能基准 | `scripts/perf_recall_bench.py`：生成会话并测 scan / index_build / index_search（可选 `--include-refresh`）；Markdown 默认落 `docs/qa/runs/`；`tests/test_perf_recall_bench.py` 冒烟 |
 
 
 ---
@@ -80,17 +81,7 @@
 
 ### Sprint 3：Recall Loop 2.0
 
-
-| Story ID  | 标题                                       | 优先级 | 估算  | 测试计划                                                                               |
-| --------- | ---------------------------------------- | --- | --- | ---------------------------------------------------------------------------------- |
-| **S3-04** | recall 性能基准脚本                            | P2  | M   | PERF-RCL-001~005                                                                   |
-
-
-**开发关键文件**：
-
-- `__main__.py`：`recall` / `recall-index search|benchmark` / `recall-index doctor`
-- `scripts/perf_recall_bench.py`：新建性能基准脚本  
-**QA 等待信号**：`python3 -m pytest -q tests/test_recall*.py` + RCL-DOC/PERF 手工（S3-04 脚本落地后补 PERF）
+**本 Sprint（S3-01 ~ S3-04）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
 
 ---
 
@@ -223,7 +214,7 @@ Sprint 8（GA）
 | Sprint | 开发完成信号                     | QA 开始动作                                           |
 | ------ | -------------------------- | ------------------------------------------------- |
 | S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
-| S3     | S3-04 脚本待开发（S3-01~03 已合主线） | 运行 `test_recall*.py` + PERF-RCL 系列（脚本就绪后） |
+| S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
 | S4     | S4-01/S4-02 合并             | 运行 `test_schedule*.py` + 故障注入测试 SCH-FI-001~003    |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01/S6-03 合并             | 自动化 GTW-SEC-001~004；准备 Bot Token 待手工测             |
