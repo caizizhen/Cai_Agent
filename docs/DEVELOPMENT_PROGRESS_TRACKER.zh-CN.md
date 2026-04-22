@@ -46,6 +46,8 @@
 
 - `memory import-entries` 严格化：新增 `--dry-run` 仅校验不落盘路径，支持在导入前做批量 schema 预检
 - `memory import-entries` 错误语义增强：无效 bundle 返回结构化错误（entry_index/path/errors），便于快速定位坏数据行
+- `memory import-entries` 新增坏数据隔离报告导出：支持 `--error-report <path>` 将无效行报告落盘（`memory_entries_import_errors_v1`，含 `source_file/errors_count/errors`）
+- `memory import-entries` 失败摘要可读性增强：stderr 输出总览（total/validated/invalid）与首个错误定位（entry_index/path/reason）
 - `memory nudge` schema 升级至 `1.1`
 - 新增 `threshold_policy` / `risk_score` / `trend`
 - 新增记忆状态机评估：`active/stale/expired`（`memory state`）

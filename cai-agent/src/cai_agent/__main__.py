@@ -62,6 +62,7 @@ from cai_agent.memory import (
     save_instincts,
     search_memory_entries,
     sort_memory_rows,
+    validate_memory_entries_bundle,
 )
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
@@ -3103,6 +3104,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="仅校验 bundle，不写入 entries.jsonl",
     )
+    memory_import_entries.add_argument(
+        "--error-report",
+        default=None,
+        help="可选：校验失败时将结构化错误写入文件（相对工作区或绝对路径）",
+    )
     memory_nudge = memory_sub.add_parser(
         "nudge",
         help="根据近期会话与记忆状态给出沉淀提醒（Hermes-style memory nudge）",
@@ -4667,12 +4673,56 @@ def main(argv: list[str] | None = None) -> int:
                 src = Path(args.file).expanduser().resolve()
                 doc = json.loads(src.read_text(encoding="utf-8"))
                 dry_run = bool(getattr(args, "dry_run", False))
+                valid_rows, errors = validate_memory_entries_bundle(doc)
+                report_path_raw = getattr(args, "error_report", None)
+                report_path: Path | None = None
+                if errors and isinstance(report_path_raw, str) and report_path_raw.strip():
+                    report_path = Path(report_path_raw).expanduser()
+                    if not report_path.is_absolute():
+                        report_path = (root / report_path).resolve()
+                    report_payload = {
+                        "schema_version": "memory_entries_import_errors_v1",
+                        "source_file": str(src),
+                        "errors_count": len(errors),
+                        "errors": errors,
+                    }
+                    report_path.parent.mkdir(parents=True, exist_ok=True)
+                    report_path.write_text(
+                        json.dumps(report_payload, ensure_ascii=False, indent=2) + "\n",
+                        encoding="utf-8",
+                    )
                 if dry_run:
-                    n = import_memory_entries_bundle(root, doc, dry_run=True)
-                    print(json.dumps({"validated": n, "dry_run": True}, ensure_ascii=False))
-                else:
-                    n = import_memory_entries_bundle(root, doc)
-                    print(json.dumps({"imported": n}, ensure_ascii=False))
+                    payload: dict[str, Any] = {
+                        "validated": len(valid_rows),
+                        "dry_run": True,
+                        "errors_count": len(errors),
+                        "errors": errors,
+                    }
+                    if report_path is not None:
+                        payload["error_report"] = str(report_path)
+                    print(json.dumps(payload, ensure_ascii=False))
+                if errors:
+                    summary = (
+                        f"[memory] 导入校验失败: total={len(valid_rows) + len(errors)} "
+                        f"validated={len(valid_rows)} invalid={len(errors)}"
+                    )
+                    print(summary, file=sys.stderr)
+                    first = errors[0] if isinstance(errors[0], dict) else {}
+                    idx = first.get("entry_index")
+                    path = first.get("path")
+                    first_errs = first.get("errors") if isinstance(first.get("errors"), list) else []
+                    if first_errs:
+                        print(
+                            f"[memory] 首个错误: entry_index={idx} path={path} reason={first_errs[0]}",
+                            file=sys.stderr,
+                        )
+                    if report_path is not None:
+                        print(f"[memory] 详细错误报告已写入: {report_path}", file=sys.stderr)
+                    return 2
+                if dry_run:
+                    return 0
+                n = import_memory_entries_bundle(root, doc)
+                print(json.dumps({"imported": n}, ensure_ascii=False))
                 return 0
             if args.memory_action == "nudge":
                 payload = _build_memory_nudge_payload(
