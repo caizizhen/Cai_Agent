@@ -22,6 +22,7 @@
 - `retry_max_attempts` / `retry_backoff_sec` 重试策略
 - **S4-01（跨轮次）**：`max_retries` / `retry_count` / `next_retry_at`；失败 → `retrying` + 指数退避（`60*2^(n-1)`s），用尽 → `failed_exhausted`；成功清零；`compute_due_tasks` 对 `retrying` 按 `next_retry_at` 到期；CLI `schedule add --max-retries`；`run-due`/`daemon` 执行 JSON 与审计行同步持久化 `status`/`retry_count`/`next_retry_at`
 - **S4-02**：`schedule daemon --max-concurrent`（默认 1，`0`→1）；每轮最多执行 N 个到点任务，其余跳过并在 `.cai-schedule-audit.jsonl` 与可选 `--jsonl-log` 记录 **`skipped_due_to_concurrency`**；JSON 汇总 `total_skipped_due_to_concurrency` 与每轮 `skipped_due_to_concurrency`
+- **S4-03**：`add_schedule_task` 检测 `depends_on` 有向环（含自环），拒绝写入；`schedule add` 失败 exit 2 + `--json` 的 `schedule_add_invalid`；`schedule list` 文本列 deps / dep_blocked / dependents / dep_chain；`list --json` 增加 `depends_on_status`、`dependency_blocked`、`dependents`、`depends_on_chain`（仅输出）
 - `.cai-schedule-audit.jsonl` 审计日志
 - `run-due --execute` 与 `daemon --execute` 行为对齐（重试、审计、attempts）
 

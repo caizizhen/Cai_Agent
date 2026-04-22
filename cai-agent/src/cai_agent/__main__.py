@@ -79,6 +79,7 @@ from cai_agent.schedule import (
     add_schedule_task,
     append_schedule_audit_event,
     compute_due_tasks,
+    enrich_schedule_tasks_for_display,
     list_schedule_tasks,
     load_schedule_doc,
     mark_schedule_task_run,
@@ -5503,17 +5504,27 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "schedule":
         root = Path.cwd().resolve()
         if args.schedule_action == "add":
-            job = add_schedule_task(
-                goal=str(args.goal),
-                every_minutes=int(args.every_minutes),
-                workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
-                model=str(args.model) if getattr(args, "model", None) else None,
-                depends_on=[str(x) for x in list(getattr(args, "depends_on", []) or [])],
-                retry_max_attempts=int(getattr(args, "retry_max_attempts", 1)),
-                retry_backoff_sec=float(getattr(args, "retry_backoff_sec", 0.0)),
-                max_retries=int(getattr(args, "max_retries", 3)),
-                cwd=str(root),
-            )
+            try:
+                job = add_schedule_task(
+                    goal=str(args.goal),
+                    every_minutes=int(args.every_minutes),
+                    workspace=str(args.workspace) if getattr(args, "workspace", None) else None,
+                    model=str(args.model) if getattr(args, "model", None) else None,
+                    depends_on=[str(x) for x in list(getattr(args, "depends_on", []) or [])],
+                    retry_max_attempts=int(getattr(args, "retry_max_attempts", 1)),
+                    retry_backoff_sec=float(getattr(args, "retry_backoff_sec", 0.0)),
+                    max_retries=int(getattr(args, "max_retries", 3)),
+                    cwd=str(root),
+                )
+            except ValueError as e:
+                msg = str(e).strip() or "schedule add rejected"
+                if bool(args.json_output):
+                    print(
+                        json.dumps({"ok": False, "error": "schedule_add_invalid", "message": msg}, ensure_ascii=False),
+                    )
+                else:
+                    print(msg, file=sys.stderr)
+                return 2
             append_schedule_audit_event(
                 task_id=str(job.get("id") or ""),
                 status="created",
@@ -5587,17 +5598,30 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"goal={goal}")
             return 0
         if args.schedule_action == "list":
-            jobs = list_schedule_tasks(str(root))
+            raw_jobs = list_schedule_tasks(str(root))
+            jobs = enrich_schedule_tasks_for_display(raw_jobs)
             if bool(args.json_output):
                 print(json.dumps(jobs, ensure_ascii=False))
             else:
                 if not jobs:
                     print("(无定时任务)")
                 for j in jobs:
+                    dep_ids: list[str] = []
+                    for x in (j.get("depends_on") or []):
+                        d = str(x or "").strip()
+                        if d and d not in dep_ids:
+                            dep_ids.append(d)
+                    deps_s = ",".join(dep_ids) if dep_ids else "-"
+                    chain_s = str(j.get("depends_on_chain") or "-")[:100]
+                    dep_blk = "Y" if j.get("dependency_blocked") else "N"
+                    dep_n = ",".join(str(x) for x in (j.get("dependents") or [])[:5]) or "-"
+                    if len(j.get("dependents") or []) > 5:
+                        dep_n = dep_n + ",…"
                     print(
                         f"{j.get('id')}\tevery={j.get('every_minutes')}m\tenabled={j.get('enabled')}\t"
                         f"run_count={j.get('run_count', 0)} last_status={j.get('last_status')}\t"
-                        f"goal={(str(j.get('goal') or '')[:80])}",
+                        f"deps={deps_s}\tdep_blocked={dep_blk}\tdependents={dep_n}\tdep_chain={chain_s}\t"
+                        f"goal={(str(j.get('goal') or '')[:60])}",
                     )
             return 0
         if args.schedule_action == "rm":

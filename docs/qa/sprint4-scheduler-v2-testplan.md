@@ -59,7 +59,7 @@
 ### SCH-DEP-001：依赖任务未完成时跳过当前任务
 - **前置条件**：B 任务 `depends_on=A_id`，A 任务未运行
 - **执行**：`cai-agent schedule run-due --json`
-- **期望**：B 不出现在 `due_jobs`（或出现但标记为 `blocked_by_dep`）
+- **期望**：B 不出现在 `due_jobs`；`schedule list --json` 中 B 行 **`dependency_blocked`** 为 true，**`depends_on_chain`** 含上游 `last_status`
 
 ### SCH-DEP-002：依赖任务完成后当前任务可执行
 - **前置条件**：A 已完成（`last_status=completed`），B 依赖 A
@@ -68,8 +68,8 @@
 
 ### SCH-DEP-003：循环依赖检测
 - **前置条件**：A depends_on B，B depends_on A
-- **执行**：添加第二个依赖时
-- **期望**：命令报错，不写入循环依赖
+- **执行**：添加会形成环的 `schedule add --depends-on …`（或等价 API）
+- **期望**：命令 **exit 2**，`--json` 为 **`{"ok":false,"error":"schedule_add_invalid",…}`**，`.cai-schedule.json` 不增加新任务
 
 ### SCH-AUDIT-001：JSONL 日志事件字段完整
 - **前置条件**：启用 `--jsonl-log`，运行一个任务
