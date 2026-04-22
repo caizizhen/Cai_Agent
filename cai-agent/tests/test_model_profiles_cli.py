@@ -250,6 +250,24 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertEqual(payload.get("schema_version"), "models_ping_v1")
         self.assertEqual(len(payload.get("results") or []), 1)
 
+    def test_models_fetch_json_has_schema_version(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "fx", "--preset", "lmstudio", "--model", "m", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        with patch(
+            "cai_agent.__main__.fetch_models",
+            return_value=["alpha", "beta"],
+        ):
+            rc2, out = self._cli(
+                "models", "--config", str(self.cfg), "fetch", "--json",
+            )
+        self.assertEqual(rc2, 0)
+        payload = json.loads(out.strip())
+        self.assertEqual(payload.get("schema_version"), "models_fetch_v1")
+        self.assertEqual(payload.get("models"), ["alpha", "beta"])
+
 
 class PingProfileTests(unittest.TestCase):
     def test_env_missing_short_circuits(self) -> None:

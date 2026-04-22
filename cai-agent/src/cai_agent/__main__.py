@@ -2336,7 +2336,12 @@ def _cmd_models(args: argparse.Namespace) -> int:
             print(f"获取模型列表失败: {e}", file=sys.stderr)
             return 2
         if getattr(args, "json_output", False):
-            print(json.dumps(models, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"schema_version": "models_fetch_v1", "models": models},
+                    ensure_ascii=False,
+                ),
+            )
         else:
             if not models:
                 print("(无模型)")
