@@ -100,9 +100,12 @@ def main() -> int:
     if p.returncode != 0:
         errs.append(f"sessions exit {p.returncode}")
     else:
-        arr = json.loads((p.stdout or "").strip())
+        o = json.loads((p.stdout or "").strip())
+        if o.get("schema_version") != "sessions_list_v1":
+            errs.append(f"sessions schema_version {o.get('schema_version')!r}")
+        arr = o.get("sessions")
         if not isinstance(arr, list):
-            errs.append("sessions not array")
+            errs.append("sessions.sessions not array")
 
     p = _run([exe, "observe", "--json", "--limit", "5"])
     if p.returncode != 0:

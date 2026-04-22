@@ -98,8 +98,8 @@
 
 ## `sessions` / `sessions --json`
 
-- **根形态**：**JSON 数组**（无顶层 `schema_version`）。元素至少含 `name`、`path`、`mtime`、`size`；成功解析会话时通过 `_session_file_json_extra` 合并 `events_count`、`run_schema_version`、`task_id`、`total_tokens`、`error_count`。
-- **`--details`**：解析失败项含 `error: parse_failed`；成功项可含 `messages_count`、`tool_calls_count`、`used_tools`、`last_tool`、`answer_preview` 等。
+- **根形态**：对象 **`schema_version`=`sessions_list_v1`**，含 **`pattern`**、**`limit`**、**`details`**（bool）、**`sessions`**（数组）。**`sessions`** 元素至少含 `name`、`path`、`mtime`、`size`；成功解析时通过 `_session_file_json_extra` 合并 `events_count`、`run_schema_version`、`task_id`、`total_tokens`、`error_count`。
+- **`--details`**：`sessions` 内解析失败项含 `error: parse_failed`；成功项可含 `messages_count`、`tool_calls_count`、`used_tools`、`last_tool`、`answer_preview` 等。
 - **无 `--details`**：尽力解析；失败时元素可含 **`parse_error: true`**。
 
 **Exit**：默认 `0`。
@@ -237,6 +237,7 @@
 
 ## 破坏性变更
 
+- **`sessions --json`**：自 **`sessions_list_v1`** 起，根对象为 `{ "schema_version", "pattern", "limit", "details", "sessions" }`；**不再**直接输出裸数组（旧脚本请改为读 **`sessions`** 字段）。
 - **`commands --json` / `agents --json`**：自 **`commands_list_v1` / `agents_list_v1`** 起，根对象为 `{ "schema_version", "commands"|"agents" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 **`commands`** / **`agents`** 字段）。
 - **`models fetch --json`**：自 **`models_fetch_v1`** 起，根对象固定为 `{ "schema_version", "models" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 `models` 字段）。
 

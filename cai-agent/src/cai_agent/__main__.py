@@ -4606,7 +4606,18 @@ def main(argv: list[str] | None = None) -> int:
                     except Exception:
                         item["parse_error"] = True
                 arr.append(item)
-            print(json.dumps(arr, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {
+                        "schema_version": "sessions_list_v1",
+                        "pattern": str(args.pattern),
+                        "limit": int(args.limit),
+                        "details": bool(args.details),
+                        "sessions": arr,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
         else:
             if not files:
                 print("(无会话文件)")

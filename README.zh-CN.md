@@ -475,7 +475,7 @@ cai-agent run --json "检查最近改动是否存在高风险点"
 
 ### `cai-agent sessions --json`
 
-在未加 `--details` 时也会尝试解析每个会话文件并附带 `events_count`、`run_schema_version`、`task_id`、`total_tokens` 等摘要字段（解析失败则带 `parse_error`）。
+根对象为 **`schema_version`：`sessions_list_v1`**，会话行在 **`sessions`** 数组中；并含本次扫描的 **`pattern`**、**`limit`**、是否 **`details`**。在未加 `--details` 时也会尝试解析每个会话文件并附带 `events_count`、`run_schema_version`、`task_id`、`total_tokens` 等摘要字段（解析失败则带 `parse_error`）。
 
 ### `cai-agent stats --json`
 

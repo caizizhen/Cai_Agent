@@ -26,7 +26,7 @@
 ### 任务与 UI
 
 - `run` / `continue` 等 JSON 输出增加 `**run_schema_version`** 与 `**events**` 信封（与 `workflow` 的 `events` 风格对齐）
-- `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 默认附带 `events_count` / `task_id` 等摘要（无需 `--details`）
+- `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 为 **`sessions_list_v1`** 信封，**`sessions[]`** 默认附带 `events_count` / `task_id` 等摘要（无需 `--details`）
 - 任务看板或 TUI 只读面板（P1）
 
 ### 计划与子 Agent

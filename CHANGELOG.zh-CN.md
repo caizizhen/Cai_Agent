@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **CLI `sessions --json`**：输出改为 **`sessions_list_v1`** 对象（含 **`pattern`/`limit`/`details`/`sessions`**）；**破坏性变更**（此前根节点为数组）。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `commands --json` / `agents --json`**：输出改为对象 **`commands_list_v1`**（字段 **`commands`**）与 **`agents_list_v1`**（字段 **`agents`**）；**破坏性变更**（此前为裸字符串数组）。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `export`**：单行 JSON 增加 **`schema_version`：`export_cli_v1`**（`export_target` 各 `--target` 分支）。
 - **CLI `plugins --json`**：负载增加 **`schema_version`：`plugins_surface_v1`**（与既有 **`plugin_version`** 并存；`cai_agent.plugin_registry.list_plugin_surface`）。

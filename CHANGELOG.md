@@ -4,6 +4,7 @@
 
 ### 0.5.0 (in development)
 
+- **`cai-agent sessions --json`**: Output is now a versioned object **`sessions_list_v1`** with **`sessions`** (plus **`pattern`**, **`limit`**, **`details`**) (**breaking change**: previously a bare JSON array). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent commands --json` / `agents --json`**: Output is now versioned objects **`commands_list_v1`** / **`agents_list_v1`** with **`commands`** / **`agents`** arrays (**breaking change**: previously bare JSON string arrays). See `docs/schema/README.zh-CN.md`.
 - **`cai-agent export` JSON line**: Adds **`schema_version`: `export_cli_v1`** to the stdout payload from `export_target` (all `--target` modes).
 - **`cai-agent plugins --json`**: Payload now includes **`schema_version`: `plugins_surface_v1`** alongside the existing **`plugin_version`** (`list_plugin_surface`).

@@ -171,7 +171,9 @@ class SessionsJsonExtraTests(unittest.TestCase):
                 with redirect_stdout(buf):
                     rc = main(["sessions", "--pattern", ".cai-session*.json", "--json"])
             self.assertEqual(rc, 0)
-            arr = json.loads(buf.getvalue().strip())
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "sessions_list_v1")
+            arr = payload.get("sessions") or []
             self.assertEqual(len(arr), 1)
             row = arr[0]
             self.assertEqual(row.get("events_count"), 2)
@@ -210,6 +212,8 @@ class SessionsJsonExtraTests(unittest.TestCase):
                 with redirect_stdout(buf):
                     rc = main(["sessions", "--pattern", ".cai-session*.json", "--json"])
             self.assertEqual(rc, 0)
-            arr = json.loads(buf.getvalue().strip())
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "sessions_list_v1")
+            arr = payload.get("sessions") or []
             self.assertEqual(len(arr), 1)
             self.assertIsNone(arr[0].get("task_id"))

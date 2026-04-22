@@ -43,7 +43,7 @@
 | 15 | `gateway telegram` 映射与解析 CLI | **完成** | `test_gateway_telegram_cli.py` |
 | 16 | `export` 多 harness | **完成（基础）** | |
 | 17 | Hermes backlog **S2-02～S2-05**（freshness / conflict_rate / coverage 指标、nudge-report 与 health 联动） | **完成** | 与 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 已完成表一致；**已在 `main`** |
-| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions` / `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、hooks / doctor / plan / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
+| 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、hooks / doctor / plan / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
 | 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | 含 **`models ping --fail-on-any-error`**、**`hooks list --json` 错误时 exit `2`** 及既有 doctor / plugins / workflow 等；`models ping` 默认非全 OK 仍为 exit **`1`** |
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
 | 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **未开始** | |
@@ -87,4 +87,4 @@
 
 ---
 
-*文档版本：2026-04-22（§二 S1-02：`commands`/`agents --json` 信封 **`commands_list_v1`** / **`agents_list_v1`**（见 schema README「破坏性变更」）；`export`/`plugins`/models 等见同文件；T1 **333 passed**。）*
+*文档版本：2026-04-22（§二 S1-02：`sessions --json` 信封 **`sessions_list_v1`**；`commands`/`agents` 等同文件「破坏性变更」；T1 **333 passed**。）*
