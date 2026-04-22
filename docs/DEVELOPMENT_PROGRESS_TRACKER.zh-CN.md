@@ -58,6 +58,7 @@
 - `memory list --json` 输出补充 `state` / `state_reason`
 - `memory prune` 新增 `--drop-non-active`，可按状态机删除非 active 条目
 - `memory prune --json` 输出增强：`schema_version=memory_prune_result_v1`、`removed_by_reason`（按原因分桶）、`invalid_json_lines`（文件中无法解析为 JSON 的行数，不自动删除）；文本模式补充 `non_active` 与 `removed_by_reason` 摘要行
+- **S2-01**：`memory health`（`build_memory_health_payload`）：综合 `health_score`/`grade`（A~D）、`freshness`/`coverage`/`conflict_rate`/`conflict_pairs`；`--fail-on-grade` 返回 exit 2；修复 `memory state` 对 `evaluate_memory_entry_states` 的错误传参；`memory_state_eval_v1` 增加 `total_entries`
 
 ### E. Recall Loop
 
