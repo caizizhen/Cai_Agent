@@ -2542,35 +2542,100 @@ def _default_global_config_path() -> Path:
     return Path.home() / ".config" / "cai-agent" / "cai-agent.toml"
 
 
-def _cmd_init(*, force: bool, is_global: bool = False, preset: str = "default") -> int:
+def _cmd_init(
+    *,
+    force: bool,
+    is_global: bool = False,
+    preset: str = "default",
+    json_output: bool = False,
+) -> int:
     if is_global:
         dest = _default_global_config_path()
     else:
         dest = Path.cwd() / "cai-agent.toml"
+    preset_norm = "starter" if (preset or "").strip().lower() == "starter" else "default"
     if dest.exists() and not force:
-        label = "用户级全局" if is_global else "当前目录"
-        print(
-            f"{label} 配置已存在: {dest}；若需覆盖请添加 --force",
-            file=sys.stderr,
-        )
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": "init_cli_v1",
+                        "ok": False,
+                        "error": "config_exists",
+                        "config_path": str(dest.resolve()),
+                        "global": is_global,
+                        "preset": preset_norm,
+                        "message": f"配置已存在: {dest}；若需覆盖请添加 --force",
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        else:
+            label = "用户级全局" if is_global else "当前目录"
+            print(
+                f"{label} 配置已存在: {dest}；若需覆盖请添加 --force",
+                file=sys.stderr,
+            )
         return 1
     tpl_name = (
         "templates/cai-agent.starter.toml"
-        if (preset or "").strip().lower() == "starter"
+        if preset_norm == "starter"
         else "templates/cai-agent.example.toml"
     )
     try:
         tpl = resources.files("cai_agent").joinpath(tpl_name)
         data = tpl.read_bytes()
     except Exception as e:
-        print(f"读取内置配置模板失败: {e}", file=sys.stderr)
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": "init_cli_v1",
+                        "ok": False,
+                        "error": "template_read_failed",
+                        "template": tpl_name,
+                        "message": str(e),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        else:
+            print(f"读取内置配置模板失败: {e}", file=sys.stderr)
         return 1
     try:
         dest.parent.mkdir(parents=True, exist_ok=True)
     except OSError as e:
-        print(f"创建目录失败 {dest.parent}: {e}", file=sys.stderr)
+        if json_output:
+            print(
+                json.dumps(
+                    {
+                        "schema_version": "init_cli_v1",
+                        "ok": False,
+                        "error": "mkdir_failed",
+                        "path": str(dest.parent),
+                        "message": str(e),
+                    },
+                    ensure_ascii=False,
+                ),
+            )
+        else:
+            print(f"创建目录失败 {dest.parent}: {e}", file=sys.stderr)
         return 1
     dest.write_bytes(data)
+    if json_output:
+        print(
+            json.dumps(
+                {
+                    "schema_version": "init_cli_v1",
+                    "ok": True,
+                    "config_path": str(dest.resolve()),
+                    "preset": preset_norm,
+                    "global": is_global,
+                },
+                ensure_ascii=False,
+            ),
+        )
+        return 0
     print(f"已生成 {dest.resolve()}")
     if is_global:
         print(
@@ -2585,7 +2650,7 @@ def _cmd_init(*, force: bool, is_global: bool = False, preset: str = "default") 
         "多模型: cai-agent models list；新增条目: "
         "cai-agent models add --preset lmstudio|ollama|vllm|openrouter|gateway|zhipu …",
     )
-    if (preset or "").strip().lower() == "starter":
+    if preset_norm == "starter":
         print(
             "starter 模板已启用多条 profile；设置密钥后可用 "
             "`cai-agent models use local-lmstudio`（或其它 id）切换。",
@@ -2645,6 +2710,12 @@ def main(argv: list[str] | None = None) -> int:
             "default: 仅 [llm]，默认指向本机 LM Studio。"
             "starter: 预置 LM Studio / Ollama / vLLM / OpenRouter / 智谱 GLM / 自建 OpenAI 兼容网关等多条 [[models.profile]]"
         ),
+    )
+    init_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 仅输出 init_cli_v1 JSON（成功或 config_exists 等错误）",
     )
 
     plan_p = sub.add_parser(
@@ -4133,6 +4204,7 @@ def main(argv: list[str] | None = None) -> int:
             force=args.force,
             is_global=bool(getattr(args, "global_flag", False)),
             preset=str(getattr(args, "init_preset", "default") or "default"),
+            json_output=bool(getattr(args, "json_output", False)),
         )
 
     if args.command == "doctor":

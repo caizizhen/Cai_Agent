@@ -57,13 +57,13 @@
 
 ### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`schedule add`/`list`/`rm`/`add-memory-nudge`（`schedule_add_v1`/`schedule_list_v1`/`schedule_rm_v1`/`schedule_add_memory_nudge_v1` 与 `schedule_add_invalid_v1`）** / **`schedule run-due`（`schedule_run_due_v1`）** / **`schedule daemon`（`schedule_daemon_summary_v1`）** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / `init` / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory（**`memory_extract_v1` / `memory_list_v1` / `memory_search_v1` / `memory_instincts_list_v1` / `memory_instincts_import_v1` / `memory_instincts_export_v1` / `memory_entries_export_result_v1` / `memory_entries_import_*`** 等）/ recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
+- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`schedule add`/`list`/`rm`/`add-memory-nudge`（`schedule_add_v1`/`schedule_list_v1`/`schedule_rm_v1`/`schedule_add_memory_nudge_v1` 与 `schedule_add_invalid_v1`）** / **`schedule run-due`（`schedule_run_due_v1`）** / **`schedule daemon`（`schedule_daemon_summary_v1`）** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / **`init --json` → `init_cli_v1`** / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory（**`memory_extract_v1` / `memory_list_v1` / `memory_search_v1` / `memory_instincts_list_v1` / `memory_instincts_import_v1` / `memory_instincts_export_v1` / `memory_entries_export_result_v1` / `memory_entries_import_*`** 等）/ recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 
 ### S8-01 全量回归套件（需扩充覆盖新功能）
 
-- **现状**：`scripts/run_regression.py` 已有，覆盖基础 27 个回归点；**`scripts/smoke_new_features.py`** 已校验 **`schedule add|list|rm`** 的 **`schedule_*_v1`** 及 **`memory list|search|export|export-entries --json`** 等 JSON 信封（在隔离临时工作目录下执行，避免污染仓库根）
+- **现状**：`scripts/run_regression.py` 已有，覆盖基础 27 个回归点；**`scripts/smoke_new_features.py`** 已校验 **`init --json`**（**`init_cli_v1`**）、**`schedule add|list|rm`** 的 **`schedule_*_v1`** 及 **`memory list|search|export|export-entries --json`** 等 JSON 信封（在隔离临时工作目录下执行，避免污染仓库根）
 - **需要**：随每个 Sprint 新增用例时同步扩充
 - **QA**：每个 Sprint 结束必须更新回归脚本
 

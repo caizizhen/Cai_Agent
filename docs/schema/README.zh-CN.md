@@ -157,9 +157,9 @@
 
 ## `init`
 
-- **输出**：文本（写入 `cai-agent.toml` 路径提示）；**无** `--json`。
+- **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
 
-**Exit**：目标已存在且无 `--force` → **`1`**；模板读取失败等 → **`1`**。
+**Exit**：目标已存在且无 `--force` → **`1`**；模板读取失败等 → **`1`**；成功 → **`0`**。
 
 ---
 

@@ -10,7 +10,7 @@
 python scripts/run_regression.py
 ```
 
-过程中会执行 **`scripts/smoke_new_features.py`**，校验近期版本中的 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及临时目录下的 **`schedule add|list|rm`**、**`memory list --json`**、**`memory search --json`**、**`memory export-entries --json`**、**`memory export --json`** 等 JSON 契约与字段。
+过程中会执行 **`scripts/smoke_new_features.py`**，校验近期版本中的 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及临时目录下的 **`init --json`**、**`schedule add|list|rm`**、**`memory list --json`**、**`memory search --json`**、**`memory export-entries --json`**、**`memory export --json`** 等 JSON 契约与字段。
 
 结束后会写入：
 

@@ -2,8 +2,8 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
-temporary cwd, schedule add + list + rm envelopes, memory list/search/
-export-entries/export --json envelopes.
+temporary cwd, init --json, schedule add + list + rm envelopes, memory
+list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -158,6 +158,19 @@ def main() -> int:
             errs.append(f"agents json schema_version {o.get('schema_version')!r}")
         if "agents" not in o or not isinstance(o.get("agents"), list):
             errs.append(f"agents json envelope: {o!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
+        pi = _run([exe, "init", "--json"], cwd=ini_td)
+        if pi.returncode != 0:
+            errs.append(f"init json exit {pi.returncode} stderr={pi.stderr!r}")
+        else:
+            init_o = json.loads((pi.stdout or "").strip())
+            if init_o.get("schema_version") != "init_cli_v1":
+                errs.append(f"init schema_version {init_o.get('schema_version')!r}")
+            if init_o.get("ok") is not True:
+                errs.append(f"init ok not true: {init_o!r}")
+            if not (Path(ini_td) / "cai-agent.toml").is_file():
+                errs.append("init json did not create cai-agent.toml")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-schedule-") as sched_td:
         tid = ""

@@ -305,7 +305,7 @@ cai-agent init
 
 ## 配置文件
 
-1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter、**智谱** 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** 等并用 `cai-agent models use <id>` 切换。
+1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter、**智谱** 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** 等并用 `cai-agent models use <id>` 切换。CI 可用 **`cai-agent init --json`**，stdout 单行 **`init_cli_v1`**（见 **`docs/schema/README.zh-CN.md`**）。
 2. 将 `cai-agent.toml` 放在运行命令时的当前工作目录，或使用 **`CAI_CONFIG`** / **`--config`**。
 3. **优先级**：环境变量 **高于** TOML **高于** 内置默认值。勿将含真实 API Key 的配置提交到版本库。
 
@@ -884,7 +884,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-  `run_regression.py` 会调用已安装的 `cai-agent`，并执行 `scripts/smoke_new_features.py`（校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及**临时工作区**下的 `schedule add|list|rm`、`memory list|search|export|export-entries --json` 等 JSON 契约）。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
+  `run_regression.py` 会调用已安装的 `cai-agent`，并执行 `scripts/smoke_new_features.py`（校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget` 及**临时工作区**下的 `init --json`、`schedule add|list|rm`、`memory list|search|export|export-entries --json` 等 JSON 契约）。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
 
   **回归审计留痕**：每次执行结束会在 `docs/qa/runs/` 写入 `regression-YYYYMMDD-HHmmss.md`（可用 `QA_LOG_DIR` 改目录，`QA_SKIP_LOG=1` 关闭写文件）。说明见 [docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)。
 

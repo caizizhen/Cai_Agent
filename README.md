@@ -307,7 +307,7 @@ set COPILOT_API_KEY=your-token
 
 ## Configuration file
 
-1. Run **`cai-agent init`** (writes `cai-agent.toml` with a minimal `[llm]` aimed at local LM Studio). Use **`cai-agent init --preset starter`** when you want multiple ready-made profiles (local backends + OpenRouter + **Zhipu GLM** + a placeholder self-hosted gateway); set `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** as needed and `cai-agent models use <id>` to switch.
+1. Run **`cai-agent init`** (writes `cai-agent.toml` with a minimal `[llm]` aimed at local LM Studio). Use **`cai-agent init --preset starter`** when you want multiple ready-made profiles (local backends + OpenRouter + **Zhipu GLM** + a placeholder self-hosted gateway); set `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** as needed and `cai-agent models use <id>` to switch. For CI, **`cai-agent init --json`** prints **`init_cli_v1`** on stdout (see `docs/schema/README.zh-CN.md`).
 2. Place `cai-agent.toml` in the working directory, or use **`CAI_CONFIG`** / **`--config`**.
 3. **Priority**: environment variables > TOML > defaults. Do not commit real API keys.
 
@@ -583,7 +583,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-`scripts/run_regression.py` shells out to the installed `cai-agent` and runs `scripts/smoke_new_features.py` (JSON envelope checks for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `schedule add|list|rm`, `memory list|search|export|export-entries --json` in temporary workspace cwds). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
+`scripts/run_regression.py` shells out to the installed `cai-agent` and runs `scripts/smoke_new_features.py` (JSON envelope checks for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `init --json`, `schedule add|list|rm`, and `memory list|search|export|export-entries --json` in temporary workspace cwds). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
 
 **Regression audit trail**: each successful or failed run writes a timestamped Markdown report under `docs/qa/runs/` (override with `QA_LOG_DIR`; disable with `QA_SKIP_LOG=1`). See `docs/QA_REGRESSION_LOGGING.md` (English) and `docs/QA_REGRESSION_LOGGING.zh-CN.md` (Chinese).
 
