@@ -16,7 +16,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from importlib import resources
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from cai_agent import __version__
 from cai_agent.agent_registry import list_agent_names, load_agent_text
@@ -25,7 +25,13 @@ from cai_agent.config import Settings
 from cai_agent.doctor import run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import build_board_payload, save_last_workflow_snapshot
-from cai_agent.hook_runtime import enabled_hook_ids, run_project_hooks
+from cai_agent.hook_runtime import (
+    describe_hooks_catalog,
+    enabled_hook_ids,
+    preview_project_hooks,
+    resolve_hooks_json_path,
+    run_project_hooks,
+)
 from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.llm_factory import chat_completion_by_role
 from cai_agent.models import fetch_models, ping_profile
@@ -1805,11 +1811,13 @@ def _print_hook_status(
     event: str,
     json_output: bool,
     hook_payload: dict[str, Any] | None = None,
+    hooks_dir: str | None = None,
 ) -> None:
-    results = run_project_hooks(settings, event, hook_payload)
+    hp = resolve_hooks_json_path(settings, hooks_dir=hooks_dir)
+    results = run_project_hooks(settings, event, hook_payload, hooks_path=hp)
     if json_output:
         return
-    ids = enabled_hook_ids(settings, event)
+    ids = enabled_hook_ids(settings, event, hooks_path=hp)
     if not ids and not results:
         return
     parts: list[str] = []
@@ -2990,6 +2998,42 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="禁用 models.profile / [llm] 段 api_key 明文告警规则",
     )
+
+    hooks_p = sub.add_parser(
+        "hooks",
+        parents=[common],
+        help="项目 hooks.json 自检：列出条目或按事件预览/执行外部 command 钩子",
+    )
+    hooks_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    hooks_p.add_argument(
+        "--hooks-dir",
+        default=None,
+        help="相对工作区根的 hooks 目录（默认依次尝试 hooks/ 与 .cai/hooks/）",
+    )
+    hooks_sub = hooks_p.add_subparsers(dest="hooks_action", required=True)
+    hooks_list = hooks_sub.add_parser("list", help="列出 hooks.json 中全部条目及 profile/禁用 下的摘要")
+    hooks_list.add_argument("--json", action="store_true", dest="json_output")
+    hooks_run = hooks_sub.add_parser(
+        "run-event",
+        help="对指定事件运行（或仅预览）匹配的外部 command 钩子",
+    )
+    hooks_run.add_argument("event", help="事件名，如 observe_start / workflow_start")
+    hooks_run.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="仅输出 planned/skipped/blocked 分类，不执行子进程",
+    )
+    hooks_run.add_argument(
+        "--payload",
+        default="{}",
+        help="传给钩子的 JSON 对象字符串（写入 CAI_HOOK_PAYLOAD；默认 {}）",
+    )
+    hooks_run.add_argument("--json", action="store_true", dest="json_output")
 
     memory_p = sub.add_parser("memory", help="记忆管理命令")
     memory_sub = memory_p.add_subparsers(dest="memory_action", required=True)
@@ -4328,6 +4372,142 @@ def main(argv: list[str] | None = None) -> int:
                         f"{item.get('file')}:{item.get('line')}",
                     )
         return 0 if bool(result.get("ok")) else 2
+
+    if args.command == "hooks":
+        try:
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(
+                settings,
+                workspace=os.path.abspath(args.workspace),
+            )
+        hooks_dir = getattr(args, "hooks_dir", None)
+        hooks_dir_s = str(hooks_dir).strip() if hooks_dir is not None else ""
+        hp = resolve_hooks_json_path(settings, hooks_dir=hooks_dir_s or None)
+        if args.hooks_action == "list":
+            cat = describe_hooks_catalog(settings, hooks_path=hp)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(cat, ensure_ascii=False))
+            else:
+                if cat.get("error") == "hooks_json_not_found":
+                    print("[hooks] 未找到 hooks.json（尝试 hooks/ 与 .cai/hooks/）", file=sys.stderr)
+                    return 2
+                if cat.get("error") == "invalid_hooks_document":
+                    print("[hooks] hooks.json 格式无效：缺少 hooks 数组", file=sys.stderr)
+                    return 2
+                print(f"hooks_file={cat.get('hooks_file')}")
+                print(f"hooks_profile={cat.get('hooks_profile')}")
+                rows = cat.get("hooks") if isinstance(cat.get("hooks"), list) else []
+                print(f"entries={len(rows)}")
+                for row in rows:
+                    if not isinstance(row, dict):
+                        continue
+                    hid = row.get("id") or "?"
+                    ev = row.get("event") or "?"
+                    cmd = "y" if row.get("has_command") else "n"
+                    rs = row.get("skip_or_block_reason")
+                    rs_txt = f" reason={rs}" if rs else ""
+                    print(
+                        f"- id={hid} event={ev} enabled={row.get('enabled')} "
+                        f"command={cmd} disabled={row.get('disabled_by_config')}{rs_txt}",
+                    )
+            return 0
+        if args.hooks_action == "run-event":
+            event = str(getattr(args, "event", "") or "").strip()
+            if not event:
+                print("event 不能为空", file=sys.stderr)
+                return 2
+            raw_pl = str(getattr(args, "payload", "") or "").strip() or "{}"
+            try:
+                pl_obj: Any = json.loads(raw_pl)
+            except json.JSONDecodeError as e:
+                print(f"--payload 须为 JSON 对象: {e}", file=sys.stderr)
+                return 2
+            if not isinstance(pl_obj, dict):
+                print("--payload 须为 JSON object", file=sys.stderr)
+                return 2
+            dry = bool(getattr(args, "dry_run", False))
+            if hp is None or not hp.is_file():
+                err_payload = {
+                    "schema_version": "hooks_run_event_result_v1",
+                    "event": event,
+                    "hooks_file": None,
+                    "dry_run": dry,
+                    "error": "hooks_json_not_found",
+                    "results": [],
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(err_payload, ensure_ascii=False))
+                else:
+                    print("[hooks] 未找到 hooks.json", file=sys.stderr)
+                return 2
+            if dry:
+                preview = preview_project_hooks(settings, event, hooks_path=hp)
+                out_obj = {
+                    "schema_version": "hooks_run_event_result_v1",
+                    "event": event,
+                    "hooks_file": str(hp),
+                    "dry_run": True,
+                    "results": preview,
+                }
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_obj, ensure_ascii=False))
+                else:
+                    print(f"hooks_file={hp}")
+                    print(f"event={event} dry_run=1")
+                    for r in preview:
+                        if not isinstance(r, dict):
+                            continue
+                        hid = r.get("id", "?")
+                        st = r.get("status", "?")
+                        rs = r.get("reason")
+                        rs_txt = f" ({rs})" if isinstance(rs, str) and rs.strip() else ""
+                        print(f"- {hid}: {st}{rs_txt}")
+                return 0
+            results = run_project_hooks(
+                settings,
+                event,
+                cast(dict[str, Any], pl_obj),
+                hooks_path=hp,
+            )
+            out_obj = {
+                "schema_version": "hooks_run_event_result_v1",
+                "event": event,
+                "hooks_file": str(hp),
+                "dry_run": False,
+                "results": results,
+            }
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_obj, ensure_ascii=False))
+            else:
+                print(f"hooks_file={hp}")
+                print(f"event={event}")
+                for r in results:
+                    if not isinstance(r, dict):
+                        continue
+                    hid = r.get("id", "?")
+                    st = r.get("status", "?")
+                    rs = r.get("reason")
+                    rc = r.get("returncode")
+                    extra = ""
+                    if isinstance(rs, str) and rs.strip():
+                        extra += f" reason={rs}"
+                    if rc is not None:
+                        extra += f" rc={rc}"
+                    print(f"- {hid}: {st}{extra}")
+            bad = any(
+                isinstance(r, dict) and str(r.get("status") or "") in ("error", "blocked")
+                for r in results
+            )
+            return 2 if bad else 0
 
     if args.command == "memory":
         settings_mem = Settings.from_env(config_path=None)

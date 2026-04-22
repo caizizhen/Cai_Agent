@@ -8,7 +8,11 @@ from dataclasses import replace
 from pathlib import Path
 
 from cai_agent.config import Settings
-from cai_agent.hook_runtime import enabled_hook_ids, run_project_hooks
+from cai_agent.hook_runtime import (
+    enabled_hook_ids,
+    resolve_hooks_json_path,
+    run_project_hooks,
+)
 
 
 def _write_hooks(root: Path, hooks: list[dict]) -> None:
@@ -30,6 +34,29 @@ def _settings_for_root(root: Path, **kwargs: object) -> Settings:
 
 
 class HookRuntimeTests(unittest.TestCase):
+    def test_resolve_hooks_prefers_hooks_over_dot_cai(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            d1 = root / "hooks"
+            d1.mkdir(parents=True, exist_ok=True)
+            d2 = root / ".cai" / "hooks"
+            d2.mkdir(parents=True, exist_ok=True)
+            (d2 / "hooks.json").write_text(
+                json.dumps({"version": 1, "hooks": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            (d1 / "hooks.json").write_text(
+                json.dumps({"version": 1, "hooks": []}, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            cfg = root / "cai-agent.toml"
+            cfg.write_text("[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n", encoding="utf-8")
+            s = Settings.from_env(config_path=str(cfg))
+            p = resolve_hooks_json_path(s)
+            self.assertIsNotNone(p)
+            assert p is not None
+            self.assertEqual(p.resolve(), (d1 / "hooks.json").resolve())
+
     def test_disabled_id_removed_from_enabled_list(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

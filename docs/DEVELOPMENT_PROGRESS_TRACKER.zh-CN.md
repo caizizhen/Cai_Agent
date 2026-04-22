@@ -25,6 +25,8 @@
 ### C. Hooks / 可观测
 
 - 非 JSON 路径输出每个 hook 的运行状态摘要（`ok/blocked/error/skipped`）
+- `hooks.json` 解析顺序：`hooks/hooks.json` → `.cai/hooks/hooks.json`；`plugins` 健康分与 `_print_hook_status` / `run_project_hooks` 与此一致
+- 新增 CLI：`cai-agent hooks list`（`hooks_catalog_v1`）与 `cai-agent hooks run-event <event>`（`--dry-run` 输出 `hooks_run_event_result_v1`；执行时同 schema 含 `results`）
 
 ### D. Memory Loop
 
