@@ -4601,8 +4601,16 @@ def main(argv: list[str] | None = None) -> int:
                         f"expired={n.get('removed_expired', 0)} "
                         f"low_confidence={n.get('removed_low_confidence', 0)} "
                         f"over_limit={n.get('removed_over_limit', 0)} "
+                        f"non_active={n.get('removed_non_active', 0)} "
+                        f"invalid_json_lines={n.get('invalid_json_lines', 0)} "
                         f"kept_total={n.get('kept_total', 0)}",
                     )
+                    br = n.get("removed_by_reason")
+                    if isinstance(br, dict) and any(int(v or 0) > 0 for v in br.values()):
+                        print(
+                            "removed_by_reason="
+                            + json.dumps(br, ensure_ascii=False, sort_keys=True),
+                        )
                 return 0
             if args.memory_action == "state":
                 rows, vwarn = load_memory_entries_validated(root)
