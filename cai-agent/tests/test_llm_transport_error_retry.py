@@ -153,6 +153,31 @@ class OpenAICompatTransportErrorRetryTests(unittest.TestCase):
         self.assertIn("finish", out)
         self.assertEqual(calls["n"], 3)
 
+    def test_invalid_json_response_is_retried_then_succeeds(self) -> None:
+        """HTTP 200 with malformed/truncated JSON should also be retried."""
+        calls = {"n": 0}
+
+        class _InvalidJsonThenOk(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    # Simulate server-side channel break / truncated payload:
+                    # status is 200 but body is not valid JSON.
+                    return httpx.Response(
+                        200,
+                        content=b'{"choices":[{"message":{"role":"assistant","content":"',
+                    )
+                return httpx.Response(200, json=_good_oai_response())
+
+        self._install_transport(_InvalidJsonThenOk())
+        with patch.object(llm_mod.time, "sleep", return_value=None):
+            out = llm_mod.chat_completion(
+                _OAISettings(),
+                [{"role": "user", "content": "ping"}],
+            )
+        self.assertIn("finish", out)
+        self.assertEqual(calls["n"], 2)
+
 
 class AnthropicTransportErrorRetryTests(unittest.TestCase):
     """Tests for httpx.TransportError retry in the Anthropic adapter."""
@@ -200,6 +225,25 @@ class AnthropicTransportErrorRetryTests(unittest.TestCase):
                 )
         self.assertEqual(calls["n"], 5)
         self.assertIn("传输层错误", str(ctx.exception))
+
+    def test_invalid_json_response_is_retried_then_succeeds(self) -> None:
+        calls = {"n": 0}
+
+        class _InvalidJsonThenOk(httpx.BaseTransport):
+            def handle_request(self, request: httpx.Request) -> httpx.Response:
+                calls["n"] += 1
+                if calls["n"] == 1:
+                    return httpx.Response(200, content=b'{"content":[{"type":"text","text":"')
+                return httpx.Response(200, json=_good_anthropic_response())
+
+        with patch.object(llm_anthropic.time, "sleep", return_value=None):
+            out = llm_anthropic.chat_completion(
+                _make_anthropic_settings(),
+                [{"role": "user", "content": "ping"}],
+                transport=_InvalidJsonThenOk(),
+            )
+        self.assertIn("finish", out)
+        self.assertEqual(calls["n"], 2)
 
 
 if __name__ == "__main__":

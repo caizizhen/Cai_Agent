@@ -190,6 +190,7 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     )
 
     last: httpx.Response | None = None
+    data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
     with httpx.Client(timeout=timeout, trust_env=trust) as client:
         for attempt in range(5):
@@ -208,6 +209,27 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
                 time.sleep(delay)
                 continue
             if last.status_code < 400:
+                try:
+                    parsed = last.json()
+                except (json.JSONDecodeError, ValueError) as exc:
+                    if attempt == 4:
+                        snippet = (last.text or "")[:500]
+                        raise RuntimeError(
+                            "LLM 返回了非 JSON 响应（已重试 5 次）: "
+                            f"{exc}; body_snippet={snippet!r}",
+                        ) from exc
+                    delay = min(2.0**attempt, 12.0)
+                    time.sleep(delay)
+                    continue
+                if not isinstance(parsed, dict):
+                    if attempt == 4:
+                        raise RuntimeError(
+                            "LLM 返回 JSON 根对象不是 dict（已重试 5 次）",
+                        )
+                    delay = min(2.0**attempt, 12.0)
+                    time.sleep(delay)
+                    continue
+                data = parsed
                 break
             if last.status_code not in _RETRYABLE_STATUS or attempt == 4:
                 hdr = "\n".join(f"  {k}: {v}" for k, v in last.headers.items())
@@ -221,10 +243,10 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
         raise RuntimeError(
             f"LLM 连接失败（传输层错误）: {last_transport_exc}",
         ) from last_transport_exc
+    if data is None:
+        raise RuntimeError("LLM 返回体解析失败（未知状态）")
     if last is None or last.status_code >= 400:
         raise RuntimeError("LLM 请求失败（未知状态）")
-
-    data = last.json()
     usage = data.get("usage")
     if isinstance(usage, dict):
         global _USAGE_PROMPT_TOKENS, _USAGE_COMPLETION_TOKENS, _USAGE_TOTAL_TOKENS
