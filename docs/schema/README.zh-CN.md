@@ -95,6 +95,28 @@
 
 ---
 
+## `doctor` / `doctor --json`
+
+- **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
+- **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
+
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）等。
+
+**Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
+
+---
+
+## `plan` / `plan --json`
+
+- **实现**：`__main__.py` 内 `plan` 分支 + `chat_completion_by_role`
+- **`plan_schema_version`**：`1.0`
+
+成功时：`ok: true`，`plan` 为规划正文，`task`、`usage`、`elapsed_ms` 等。失败时：`ok: false`，`error` 如 `config_not_found` / `goal_empty` / `llm_error` / `interrupted`；**Ctrl+C 中断** exit **`130`**（与常见 shell 约定一致）。
+
+**Exit**：配置/goal/LLM 错误 → `2`；成功 → `0`。
+
+---
+
 ## `memory` 子命令 JSON 摘要
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |

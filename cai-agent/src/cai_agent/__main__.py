@@ -2725,6 +2725,17 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="覆盖工作区目录（默认来自配置 / 当前目录）",
     )
+    doctor_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="以一行 JSON 输出诊断（schema_version=doctor_v1）",
+    )
+    doctor_p.add_argument(
+        "--fail-on-missing-api-key",
+        action="store_true",
+        help="非 mock 且 API Key 为空时 exit 2（可与 --json 同用于 CI）",
+    )
 
     cont_p = sub.add_parser(
         "continue",
@@ -4103,7 +4114,13 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
-        return run_doctor(settings)
+        return run_doctor(
+            settings,
+            json_output=bool(getattr(args, "json_output", False)),
+            fail_on_missing_api_key=bool(
+                getattr(args, "fail_on_missing_api_key", False),
+            ),
+        )
 
     if args.command == "plan":
         try:

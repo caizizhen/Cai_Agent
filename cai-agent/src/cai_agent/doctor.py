@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from cai_agent import __version__
 from cai_agent.config import Settings
@@ -18,8 +21,103 @@ def _mask_api_key(key: str) -> str:
     return f"{key[:3]}…{key[-2:]}（已打码）"
 
 
-def run_doctor(settings: Settings) -> int:
+def _git_inside_worktree(root: Path) -> bool:
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
+            capture_output=True,
+            text=True,
+            timeout=3.0,
+            shell=False,
+        )
+        return r.returncode == 0 and (r.stdout or "").strip() == "true"
+    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def build_doctor_payload(settings: Settings) -> dict[str, Any]:
+    """结构化诊断（`doctor --json`），字段与文本 doctor 同源信息。"""
     root = Path(settings.workspace).resolve()
+    key_line = _mask_api_key(settings.api_key)
+    env_name = settings.active_api_key_env
+    if env_name:
+        key_line += f" | env={env_name}"
+        if not settings.api_key:
+            key_line += " (AUTH_FAIL: env not set)"
+    ping_on = os.getenv("CAI_DOCTOR_PING", "").strip().lower() in (
+        "1", "true", "yes", "on",
+    )
+    pings: list[dict[str, Any]] = []
+    if ping_on:
+        for p in settings.profiles:
+            r = ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=8.0)
+            pings.append(
+                {
+                    "id": p.id,
+                    "status": r.get("status", "?"),
+                    "http_status": r.get("http_status"),
+                    "message": (r.get("message") or "").strip(),
+                },
+            )
+    instruction_files: dict[str, bool] = {}
+    if root.is_dir():
+        for name in INSTRUCTION_FILE_NAMES:
+            instruction_files[name] = (root / name).is_file()
+    inside = _git_inside_worktree(root)
+    api_present = bool(str(settings.api_key or "").strip())
+    return {
+        "schema_version": "doctor_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "cai_agent_version": __version__,
+        "config_loaded_from": settings.config_loaded_from,
+        "provider": settings.provider,
+        "workspace": str(root),
+        "base_url": settings.base_url,
+        "model": settings.model,
+        "api_key_present": api_present,
+        "api_key_masked_line": key_line,
+        "active_profile_id": settings.active_profile_id,
+        "profiles_count": len(settings.profiles),
+        "subagent_profile_id": settings.subagent_profile_id or None,
+        "planner_profile_id": settings.planner_profile_id or None,
+        "temperature": settings.temperature,
+        "llm_timeout_sec": settings.llm_timeout_sec,
+        "http_trust_env": settings.http_trust_env,
+        "mock": settings.mock,
+        "max_iterations": settings.max_iterations,
+        "command_timeout_sec": settings.command_timeout_sec,
+        "project_context": settings.project_context,
+        "git_context": settings.git_context,
+        "mcp_enabled": settings.mcp_enabled,
+        "mcp_base_url": settings.mcp_base_url or None,
+        "mcp_timeout_sec": settings.mcp_timeout_sec,
+        "fetch_url_enabled": settings.fetch_url_enabled,
+        "fetch_url_unrestricted": settings.fetch_url_unrestricted,
+        "fetch_url_allowed_hosts_count": len(settings.fetch_url_allowed_hosts),
+        "permission_fetch_url": settings.permission_fetch_url,
+        "profile_ping_skipped": not ping_on,
+        "profile_pings": pings,
+        "instruction_files": instruction_files,
+        "workspace_is_dir": root.is_dir(),
+        "git_inside_work_tree": inside,
+    }
+
+
+def run_doctor(
+    settings: Settings,
+    *,
+    json_output: bool = False,
+    fail_on_missing_api_key: bool = False,
+) -> int:
+    root = Path(settings.workspace).resolve()
+    if json_output:
+        payload = build_doctor_payload(settings)
+        print(json.dumps(payload, ensure_ascii=False))
+        if fail_on_missing_api_key and not settings.mock:
+            if not bool(str(settings.api_key or "").strip()):
+                return 2
+        return 0
+
     print(f"cai-agent {__version__} — doctor")
     print()
     print("配置来源:", settings.config_loaded_from or "（无 TOML，仅默认 + 环境变量）")
@@ -95,17 +193,7 @@ def run_doctor(settings: Settings) -> int:
         print("工作区目录不存在。")
     print()
 
-    try:
-        r = subprocess.run(
-            ["git", "-C", str(root), "rev-parse", "--is-inside-work-tree"],
-            capture_output=True,
-            text=True,
-            timeout=3.0,
-            shell=False,
-        )
-        inside = r.returncode == 0 and (r.stdout or "").strip() == "true"
-    except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-        inside = False
+    inside = _git_inside_worktree(root)
 
     print("Git:     ", "在工作树内" if inside else "非 Git 目录或未安装 git")
     print()
@@ -117,4 +205,7 @@ def run_doctor(settings: Settings) -> int:
         "  4) 多模型: cai-agent models list；新增: models add --preset vllm|gateway|openrouter|zhipu …；"
         "新用户/CI 见 docs/ONBOARDING.zh-CN.md",
     )
+    if fail_on_missing_api_key and not settings.mock:
+        if not bool(str(settings.api_key or "").strip()):
+            return 2
     return 0
