@@ -107,23 +107,23 @@
 
 ### PERF-RCL-001：10 文件扫描延迟
 - **执行**：`python3 scripts/perf_recall_bench.py --sessions 10`
-- **期望**：scan 延迟 < 500ms
+- **期望**：报告表 `scan_median_ms` < 500ms（脚本对 N<200 不强制阈值，人工对照）
 
 ### PERF-RCL-002：50 文件扫描延迟
 - **执行**：`python3 scripts/perf_recall_bench.py --sessions 50`
-- **期望**：scan 延迟 < 2s
+- **期望**：`scan_median_ms` < 2s（人工对照）
 
 ### PERF-RCL-003：200 文件扫描延迟
 - **执行**：`python3 scripts/perf_recall_bench.py --sessions 200`
-- **期望**：scan 延迟 < 5s
+- **期望**：`scan_median_ms` < 5s（表中 `scan_under_threshold`）
 
 ### PERF-RCL-004：索引搜索延迟
-- **执行**：200 文件索引后执行 `recall-index search`
-- **期望**：搜索延迟 < 500ms
+- **执行**：`python3 scripts/perf_recall_bench.py --sessions 200`（脚本内含 build + `index_search_median_ms`）
+- **期望**：`index_search_median_ms` < 500ms（表中 `search_under_threshold`）
 
 ### PERF-RCL-005：增量刷新延迟（mtime 未变跳过）
-- **执行**：建立 200 文件索引，不修改任何文件，执行 `recall-index refresh`
-- **期望**：跳过所有文件，耗时 < 200ms
+- **执行**：`python3 scripts/perf_recall_bench.py --sessions 200 --include-refresh`
+- **期望**：`index_refresh_median_ms` < 200ms（表中 `refresh_under_threshold`；等价于无改动的 `recall-index refresh`）
 
 ---
 

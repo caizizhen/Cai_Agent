@@ -70,6 +70,7 @@
 - 行级评分：`score` + `score_breakdown`（含 `sort_mode`）
 - `recall-index search` 与主 recall 评分模型对齐
 - **S3-03**：`recall-index doctor` / `doctor --fix`：索引缺失、schema 版本、磁盘文件缺失、相对 `window.since` 过旧路径；`tests/test_recall_index_cli.py` 覆盖
+- **S3-04**：`scripts/perf_recall_bench.py`（scan / index_build / index_search，可选 `--include-refresh`）；`tests/test_perf_recall_bench.py` 子进程冒烟
 
 ### F. Workflow / Subagents 编排
 

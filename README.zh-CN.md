@@ -520,11 +520,14 @@ cai-agent recall-index build --days 60
 cai-agent recall-index refresh --prune
 cai-agent recall-index doctor --json
 cai-agent recall-index doctor --fix --json
+python3 scripts/perf_recall_bench.py --sessions 10 50 200
+python3 scripts/perf_recall_bench.py --sessions 200 --include-refresh
 ```
 
 - `recall --use-index` 使用本地索引（默认工作区根目录 `.cai-recall-index.json`）检索，适合会话文件较多的仓库；需先 `recall-index build`。
 - `recall-index build` 全量重建索引；`recall-index refresh` 增量合并（**mtime 未变则跳过解析**），`--prune` 可清理已删除文件或超出 `--days` 窗口的旧条目。
 - `recall-index doctor` 检查索引 JSON 与磁盘一致性（缺失文件、相对索引窗口过旧的 mtime、`recall_index_schema_version`）；`--fix` 写回剔除问题条目；健康 **exit 0**，有问题 **exit 2**。
+- `scripts/perf_recall_bench.py`：在临时目录生成合成会话，测量 **scan / index_build / index_search** 中位耗时（可选 `--include-refresh` 测 refresh）；默认将 Markdown 报告写入 **`docs/qa/runs/`**。
 
 ### `cai-agent memory nudge --json`
 
