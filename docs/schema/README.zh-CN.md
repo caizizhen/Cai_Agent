@@ -79,8 +79,8 @@
 
 ## `commands` / `agents` / `--json`
 
-- **`commands --json`**：`list_command_names` → **字符串数组**（斜杠命令名，无 `schema_version`）。
-- **`agents --json`**：`list_agent_names` → **字符串数组**。
+- **`commands --json`**：对象 **`schema_version`=`commands_list_v1`**，**`commands`**：字符串数组（模板 **stem**，与文本模式 `/{name}` 对应的无斜杠名；实现 `list_command_names`）。
+- **`agents --json`**：对象 **`schema_version`=`agents_list_v1`**，**`agents`**：字符串数组（`list_agent_names`）。
 
 **Exit**：配置可读 `0`；`Settings.from_env` 失败（如缺配置）→ `2`。
 
@@ -237,6 +237,7 @@
 
 ## 破坏性变更
 
+- **`commands --json` / `agents --json`**：自 **`commands_list_v1` / `agents_list_v1`** 起，根对象为 `{ "schema_version", "commands"|"agents" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 **`commands`** / **`agents`** 字段）。
 - **`models fetch --json`**：自 **`models_fetch_v1`** 起，根对象固定为 `{ "schema_version", "models" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 `models` 字段）。
 
 升级对应 **`schema_version`**（或索引 `recall_index_schema_version`）时，请同步更新 **本节**、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[`SCHEDULE_STATS_JSON.zh-CN.md`](SCHEDULE_STATS_JSON.zh-CN.md) 及 `CHANGELOG`。

@@ -4356,7 +4356,12 @@ def main(argv: list[str] | None = None) -> int:
             settings = replace(settings, model=str(args.model).strip())
         names = list_command_names(settings)
         if args.json_output:
-            print(json.dumps(names, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"schema_version": "commands_list_v1", "commands": names},
+                    ensure_ascii=False,
+                ),
+            )
         else:
             if not names:
                 print("(无命令模板)")
@@ -4377,7 +4382,12 @@ def main(argv: list[str] | None = None) -> int:
             settings = replace(settings, model=str(args.model).strip())
         names = list_agent_names(settings)
         if args.json_output:
-            print(json.dumps(names, ensure_ascii=False))
+            print(
+                json.dumps(
+                    {"schema_version": "agents_list_v1", "agents": names},
+                    ensure_ascii=False,
+                ),
+            )
         else:
             if not names:
                 print("(无子代理模板)")

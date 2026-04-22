@@ -115,6 +115,26 @@ def main() -> int:
         if "sessions_with_events" not in ag:
             errs.append("observe aggregates missing sessions_with_events")
 
+    p = _run([exe, "commands", "--json"])
+    if p.returncode != 0:
+        errs.append(f"commands json exit {p.returncode}")
+    else:
+        o = json.loads((p.stdout or "").strip())
+        if o.get("schema_version") != "commands_list_v1":
+            errs.append(f"commands json schema_version {o.get('schema_version')!r}")
+        if "commands" not in o or not isinstance(o.get("commands"), list):
+            errs.append(f"commands json envelope: {o!r}")
+
+    p = _run([exe, "agents", "--json"])
+    if p.returncode != 0:
+        errs.append(f"agents json exit {p.returncode}")
+    else:
+        o = json.loads((p.stdout or "").strip())
+        if o.get("schema_version") != "agents_list_v1":
+            errs.append(f"agents json schema_version {o.get('schema_version')!r}")
+        if "agents" not in o or not isinstance(o.get("agents"), list):
+            errs.append(f"agents json envelope: {o!r}")
+
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)
         for e in errs:

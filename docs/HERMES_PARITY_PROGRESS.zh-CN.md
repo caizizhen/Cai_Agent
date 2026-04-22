@@ -57,7 +57,7 @@
 
 ### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands / agents / **`mcp-check`（`mcp_check_result_v1`）** / **`sessions` / `stats`** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / `init` / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
+- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions` / `stats`** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / `init` / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 

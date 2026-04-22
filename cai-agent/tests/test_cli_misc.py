@@ -168,6 +168,40 @@ class ObserveCliTests(unittest.TestCase):
         self.assertIn("sessions_with_events", ag)
 
 
+class CommandsAgentsJsonTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        root = Path(self.tmp.name)
+        self.cfg = root / "cai-agent.toml"
+        self.cfg.write_text(
+            '[llm]\nbase_url = "http://localhost/v1"\nmodel = "m"\napi_key = "k"\n',
+            encoding="utf-8",
+        )
+        (root / "commands").mkdir()
+        (root / "commands" / "hello.md").write_text("# x", encoding="utf-8")
+        (root / "agents").mkdir()
+        (root / "agents" / "coder.md").write_text("# y", encoding="utf-8")
+
+    def test_commands_json_envelope(self) -> None:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["commands", "--config", str(self.cfg), "--json"])
+        self.assertEqual(rc, 0)
+        o = json.loads(buf.getvalue().strip())
+        self.assertEqual(o.get("schema_version"), "commands_list_v1")
+        self.assertEqual(o.get("commands"), ["hello"])
+
+    def test_agents_json_envelope(self) -> None:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["agents", "--config", str(self.cfg), "--json"])
+        self.assertEqual(rc, 0)
+        o = json.loads(buf.getvalue().strip())
+        self.assertEqual(o.get("schema_version"), "agents_list_v1")
+        self.assertEqual(o.get("agents"), ["coder"])
+
+
 class ExportCliTests(unittest.TestCase):
     def test_export_cursor_json_has_schema_version(self) -> None:
         with tempfile.TemporaryDirectory() as td:
