@@ -614,22 +614,26 @@ def compute_memory_conflict_pairs(
     threshold: float = 0.85,
     max_pairs_returned: int = 3,
     max_compare_entries: int = 400,
-) -> tuple[float, list[dict[str, Any]]]:
-    """返回 (conflict_rate, 最多 max_pairs_returned 对样例)。
+) -> tuple[float, list[dict[str, Any]], int, int]:
+    """返回 ``(conflict_rate, conflict_pairs_sample, conflict_pair_count, compared_entry_count)``。
 
-    conflict_rate = 超过阈值的条目对数 / max(1, 条目总数)（与 backlog 定义一致）。
-    为控制耗时，仅对按 ``created_at`` 最近的 ``max_compare_entries`` 条做全两两比较。
+    - ``conflict_rate`` = 超过阈值的条目对数 / max(1, 条目总数)（与 backlog S2-03 一致）。
+    - 为控制耗时，仅对按 ``created_at`` 最近的 ``max_compare_entries`` 条做全两两比较；
+      若 ``n_total`` 大于该上限，**分母仍为全量条目数**，分子仅统计该子集内的冲突对
+     （与「全库两两不可行」的工程折衷一致，并在 ``compared_entry_count`` 中可观测）。
     """
     n_total = len(entries)
     if n_total <= 1:
-        return 0.0, []
+        return 0.0, [], 0, min(n_total, max(1, int(max_compare_entries)))
 
     def created_key(row: dict[str, Any]) -> float:
         return -_parse_created_at(row)
 
     indexed = sorted(range(len(entries)), key=lambda i: created_key(entries[i]))
-    use_idx = indexed[: max(1, int(max_compare_entries))]
+    cap = max(1, int(max_compare_entries))
+    use_idx = indexed[:cap]
     use_entries = [entries[i] for i in use_idx]
+    compared_entry_count = len(use_entries)
     thr = max(0.0, min(1.0, float(threshold)))
     conflict_pair_count = 0
     sample: list[dict[str, Any]] = []
@@ -652,7 +656,7 @@ def compute_memory_conflict_pairs(
                         },
                     )
     rate = float(conflict_pair_count) / float(max(1, n_total))
-    return rate, sample
+    return rate, sample, conflict_pair_count, compared_entry_count
 
 
 def build_memory_health_payload(
@@ -663,6 +667,7 @@ def build_memory_health_payload(
     session_pattern: str = ".cai-session*.json",
     session_limit: int = 200,
     conflict_threshold: float = 0.85,
+    max_conflict_compare_entries: int = 400,
 ) -> dict[str, Any]:
     """S2-01：综合记忆健康评分 JSON（schema_version 1.0）。"""
     from cai_agent.session import list_session_files, load_session
@@ -694,16 +699,20 @@ def build_memory_health_payload(
             continue
 
     covered = 0
+    skipped_short_goal = 0
+    skipped_parse = 0
     for sp in recent_sessions:
         try:
             sess = load_session(str(sp))
         except Exception:
+            skipped_parse += 1
             continue
         g = sess.get("goal") or ""
         if not isinstance(g, str):
             g = str(g)
         gstrip = g.strip()
         if len(gstrip) < 8:
+            skipped_short_goal += 1
             continue
         needle = gstrip[:120]
         for row in entries:
@@ -712,11 +721,15 @@ def build_memory_health_payload(
                 break
 
     n_recent = len(recent_sessions)
-    coverage = (float(covered) / float(n_recent)) if n_recent else 0.0
+    sessions_considered = max(0, n_recent - skipped_parse - skipped_short_goal)
+    coverage = (float(covered) / float(sessions_considered)) if sessions_considered else 0.0
 
-    conflict_rate, conflict_pairs = compute_memory_conflict_pairs(
-        entries,
-        threshold=float(conflict_threshold),
+    conflict_rate, conflict_pairs, conflict_pair_count, conflict_compared_entries = (
+        compute_memory_conflict_pairs(
+            entries,
+            threshold=float(conflict_threshold),
+            max_compare_entries=int(max_conflict_compare_entries),
+        )
     )
 
     warn_penalty = 0.0
@@ -776,11 +789,19 @@ def build_memory_health_payload(
             "recent_sessions": n_recent,
             "fresh_entries": fresh_count,
             "sessions_with_memory_hit": covered,
+            "sessions_considered_for_coverage": sessions_considered,
+            "coverage_skipped_short_goal": skipped_short_goal,
+            "coverage_skipped_session_parse_error": skipped_parse,
         },
+        "coverage_window_days": max(1, int(days)),
         "freshness": round(freshness, 4),
         "coverage": round(coverage, 4),
         "conflict_rate": round(conflict_rate, 6),
         "conflict_pairs": conflict_pairs,
+        "conflict_pair_count": int(conflict_pair_count),
+        "conflict_compared_entries": int(conflict_compared_entries),
+        "conflict_max_compare_entries": int(max(1, int(max_conflict_compare_entries))),
+        "conflict_similarity_metric": "word_jaccard",
         "conflict_threshold": float(max(0.0, min(1.0, float(conflict_threshold)))),
         "memory_warnings": memory_warnings,
         "health_score": round(health_score, 4),

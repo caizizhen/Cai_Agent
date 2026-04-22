@@ -149,6 +149,63 @@ class MemoryHealthCliTests(unittest.TestCase):
             pairs = p.get("conflict_pairs")
             self.assertIsInstance(pairs, list)
             self.assertGreaterEqual(len(pairs), 1)
+            self.assertEqual(p.get("conflict_similarity_metric"), "word_jaccard")
+            self.assertGreaterEqual(int(p.get("conflict_pair_count") or 0), 1)
+
+    def test_coverage_denominator_excludes_short_goals(self) -> None:
+        """S2-04：coverage = 有命中的会话 / 可评估会话（goal>=8），与 --days 窗口一致。"""
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            now = int(time.time())
+            mem = root / "memory"
+            mem.mkdir(parents=True, exist_ok=True)
+            ts = datetime.now(UTC).isoformat()
+            # Two memory rows keyed to two long goals
+            g1 = "alpha project milestone one"
+            g2 = "beta project milestone two"
+            lines = [
+                json.dumps(
+                    {
+                        "id": "m1",
+                        "category": "session",
+                        "text": f"{g1}\n\nbody",
+                        "confidence": 0.8,
+                        "expires_at": None,
+                        "created_at": ts,
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "id": "m2",
+                        "category": "session",
+                        "text": f"{g2}\n\nbody",
+                        "confidence": 0.8,
+                        "expires_at": None,
+                        "created_at": ts,
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+            (mem / "entries.jsonl").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            sessions = [
+                (".cai-session-a.json", g1, "a1"),
+                (".cai-session-b.json", g2, "b1"),
+                (".cai-session-c.json", "short", "c1"),
+                (".cai-session-d.json", "tiny", "d1"),
+                (".cai-session-e.json", "orphan goal text here", "e1"),
+            ]
+            for fname, goal, _ in sessions:
+                p = root / fname
+                save_session(str(p), {"version": 2, "goal": goal, "answer": "x"})
+                os.utime(p, (now, now))
+            p = build_memory_health_payload(root, days=30, session_limit=20)
+            counts = p.get("counts") or {}
+            self.assertEqual(int(counts.get("recent_sessions") or 0), 5)
+            self.assertEqual(int(counts.get("sessions_considered_for_coverage") or 0), 3)
+            self.assertEqual(int(counts.get("sessions_with_memory_hit") or 0), 2)
+            self.assertAlmostEqual(float(p.get("coverage") or 0), 2.0 / 3.0, places=3)
+            self.assertEqual(int(counts.get("coverage_skipped_short_goal") or 0), 2)
 
 
 if __name__ == "__main__":

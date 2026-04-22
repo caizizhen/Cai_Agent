@@ -94,12 +94,12 @@
 ### MEM-COV-001：coverage 计算正确性
 - **前置条件**：5 个 session，2 个已有对应 memory 条目
 - **执行**：`cai-agent memory health --json --days 30`
-- **期望**：`coverage` 约为 0.4
+- **期望**：`coverage` 约为 0.4（实现口径：**有结构化命中的会话数 / 可评估会话数**，可评估 = `--days` 窗口内 mtime 命中且 `goal` 长度 ≥8 且 JSON 解析成功；见 `counts.sessions_considered_for_coverage`）
 
 ### MEM-NDG-020：nudge-report health_score 字段
 - **前置条件**：已存在 nudge-history.jsonl
 - **执行**：`cai-agent memory nudge-report --json`
-- **期望**：JSON 包含 `health_score`（数值或 null）、`schema_version="1.2"`
+- **期望**：JSON 包含 `health_score`（数值）、`schema_version="1.2"`；并含与 `memory health` 同源的 `freshness` / `freshness_days`（可选 `--freshness-days`）
 
 ---
 

@@ -3174,6 +3174,12 @@ def main(argv: list[str] | None = None) -> int:
         help="冲突检测相似度阈值 0~1（默认 0.85）",
     )
     memory_health.add_argument(
+        "--max-conflict-compare-entries",
+        type=int,
+        default=400,
+        help="冲突检测最多参与两两比较的最近条目数（默认 400；超大库时可调低以控耗时）",
+    )
+    memory_health.add_argument(
         "--fail-on-grade",
         default=None,
         choices=("A", "B", "C", "D"),
@@ -4977,6 +4983,9 @@ def main(argv: list[str] | None = None) -> int:
                     session_pattern=str(getattr(args, "session_pattern", ".cai-session*.json")),
                     session_limit=int(getattr(args, "session_limit", 200)),
                     conflict_threshold=float(getattr(args, "conflict_threshold", 0.85)),
+                    max_conflict_compare_entries=int(
+                        getattr(args, "max_conflict_compare_entries", 400) or 400,
+                    ),
                 )
                 for w in payload.get("memory_warnings") or []:
                     if isinstance(w, str) and w.strip():

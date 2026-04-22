@@ -13,9 +13,9 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 6      | 18%      |
+| ✅ 已完成        | 8      | 24%      |
 | ⚠️ 部分完成（需补齐） | 4      | 12%      |
-| ❌ 未开发        | 24     | 71%      |
+| ❌ 未开发        | 22     | 65%      |
 | **合计**       | **34** | **100%** |
 
 
@@ -32,6 +32,8 @@
 | **S2-01**   | `memory health` 统一评分 | `cai-agent memory health --json`（`schema_version`=`1.0`）、`--fail-on-grade` exit 0/2；实现见 `memory.build_memory_health_payload` + `tests/test_memory_health_cli.py` |
 | **S2-02**   | freshness 指标 | `compute_memory_freshness_metrics` 与 `memory health` 共用；`memory nudge-report --json` 输出 `freshness` / `freshness_days` / `since_freshness` / `fresh_entries`；CLI `--freshness-days` |
 | **S2-05**   | nudge-report health_score | `nudge-report --json` 升级为 `schema_version`=`1.2`，含 `health_score` 与 `health_grade`（与当前工作区 `memory health` 一致） |
+| **S2-03**   | conflict_rate 指标 | `memory health --json`：`conflict_pair_count`、`conflict_compared_entries`、`conflict_max_compare_entries`、`conflict_similarity_metric`；`--max-conflict-compare-entries` 可调采样规模 |
+| **S2-04**   | coverage 指标 | `coverage` 分母为 `--days` 窗口内 **可评估会话**（goal≥8 且解析成功）；`counts.sessions_considered_for_coverage` 与跳过计数可观测 |
 
 
 ---
@@ -69,15 +71,7 @@
 
 ### Sprint 2：Memory Loop 2.0
 
-
-| Story ID  | 标题                              | 优先级 | 估算  | 测试计划                                                                      |
-| --------- | ------------------------------- | --- | --- | ------------------------------------------------------------------------- |
-| **S2-03** | conflict_rate 指标                | P2  | L   | MEM-CFT-001~003                                                           |
-| **S2-04** | coverage 指标                     | P2  | M   | MEM-COV-001                                                               |
-
-
-**开发关键文件**：`cai-agent/src/cai_agent/memory.py`、`__main__.py`（`memory health` / `memory nudge-report`）  
-**QA 等待信号**：`python3 -m pytest -q tests/test_memory_health*.py tests/test_memory_nudge_report_cli.py tests/test_memory_freshness_metrics.py`
+**本 Sprint（S2-01 ~ S2-05）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
 
 ---
 
@@ -228,7 +222,7 @@ Sprint 8（GA）
 
 | Sprint | 开发完成信号                     | QA 开始动作                                           |
 | ------ | -------------------------- | ------------------------------------------------- |
-| S2     | S2-01 `memory health` 命令合并 | 运行 `test_memory_health*.py` + 手工 MEM-HLTH-001~010 |
+| S2     | Sprint 2 Memory（health / nudge-report 1.2）已合并主线 | 运行 `test_memory_health*.py` `test_memory_nudge_report_cli.py` `test_memory_freshness_metrics.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
 | S3     | S3-01/S3-02/S3-03 合并       | 运行 `test_recall*.py` + 手工 RCL-RANK/NOHIT/DOC 系列   |
 | S4     | S4-01/S4-02 合并             | 运行 `test_schedule*.py` + 故障注入测试 SCH-FI-001~003    |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
