@@ -10,7 +10,7 @@ From the repository root:
 python scripts/run_regression.py
 ```
 
-The script also runs **`scripts/smoke_new_features.py`**, which invokes **`python -m cai_agent`** with **`cai-agent/src`** on **`PYTHONPATH`** (same pattern as the main regression steps), for JSON envelopes: `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `init --json`, `schedule add|list|rm|stats --json`, `memory list --json`, `memory search --json`, `memory export-entries --json`, and `memory export --json` in temp cwds.
+The script also runs **`scripts/smoke_new_features.py`**, which invokes **`python -m cai_agent`** with **`cai-agent/src`** on **`PYTHONPATH`** (same pattern as the main regression steps), for JSON envelopes: `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `init --json`, `schedule add|list|rm|stats --json`, `gateway telegram list --json`, `memory list --json`, `memory search --json`, `memory export-entries --json`, and `memory export --json` in temp cwds.
 
 On completion, the script writes:
 

@@ -3,7 +3,8 @@
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
 temporary cwd, init --json, schedule add + list + rm + stats --json envelopes,
-memory list/search/export-entries/export --json envelopes.
+gateway telegram list --json, memory list/search/export-entries/export --json
+envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -241,6 +242,19 @@ def main() -> int:
                     errs.append(f"schedule stats schema_version {st_o.get('schema_version')!r}")
                 if not isinstance(st_o.get("tasks"), list):
                     errs.append("schedule stats tasks not list")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-gateway-") as gw_td:
+        pg = _run([*cli, "gateway", "telegram", "list", "--json"], cwd=gw_td)
+        if pg.returncode != 0:
+            errs.append(f"gateway telegram list exit {pg.returncode} stderr={pg.stderr!r}")
+        else:
+            go = json.loads((pg.stdout or "").strip())
+            if go.get("schema_version") != "gateway_telegram_map_v1":
+                errs.append(f"gateway list schema_version {go.get('schema_version')!r}")
+            if go.get("action") != "list":
+                errs.append(f"gateway list action {go.get('action')!r}")
+            if not isinstance(go.get("bindings"), list):
+                errs.append("gateway list bindings not list")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
         pm = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
