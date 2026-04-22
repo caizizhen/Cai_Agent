@@ -7,6 +7,10 @@ memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
+
+Uses ``python -m cai_agent`` (and prepends ``cai-agent/src`` on ``PYTHONPATH``)
+so the checkout is exercised even when the ``cai-agent`` console script is
+absent or shadowed on ``PATH`` — same idea as ``scripts/run_regression.py``.
 """
 
 from __future__ import annotations
@@ -21,6 +25,13 @@ from pathlib import Path
 
 def _root() -> Path:
     return Path(__file__).resolve().parent.parent
+
+
+def _ensure_repo_pythonpath(root: Path) -> None:
+    """Prepend cai-agent/src so `python -m cai_agent` uses this checkout."""
+    src = str((root / "cai-agent" / "src").resolve())
+    prev = os.environ.get("PYTHONPATH", "").strip()
+    os.environ["PYTHONPATH"] = src if not prev else f"{src}{os.pathsep}{prev}"
 
 
 def _run(
@@ -42,12 +53,13 @@ def _run(
 
 def main() -> int:
     root = _root()
-    exe = "cai-agent"
+    _ensure_repo_pythonpath(root)
+    cli = [sys.executable, "-m", "cai_agent"]
     errs: list[str] = []
 
     p = _run(
         [
-            exe,
+            *cli,
             "plan",
             "--config",
             str(root / ".__no_such_config__.toml"),
@@ -64,7 +76,7 @@ def main() -> int:
     except json.JSONDecodeError as e:
         errs.append(f"plan missing config parse: {e}")
 
-    p = _run([exe, "plan", "--json", "  ", "  "])
+    p = _run([*cli, "plan", "--json", "  ", "  "])
     if p.returncode != 2:
         errs.append(f"plan empty goal: want exit 2 got {p.returncode}")
     try:
@@ -76,7 +88,7 @@ def main() -> int:
 
     env = os.environ.copy()
     env["CAI_MOCK"] = "1"
-    p = _run([exe, "plan", "--json", "schema smoke"], env=env)
+    p = _run([*cli, "plan", "--json", "schema smoke"], env=env)
     if p.returncode != 0:
         errs.append(f"plan mock exit {p.returncode} stderr={p.stderr!r}")
     else:
@@ -84,7 +96,7 @@ def main() -> int:
         if not (o.get("ok") is True and o.get("plan_schema_version") == "1.0" and o.get("task")):
             errs.append(f"plan mock payload: {list(o.keys())}")
 
-    p = _run([exe, "run", "--json", "run envelope"], env=env)
+    p = _run([*cli, "run", "--json", "run envelope"], env=env)
     if p.returncode != 0:
         errs.append(f"run mock exit {p.returncode}")
     else:
@@ -95,7 +107,7 @@ def main() -> int:
         if not isinstance(ev, list) or len(ev) < 1:
             errs.append(f"run events: {ev!r}")
 
-    p = _run([exe, "cost", "budget"])
+    p = _run([*cli, "cost", "budget"])
     if p.returncode not in (0, 2):
         errs.append(f"cost budget exit {p.returncode}")
     else:
@@ -106,7 +118,7 @@ def main() -> int:
             if k not in o:
                 errs.append(f"cost budget missing {k}")
 
-    p = _run([exe, "stats", "--json"])
+    p = _run([*cli, "stats", "--json"])
     if p.returncode != 0:
         errs.append(f"stats exit {p.returncode}")
     else:
@@ -117,7 +129,7 @@ def main() -> int:
             if k not in o:
                 errs.append(f"stats missing {k}")
 
-    p = _run([exe, "sessions", "--json"])
+    p = _run([*cli, "sessions", "--json"])
     if p.returncode != 0:
         errs.append(f"sessions exit {p.returncode}")
     else:
@@ -128,7 +140,7 @@ def main() -> int:
         if not isinstance(arr, list):
             errs.append("sessions.sessions not array")
 
-    p = _run([exe, "observe", "--json", "--limit", "5"])
+    p = _run([*cli, "observe", "--json", "--limit", "5"])
     if p.returncode != 0:
         errs.append(f"observe exit {p.returncode}")
     else:
@@ -139,7 +151,7 @@ def main() -> int:
         if "sessions_with_events" not in ag:
             errs.append("observe aggregates missing sessions_with_events")
 
-    p = _run([exe, "commands", "--json"])
+    p = _run([*cli, "commands", "--json"])
     if p.returncode != 0:
         errs.append(f"commands json exit {p.returncode}")
     else:
@@ -149,7 +161,7 @@ def main() -> int:
         if "commands" not in o or not isinstance(o.get("commands"), list):
             errs.append(f"commands json envelope: {o!r}")
 
-    p = _run([exe, "agents", "--json"])
+    p = _run([*cli, "agents", "--json"])
     if p.returncode != 0:
         errs.append(f"agents json exit {p.returncode}")
     else:
@@ -160,7 +172,7 @@ def main() -> int:
             errs.append(f"agents json envelope: {o!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
-        pi = _run([exe, "init", "--json"], cwd=ini_td)
+        pi = _run([*cli, "init", "--json"], cwd=ini_td)
         if pi.returncode != 0:
             errs.append(f"init json exit {pi.returncode} stderr={pi.stderr!r}")
         else:
@@ -172,7 +184,7 @@ def main() -> int:
             if not (Path(ini_td) / "cai-agent.toml").is_file():
                 errs.append("init json did not create cai-agent.toml")
         if (Path(ini_td) / "cai-agent.toml").is_file():
-            pi2 = _run([exe, "init", "--json"], cwd=ini_td)
+            pi2 = _run([*cli, "init", "--json"], cwd=ini_td)
             if pi2.returncode != 2:
                 errs.append(f"init second run (config_exists) exit {pi2.returncode} want 2")
             else:
@@ -185,7 +197,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="cai-smoke-schedule-") as sched_td:
         tid = ""
         p = _run(
-            [exe, "schedule", "add", "--goal", "smoke", "--every-minutes", "1440", "--json"],
+            [*cli, "schedule", "add", "--goal", "smoke", "--every-minutes", "1440", "--json"],
             cwd=sched_td,
         )
         if p.returncode != 0:
@@ -198,7 +210,7 @@ def main() -> int:
             if not tid:
                 errs.append("schedule add missing id")
         if tid:
-            p2 = _run([exe, "schedule", "list", "--json"], cwd=sched_td)
+            p2 = _run([*cli, "schedule", "list", "--json"], cwd=sched_td)
             if p2.returncode != 0:
                 errs.append(f"schedule list exit {p2.returncode}")
             else:
@@ -208,7 +220,7 @@ def main() -> int:
                 jobs = list_o.get("jobs")
                 if not isinstance(jobs, list) or not jobs:
                     errs.append("schedule list jobs not non-empty list")
-            p3 = _run([exe, "schedule", "rm", tid, "--json"], cwd=sched_td)
+            p3 = _run([*cli, "schedule", "rm", tid, "--json"], cwd=sched_td)
             if p3.returncode != 0:
                 errs.append(f"schedule rm exit {p3.returncode}")
             else:
@@ -218,7 +230,7 @@ def main() -> int:
                 if rm_o.get("removed") is not True:
                     errs.append(f"schedule rm removed: {rm_o!r}")
             pst = _run(
-                [exe, "schedule", "stats", "--json", "--days", "7"],
+                [*cli, "schedule", "stats", "--json", "--days", "7"],
                 cwd=sched_td,
             )
             if pst.returncode != 0:
@@ -231,7 +243,7 @@ def main() -> int:
                     errs.append("schedule stats tasks not list")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
-        pm = _run([exe, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
+        pm = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
         if pm.returncode != 0:
             errs.append(f"memory list json exit {pm.returncode}")
         else:
@@ -243,7 +255,7 @@ def main() -> int:
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memexp-") as exp_td:
         (Path(exp_td) / "memory" / "instincts").mkdir(parents=True, exist_ok=True)
-        pe = _run([exe, "memory", "export", "smoke-inst.json", "--json"], cwd=exp_td)
+        pe = _run([*cli, "memory", "export", "smoke-inst.json", "--json"], cwd=exp_td)
         if pe.returncode != 0:
             errs.append(f"memory export json exit {pe.returncode}")
         else:
@@ -269,7 +281,7 @@ def main() -> int:
             json.dumps(row, ensure_ascii=False) + "\n",
             encoding="utf-8",
         )
-        pl2 = _run([exe, "memory", "list", "--json", "--limit", "5"], cwd=m2)
+        pl2 = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=m2)
         if pl2.returncode != 0:
             errs.append(f"memory list (seeded) exit {pl2.returncode}")
         else:
@@ -278,7 +290,7 @@ def main() -> int:
                 errs.append(f"memory list seeded schema_version {lo.get('schema_version')!r}")
             if not any(str((e or {}).get("id")) == "smoke-entry-1" for e in (lo.get("entries") or [])):
                 errs.append("memory list seeded missing smoke-entry-1")
-        ps2 = _run([exe, "memory", "search", token, "--json", "--limit", "5"], cwd=m2)
+        ps2 = _run([*cli, "memory", "search", token, "--json", "--limit", "5"], cwd=m2)
         if ps2.returncode != 0:
             errs.append(f"memory search json exit {ps2.returncode}")
         else:
@@ -288,7 +300,7 @@ def main() -> int:
             hits = so.get("hits") or []
             if not hits:
                 errs.append("memory search hits empty")
-        pe2 = _run([exe, "memory", "export-entries", "bundle.json", "--json"], cwd=m2)
+        pe2 = _run([*cli, "memory", "export-entries", "bundle.json", "--json"], cwd=m2)
         if pe2.returncode != 0:
             errs.append(f"memory export-entries json exit {pe2.returncode}")
         else:

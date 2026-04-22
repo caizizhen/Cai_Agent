@@ -583,7 +583,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-`scripts/run_regression.py` shells out to the installed `cai-agent` and runs `scripts/smoke_new_features.py` (JSON envelope checks for `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `init --json`, `schedule add|list|rm`, and `memory list|search|export|export-entries --json` in temporary workspace cwds). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
+`scripts/run_regression.py` (from the repo root) prepends `cai-agent/src` on `PYTHONPATH` and shells **`python -m cai_agent`** for CLI checks; it also runs **`scripts/smoke_new_features.py`**, which uses the same **`python -m cai_agent`** entrypoint for JSON envelope checks (`plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `init --json`, `schedule add|list|rm|stats --json`, and `memory list|search|export|export-entries --json` in temporary workspace cwds). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
 
 **Regression audit trail**: each successful or failed run writes a timestamped Markdown report under `docs/qa/runs/` (override with `QA_LOG_DIR`; disable with `QA_SKIP_LOG=1`). See `docs/QA_REGRESSION_LOGGING.md` (English) and `docs/QA_REGRESSION_LOGGING.zh-CN.md` (Chinese).
 
