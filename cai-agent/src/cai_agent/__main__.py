@@ -79,6 +79,7 @@ from cai_agent.schedule import (
     add_schedule_task,
     append_schedule_audit_event,
     compute_due_tasks,
+    compute_schedule_stats_from_audit,
     enrich_schedule_tasks_for_display,
     list_schedule_tasks,
     load_schedule_doc,
@@ -3631,7 +3632,7 @@ def main(argv: list[str] | None = None) -> int:
 
     schedule_p = sub.add_parser(
         "schedule",
-        help="定时任务管理（add/list/rm/run-due/daemon）",
+        help="定时任务管理（add/list/rm/run-due/daemon/stats）",
     )
     schedule_sub = schedule_p.add_subparsers(dest="schedule_action", required=True)
 
@@ -3759,6 +3760,23 @@ def main(argv: list[str] | None = None) -> int:
         help="每轮最多执行多少个到点任务（默认 1；多余任务本跳过并在下轮再判断；0 视为 1）",
     )
     schedule_daemon.add_argument("--json", action="store_true", dest="json_output")
+
+    schedule_stats = schedule_sub.add_parser(
+        "stats",
+        help="从 .cai-schedule-audit.jsonl 聚合任务 SLA（成功次数、耗时分位等）",
+    )
+    schedule_stats.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        help="仅统计最近 N 天内审计记录（按行 ts，默认 30，最大 366）",
+    )
+    schedule_stats.add_argument(
+        "--audit-file",
+        default=None,
+        help="覆盖默认审计路径（默认工作区 .cai-schedule-audit.jsonl）",
+    )
+    schedule_stats.add_argument("--json", action="store_true", dest="json_output")
 
     cost_p = sub.add_parser("cost", help="成本治理命令")
     cost_sub = cost_p.add_subparsers(dest="cost_action", required=True)
@@ -6080,6 +6098,31 @@ def main(argv: list[str] | None = None) -> int:
                     f"skipped_concurrency={total_skipped_concurrency} max_concurrent={max_concurrent} "
                     f"execute={execute} interrupted={interrupted}",
                 )
+            return 0
+        if args.schedule_action == "stats":
+            audit_raw = getattr(args, "audit_file", None)
+            audit_arg = str(audit_raw).strip() if isinstance(audit_raw, str) and str(audit_raw).strip() else None
+            payload = compute_schedule_stats_from_audit(
+                cwd=str(root),
+                days=int(getattr(args, "days", 30) or 30),
+                audit_path=audit_arg,
+            )
+            if bool(args.json_output):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"schedule stats days={payload.get('days')} audit={payload.get('audit_file')} "
+                    f"tasks={len(payload.get('tasks') or [])}",
+                )
+                for t in payload.get("tasks") or []:
+                    tid = str(t.get("task_id") or "")
+                    sr = t.get("success_rate")
+                    sr_s = f"{sr:.2f}" if isinstance(sr, float) else "-"
+                    print(
+                        f"{tid}\trun={t.get('run_count')} ok={t.get('success_count')} fail={t.get('fail_count')} "
+                        f"rate={sr_s}\tavg_ms={t.get('avg_elapsed_ms')} p95_ms={t.get('p95_elapsed_ms')}\t"
+                        f"goal={(str(t.get('goal_preview') or '')[:60])}",
+                    )
             return 0
 
     if args.command == "cost":
