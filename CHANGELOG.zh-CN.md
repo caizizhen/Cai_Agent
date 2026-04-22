@@ -6,6 +6,7 @@
 
 ### 0.5.0（当前开发）
 
+- **CLI `schedule add`/`list`/`rm`/`add-memory-nudge --json`**：成功 **`schedule_add_v1`**；**`list`** 为 **`schedule_list_v1` + `jobs[]`**（**破坏性变更**：此前 `list` 根为数组）；**`rm`** 为 **`schedule_rm_v1`**；**`add-memory-nudge`** 为 **`schedule_add_memory_nudge_v1`**；**`add` 校验失败** 为 **`schedule_add_invalid_v1`**。见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `schedule run-due --json` / `schedule daemon --json`**：stdout 根对象增加 **`schema_version`：`schedule_run_due_v1`** / **`schedule_daemon_summary_v1`**（daemon 锁冲突负载亦含同一 schema）；详见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `cost budget`**：stdout 单行 JSON 增加 **`schema_version`：`cost_budget_v1`**（字段仍为 `state` / `total_tokens` / `max_tokens`；无 `--json` 开关）。契约见 **`docs/schema/README.zh-CN.md`**。
 - **CLI `sessions --json`**：输出改为 **`sessions_list_v1`** 对象（含 **`pattern`/`limit`/`details`/`sessions`**）；**破坏性变更**（此前根节点为数组）。见 **`docs/schema/README.zh-CN.md`**。

@@ -497,6 +497,9 @@ cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --max-concurrent 1 -
 说明：
 
 - `run-due` 默认不执行，仅预览 `due_jobs`。
+- **`schedule add --json`** 成功负载含 **`schema_version`=`schedule_add_v1`**；失败（如 **`schedule_add_invalid`**）为 **`schedule_add_invalid_v1`**。
+- **`schedule list --json`** 为 **`schedule_list_v1`**，任务行在 **`jobs`** 数组中。
+- **`schedule rm --json`** 为 **`schedule_rm_v1`**（`removed`）；**`add-memory-nudge --json`** 为 **`schedule_add_memory_nudge_v1`**。
 - **`schedule run-due --json`** stdout 为 **`schedule_run_due_v1`**（`mode`=`dry-run`|`execute`，含 `due_jobs` / `executed`）。
 - `run-due --execute` 会真实调用 Agent 运行任务目标，并回写 `last_status` / `last_error` / `run_count`；跨轮次失败重试见 **`--max-retries`**（默认 3）、`retry_count`、`next_retry_at`（`retrying` → 退避后再入队，用尽为 `failed_exhausted`）。单次执行内多次尝试仍由 **`--retry-max-attempts`** / **`--retry-backoff-sec`** 控制。
 - **`schedule daemon --json`** 汇总为 **`schedule_daemon_summary_v1`**（含 `cycles`、`results`、并发跳过计数等；锁冲突时 `ok=false`、`error=lock_conflict`，exit `2`）。审计 JSONL 仍为 **`schema_version`=`1.0`** 行结构，见 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**。

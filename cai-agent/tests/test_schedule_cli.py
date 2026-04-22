@@ -38,6 +38,7 @@ class ScheduleCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_add_v1")
             self.assertEqual(payload.get("depends_on"), ["sched-upstream"])
             self.assertEqual(payload.get("retry_max_attempts"), 3)
             self.assertEqual(payload.get("retry_backoff_sec"), 2.5)
@@ -71,6 +72,7 @@ class ScheduleCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc_add, 0)
             created = json.loads(buf_add.getvalue().strip())
+            self.assertEqual(created.get("schema_version"), "schedule_add_memory_nudge_v1")
             self.assertEqual(created.get("template"), "memory-nudge")
             job = created.get("job") or {}
             goal = str(created.get("goal") or "")
@@ -107,6 +109,7 @@ class ScheduleCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc_add, 0)
             created = json.loads(buf_add.getvalue().strip())
+            self.assertEqual(created.get("schema_version"), "schedule_add_v1")
             self.assertEqual(created.get("goal"), "daily audit")
             self.assertEqual(created.get("enabled"), False)
             self.assertEqual(created.get("depends_on"), ["sched-prev"])
@@ -117,7 +120,9 @@ class ScheduleCliTests(unittest.TestCase):
                 with redirect_stdout(buf_list):
                     rc_list = main(["schedule", "list", "--json"])
             self.assertEqual(rc_list, 0)
-            arr = json.loads(buf_list.getvalue().strip())
+            listed = json.loads(buf_list.getvalue().strip())
+            self.assertEqual(listed.get("schema_version"), "schedule_list_v1")
+            arr = listed.get("jobs") or []
             self.assertEqual(len(arr), 1)
             sid = arr[0]["id"]
 
@@ -127,6 +132,7 @@ class ScheduleCliTests(unittest.TestCase):
                     rc_rm = main(["schedule", "rm", sid, "--json"])
             self.assertEqual(rc_rm, 0)
             payload = json.loads(buf_rm.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "schedule_rm_v1")
             self.assertEqual(payload.get("removed"), True)
 
     def test_run_due_dry_run_and_execute(self) -> None:

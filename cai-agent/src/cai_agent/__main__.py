@@ -5652,7 +5652,15 @@ def main(argv: list[str] | None = None) -> int:
                 msg = str(e).strip() or "schedule add rejected"
                 if bool(args.json_output):
                     print(
-                        json.dumps({"ok": False, "error": "schedule_add_invalid", "message": msg}, ensure_ascii=False),
+                        json.dumps(
+                            {
+                                "schema_version": "schedule_add_invalid_v1",
+                                "ok": False,
+                                "error": "schedule_add_invalid",
+                                "message": msg,
+                            },
+                            ensure_ascii=False,
+                        ),
                     )
                 else:
                     print(msg, file=sys.stderr)
@@ -5684,7 +5692,12 @@ def main(argv: list[str] | None = None) -> int:
                     save_schedule_doc(doc, str(root))
                     job["enabled"] = False
             if bool(args.json_output):
-                print(json.dumps(job, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {**job, "schema_version": "schedule_add_v1"},
+                        ensure_ascii=False,
+                    ),
+                )
             else:
                 print(
                     f"added id={job.get('id')} every_minutes={job.get('every_minutes')} "
@@ -5719,6 +5732,7 @@ def main(argv: list[str] | None = None) -> int:
                     save_schedule_doc(doc, str(root))
                     job["enabled"] = False
             payload = {
+                "schema_version": "schedule_add_memory_nudge_v1",
                 "template": "memory-nudge",
                 "goal": goal,
                 "job": job,
@@ -5736,7 +5750,12 @@ def main(argv: list[str] | None = None) -> int:
             raw_jobs = list_schedule_tasks(str(root))
             jobs = enrich_schedule_tasks_for_display(raw_jobs)
             if bool(args.json_output):
-                print(json.dumps(jobs, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {"schema_version": "schedule_list_v1", "jobs": jobs},
+                        ensure_ascii=False,
+                    ),
+                )
             else:
                 if not jobs:
                     print("(无定时任务)")
@@ -5762,7 +5781,12 @@ def main(argv: list[str] | None = None) -> int:
         if args.schedule_action == "rm":
             ok = remove_schedule_task(str(args.id), str(root))
             if bool(args.json_output):
-                print(json.dumps({"removed": ok}, ensure_ascii=False))
+                print(
+                    json.dumps(
+                        {"schema_version": "schedule_rm_v1", "removed": ok},
+                        ensure_ascii=False,
+                    ),
+                )
             else:
                 print("removed=1" if ok else "removed=0")
             return 0 if ok else 2

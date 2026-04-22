@@ -254,6 +254,16 @@
 
 ---
 
+## `schedule add` / `schedule list` / `schedule rm` / `schedule add-memory-nudge`（`--json`）
+
+- **`schedule add --json`（成功）**：在任务负载上增加 **`schema_version`=`schedule_add_v1`**（与 `id`、`goal`、`every_minutes`、`depends_on` 等同一层；实现为 `{**job, "schema_version": …}`）。
+- **`schedule add --json`（失败，如依赖成环）**：**`schema_version`=`schedule_add_invalid_v1`**，以及 `ok`=`false`、`error`=`schedule_add_invalid`、`message`。
+- **`schedule list --json`**：对象 **`schema_version`=`schedule_list_v1`**，**`jobs`** 为任务行数组（含 `depends_on_status`、`dependency_blocked` 等展示字段）。
+- **`schedule rm --json`**：**`schema_version`=`schedule_rm_v1`**，`removed`（bool）。
+- **`schedule add-memory-nudge --json`**：**`schema_version`=`schedule_add_memory_nudge_v1`**，以及 `template`、`goal`、`job`。
+
+---
+
 ## `schedule run-due` / `schedule run-due --json`
 
 - **实现**：`__main__.py` `schedule run-due` 分支
@@ -278,6 +288,7 @@
 
 ## 破坏性变更
 
+- **`schedule list --json`**：自 **`schedule_list_v1`** 起，根对象为 **`{ "schema_version", "jobs" }`**；**不再**直接输出任务数组（旧脚本请读 **`jobs`**）。
 - **`schedule run-due --json` / `schedule daemon --json`**：stdout 根对象新增 **`schema_version`**（分别为 **`schedule_run_due_v1`**、**`schedule_daemon_summary_v1`**）；其余字段保持，**若脚本以固定键集合校验需放行新键**。
 - **`sessions --json`**：自 **`sessions_list_v1`** 起，根对象为 `{ "schema_version", "pattern", "limit", "details", "sessions" }`；**不再**直接输出裸数组（旧脚本请改为读 **`sessions`** 字段）。
 - **`commands --json` / `agents --json`**：自 **`commands_list_v1` / `agents_list_v1`** 起，根对象为 `{ "schema_version", "commands"|"agents" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 **`commands`** / **`agents`** 字段）。

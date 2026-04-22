@@ -121,6 +121,7 @@ class ScheduleDependsS403Tests(unittest.TestCase):
                     )
             self.assertEqual(rc3, 2)
             err = json.loads(buf.getvalue().strip())
+            self.assertEqual(err.get("schema_version"), "schedule_add_invalid_v1")
             self.assertEqual(err.get("error"), "schedule_add_invalid")
 
 
