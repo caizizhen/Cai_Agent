@@ -2,6 +2,8 @@
 
 本文件汇总 **`cai-agent` 各命令 `--json` 或专用 JSON 输出** 的 `schema_version`、主要字段与 **exit 码约定**（与 [S1-03](../HERMES_PARITY_BACKLOG.zh-CN.md) 一致：成功 `0`，逻辑/阈值失败 `2`，用法错误 `2`）。
 
+**主入口兜底**：`main()` 若未能分发到已知子命令（仅应出现于内部实现不同步），**exit `2`** 并向 stderr 打印一行诊断（此前兜底为 **`1`** 且无提示）。
+
 **仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)。其余命令契约 **以本节为准**，更新时只改本文件与上述两文件，勿再新增平行 schema 文档。
 
 ---
@@ -299,5 +301,6 @@
 - **`models fetch --json`**：自 **`models_fetch_v1`** 起，根对象固定为 `{ "schema_version", "models" }`；**不再**直接输出裸字符串数组（旧脚本请改为读 `models` 字段）。
 - **`models ping`**：自 **S1-03 收口** 起，任一结果非 `OK` 时 **默认 exit `2`**（此前为 **`1`**）；依赖 exit `1` 表示「部分失败」的 CI 脚本需改为识别 **`2`** 或仅以 JSON `results[].status` 判定。
 - **`init`**（含 **`init --json`**）：**`config_exists`** / **`template_read_failed`** / **`mkdir_failed`** 等失败路径 **exit `2`**（此前为 **`1`**）；JSON 负载仍为 **`init_cli_v1`**（`ok: false` + `error`）。
+- **`main()` 子命令分发兜底**：未知 / 未接线子命令 **exit `2`** + stderr 一行（此前为 **`1`** 且无输出）。
 
 升级对应 **`schema_version`**（或索引 `recall_index_schema_version`）时，请同步更新 **本节**、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[`SCHEDULE_STATS_JSON.zh-CN.md`](SCHEDULE_STATS_JSON.zh-CN.md) 及 `CHANGELOG`。

@@ -171,6 +171,16 @@ def main() -> int:
                 errs.append(f"init ok not true: {init_o!r}")
             if not (Path(ini_td) / "cai-agent.toml").is_file():
                 errs.append("init json did not create cai-agent.toml")
+        if (Path(ini_td) / "cai-agent.toml").is_file():
+            pi2 = _run([exe, "init", "--json"], cwd=ini_td)
+            if pi2.returncode != 2:
+                errs.append(f"init second run (config_exists) exit {pi2.returncode} want 2")
+            else:
+                dup = json.loads((pi2.stdout or "").strip())
+                if dup.get("schema_version") != "init_cli_v1":
+                    errs.append(f"init dup schema_version {dup.get('schema_version')!r}")
+                if dup.get("ok") is not False or dup.get("error") != "config_exists":
+                    errs.append(f"init dup payload: {dup!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-schedule-") as sched_td:
         tid = ""

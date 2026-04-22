@@ -44,7 +44,7 @@
 | 16 | `export` 多 harness | **完成（基础）** | |
 | 17 | Hermes backlog **S2-02～S2-05**（freshness / conflict_rate / coverage 指标、nudge-report 与 health 联动） | **完成** | 与 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 已完成表一致；**已在 `main`** |
 | 18 | **S1-02** `docs/schema/` 各命令 JSON schema 文档 | **部分完成** | 契约汇总于 [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md)（含 observe … **`plugins` → `plugins_surface_v1`**、**`mcp-check` / `sessions`（`sessions_list_v1`）/ `stats` / `run` 族 / `export`（`export_cli_v1`）**、**`quality-gate` / `security-scan`**、**`models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**、**`cost budget` → `cost_budget_v1`**、**`release-ga` → `release_ga_gate_v1`**、hooks / doctor / plan / **`init --json` → `init_cli_v1`** / memory / recall）；**`commands`/`agents` → `commands_list_v1`/`agents_list_v1`**；**`schedule`：`add`/`list`/`rm`/`add-memory-nudge`/`run-due`/`daemon` 等 JSON `schema_version`**；**`memory extract` → `memory_extract_v1`**，**`memory list`/`search`/`instincts --json` → `memory_list_v1`/`memory_search_v1`/`memory_instincts_list_v1`**，**`memory import`/`import-entries` stdout → `memory_instincts_import_v1`/`memory_entries_import_result_v1`/`memory_entries_import_dry_run_v1`**；**`memory export`/`export-entries --json` → `memory_instincts_export_v1`/`memory_entries_export_result_v1`**（见 schema README 与 memory 表）；调度审计与 stats 仍为 [`SCHEDULE_*`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) 独立长文 |
-| 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | **`init`**：**`config_exists`** / 模板或目录失败 **exit `2`**（此前 **`1`**）；**`models ping`**：任一 status 非 `OK` 时 **默认 exit `2`**（**`--fail-on-any-error`** 为显式同义别名）；**`hooks list --json`** 目录错误 **exit `2`**；另有 doctor / plugins / workflow 等；其余子命令仍按需对齐 0/2 叙事 |
+| 19 | **S1-03** 全命令 exit 0/2 语义补齐（含 `schedule stats`、`observe-report` 等） | **部分完成** | **`main()` 兜底**：未分发子命令 **exit `2`** + stderr 诊断（此前 **`1`**）；**`init`**：**`config_exists`** / 模板或目录失败 **exit `2`**；**`models ping`** 非全 **`OK`** **默认 exit `2`**（**`--fail-on-any-error`** 同义）；**`hooks list --json`** 目录错误 **exit `2`**；另有 doctor / plugins / workflow 等；其余子命令仍按需对齐 0/2 叙事 |
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
 | 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **未开始** | |
 | 22 | 敏感信息扫描、高危命令二次确认 | **未开始** | |
@@ -59,8 +59,8 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **345 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`init --json`**、**`schedule add|list|rm`**、**`memory list|search|export|export-entries --json`** 等契约校验；见 `docs/qa/runs/regression-20260422-*.md` |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **346 passed**（以本机 `pytest cai-agent/tests` 为准） |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 含 **`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm`**、**`memory … --json`** 等契约校验；见 `docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -100,9 +100,9 @@
 
 | 序号 | 测试对象 | 类型 | 建议执行人 | 操作说明 | 当前证据（开发侧） |
 |------|----------|------|------------|----------|---------------------|
-| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**345 passed**（以执行机 `pytest cai-agent/tests` 为准） |
+| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**346 passed**（以执行机 `pytest cai-agent/tests` 为准） |
 | **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；含 **`scripts/smoke_new_features.py`** |
-| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 `init` / `schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 `init`（含二次 **`config_exists`**）、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
 | **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 21–26 对应段落待开发完成后再测** | 计划已写 |
@@ -131,4 +131,4 @@
 
 ---
 
-*文档版本：2026-04-23（§二 S1-03：补充 **`init`** 失败路径 **exit `2`**；S1-02 契约仍以 **`docs/schema/README.zh-CN.md`** 为准；**开发项 21–26** 见 §三之二 **未开发全表**。）*
+*文档版本：2026-04-23（§二 S1-03：补充 **`main()` 分发兜底 exit `2`** 与 **`init`** 等；T1/QA-1 **346 passed**；S1-02 仍以 **`docs/schema/README.zh-CN.md`** 为准；**开发项 21–26** 见 §三之二。）*

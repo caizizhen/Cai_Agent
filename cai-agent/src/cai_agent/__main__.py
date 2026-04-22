@@ -7471,7 +7471,13 @@ def main(argv: list[str] | None = None) -> int:
         run_tui(settings)
         return 0
 
-    return 1
+    # S1-03: should not happen while subparsers stay aligned with dispatch below.
+    cmd = getattr(args, "command", None)
+    print(
+        f"内部错误: CLI 未处理子命令 {cmd!r}（请报告并附带 cai-agent --version 输出）",
+        file=sys.stderr,
+    )
+    return 2
 
 
 if __name__ == "__main__":

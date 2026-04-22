@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import io
 import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -258,3 +259,16 @@ class ExportCliTests(unittest.TestCase):
             self.assertEqual(payload.get("mode"), "structured")
             self.assertIn("output_dir", payload)
             self.assertIn("manifest", payload)
+
+
+class MainDispatchFallbackTests(unittest.TestCase):
+    def test_defensive_unknown_subcommand_returns_2(self) -> None:
+        """S1-03: main() fallthrough uses exit 2 with stderr (never expected in production)."""
+        ns = argparse.Namespace(command="__cai_test_unknown_subcommand__")
+        err = io.StringIO()
+        with patch.object(argparse.ArgumentParser, "parse_args", return_value=ns):
+            with redirect_stderr(err):
+                rc = main([])
+        self.assertEqual(rc, 2)
+        self.assertIn("__cai_test_unknown_subcommand__", err.getvalue())
+        self.assertIn("未处理", err.getvalue())

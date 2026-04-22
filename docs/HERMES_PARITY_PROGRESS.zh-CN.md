@@ -51,7 +51,7 @@
 
 ### S1-03 错误码规范（补齐剩余命令）
 
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、**`models ping`（任一非 `OK` 默认 exit `2`；`--fail-on-any-error` 为同义显式别名）**、**`init`（`config_exists` / 模板或目录失败 exit `2`）**、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
+- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、**`models ping`（任一非 `OK` 默认 exit `2`；`--fail-on-any-error` 为同义显式别名）**、**`init`（`config_exists` / 模板或目录失败 exit `2`）**、**`main()` 未分发子命令兜底 exit `2` + stderr**、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
 - **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
 - **QA**：随每个新命令提测时同步验证
 
@@ -63,7 +63,7 @@
 
 ### S8-01 全量回归套件（需扩充覆盖新功能）
 
-- **现状**：`scripts/run_regression.py` 已有，覆盖基础 27 个回归点；**`scripts/smoke_new_features.py`** 已校验 **`init --json`**（**`init_cli_v1`**）、**`schedule add|list|rm`** 的 **`schedule_*_v1`** 及 **`memory list|search|export|export-entries --json`** 等 JSON 信封（在隔离临时工作目录下执行，避免污染仓库根）
+- **现状**：`scripts/run_regression.py` 已有，覆盖基础 27 个回归点；**`scripts/smoke_new_features.py`** 已校验 **`init --json`**（**`init_cli_v1`**）、**二次 init（`config_exists`，exit `2`）**、**`schedule add|list|rm`** 的 **`schedule_*_v1`** 及 **`memory list|search|export|export-entries --json`** 等 JSON 信封（在隔离临时工作目录下执行，避免污染仓库根）
 - **需要**：随每个 Sprint 新增用例时同步扩充
 - **QA**：每个 Sprint 结束必须更新回归脚本
 
