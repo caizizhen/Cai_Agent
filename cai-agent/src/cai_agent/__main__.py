@@ -58,6 +58,7 @@ from cai_agent.exporter import export_target
 from cai_agent.memory import (
     annotate_memory_states,
     export_memory_entries_bundle,
+    build_memory_health_payload,
     evaluate_memory_entry_states,
     extract_basic_instincts_from_session,
     extract_memory_entries_from_session,
@@ -3129,6 +3130,36 @@ def main(argv: list[str] | None = None) -> int:
         help="低于该置信度的非过期条目视为 stale（默认 0.4）",
     )
     memory_state.add_argument("--json", action="store_true", dest="json_output")
+    memory_health = memory_sub.add_parser(
+        "health",
+        help="记忆健康综合评分（freshness/coverage/conflict_rate，S2-01）",
+    )
+    memory_health.add_argument("--days", type=int, default=30, help="coverage：近期会话窗口天数（默认 30）")
+    memory_health.add_argument(
+        "--freshness-days",
+        type=int,
+        default=14,
+        help="freshness：条目创建时间窗口天数（默认 14）",
+    )
+    memory_health.add_argument(
+        "--session-pattern",
+        default=".cai-session*.json",
+        help="coverage：会话文件 glob（默认 .cai-session*.json）",
+    )
+    memory_health.add_argument("--session-limit", type=int, default=200, help="最多扫描会话文件数（默认 200）")
+    memory_health.add_argument(
+        "--conflict-threshold",
+        type=float,
+        default=0.85,
+        help="冲突检测相似度阈值 0~1（默认 0.85）",
+    )
+    memory_health.add_argument(
+        "--fail-on-grade",
+        default=None,
+        choices=("A", "B", "C", "D"),
+        help="当 health grade 不优于该档时返回 exit 2（如 C 表示仅 A/B 通过）",
+    )
+    memory_health.add_argument("--json", action="store_true", dest="json_output")
     memory_export = memory_sub.add_parser("export", help="导出记忆目录")
     memory_export.add_argument("file")
     memory_import = memory_sub.add_parser("import", help="导入记忆文件")
@@ -4797,9 +4828,9 @@ def main(argv: list[str] | None = None) -> int:
                 for w in vwarn:
                     print(f"[memory] {w}", file=sys.stderr)
                 payload = evaluate_memory_entry_states(
-                    rows,
-                    stale_days=int(getattr(args, "stale_days", 30)),
-                    stale_confidence=float(getattr(args, "stale_confidence", 0.4)),
+                    root,
+                    stale_after_days=int(getattr(args, "stale_days", 30)),
+                    min_active_confidence=float(getattr(args, "stale_confidence", 0.4)),
                 )
                 if args.json_output:
                     print(json.dumps(payload, ensure_ascii=False))
@@ -4911,6 +4942,38 @@ def main(argv: list[str] | None = None) -> int:
                     return 0
                 n = import_memory_entries_bundle(root, doc)
                 print(json.dumps({"imported": n}, ensure_ascii=False))
+                return 0
+            if args.memory_action == "health":
+                payload = build_memory_health_payload(
+                    root,
+                    days=int(getattr(args, "days", 30)),
+                    freshness_days=int(getattr(args, "freshness_days", 14)),
+                    session_pattern=str(getattr(args, "session_pattern", ".cai-session*.json")),
+                    session_limit=int(getattr(args, "session_limit", 200)),
+                    conflict_threshold=float(getattr(args, "conflict_threshold", 0.85)),
+                )
+                for w in payload.get("memory_warnings") or []:
+                    if isinstance(w, str) and w.strip():
+                        print(f"[memory] {w}", file=sys.stderr)
+                out_text = json.dumps(payload, ensure_ascii=False)
+                if bool(getattr(args, "json_output", False)):
+                    print(out_text)
+                else:
+                    print(
+                        f"[memory health] grade={payload.get('grade')} "
+                        f"score={payload.get('health_score')} "
+                        f"freshness={payload.get('freshness')} "
+                        f"coverage={payload.get('coverage')} "
+                        f"conflict_rate={payload.get('conflict_rate')}",
+                    )
+                    for i, action in enumerate(payload.get("actions") or [], start=1):
+                        print(f"{i}. {action}")
+                grade_rank = {"A": 4, "B": 3, "C": 2, "D": 1}
+                fail_g = str(getattr(args, "fail_on_grade", "") or "").strip().upper()
+                if fail_g in grade_rank:
+                    got = str(payload.get("grade") or "D").strip().upper()
+                    if grade_rank.get(got, 0) <= grade_rank.get(fail_g, 0):
+                        return 2
                 return 0
             if args.memory_action == "nudge":
                 payload = _build_memory_nudge_payload(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -326,6 +327,7 @@ def evaluate_memory_entry_states(
             counts[st] += 1
     return {
         "schema_version": "memory_state_eval_v1",
+        "total_entries": len(annotated),
         "rows": annotated,
         "counts": counts,
         "warnings": warnings,
@@ -563,6 +565,203 @@ def extract_basic_instincts_from_session(session: dict[str, Any]) -> List[Instin
     )
     tags = ["auto", "session"]
     return [Instinct(title=title, body=body, tags=tags, confidence=0.5)]
+
+
+def _word_jaccard_similarity(a: str, b: str) -> float:
+    """简单词袋 Jaccard，用于冲突检测（与 backlog 的 n-gram 重叠同级近似）。"""
+    wa = set(re.findall(r"[\w\u4e00-\u9fff]+", (a or "").lower(), flags=re.UNICODE))
+    wb = set(re.findall(r"[\w\u4e00-\u9fff]+", (b or "").lower(), flags=re.UNICODE))
+    wa = {x for x in wa if len(x) >= 2}
+    wb = {x for x in wb if len(x) >= 2}
+    if not wa and not wb:
+        return 1.0
+    if not wa or not wb:
+        return 0.0
+    inter = len(wa & wb)
+    union = len(wa | wb)
+    return float(inter) / float(union) if union else 0.0
+
+
+def compute_memory_conflict_pairs(
+    entries: list[dict[str, Any]],
+    *,
+    threshold: float = 0.85,
+    max_pairs_returned: int = 3,
+    max_compare_entries: int = 400,
+) -> tuple[float, list[dict[str, Any]]]:
+    """返回 (conflict_rate, 最多 max_pairs_returned 对样例)。
+
+    conflict_rate = 超过阈值的条目对数 / max(1, 条目总数)（与 backlog 定义一致）。
+    为控制耗时，仅对按 ``created_at`` 最近的 ``max_compare_entries`` 条做全两两比较。
+    """
+    n_total = len(entries)
+    if n_total <= 1:
+        return 0.0, []
+
+    def created_key(row: dict[str, Any]) -> float:
+        return -_parse_created_at(row)
+
+    indexed = sorted(range(len(entries)), key=lambda i: created_key(entries[i]))
+    use_idx = indexed[: max(1, int(max_compare_entries))]
+    use_entries = [entries[i] for i in use_idx]
+    thr = max(0.0, min(1.0, float(threshold)))
+    conflict_pair_count = 0
+    sample: list[dict[str, Any]] = []
+    m = len(use_entries)
+    for i in range(m):
+        ti = str(use_entries[i].get("text", ""))
+        idi = str(use_entries[i].get("id", ""))
+        for j in range(i + 1, m):
+            tj = str(use_entries[j].get("text", ""))
+            idj = str(use_entries[j].get("id", ""))
+            sim = _word_jaccard_similarity(ti, tj)
+            if sim >= thr:
+                conflict_pair_count += 1
+                if len(sample) < max_pairs_returned:
+                    sample.append(
+                        {
+                            "id_a": idi,
+                            "id_b": idj,
+                            "similarity": round(sim, 4),
+                        },
+                    )
+    rate = float(conflict_pair_count) / float(max(1, n_total))
+    return rate, sample
+
+
+def build_memory_health_payload(
+    root: str | Path,
+    *,
+    days: int = 30,
+    freshness_days: int = 14,
+    session_pattern: str = ".cai-session*.json",
+    session_limit: int = 200,
+    conflict_threshold: float = 0.85,
+) -> dict[str, Any]:
+    """S2-01：综合记忆健康评分 JSON（schema_version 1.0）。"""
+    from cai_agent.session import list_session_files, load_session
+
+    root_path = Path(root).expanduser().resolve()
+    now = datetime.now(UTC)
+    since_sessions = now - timedelta(days=max(1, int(days)))
+    since_fresh = now - timedelta(days=max(1, int(freshness_days)))
+
+    entries, memory_warnings = load_memory_entries_validated(root_path)
+    session_paths = list_session_files(
+        cwd=str(root_path),
+        pattern=str(session_pattern),
+        limit=max(1, int(session_limit)),
+    )
+    recent_sessions: list[Path] = []
+    for p in session_paths:
+        try:
+            if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since_sessions:
+                recent_sessions.append(p)
+        except OSError:
+            continue
+
+    n_entries = len(entries)
+    fresh_count = 0
+    for row in entries:
+        ct = _parse_dt(row.get("created_at"))
+        if ct is not None and ct >= since_fresh:
+            fresh_count += 1
+    freshness = (float(fresh_count) / float(n_entries)) if n_entries else 0.0
+
+    covered = 0
+    for sp in recent_sessions:
+        try:
+            sess = load_session(str(sp))
+        except Exception:
+            continue
+        g = sess.get("goal") or ""
+        if not isinstance(g, str):
+            g = str(g)
+        gstrip = g.strip()
+        if len(gstrip) < 8:
+            continue
+        needle = gstrip[:120]
+        for row in entries:
+            if needle in str(row.get("text", "")):
+                covered += 1
+                break
+
+    n_recent = len(recent_sessions)
+    coverage = (float(covered) / float(n_recent)) if n_recent else 0.0
+
+    conflict_rate, conflict_pairs = compute_memory_conflict_pairs(
+        entries,
+        threshold=float(conflict_threshold),
+    )
+
+    warn_penalty = 0.0
+    if memory_warnings:
+        warn_penalty = min(0.35, 0.06 * len(memory_warnings))
+
+    dedup_component = max(0.0, 1.0 - min(1.0, conflict_rate * 3.0))
+    integrity_component = max(0.0, 1.0 - warn_penalty)
+
+    health_score = (
+        0.28 * freshness
+        + 0.34 * coverage
+        + 0.28 * dedup_component
+        + 0.10 * integrity_component
+    )
+    health_score = max(0.0, min(1.0, float(health_score)))
+
+    if n_entries == 0 and n_recent == 0:
+        health_score = 0.0
+
+    if health_score >= 0.8:
+        grade = "A"
+    elif health_score >= 0.65:
+        grade = "B"
+    elif health_score >= 0.45:
+        grade = "C"
+    else:
+        grade = "D"
+
+    actions: list[str] = []
+    if n_entries == 0 and n_recent > 0:
+        actions.append("近期有会话但尚无结构化记忆条目，建议执行 `cai-agent memory extract`")
+    if freshness < 0.3 and n_entries > 0:
+        actions.append("记忆条目偏旧，建议补充 extract 或检查是否需 prune 过期项")
+    if coverage < 0.4 and n_recent > 0:
+        actions.append("会话与记忆覆盖偏低，建议提高 extract 频率或检查条目是否与会话目标对齐")
+    if conflict_rate > 0.05:
+        actions.append("检测到可能重复或冲突的记忆文本，建议人工审阅并去重")
+    if memory_warnings:
+        actions.append("修复 memory/entries.jsonl 中的无效行以提升数据完整性")
+    if not actions:
+        actions.append("记忆健康度良好：保持定期 `memory extract` 与 `memory prune` 即可")
+
+    return {
+        "schema_version": "1.0",
+        "generated_at": now.isoformat(),
+        "window": {
+            "days": max(1, int(days)),
+            "since_sessions": since_sessions.isoformat(),
+            "freshness_days": max(1, int(freshness_days)),
+            "since_freshness": since_fresh.isoformat(),
+            "session_pattern": session_pattern,
+            "session_limit": max(1, int(session_limit)),
+        },
+        "counts": {
+            "memory_entries": n_entries,
+            "recent_sessions": n_recent,
+            "fresh_entries": fresh_count,
+            "sessions_with_memory_hit": covered,
+        },
+        "freshness": round(freshness, 4),
+        "coverage": round(coverage, 4),
+        "conflict_rate": round(conflict_rate, 6),
+        "conflict_pairs": conflict_pairs,
+        "conflict_threshold": float(max(0.0, min(1.0, float(conflict_threshold)))),
+        "memory_warnings": memory_warnings,
+        "health_score": round(health_score, 4),
+        "grade": grade,
+        "actions": actions,
+    }
 
 
 def extract_memory_entries_from_session(
