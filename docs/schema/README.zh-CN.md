@@ -289,6 +289,8 @@
 | `recall-index doctor --json` | **`recall_index_doctor_v1`**；不健康 exit `2` |
 | `recall-index` 性能脚本输出 | `recall_benchmark_v1`（见 `scripts/perf_recall_bench.py`） |
 
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`recall --json`**（**`1.3`**、`hits_total`=`0`、`no_hit_reason`）；另在空目录执行 **`recall-index doctor --json`**，断言 **exit `2`**、**`recall_index_doctor_v1`**、**`is_healthy`=`false`**、**`issues`** 含 **`index_file_missing`**（无索引文件的契约路径）。
+
 ---
 
 ## `schedule add` / `schedule list` / `schedule rm` / `schedule add-memory-nudge`（`--json`）

@@ -6,7 +6,8 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
 ``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
---json, recall --json, memory list/search/export-entries/export --json envelopes.
+--json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -481,6 +482,29 @@ def main() -> int:
                 errs.append(f"recall no_hit_reason missing: {ro!r}")
             if not isinstance(ro.get("results"), list):
                 errs.append("recall results not list")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-idx-doc-") as rid_td:
+        prd = _run(
+            [*cli, "recall-index", "doctor", "--json"],
+            cwd=rid_td,
+        )
+        if prd.returncode != 2:
+            errs.append(f"recall-index doctor (no index) exit {prd.returncode} want 2")
+        else:
+            try:
+                djo = json.loads((prd.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"recall-index doctor json parse: {e}")
+            else:
+                if djo.get("schema_version") != "recall_index_doctor_v1":
+                    errs.append(
+                        f"recall-index doctor schema_version {djo.get('schema_version')!r}",
+                    )
+                if djo.get("is_healthy") is not False:
+                    errs.append(f"recall-index doctor is_healthy: {djo!r}")
+                issues = djo.get("issues") or []
+                if not isinstance(issues, list) or "index_file_missing" not in issues:
+                    errs.append(f"recall-index doctor issues want index_file_missing: {issues!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-memory-") as mem_td:
         pm = _run([*cli, "memory", "list", "--json", "--limit", "5"], cwd=mem_td)
