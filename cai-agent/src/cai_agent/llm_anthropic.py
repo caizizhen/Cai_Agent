@@ -170,8 +170,9 @@ def chat_completion(
     last: httpx.Response | None = None
     data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
-    with httpx.Client(**client_kwargs) as client:
-        for attempt in range(5):
+    # Fresh Client per attempt so a broken pooled connection is not reused.
+    for attempt in range(5):
+        with httpx.Client(**client_kwargs) as client:
             try:
                 last = client.post(url, json=payload, headers=headers)
                 last_transport_exc = None
