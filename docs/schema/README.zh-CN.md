@@ -77,6 +77,8 @@
 
 **Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`。
 
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`plugins --json`**，断言 **`plugins_surface_v1`** 与 **`components`**。
+
 ---
 
 ## `commands` / `agents` / `--json`
@@ -233,6 +235,8 @@
 
 **Exit**：`list`：`hooks.json` 缺失或文档无效时，**文本模式与 `--json` 均为 `2`**。`run-event`：见各分支（缺文件等 `2`）。
 
+**冒烟**：`scripts/smoke_new_features.py` 在隔离临时目录写入最小 **`cai-agent.toml`** + **`hooks/hooks.json`**，执行 **`hooks list --json`**，断言 **`hooks_catalog_v1`** 与非空 **`hooks[]`**。
+
 ---
 
 ## `quality-gate` / `security-scan`（`--json`）
@@ -259,6 +263,8 @@
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
+
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**，断言根对象 **`schema_version`=`1.0`**、**`grade`**（A–D）与数值型 **`health_score`**。
 
 ---
 

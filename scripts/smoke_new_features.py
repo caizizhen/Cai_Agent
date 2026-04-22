@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
-Covers plan/run/stats/sessions/observe/commands/agents/cost budget and, in a
-temporary cwd, init --json, schedule add + list + rm + stats --json envelopes,
-gateway telegram list --json, recall --json (empty workspace), memory
-list/search/export-entries/export --json envelopes.
+Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
+``plugins --json`` (``plugins_surface_v1``), temp-dir ``hooks list --json``
+(``hooks_catalog_v1``) and ``memory health --json`` (S2-01 schema ``1.0``),
+plus init --json, schedule add + list + rm + stats --json, gateway telegram
+list --json, recall --json (empty workspace), memory list/search/export-entries
+/export --json envelopes.
 
 Run from repository root:
   python scripts/smoke_new_features.py
@@ -171,6 +173,84 @@ def main() -> int:
             errs.append(f"agents json schema_version {o.get('schema_version')!r}")
         if "agents" not in o or not isinstance(o.get("agents"), list):
             errs.append(f"agents json envelope: {o!r}")
+
+    cfg_repo = root / "cai-agent.toml"
+    if not cfg_repo.is_file():
+        errs.append("smoke expects repo-root cai-agent.toml for plugins --json")
+    else:
+        pp = _run(
+            [*cli, "plugins", "--json", "--config", str(cfg_repo)],
+            cwd=str(root),
+        )
+        if pp.returncode != 0:
+            errs.append(f"plugins json exit {pp.returncode} stderr={pp.stderr!r}")
+        else:
+            po = json.loads((pp.stdout or "").strip())
+            if po.get("schema_version") != "plugins_surface_v1":
+                errs.append(f"plugins schema_version {po.get('schema_version')!r}")
+            comps = po.get("components")
+            if not isinstance(comps, dict):
+                errs.append("plugins components not object")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-hooks-") as hk_td:
+        hp = Path(hk_td)
+        (hp / "hooks").mkdir(parents=True, exist_ok=True)
+        (hp / "cai-agent.toml").write_text(
+            '[llm]\nbase_url = "http://127.0.0.1:1/v1"\nmodel = "m"\napi_key = "k"\n',
+            encoding="utf-8",
+        )
+        (hp / "hooks" / "hooks.json").write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "hooks": [
+                        {
+                            "id": "smoke-hook-1",
+                            "event": "observe_start",
+                            "enabled": True,
+                            "command": [sys.executable, "-c", "print(1)"],
+                        },
+                    ],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        ph = _run(
+            [
+                *cli,
+                "hooks",
+                "--config",
+                str(hp / "cai-agent.toml"),
+                "list",
+                "--json",
+            ],
+            cwd=str(hp),
+        )
+        if ph.returncode != 0:
+            errs.append(f"hooks list json exit {ph.returncode} stderr={ph.stderr!r}")
+        else:
+            ho = json.loads((ph.stdout or "").strip())
+            if ho.get("schema_version") != "hooks_catalog_v1":
+                errs.append(f"hooks list schema_version {ho.get('schema_version')!r}")
+            rows = ho.get("hooks")
+            if not isinstance(rows, list) or not rows:
+                errs.append("hooks list hooks not non-empty list")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-memhealth-") as mh_td:
+        pmh = _run([*cli, "memory", "health", "--json"], cwd=mh_td)
+        if pmh.returncode != 0:
+            errs.append(f"memory health json exit {pmh.returncode} stderr={pmh.stderr!r}")
+        else:
+            mh = json.loads((pmh.stdout or "").strip())
+            if mh.get("schema_version") != "1.0":
+                errs.append(f"memory health schema_version {mh.get('schema_version')!r}")
+            gr = mh.get("grade")
+            if gr not in ("A", "B", "C", "D"):
+                errs.append(f"memory health grade {gr!r}")
+            hs = mh.get("health_score")
+            if not isinstance(hs, int | float):
+                errs.append(f"memory health health_score not numeric: {hs!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)
