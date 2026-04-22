@@ -85,6 +85,17 @@ def main() -> int:
         if not isinstance(ev, list) or len(ev) < 1:
             errs.append(f"run events: {ev!r}")
 
+    p = _run([exe, "cost", "budget"])
+    if p.returncode not in (0, 2):
+        errs.append(f"cost budget exit {p.returncode}")
+    else:
+        o = json.loads((p.stdout or "").strip())
+        if o.get("schema_version") != "cost_budget_v1":
+            errs.append(f"cost budget schema_version {o.get('schema_version')!r}")
+        for k in ("state", "total_tokens", "max_tokens"):
+            if k not in o:
+                errs.append(f"cost budget missing {k}")
+
     p = _run([exe, "stats", "--json"])
     if p.returncode != 0:
         errs.append(f"stats exit {p.returncode}")

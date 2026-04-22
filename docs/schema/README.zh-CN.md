@@ -116,6 +116,25 @@
 
 ---
 
+## `cost` / `cost budget`（单行 JSON，无 `--json` 开关）
+
+- **实现**：`__main__.py` `cost budget` 分支；聚合 `aggregate_sessions`（默认 `limit=200`）的 **`total_tokens`** 与配置 **`max_tokens`**（CLI **`--max-tokens`** 或 **`[cost] budget_max_tokens`**）。
+- **`schema_version`**：`cost_budget_v1`
+- **字段**：`state`（`pass` / `warn` / `fail`：`total_tokens > max_tokens` 为 `fail`；`> 0.8 * max_tokens` 为 `warn`）、`total_tokens`、`max_tokens`
+
+**Exit**：`state == fail` → **`2`**；`pass` / `warn` → **`0`**。
+
+---
+
+## `release-ga` / `release-ga --json`
+
+- **实现**：`_run_release_ga_gate`
+- **`schema_version`**：`release_ga_gate_v1`；含 `generated_at`、`workspace`、`ok`、`state`（`pass`/`fail`）、`checks_passed` / `checks_failed`、`failed_checks`、`failure_rate`、`total_tokens`、`checks[]`、`aggregates` 等。
+
+**Exit**：`ok == false`（任一子检查失败）→ **`2`**；否则 **`0`**。
+
+---
+
 ## `run` / `continue` / `command` / `agent` / `fix-build`（`--json`）
 
 - **实现**：`__main__.py` 共享 `invoke` 路径

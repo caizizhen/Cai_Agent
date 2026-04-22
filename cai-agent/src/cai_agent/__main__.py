@@ -6274,6 +6274,7 @@ def main(argv: list[str] | None = None) -> int:
                 elif total_tokens > int(max_tokens * 0.8):
                     state = "warn"
                 payload = {
+                    "schema_version": "cost_budget_v1",
                     "state": state,
                     "total_tokens": total_tokens,
                     "max_tokens": max_tokens,

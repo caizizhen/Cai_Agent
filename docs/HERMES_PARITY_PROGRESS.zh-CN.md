@@ -51,13 +51,13 @@
 
 ### S1-03 错误码规范（补齐剩余命令）
 
-- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、`models ping`（`--fail-on-any-error` → exit `2`）、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
+- **现状**：`memory nudge`、`recall`、`memory health`（`--fail-on-grade`）、`observe`（`--fail-on-max-failure-rate`）、`observe-report`（`state=fail` 或 `--fail-on-warn`）、`release-ga`、`cost budget`（JSON **`cost_budget_v1`**；超预算 exit `2`）、`schedule stats`（`--fail-on-min-success-rate`）、`insights`（`--fail-on-max-failure-rate`）、`board`（`--fail-on-failed-sessions`）、`plugins`（`--fail-on-min-health`）、`workflow`（`--fail-on-step-errors`）、`doctor`（`--fail-on-missing-api-key`，`--json` 负载 `doctor_v1`）、`models ping`（`--fail-on-any-error` → exit `2`）、`hooks list --json`（catalog 错误 exit `2`）等已支持可预测的 exit 语义；其余子命令仍按需补齐
 - **需要**：所有新 Sprint 命令必须同步实现 exit 0/2 语义
 - **QA**：随每个新命令提测时同步验证
 
 ### S1-02 JSON schema 文档（需补文档）
 
-- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / `init` / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
+- **现状**：`docs/schema/README.zh-CN.md` 已内联 observe / observe-report / insights / board / plugins（**`plugins_surface_v1`**）/ commands（**`commands_list_v1`**）/ agents（**`agents_list_v1`**）/ **`mcp-check`（`mcp_check_result_v1`）** / **`sessions`（`sessions_list_v1`）** / **`stats`** / **`run`/`continue`/`command`/`agent`/`fix-build`** / **`export`（`export_cli_v1`）** / **`cost budget`（`cost_budget_v1`）** / `init` / workflow / doctor / plan / models（**含 `models ping` → `models_ping_v1`**、**`models fetch` → `models_fetch_v1`**）/ hooks / **quality-gate / security-scan** / **`release-ga`（`release_ga_gate_v1`）** / memory / recall 摘要；`SCHEDULE_*` 仍为独立文档；破坏性变更时同步 README 与 SCHEDULE 两路径
 - **需要**：每个命令一份 schema 描述（字段/类型/版本）
 - **QA**：文档验证 + 契约测试
 

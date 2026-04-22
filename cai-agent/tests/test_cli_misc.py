@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from cai_agent.__main__ import main
 
@@ -200,6 +201,42 @@ class CommandsAgentsJsonTests(unittest.TestCase):
         o = json.loads(buf.getvalue().strip())
         self.assertEqual(o.get("schema_version"), "agents_list_v1")
         self.assertEqual(o.get("agents"), ["coder"])
+
+
+class CostBudgetCliTests(unittest.TestCase):
+    def test_cost_budget_json_has_schema_version(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://x/v1"\nmodel = "m"\napi_key = "k"\n'
+                "[cost]\nbudget_max_tokens = 1000\n",
+                encoding="utf-8",
+            )
+            prev = os.environ.get("CAI_CONFIG")
+            try:
+                os.environ["CAI_CONFIG"] = str(cfg)
+                buf = io.StringIO()
+                with (
+                    patch("cai_agent.__main__.os.getcwd", return_value=str(root)),
+                    patch(
+                        "cai_agent.__main__.aggregate_sessions",
+                        return_value={"total_tokens": 100},
+                    ),
+                ):
+                    with redirect_stdout(buf):
+                        rc = main(["cost", "budget"])
+            finally:
+                if prev is None:
+                    os.environ.pop("CAI_CONFIG", None)
+                else:
+                    os.environ["CAI_CONFIG"] = prev
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "cost_budget_v1")
+            self.assertEqual(payload.get("state"), "pass")
+            self.assertEqual(payload.get("total_tokens"), 100)
+            self.assertEqual(payload.get("max_tokens"), 1000)
 
 
 class ExportCliTests(unittest.TestCase):
