@@ -13,22 +13,27 @@ from cai_agent.http_trust import effective_http_trust_env
 
 _RETRYABLE_STATUS = frozenset({429, 502, 503, 504})
 
-_DEFAULT_LLM_MAX_RETRIES = 20
 
-
-def llm_max_retries() -> int:
+def llm_max_retries(settings: Settings | Any | None = None) -> int:
     """Max HTTP attempts per ``chat_completion`` (including the first try).
 
-    Env ``CAI_LLM_MAX_RETRIES``: unset or empty → 20; invalid → 20; clamped to 1..50.
+    Priority:
+
+    1. Env ``CAI_LLM_MAX_RETRIES`` if set and parseable as int (clamped 1..100).
+    2. ``settings.llm_max_http_retries`` from TOML ``[llm].max_http_retries`` (via
+       :class:`cai_agent.config.Settings`), clamped 1..100.
+    3. Default **50** when settings omit the field (e.g. tests with a stub object).
     """
     raw = os.getenv("CAI_LLM_MAX_RETRIES", "").strip()
-    if not raw:
-        return _DEFAULT_LLM_MAX_RETRIES
-    try:
-        n = int(raw, 10)
-    except ValueError:
-        return _DEFAULT_LLM_MAX_RETRIES
-    return max(1, min(50, n))
+    if raw:
+        try:
+            return max(1, min(100, int(raw, 10)))
+        except ValueError:
+            pass
+    v = getattr(settings, "llm_max_http_retries", None) if settings is not None else None
+    if isinstance(v, int) and not isinstance(v, bool):
+        return max(1, min(100, v))
+    return 50
 
 
 _USAGE_PROMPT_TOKENS = 0
@@ -210,7 +215,7 @@ def chat_completion(settings: Settings, messages: list[dict[str, Any]]) -> str:
     last: httpx.Response | None = None
     data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
-    max_retries = llm_max_retries()
+    max_retries = llm_max_retries(settings)
     last_attempt = max_retries - 1
     # Fresh Client per attempt so a broken connection from llama.cpp
     # ("Channel Error") is not reused from the pool on retry.

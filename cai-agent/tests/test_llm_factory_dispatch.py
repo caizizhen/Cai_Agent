@@ -51,6 +51,7 @@ class _MockSettings:
     anthropic_max_tokens: int
     context_window: int = 8192
     context_window_source: str = "llm"
+    llm_max_http_retries: int = 50
 
 
 _ANTHROPIC_P = Profile(
@@ -117,6 +118,7 @@ def _make_settings(
         anthropic_max_tokens=int(active_profile.max_tokens or 4096),
         context_window=cw,
         context_window_source=cws,
+        llm_max_http_retries=50,
     )
 
 

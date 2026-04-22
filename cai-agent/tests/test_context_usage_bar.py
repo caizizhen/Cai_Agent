@@ -170,6 +170,7 @@ class LastUsageSnapshotTests(unittest.TestCase):
             api_key = "k"
             temperature = 0.2
             llm_timeout_sec = 30.0
+            llm_max_http_retries = 50
             http_trust_env = False
             mock = False
 
@@ -231,6 +232,7 @@ class LastUsageSnapshotTests(unittest.TestCase):
             api_key = "k"
             temperature = 0.2
             llm_timeout_sec = 30.0
+            llm_max_http_retries = 50
             http_trust_env = False
             mock = False
             anthropic_version = "2023-06-01"

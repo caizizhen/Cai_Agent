@@ -205,6 +205,8 @@ class Settings:
     mock: bool
     temperature: float
     llm_timeout_sec: float
+    # 单次 chat_completion 的 HTTP 尝试总次数（含首次）；[llm].max_http_retries，CAI_LLM_MAX_RETRIES 优先。
+    llm_max_http_retries: int
     project_context: bool
     git_context: bool
     mcp_enabled: bool
@@ -389,6 +391,29 @@ class Settings:
 
         llm_timeout_sec = _float_env("LM_TIMEOUT", ("llm", "timeout_sec"), 120.0)
         llm_timeout_sec = max(5.0, min(3600.0, llm_timeout_sec))
+
+        rmr = llm.get("max_http_retries")
+        if isinstance(rmr, bool):
+            llm_max_http_retries_toml = 50
+        elif isinstance(rmr, int) and not isinstance(rmr, bool):
+            llm_max_http_retries_toml = int(rmr)
+        elif isinstance(rmr, float) and rmr > 0:
+            llm_max_http_retries_toml = int(rmr)
+        elif isinstance(rmr, str) and rmr.strip().isdigit():
+            llm_max_http_retries_toml = int(rmr.strip(), 10)
+        else:
+            llm_max_http_retries_toml = 50
+        llm_max_http_retries_toml = max(1, min(100, llm_max_http_retries_toml))
+
+        raw_llm_retries_env = os.getenv("CAI_LLM_MAX_RETRIES")
+        if raw_llm_retries_env is not None and str(raw_llm_retries_env).strip():
+            try:
+                llm_max_http_retries = int(str(raw_llm_retries_env).strip(), 10)
+            except ValueError:
+                llm_max_http_retries = llm_max_http_retries_toml
+        else:
+            llm_max_http_retries = llm_max_http_retries_toml
+        llm_max_http_retries = max(1, min(100, llm_max_http_retries))
 
         pc = _optional_env_bool("CAI_PROJECT_CONTEXT")
         if pc is not None:
@@ -716,6 +741,7 @@ class Settings:
             mock=mock,
             temperature=temperature,
             llm_timeout_sec=llm_timeout_sec,
+            llm_max_http_retries=llm_max_http_retries,
             project_context=project_context,
             git_context=git_context,
             mcp_enabled=mcp_enabled,

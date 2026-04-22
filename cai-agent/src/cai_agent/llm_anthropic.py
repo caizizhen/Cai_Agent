@@ -1,8 +1,9 @@
 """Anthropic `/v1/messages` 原生适配器（M10 骨架）。
 
 契约与 ``cai_agent.llm.chat_completion`` 对齐：同签名、**共用** 该模块的 token
-usage 计数器（避免多套统计口径），同 retry 表（429/502/503/504）及
-``CAI_LLM_MAX_RETRIES``（见 ``cai_agent.llm.llm_max_retries``）。差异处：
+usage 计数器（避免多套统计口径），同 retry 表（429/502/503/504）及重试次数
+（``settings.llm_max_http_retries`` / ``[llm].max_http_retries``，``CAI_LLM_MAX_RETRIES``
+优先；见 ``cai_agent.llm.llm_max_retries``）。差异处：
 
 - 请求 URL：``{base_url}/v1/messages``；若 ``base_url`` 已含 `/v1` 后缀会自动修剪。
 - Headers：``x-api-key``、``anthropic-version``、``content-type``。
@@ -171,7 +172,7 @@ def chat_completion(
     last: httpx.Response | None = None
     data: dict[str, Any] | None = None
     last_transport_exc: Exception | None = None
-    max_retries = _usage_mod.llm_max_retries()
+    max_retries = _usage_mod.llm_max_retries(settings)
     last_attempt = max_retries - 1
     # Fresh Client per attempt so a broken pooled connection is not reused.
     for attempt in range(max_retries):

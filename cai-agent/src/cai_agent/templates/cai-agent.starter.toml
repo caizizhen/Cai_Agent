@@ -12,6 +12,8 @@ api_key = "lm-studio"
 http_trust_env = false
 temperature = 0.2
 timeout_sec = 120
+# 单次 chat_completion 的 HTTP 尝试总次数（含首次；传输错误/429/502/503/504/坏 JSON 时重试）
+max_http_retries = 50
 
 [copilot]
 # base_url = "http://localhost:4141/v1"

@@ -7,8 +7,9 @@ drops the TCP connection mid-request. These errors surface as
 
 Before this fix, a single ``httpx.TransportError`` propagated unhandled all
 the way up and crashed the agent. After the fix:
-- The retry loop retries up to ``CAI_LLM_MAX_RETRIES`` attempts (default 20)
-  with exponential backoff.
+- The retry count comes from ``[llm].max_http_retries`` / ``Settings.llm_max_http_retries``
+  (default 50), overridable by env ``CAI_LLM_MAX_RETRIES`` (1..100).
+- The retry loop uses that cap with exponential backoff.
 - If the error clears before the last attempt the call succeeds normally.
 - If all attempts fail, a descriptive ``RuntimeError`` is raised (which is
   then caught by ``graph.llm_node`` and turned into a graceful agent error).
@@ -17,7 +18,9 @@ the way up and crashed the agent. After the fix:
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
+from pathlib import Path
 from dataclasses import dataclass
 from types import SimpleNamespace
 from typing import Any
@@ -27,6 +30,7 @@ import httpx
 
 from cai_agent import llm as llm_mod
 from cai_agent import llm_anthropic
+from cai_agent.config import Settings
 
 
 @dataclass
@@ -36,6 +40,7 @@ class _OAISettings:
     api_key: str = "test-key"
     temperature: float = 0.2
     llm_timeout_sec: float = 30.0
+    llm_max_http_retries: int = 50
     http_trust_env: bool = False
     mock: bool = False
 
@@ -48,6 +53,7 @@ def _make_anthropic_settings(**overrides: Any) -> SimpleNamespace:
         "api_key": "test-anthropic-key",
         "temperature": 0.2,
         "llm_timeout_sec": 30.0,
+        "llm_max_http_retries": 50,
         "http_trust_env": False,
         "mock": False,
         "anthropic_version": "2023-06-01",
@@ -132,7 +138,7 @@ class OpenAICompatTransportErrorRetryTests(unittest.TestCase):
                     _OAISettings(),
                     [{"role": "user", "content": "ping"}],
                 )
-        self.assertEqual(calls["n"], llm_mod.llm_max_retries())
+        self.assertEqual(calls["n"], llm_mod.llm_max_retries(_OAISettings()))
         self.assertIn("传输层错误", str(ctx.exception))
 
     def test_read_error_is_also_retried(self) -> None:
@@ -225,7 +231,7 @@ class AnthropicTransportErrorRetryTests(unittest.TestCase):
                     [{"role": "user", "content": "ping"}],
                     transport=_AlwaysFailTransport(),
                 )
-        self.assertEqual(calls["n"], llm_mod.llm_max_retries())
+        self.assertEqual(calls["n"], llm_mod.llm_max_retries(_make_anthropic_settings()))
         self.assertIn("传输层错误", str(ctx.exception))
 
     def test_invalid_json_response_is_retried_then_succeeds(self) -> None:
@@ -249,28 +255,46 @@ class AnthropicTransportErrorRetryTests(unittest.TestCase):
 
 
 class LlmMaxRetriesEnvTests(unittest.TestCase):
-    """``CAI_LLM_MAX_RETRIES`` controls total HTTP attempts in LLM adapters."""
+    """Retry cap: TOML ``[llm].max_http_retries`` / env ``CAI_LLM_MAX_RETRIES``."""
 
     def tearDown(self) -> None:
         os.environ.pop("CAI_LLM_MAX_RETRIES", None)
 
-    def test_llm_max_retries_default(self) -> None:
+    def test_llm_max_retries_default_no_settings(self) -> None:
         os.environ.pop("CAI_LLM_MAX_RETRIES", None)
-        self.assertEqual(llm_mod.llm_max_retries(), 20)
+        self.assertEqual(llm_mod.llm_max_retries(None), 50)
 
-    def test_llm_max_retries_from_env(self) -> None:
+    def test_llm_max_retries_from_settings(self) -> None:
+        os.environ.pop("CAI_LLM_MAX_RETRIES", None)
+        self.assertEqual(llm_mod.llm_max_retries(_OAISettings(llm_max_http_retries=12)), 12)
+
+    def test_llm_max_retries_from_env_overrides_settings(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "8"
-        self.assertEqual(llm_mod.llm_max_retries(), 8)
+        self.assertEqual(llm_mod.llm_max_retries(_OAISettings(llm_max_http_retries=99)), 8)
 
-    def test_llm_max_retries_invalid_falls_back(self) -> None:
+    def test_llm_max_retries_invalid_env_falls_back_to_settings(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "not-a-number"
-        self.assertEqual(llm_mod.llm_max_retries(), 20)
+        self.assertEqual(llm_mod.llm_max_retries(_OAISettings(llm_max_http_retries=7)), 7)
+
+    def test_settings_from_toml_max_http_retries(self) -> None:
+        os.environ.pop("CAI_LLM_MAX_RETRIES", None)
+        with tempfile.TemporaryDirectory() as tmp:
+            cfg = Path(tmp) / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nprovider = "openai_compatible"\n'
+                'base_url = "http://127.0.0.1:9/v1"\nmodel = "m"\n'
+                'api_key = "k"\nmax_http_retries = 33\n',
+                encoding="utf-8",
+            )
+            s = Settings.from_env(config_path=str(cfg))
+            self.assertEqual(s.llm_max_http_retries, 33)
+            self.assertEqual(llm_mod.llm_max_retries(s), 33)
 
     def test_llm_max_retries_clamped(self) -> None:
         os.environ["CAI_LLM_MAX_RETRIES"] = "0"
-        self.assertEqual(llm_mod.llm_max_retries(), 1)
-        os.environ["CAI_LLM_MAX_RETRIES"] = "99"
-        self.assertEqual(llm_mod.llm_max_retries(), 50)
+        self.assertEqual(llm_mod.llm_max_retries(_OAISettings()), 1)
+        os.environ["CAI_LLM_MAX_RETRIES"] = "150"
+        self.assertEqual(llm_mod.llm_max_retries(_OAISettings()), 100)
 
     def test_transport_errors_respect_env_retry_count(self) -> None:
         """3 attempts when CAI_LLM_MAX_RETRIES=3."""

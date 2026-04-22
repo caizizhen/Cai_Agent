@@ -26,6 +26,7 @@ class _OAISettings:
     api_key: str = "lm-studio"
     temperature: float = 0.2
     llm_timeout_sec: float = 30.0
+    llm_max_http_retries: int = 50
     http_trust_env: bool = False
     mock: bool = False
 
@@ -212,6 +213,7 @@ class AnthropicEmptyContentTests(unittest.TestCase):
             api_key: str = "test"
             temperature: float = 0.2
             llm_timeout_sec: float = 30.0
+            llm_max_http_retries: int = 50
             http_trust_env: bool = False
             mock: bool = False
             anthropic_version: str = "2023-06-01"
