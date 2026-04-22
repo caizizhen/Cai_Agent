@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import io
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
+from cai_agent.__main__ import main
 from cai_agent.session import build_observe_payload, save_session
 
 
@@ -78,3 +82,42 @@ class SessionObserveAggregationTests(unittest.TestCase):
             obs = build_observe_payload(cwd=td, pattern=".cai-session*.json", limit=10)
             sess = (obs.get("sessions") or [])[0]
             self.assertIsNone(sess.get("task_id"))
+
+    def test_observe_cli_fail_on_max_failure_rate(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            save_session(
+                str(root / ".cai-session-a.json"),
+                {
+                    "version": 2,
+                    "elapsed_ms": 1,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "error_count": 1,
+                    "events": [],
+                },
+            )
+            save_session(
+                str(root / ".cai-session-b.json"),
+                {
+                    "version": 2,
+                    "elapsed_ms": 1,
+                    "total_tokens": 1,
+                    "prompt_tokens": 1,
+                    "completion_tokens": 0,
+                    "error_count": 0,
+                    "events": [],
+                },
+            )
+            buf_ok = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_ok):
+                    rc0 = main(["observe", "--json", "--fail-on-max-failure-rate", "0.6"])
+            self.assertEqual(rc0, 0)
+
+            buf_bad = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_bad):
+                    rc2 = main(["observe", "--json", "--fail-on-max-failure-rate", "0.5"])
+            self.assertEqual(rc2, 2)

@@ -3867,6 +3867,13 @@ def main(argv: list[str] | None = None) -> int:
     obs_p = sub.add_parser("observe", help="输出可观测聚合 JSON")
     obs_p.add_argument("--pattern", default=".cai-session*.json")
     obs_p.add_argument("--limit", type=int, default=100)
+    obs_p.add_argument(
+        "--fail-on-max-failure-rate",
+        type=float,
+        default=None,
+        metavar="RATE",
+        help="可选：aggregates.failure_rate >= RATE（0~1）时 exit 2，与 insights 语义一致",
+    )
     obs_p.add_argument("--json", action="store_true", dest="json_output")
 
     obs_report_p = sub.add_parser("observe-report", help="基于 observe 生成告警与报表摘要")
@@ -6238,6 +6245,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "observe":
         settings_obs = Settings.from_env(config_path=None)
         obs_json = bool(getattr(args, "json_output", False))
+        obs_payload: dict[str, Any] | None = None
         _print_hook_status(
             settings_obs,
             event="observe_start",
@@ -6248,17 +6256,17 @@ def main(argv: list[str] | None = None) -> int:
             },
         )
         try:
-            obs = build_observe_payload(
+            obs_payload = build_observe_payload(
                 cwd=os.getcwd(),
                 pattern=str(args.pattern),
                 limit=int(args.limit),
             )
             if args.json_output:
-                print(json.dumps(obs, ensure_ascii=False))
+                print(json.dumps(obs_payload, ensure_ascii=False))
             else:
-                ag = obs.get("aggregates") if isinstance(obs.get("aggregates"), dict) else {}
+                ag = obs_payload.get("aggregates") if isinstance(obs_payload.get("aggregates"), dict) else {}
                 print(
-                    f"schema={obs.get('schema_version')} sessions={obs.get('sessions_count')} "
+                    f"schema={obs_payload.get('schema_version')} sessions={obs_payload.get('sessions_count')} "
                     f"failed={ag.get('failed_count')} tokens={ag.get('total_tokens')} "
                     f"run_events_total={ag.get('run_events_total', 0)}",
                 )
@@ -6272,6 +6280,12 @@ def main(argv: list[str] | None = None) -> int:
                     "limit": int(args.limit),
                 },
             )
+        mx_obs = getattr(args, "fail_on_max_failure_rate", None)
+        if obs_payload is not None and isinstance(mx_obs, (int, float)):
+            agx = obs_payload.get("aggregates") if isinstance(obs_payload.get("aggregates"), dict) else {}
+            frx = float(agx.get("failure_rate") or 0.0)
+            if frx + 1e-12 >= float(mx_obs):
+                return 2
         return 0
 
     if args.command == "observe-report":

@@ -1,5 +1,7 @@
 # `cai-agent schedule stats --json`（S4-05）
 
+> **Exit / 其它命令 JSON 索引**：见同目录 [`README.zh-CN.md`](README.zh-CN.md)（`observe` / `insights` / `board` / `memory` / `recall` 等）。
+
 ## 用途
 
 从 **`.cai-schedule-audit.jsonl`**（可用 `--audit-file` 覆盖）读取 S4-04 格式行，在 **`--days`** 时间窗内（按每行 `ts`）聚合每个 **`task_id`** 的执行结果与耗时分布。

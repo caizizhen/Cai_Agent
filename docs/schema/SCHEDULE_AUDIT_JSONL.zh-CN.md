@@ -2,6 +2,8 @@
 
 > 文件：工作区根目录 **`.cai-schedule-audit.jsonl`**；`cai-agent schedule daemon --jsonl-log <path>` 时，**同一行格式**会镜像追加到指定路径（与审计文件并行写入）。
 
+其它 CLI JSON 契约与 exit 约定见同目录 [`README.zh-CN.md`](README.zh-CN.md)。
+
 ## 版本
 
 - 每行 JSON 含 **`schema_version`**：当前为 **`1.0`**。
