@@ -41,6 +41,10 @@ class WorkflowCliTests(unittest.TestCase):
                 self.assertIn("events", payload)
                 self.assertTrue(isinstance(payload["events"], list))
                 self.assertIn("task", payload)
+                self.assertEqual(
+                    str(payload.get("task_id") or "").strip(),
+                    str((payload.get("task") or {}).get("task_id") or "").strip(),
+                )
                 self.assertEqual(payload["task"].get("type"), "workflow")
                 for ev in payload.get("events") or []:
                     self.assertEqual(ev.get("task_id"), payload["task"].get("task_id"))

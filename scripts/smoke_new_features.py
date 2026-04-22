@@ -8,6 +8,7 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
+``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``),
 memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
@@ -121,6 +122,25 @@ def main() -> int:
         ntid = str((td or {}).get("task_id") or "").strip()
         if not tid or tid != ntid:
             errs.append(f"run json task_id mismatch top={tid!r} nested={ntid!r}")
+
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-wf-") as wf_td:
+        wfp = Path(wf_td) / "smoke-workflow.json"
+        wfp.write_text(
+            json.dumps({"steps": [{"name": "smoke-wf", "goal": "smoke workflow task_id"}]}),
+            encoding="utf-8",
+        )
+        pw = _run([*cli, "workflow", str(wfp), "--json"], cwd=wf_td, env=env)
+        if pw.returncode != 0:
+            errs.append(f"workflow mock exit {pw.returncode} stderr={pw.stderr!r}")
+        else:
+            wo = json.loads((pw.stdout or "").strip())
+            if wo.get("schema_version") != "workflow_run_v1":
+                errs.append(f"workflow schema_version {wo.get('schema_version')!r}")
+            wtid = str(wo.get("task_id") or "").strip()
+            wtd = wo.get("task") if isinstance(wo.get("task"), dict) else {}
+            wnt = str((wtd or {}).get("task_id") or "").strip()
+            if not wtid or wtid != wnt:
+                errs.append(f"workflow json task_id mismatch top={wtid!r} nested={wnt!r}")
 
     p = _run([*cli, "cost", "budget"])
     if p.returncode not in (0, 2):

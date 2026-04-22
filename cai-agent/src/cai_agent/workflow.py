@@ -423,6 +423,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     )
     return {
         "schema_version": "workflow_run_v1",
+        "task_id": wf_task.task_id,
         "task": wf_task.to_dict(),
         "subagent_io_schema_version": "1.0",
         "subagent_io": subagent_io,

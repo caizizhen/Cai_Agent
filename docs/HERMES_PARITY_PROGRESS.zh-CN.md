@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 19     | 56%      |
+| ✅ 已完成        | 21     | 62%      |
 | ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 15     | 44%      |
+| ❌ 未开发        | 13     | 38%      |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **19/34 ≈ 56%**（较上版 **+5.9pp**）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **21/34 ≈ 62%**（较上一统计周期 **+5.9pp**）。
 
 ---
 
@@ -46,6 +46,8 @@
 | **S4-03**   | 任务依赖链与环检测 | `add_schedule_task` 写入前检测 `depends_on` 有向环（含自环），拒绝并 `ValueError`；`schedule add` 失败 **exit 2**，`--json` 输出 `schedule_add_invalid`；`schedule list` 文本列 **`deps` / `dep_blocked` / `dependents` / `dep_chain`**；`--json` 每行增加 **`depends_on_status`**、**`dependency_blocked`**、**`dependents`**、**`depends_on_chain`**（不落盘）；`tests/test_schedule_depends_s4_03.py` |
 | **S4-04**   | 调度审计 JSONL 统一 schema | `.cai-schedule-audit.jsonl` 与 `daemon --jsonl-log` **同行结构**：`schema_version=1.0`、`event` ∈ `task.started` / `task.completed` / `task.failed` / `task.retrying` / `task.skipped` / `daemon.cycle` / `daemon.started`，以及 `task_id`、`goal_preview`、`elapsed_ms`、`error`、`status`、`action`、`details`；`run-due --execute` 增加 **task.started**；文档 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**；`tests/test_schedule_audit_schema_s4_04.py` |
 | **S4-05**   | `schedule stats` SLA 聚合 | **`cai-agent schedule stats [--days N] [--audit-file PATH] [--json]`**；`schema_version=schedule_stats_v1`；每任务 **`run_count`** / **`success_count`** / **`fail_count`** / **`success_rate`** / **`avg_elapsed_ms`** / **`p95_elapsed_ms`**；兼容无 `event` 的旧审计行；文档 **`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`**；`tests/test_schedule_stats_cli.py` |
+| **S5-01**   | workflow `parallel_group` 字段 | 同名字符串步骤同批调度；`summary.parallel_groups_count` / `parallel_steps_count`；`tests/test_cli_workflow.py::test_workflow_parallel_group_emits_group_summary` |
+| **S5-02**   | fan-out/fan-in 结果聚合 | `subagent_io.merge`（`decision` / `confidence` / `conflicts` 等）、`merge_confidence`；与并行组摘要同源；`test_cli_workflow.py` |
 
 
 ---
@@ -85,20 +87,18 @@
 
 ### Sprint 5：Subagents 并行编排
 
+**S5-01 / S5-02** 已迁入 **✅ 已完成** 表；余下 Story：
 
 | Story ID  | 标题                               | 优先级 | 估算  | 测试计划                                                                              |
 | --------- | -------------------------------- | --- | --- | --------------------------------------------------------------------------------- |
-| **S5-01** | workflow schema 增加 `parallel` 字段 | P1  | L   | [sprint5-subagents-testplan.md](qa/sprint5-subagents-testplan.md) SAG-PAR-001~006 |
-| **S5-02** | fan-out/fan-in 结果聚合              | P1  | L   | SAG-AGG-001~004                                                                   |
 | **S5-03** | fail-fast / continue-on-error 策略 | P2  | M   | SAG-ERR-001~003                                                                   |
 | **S5-04** | 预算与质量门禁联动                        | P2  | M   | SAG-BUDGET-001~003                                                                |
 
 
 **开发关键文件**：
 
-- `__main__.py`：workflow 执行逻辑重构（并行调度器）
-- workflow schema 扩展文档  
-**QA 等待信号**：S5-01 + S5-02 提测后开始并行编排测试（此模块需要集成测试，建议开发提供 mock 示例）
+- `cai_agent/workflow.py`：`parallel_group` 批调度与 **`subagent_io`** 汇总  
+**QA 等待信号**：S5-03 + S5-04 提测后继续编排策略与预算联动测试
 
 ---
 

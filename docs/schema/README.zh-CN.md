@@ -8,7 +8,7 @@
 
 ### S1-02 / S1-03 收口口径（本仓）
 
-- **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**）。
+- **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**、**`workflow --json` → `workflow_run_v1`** 与根级 **`task_id`**）。
 - **S1-03**：**`0`** 成功；**`2`** 配置/参数/阈值/逻辑失败及未知子命令、**`argparse` 用法错误**；**`run`/`continue`/… 族** 用户 **Ctrl+C** 中断 → **exit `130`**（与 shell 约定一致）；**不将 `1` 作为稳定 CLI 契约**。
 
 ---
@@ -202,9 +202,12 @@
 ## `workflow` / `workflow <file> --json`
 
 - **实现**：`cai_agent.workflow.run_workflow`
-- **`schema_version`**：`workflow_run_v1`；另有 **`subagent_io_schema_version`**：`1.0` 与 `subagent_io`（`inputs` / `merge` / `outputs`）、`steps`、`summary`、`events`、`task`。
+- **`schema_version`**：`workflow_run_v1`；根级 **`task_id`** 与 **`task.task_id`** 同源（与 `run --json` 对齐）；另有 **`subagent_io_schema_version`**：`1.0` 与 `subagent_io`（`inputs` / `merge` / `outputs`）、`steps`、`summary`、`events`、`task`。
+- **并行**：步骤可设 **`parallel_group`**（同名字符串同批并发）；`summary` 含 **`parallel_groups_count`** / **`parallel_steps_count`** 等；**S5-01 / S5-02** 能力见 `tests/test_cli_workflow.py`。
 
 **Exit**：文件缺失/解析失败 → `2`；默认成功 `0`。`--fail-on-step-errors`：`task.status == failed` 或 `summary.tool_errors_total > 0` 或任一步 `error_count > 0` → `2`。
+
+**冒烟**：`scripts/smoke_new_features.py` 在 **`CAI_MOCK=1`** 下对最小 **`workflow.json`** 执行 **`workflow … --json`**，断言 **`workflow_run_v1`** 与根级 **`task_id`** 一致。
 
 ---
 
