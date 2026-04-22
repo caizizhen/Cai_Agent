@@ -69,6 +69,7 @@
 - 混合排序：`recency` + `hit_strength` + `keyword_density`；直扫路径 `keyword_density` 基于完整命中消息正文；索引路径密度基于索引 `content` 全文
 - 行级评分：`score` + `score_breakdown`（含 `sort_mode`）
 - `recall-index search` 与主 recall 评分模型对齐
+- **S3-03**：`recall-index doctor` / `doctor --fix`：索引缺失、schema 版本、磁盘文件缺失、相对 `window.since` 过旧路径；`tests/test_recall_index_cli.py` 覆盖
 
 ### F. Workflow / Subagents 编排
 

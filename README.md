@@ -21,7 +21,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Session stats JSON | `cai-agent stats --json` → `stats_schema_version`, `run_events_total`, `session_summaries`, etc. |
 | Session insights | `cai-agent insights --json --days 7` → cross-session trends (`models_top`, `tools_top`, `top_error_sessions`) |
 | Session recall search | `cai-agent recall --query "auth timeout" --json` (optional `--sort recent|density|combined`; `--use-index` + `--index-path` for `.cai-recall-index.json`) |
-| Recall index (incremental) | `cai-agent recall-index build` then `cai-agent recall-index refresh` (skip unchanged mtime; `refresh --prune` drops missing/out-of-window paths) |
+| Recall index (incremental) | `cai-agent recall-index build` then `cai-agent recall-index refresh` (skip unchanged mtime; `refresh --prune` drops missing/out-of-window paths); `recall-index doctor [--fix] [--json]` checks index vs disk (exit 0 healthy / 2 issues) |
 | Cross-session recall | `cai-agent recall --query "auth" --days 14 --json` → matched session snippets with file/time metadata |
 | Scheduled automations | `cai-agent schedule add --every-minutes 60 --goal "Daily repo health summary"` then `cai-agent schedule daemon --interval-sec 30 --max-cycles 20 --execute --json` |
 | Memory nudge schedule template | `cai-agent schedule scaffold memory-nudge --json` (optional `--every-minutes`, `--output-file`, `--fail-on-severity`, `--add-task`) |
