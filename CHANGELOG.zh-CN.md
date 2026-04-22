@@ -6,7 +6,8 @@
 
 ### 0.5.0（当前开发）
 
-- **Memory Nudge 历史报告**：新增 `cai-agent memory nudge-report`，从 `memory/nudge-history.jsonl`（或 `--history-file`）聚合历史快照并输出趋势统计（`schema_version=1.1`、`severity_counts`、`severity_trend`、`latest_severity`、`severity_jumps`、`avg_recent_sessions`、`avg_memory_entries`）。支持 `--days`（时间窗口过滤）、`--limit` 与 `--json`，可用于 QA/运维观察记忆健康变化。`memory nudge --write-file` 会同步把同一条 JSON 追加到默认历史文件（可用 `--history-file` 覆盖；若与 `--write-file` 同路径则只写一次）。
+- **Memory health（Hermes Sprint 2）**：新增 `cai-agent memory health --json`（`schema_version=1.0`），输出综合 `health_score` / `grade`（A~D）及 `freshness`、`coverage`、`conflict_rate`，并附带冲突与覆盖的可观测子字段（如 `conflict_pair_count`、`conflict_compared_entries`、`sessions_considered_for_coverage` 等）。支持 `--days`、`--freshness-days`、`--session-pattern`、`--session-limit`、`--conflict-threshold`、`--max-conflict-compare-entries`、`--fail-on-grade`（门禁不通过时 exit 2）。
+- **Memory Nudge 历史报告**：新增 `cai-agent memory nudge-report`，从 `memory/nudge-history.jsonl`（或 `--history-file`）聚合历史快照并输出趋势统计（`schema_version=1.2`、`severity_counts`、`severity_trend`、`latest_severity`、`severity_jumps`、`avg_recent_sessions`、`avg_memory_entries`，以及与 `memory health` 同源的 `health_score` / `health_grade` / `freshness`）。支持 `--days`（时间窗口过滤）、`--freshness-days`、`--limit` 与 `--json`，可用于 QA/运维观察记忆健康变化。`memory nudge --write-file` 会同步把同一条 JSON 追加到默认历史文件（可用 `--history-file` 覆盖；若与 `--write-file` 同路径则只写一次）。
 - **Schedule Memory Nudge 模板任务**：新增 `cai-agent schedule add-memory-nudge`，一条命令生成标准化巡检任务（自动拼接 `memory nudge --json --write-file ... --fail-on-severity ...` 目标），支持 `--every-minutes`、`--output-file`、`--fail-on-severity`、`--disabled`、`--workspace`、`--model`，减少手工配置成本并提升可复用性。
 
 - **跨会话检索 `recall`（Hermes `/insights` 衍生能力）**：新增 `cai-agent recall <query>`，支持跨会话内容检索并返回命中片段。支持 `--days`（时间窗口）、`--limit`（返回条数）、`--regex`（正则模式）与 `--json`（结构化输出）；默认按最近会话优先。命中结果包含会话路径、文件时间、`task_id`、命中行号与片段预览，无法解析的会话会统计到 `parse_skipped` 且不中断执行。

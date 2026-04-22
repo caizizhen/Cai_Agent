@@ -538,17 +538,28 @@ cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-se
 - `--fail-on-severity` 在严重级别达到阈值时返回非 0（`low|medium|high`），适合做守门检查；
 - 可与 `schedule add/run-due/daemon` 组合，定期巡检记忆质量。
 
+### `cai-agent memory health --json`
+
+工作区记忆健康综合评分（Hermes Sprint 2）：输出 `health_score`（0~1）、`grade`（A~D）、`freshness` / `coverage` / `conflict_rate`、`conflict_pairs`（样例）及可观测子字段（冲突对计数、采样条目数等）。`--days` 与会话 mtime 对齐用于 coverage；`--freshness-days` 与条目 `created_at` 对齐；`--conflict-threshold` / `--max-conflict-compare-entries` 控制冲突检测；`--fail-on-grade` 用于 CI（不优于阈值档时 exit 2）。
+
+```bash
+cai-agent memory health --json
+cai-agent memory health --json --days 30 --freshness-days 14 --fail-on-grade C
+```
+
 ### `cai-agent memory nudge-report --json`
 
-记忆提醒趋势聚合：读取 `memory nudge --write-file` 自动追加的 JSONL 历史（或 `--history-file` 指定路径），输出 severity 计数、最新级别、趋势序列、**严重度突变**（`severity_jumps`）与均值指标，便于 QA/运维观察“记忆健康是否持续改善”。
+记忆提醒趋势聚合：读取 `memory nudge --write-file` 自动追加的 JSONL 历史（或 `--history-file` 指定路径），输出 severity 计数、最新级别、趋势序列、**严重度突变**（`severity_jumps`）与均值指标；并与 **`memory health` 同源**附带 `health_score` / `health_grade` / `freshness`（`schema_version=1.2`）。
 
 ```bash
 cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json
 cai-agent memory nudge-report --json --history-file ./memory/nudge-history.jsonl --days 30 --limit 200
+cai-agent memory nudge-report --json --days 30 --freshness-days 14
 ```
 
 - 默认历史文件为 `./memory/nudge-history.jsonl`（`--write-file` 与默认历史路径相同时不会重复写入）；
 - `--days` 仅统计最近 N 天内的历史记录（默认 30）；
+- `--freshness-days` 与 `memory health` 一致，用于输出当前工作区的 `freshness`（默认 14）；
 - `--limit` 只读取历史文件尾部 N 行再过滤（默认 200）；
 - 可与 `schedule add-memory-nudge` 配合形成“生成快照 + 聚合看板”的治理闭环。
 
