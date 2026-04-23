@@ -20,7 +20,7 @@
 | 质量门禁 | review/CI/自动验证 | `quality-gate`：compileall、pytest、可选 ruff、可选 mypy、可选 `[[quality_gate.extra]]`、可选内嵌 `security-scan`；`fix-build` | 低 |
 | 安全治理 | hooks + 权限 + 秘钥检测 | `security-scan`；`[permissions]`；沙箱与白名单命令 | 低 |
 | 记忆学习 | auto memory / instincts | `memory extract/list/search/prune/...`、instincts 路径 | 中 |
-| 成本治理 | token/cost 与路由策略 | LLM usage 统计、`cost budget --check`、`[cost] budget_max_tokens`；`[context]` 可配置对话压缩提示（见 `docs/CONTEXT_AND_COMPACT.zh-CN.md`） | 中 |
+| 成本治理 | token/cost 与路由策略 | LLM usage 统计、`cost budget --check`、`[cost] budget_max_tokens`；`[context]` 可配置对话压缩提示（见 `docs/CONTEXT_AND_COMPACT.zh-CN.md`）；**`[models.routing]`** 声明式路由 **TOML 草案**见 [`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)（实现仍待迭代） | 中 |
 | 跨工具适配 | Cursor/Codex/OpenCode 等 | `export --target cursor|codex|opencode` + manifest `schema` / `manifest_version`（见 `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`） | 中 |
 
 ## 当前仓库已具备的优势
@@ -37,6 +37,7 @@
 2. **P1 - 任务运营面**：缺独立「任务看板」UI；当前以 JSON（`workflow` / `observe`）为主，适合 CI 与二次集成；**动态运营 Web** 的 HTTP 契约与 MVP 分阶段见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（尚无内置 HTTP 服务）。
 3. **P1 - 记忆与学习**：`entries.jsonl` **追加前整文件校验**与 **`auto_extract_skill_after_task` LLM 提炼**已落地（见 `memory.py` / `skills.py`、`PARITY_MATRIX` L3）；**`insights --cross-domain`** 已输出 **`recall_hit_rate_metric_kind`/`metric_kind`** 明示索引探测语义（**A3** 诚实标注已落地，**真实 recall 命中率统计**仍为后续项）；**TTL/置信度策略**见 **[`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)**；**Honcho 级用户建模（A1）** 仍为后续项。
 4. **P2 - 分发与反馈闭环**：对比官方安装器、`/bug` 类反馈通道；Cai_Agent 以 pip/源码为主，需自建支持渠道。
+5. **P2 - 云运行后端**：Modal / Daytona 等按需沙箱 **默认不纳入交付**（**`OOS`**）；备案与替代路径见 [`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md)。
 
 ## 发布门禁（相对「完全体」愿景）
 

@@ -19,7 +19,7 @@
 | **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限 + **`max_redirects`/`CAI_FETCH_URL_MAX_REDIRECTS`** + **解析后 IP 校验** / **`allow_private_resolved_ips`**）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
 | **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
-| **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板：**`board_v1` 同源 observe 摘要** + **`schedule list` 同源 enrich** + workflow 步骤，见 **`tui_task_board.py`** / **`render_task_board_markup`**）；会话落盘含 `profile` |
+| **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、**`active`/`subagent`/`planner`** 角色路由（**`chat_completion_by_role`**）；声明式路由 **TOML 草案**见 [`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)；TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板：**`board_v1` 同源 observe 摘要** + **`schedule list` 同源 enrich** + workflow 步骤，见 **`tui_task_board.py`** / **`render_task_board_markup`**）；会话落盘含 `profile` |
 | **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘）；动态 Web 侧 HTTP 契约草案见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
 | **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略（**TTL/置信度** 见 [`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)）、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory/entries.jsonl` 追加前整文件洁净性门禁**（与 validate-entries 同源；救急 **`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
 | **跨会话** | `insights`、`recall`（含 sort、`no_hit_reason`、schema 演进）、`recall-index`（build/refresh/doctor/info/benchmark 等） |
@@ -39,7 +39,7 @@
 |------|------|----------|
 | **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；**动态 Web 可视化**（队列拖拽、实时刷新等）仍为 P2；**HTTP API 契约与 MVP 分阶段**见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) | **26（后续）** |
 | **Gateway 全量** | Discord/Slack 已有 MVP；Slash Commands、频道监控、多工作区等**生产级特性**仍为后续 Sprint | **24（后续）** |
-| **运行后端（P2）** | Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
+| **运行后端（P2）** | Modal / Daytona 等「休眠即省钱」后端 **默认 OOS**（理由与替代路径见 [`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md)） | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
 
 ---
@@ -55,7 +55,7 @@
 | 记忆治理 | nudge、健康度、用户建模 | health / nudge / **`memory user-model`** 行为偏好抽取（**`behavior_extract`**，非完整 Honcho 引擎） | **部分完成** → **§二 9–10** |
 | 子代理 / 并行 | 隔离子 agent、RPC | `workflow` 并行组 + `subagent_io` + 错误策略 + 预算 + **RPC IO TypedDict** + **内置模板** | **完成** → **§二 23** |
 | 安全 / PII | secret 扫描 + PII 防泄漏 | `security-scan` + **`pii-scan`**（PII 专项） | **完成** → **§二 22** |
-| 运行后端 | Modal / Daytona 等 | 本机 + 配置为主 | **未开始（P2）** |
+| 运行后端 | Modal / Daytona 等 | 本机 + 配置为主；云沙箱 **OOS** 见 [`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md) | **未开始（P2）** / **OOS 定案** |
 | 语音 / Bridge | 产品化 | **OOS / MCP** | **定案** |
 
 ---
@@ -137,7 +137,7 @@
 |----|------|
 | **24 后续** | Discord/Slack Slash Commands、频道监控、多工作区等生产级特性 |
 | **26 后续** | 动态 Web 运营 UI（实时刷新、队列可视化）；侧车 HTTP 见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
-| **§一 P2** | Modal/Daytona 类后端（若立项） |
+| **§一 P2** | Modal/Daytona 类后端（若立项）；当前默认 **OOS** 见 [`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md) |
 
 ### 3.3 QA 移交顺序
 

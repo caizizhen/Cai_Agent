@@ -48,6 +48,7 @@
 
 - [本轮已落地] compact 与 **`cost_budget_max_tokens`** 联动（约 **85%** 阈值追加成本提示）
 - [本轮已落地] 模型路由建议：**`models suggest`** → **`models_suggest_v1`**
+- [本轮已落地] **声明式模型路由 TOML 草案**：[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)（**`[models.routing]`** 规则表示例、与现有 **`resolve_role_profile`** 关系、**`models route-test`** 等待实现）；**不含** `config.py` 解析与运行时生效
 
 ### 钩子
 
@@ -55,6 +56,10 @@
 - [本轮已落地] hook 执行结果可观测增强：CLI 非 JSON 输出会显示每个 hook 的 `ok/blocked/error/skipped` 摘要（不再仅打印 hook id）
 
 ## L3 — 治理与跨 harness
+
+### 云运行与平台化（定案）
+
+- [本轮已落地] **云运行后端（Modal / Daytona 等）OOS 备案**：[`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md)（理由、替代路径、**PARITY_MATRIX** L3 **`OOS`** 行）
 
 ### 记忆
 
