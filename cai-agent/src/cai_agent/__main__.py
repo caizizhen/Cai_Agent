@@ -4,6 +4,7 @@ import argparse
 from collections import Counter
 import json
 import os
+import shlex
 import signal
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1845,6 +1846,75 @@ def _save_gateway_map(path: Path, doc: dict[str, Any]) -> None:
     )
 
 
+def _gateway_continue_hint_payload(
+    *,
+    root: Path,
+    map_path: Path,
+    chat_id: str | None,
+    user_id: str | None,
+) -> dict[str, Any]:
+    """Hermes S6-04：生成与绑定 ``session_file`` 对应的 ``continue`` 命令提示（只读）。"""
+    doc = _load_gateway_map(map_path)
+    binds = doc.get("bindings")
+    if not isinstance(binds, dict):
+        binds = {}
+    cid = str(chat_id or "").strip()
+    uid = str(user_id or "").strip()
+    rows: list[dict[str, Any]] = []
+    if cid or uid:
+        key = f"{cid}:{uid}"
+        row = binds.get(key) if isinstance(binds.get(key), dict) else None
+        if not row:
+            return {
+                "schema_version": "gateway_telegram_continue_hint_v1",
+                "ok": False,
+                "error": "binding_not_found",
+                "map_file": str(map_path),
+                "chat_id": cid,
+                "user_id": uid,
+            }
+        rows = [row]
+    else:
+        rows = [v for _, v in sorted(binds.items(), key=lambda x: x[0]) if isinstance(v, dict)]
+
+    hints: list[dict[str, Any]] = []
+    base = root.resolve()
+    for row in rows:
+        sf = str(row.get("session_file") or "").strip()
+        abs_path = ""
+        exists = False
+        if sf:
+            p = Path(sf).expanduser()
+            if not p.is_absolute():
+                p = (base / p).resolve()
+            else:
+                p = p.resolve()
+            abs_path = str(p)
+            exists = p.is_file()
+        cmd = ("cai-agent continue " + shlex.quote(abs_path)) if abs_path else ""
+        hints.append(
+            {
+                "chat_id": row.get("chat_id"),
+                "user_id": row.get("user_id"),
+                "session_file": sf or None,
+                "session_path_resolved": abs_path or None,
+                "session_file_exists": exists,
+                "continue_cli": cmd,
+            },
+        )
+    return {
+        "schema_version": "gateway_telegram_continue_hint_v1",
+        "ok": True,
+        "action": "continue_hint",
+        "map_file": str(map_path),
+        "workspace_root": str(base),
+        "hints": hints,
+        "note": (
+            "在 workspace_root 下执行 continue；Telegram webhook（execute-on-update）与 CLI 共用绑定 session_file（S6-04）。"
+        ),
+    }
+
+
 def _extract_telegram_ids_from_update(obj: dict[str, Any]) -> tuple[str | None, str | None]:
     """从 Telegram update JSON 中提取 chat_id/user_id。"""
     candidates: list[dict[str, Any]] = []
@@ -2294,9 +2364,13 @@ def _telegram_slash_reply_text(
     if sl in ("/help", "/start"):
         return (
             "命令: /ping /status /help /stop /new；普通文本在开启 execute-on-update 时写入绑定会话并执行（与 CLI run/continue 同源）。"
+            " 本机续聊可先运行: cai-agent gateway telegram continue-hint --chat-id <id> --user-id <id>"
         )
     if sl.startswith("/new"):
-        return "请在工作区用 CLI `cai-agent continue <会话文件>` 续聊（跨端文档见产品计划 S6-04）。"
+        return (
+            "在工作区根执行 `cai-agent continue <会话文件>` 续聊；若不知路径，运行 "
+            "`cai-agent gateway telegram continue-hint --chat-id … --user-id …`（S6-04）。"
+        )
     return f"未知命令 {slash_first_token!r}；发送 /help"
 
 
@@ -4569,6 +4643,19 @@ def main(argv: list[str] | None = None) -> int:
     gw_tg_list = gw_tg_sub.add_parser("list", help="列出所有 Telegram 会话映射")
     gw_tg_list.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
     gw_tg_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tg_ch = gw_tg_sub.add_parser(
+        "continue-hint",
+        help="跨端续聊（S6-04）：输出与绑定 session_file 对应的 cai-agent continue 命令",
+    )
+    gw_tg_ch.add_argument(
+        "--chat-id",
+        default=None,
+        help="与 --user-id 成对使用：仅该绑定；若两者皆省略则列出全部绑定",
+    )
+    gw_tg_ch.add_argument("--user-id", default=None, help="与 --chat-id 成对使用")
+    gw_tg_ch.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_ch.add_argument("--json", action="store_true", dest="json_output")
 
     gw_tg_allow = gw_tg_sub.add_parser("allow", help="Telegram chat_id 白名单（S6-03，写入映射 JSON）")
     gw_tg_allow_sub = gw_tg_allow.add_subparsers(dest="gateway_telegram_allow_action", required=True)
@@ -7526,6 +7613,46 @@ def main(argv: list[str] | None = None) -> int:
                     for row in items:
                         print(f"- chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
                 return 0
+            if act == "continue-hint":
+                cid_h = str(getattr(args, "chat_id", None) or "").strip()
+                uid_h = str(getattr(args, "user_id", None) or "").strip()
+                if (cid_h and not uid_h) or (uid_h and not cid_h):
+                    print(
+                        "gateway telegram continue-hint：请同时提供 --chat-id 与 --user-id，或两者皆省略以列出全部绑定",
+                        file=sys.stderr,
+                    )
+                    return 2
+                payload_ch = _gateway_continue_hint_payload(
+                    root=root,
+                    map_path=map_path,
+                    chat_id=cid_h or None,
+                    user_id=uid_h or None,
+                )
+                json_ch = bool(getattr(args, "json_output", False))
+                if json_ch:
+                    print(json.dumps(payload_ch, ensure_ascii=False))
+                else:
+                    if not payload_ch.get("ok"):
+                        print(
+                            str(payload_ch.get("error") or "failed")
+                            + f" chat_id={payload_ch.get('chat_id')} user_id={payload_ch.get('user_id')}",
+                            file=sys.stderr,
+                        )
+                    else:
+                        print("[gateway telegram continue-hint]")
+                        print(str(payload_ch.get("note") or ""))
+                        for h in payload_ch.get("hints") or []:
+                            if not isinstance(h, dict):
+                                continue
+                            ex = h.get("session_file_exists")
+                            print(
+                                f"- chat_id={h.get('chat_id')} user_id={h.get('user_id')} "
+                                f"exists={ex} path={h.get('session_path_resolved')}",
+                            )
+                            ccmd = str(h.get("continue_cli") or "").strip()
+                            if ccmd:
+                                print(f"  {ccmd}")
+                return 0 if payload_ch.get("ok") else 2
             if act == "allow":
                 sub_allow = str(getattr(args, "gateway_telegram_allow_action", "") or "").strip()
                 allowed = _parse_allowed_chat_ids(doc.get("allowed_chat_ids"))

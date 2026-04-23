@@ -7,7 +7,7 @@ platforms + ops dashboard + skills hub manifest, repo-root
 ``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
---json, gateway status --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+--json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
@@ -538,6 +538,17 @@ def main() -> int:
                 errs.append(f"gateway status schema {gso.get('schema_version')!r}")
             if "config_exists" not in gso:
                 errs.append("gateway status missing config_exists")
+        gch = _run([*cli, "gateway", "telegram", "continue-hint", "--json"], cwd=gw_td)
+        if gch.returncode != 0:
+            errs.append(f"gateway continue-hint exit {gch.returncode} stderr={gch.stderr!r}")
+        else:
+            gjo = json.loads((gch.stdout or "").strip())
+            if gjo.get("schema_version") != "gateway_telegram_continue_hint_v1":
+                errs.append(f"gateway continue-hint schema {gjo.get('schema_version')!r}")
+            if gjo.get("ok") is not True:
+                errs.append(f"gateway continue-hint ok false {gjo!r}")
+            if not isinstance(gjo.get("hints"), list):
+                errs.append("gateway continue-hint hints not list")
         od = _run([*cli, "ops", "dashboard", "--json"], cwd=gw_td)
         if od.returncode != 0:
             errs.append(f"ops dashboard exit {od.returncode} stderr={od.stderr!r}")

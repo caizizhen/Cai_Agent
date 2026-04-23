@@ -13,7 +13,7 @@
 | gateway 命令组 | `gateway setup/start/stop/status` | 自动化 + 手工 | 命令结构与参数 |
 | Telegram 消息收发 | Bot 收发消息 | 手工（沙盒 Bot） | 端到端消息链路 |
 | 用户身份绑定 | allowlist 配置 | 自动化 + 手工 | 安全授权策略 |
-| 跨端会话连续性 | CLI + Telegram 混合 | 手工 | 会话文件可互用 |
+| 跨端会话连续性 | `gateway telegram continue-hint` + `continue` | 自动化 + 手工 | 绑定 `session_file` 与 CLI 同源；**GTW-CONT** |
 
 ---
 
@@ -50,6 +50,19 @@
 ### GTW-SEC-004：token 不写入日志或标准输出
 - **执行**：`gateway setup --token BOTTOKEN123 --json`
 - **期望**：stdout/stderr 中不出现完整 token 字符串（防止泄漏）
+
+### GTW-CONT-001：`continue-hint` 空工作区 JSON（S6-04）
+- **执行**：空临时目录下 `cai-agent gateway telegram continue-hint --json`
+- **期望**：exit 0，`schema_version`=`gateway_telegram_continue_hint_v1`，`ok=true`，`hints` 为数组（可为空）
+
+### GTW-CONT-002：`continue-hint` 命中绑定后含 `continue_cli`
+- **前置**：`gateway telegram bind … --session-file <path>` 已执行
+- **执行**：`cai-agent gateway telegram continue-hint --chat-id … --user-id … --json`
+- **期望**：`hints[0].continue_cli` 以 `cai-agent continue` 开头且含已解析绝对路径；`session_path_resolved` 与绑定一致
+
+### GTW-CONT-003：未绑定 chat/user
+- **执行**：`continue-hint --chat-id 0 --user-id 0 --json`（无此绑定）
+- **期望**：exit 2，`ok=false`，`error`=`binding_not_found`
 
 ---
 

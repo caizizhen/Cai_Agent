@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.5 (2026-04-23)
+
+- **Gateway (Hermes S6-04)**: **`cai-agent gateway telegram continue-hint`** prints JSON (**`gateway_telegram_continue_hint_v1`**) with shell-safe **`continue_cli`** lines for bound **`session_file`** paths (optional **`--chat-id`** + **`--user-id`**, or list all). **`/help`** / **`/new`** slash text points to this command. QA plan **`docs/qa/sprint6-gateway-telegram-testplan.md`** adds **GTW-CONT-001~003**.
+- **Tests / smoke**: **`test_gateway_telegram_cli.py`** continue-hint cases; **`smoke_new_features.py`** asserts **`continue-hint --json`**.
+
 ### 0.6.4 (2026-04-23)
 
 - **Gateway (Hermes S6-02)**: **`serve-webhook --execute-on-update`** now runs **`_execute_gateway_telegram_goal`**: same load/append/save path as CLI **`run`/`continue`** on the bound **`session_file`** (new file created on first message). **`reply_template`** receives the full **`{answer}`** (Telegram send still chunked). Slash **`/stop`**: default text points to **`gateway stop`**; optional **`CAI_TELEGRAM_STOP_WEBHOOK=1`** plus **`CAI_TELEGRAM_ADMIN_USER_IDS`** (comma-separated Telegram **`user_id`**) allows in-chat **`gateway_lifecycle.stop_webhook_subprocess`**. **`/help`** documents **`/stop`** and run-like execution.

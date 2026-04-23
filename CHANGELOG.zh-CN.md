@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.5（2026-04-23）
+
+- **Gateway（Hermes S6-04）**：**`cai-agent gateway telegram continue-hint`**（**`--json`** → **`gateway_telegram_continue_hint_v1`**），输出 **`continue_cli`**（**`shlex.quote`** 路径）与 **`session_path_resolved`**；**`--chat-id`+`--user-id`** 成对筛选或两者皆省略列出全部。Slash **`/help`**、**`/new`** 文案指向该命令。**`docs/qa/sprint6-gateway-telegram-testplan.md`** 增补 **GTW-CONT-001~003**。
+- **测试与冒烟**：**`test_gateway_telegram_cli.py`**；**`smoke_new_features.py`** 抽样 **`continue-hint --json`**。
+
 ### 0.6.4（2026-04-23）
 
 - **Gateway（Hermes S6-02）**：**`serve-webhook --execute-on-update`** 改为 **`_execute_gateway_telegram_goal`**：对绑定 **`session_file`** 与 CLI **`run`/`continue`** 同源（加载历史、追加用户 goal、**`invoke`** 后写回同一路径；文件不存在则首次执行后创建）。**`reply_template`** 的 **`{answer}`** 为完整答案（发送层仍 **`_telegram_send_text_chunked`**）。Slash **`/stop`**：默认提示本机执行 **`cai-agent gateway stop`**；仅当 **`CAI_TELEGRAM_STOP_WEBHOOK=1`** 且发令用户的 Telegram **`user_id`** 属于 **`CAI_TELEGRAM_ADMIN_USER_IDS`**（逗号分隔）时，才调用 **`gateway_lifecycle.stop_webhook_subprocess`**。**`/help`** 同步说明。

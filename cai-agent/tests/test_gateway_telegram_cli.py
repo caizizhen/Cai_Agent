@@ -427,3 +427,108 @@ class GatewayTelegramCliTests(unittest.TestCase):
             self.assertEqual(rc_resolve, 0)
             okp = json.loads(buf_ok.getvalue().strip())
             self.assertTrue(okp.get("ok"))
+
+    def test_continue_hint_empty_map_json(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["gateway", "telegram", "continue-hint", "--json"])
+            self.assertEqual(rc, 0)
+            o = json.loads(buf.getvalue().strip())
+            self.assertEqual(o.get("schema_version"), "gateway_telegram_continue_hint_v1")
+            self.assertIs(o.get("ok"), True)
+            self.assertEqual(o.get("action"), "continue_hint")
+            self.assertIsInstance(o.get("hints"), list)
+            self.assertEqual(len(o.get("hints") or []), 0)
+
+    def test_continue_hint_with_binding(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            sess = root / ".cai-session-tg.json"
+            sess.write_text('{"version":2,"messages":[{"role":"user","content":"x"}]}\n', encoding="utf-8")
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                rc_b = main(
+                    [
+                        "gateway",
+                        "telegram",
+                        "bind",
+                        "--chat-id",
+                        "77",
+                        "--user-id",
+                        "88",
+                        "--session-file",
+                        str(sess),
+                        "--json",
+                    ],
+                )
+            self.assertEqual(rc_b, 0)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "continue-hint",
+                            "--chat-id",
+                            "77",
+                            "--user-id",
+                            "88",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            o = json.loads(buf.getvalue().strip())
+            self.assertIs(o.get("ok"), True)
+            hints = o.get("hints") or []
+            self.assertEqual(len(hints), 1)
+            h0 = hints[0]
+            self.assertEqual(h0.get("chat_id"), "77")
+            self.assertEqual(h0.get("user_id"), "88")
+            self.assertTrue(str(h0.get("continue_cli") or "").startswith("cai-agent continue "))
+            self.assertEqual(h0.get("session_path_resolved"), str(sess.resolve()))
+
+    def test_continue_hint_binding_not_found(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf), redirect_stderr(err):
+                    rc = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "continue-hint",
+                            "--chat-id",
+                            "1",
+                            "--user-id",
+                            "2",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            o = json.loads(buf.getvalue().strip())
+            self.assertIs(o.get("ok"), False)
+            self.assertEqual(o.get("error"), "binding_not_found")
+
+    def test_continue_hint_partial_ids_errors(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stderr(err):
+                    rc = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "continue-hint",
+                            "--chat-id",
+                            "1",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            self.assertIn("同时", err.getvalue())

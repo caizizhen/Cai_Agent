@@ -179,7 +179,8 @@
 
 - **实现**：`__main__.py` `gateway` → `telegram` 子命令；会话映射默认文件 **`.cai/gateway/telegram-session-map.json`**（可用 **`--map-file`** 覆盖，相对路径以工作区根解析）。磁盘 JSON 除 **`bindings`** 外可含根级 **`allowed_chat_ids`**（字符串数组）；**非空**时仅允许这些 **`chat_id`** 走 **`resolve-update`** / **`serve-webhook`** 成功路径（否则 **`error`=`not_allowed`**，**S6-03**）。
 - **白名单 CLI**：**`gateway telegram allow add --chat-id …`** / **`allow list`** / **`allow rm --chat-id …`**（`action` 分别为 **`allow_add`** / **`allow_list`** / **`allow_rm`**）。
-- **`schema_version`**：stdout JSON 均为 **`gateway_telegram_map_v1`**；顶层含 **`action`**（`bind` / `get` / `list` / `unbind` / **`allow_*`** / `resolve-update` / `serve-webhook`）及 **`map_file`** 等。
+- **`schema_version`**：stdout JSON 多为 **`gateway_telegram_map_v1`**；顶层含 **`action`**（`bind` / `get` / `list` / `unbind` / **`allow_*`** / `resolve-update` / `serve-webhook`）及 **`map_file`** 等。
+- **`gateway telegram continue-hint`**（**S6-04**，`--json`）：独立 **`gateway_telegram_continue_hint_v1`**（**`action`=`continue_hint`**）；**`ok`**、**`hints[]`**（**`chat_id`** / **`user_id`** / **`session_path_resolved`** / **`session_file_exists`** / **`continue_cli`**）、**`workspace_root`**、**`note`**。未找到绑定时 **`ok:false`**、**`error`=`binding_not_found`**（exit **`2`**）。**`--chat-id`** 与 **`--user-id`** 须成对出现，或两者皆省略以列出全部绑定。
 - **字段摘要（随子命令变化）**：
   - **bind**：`ok`、`binding`（`chat_id` / `user_id` / `session_file`）、`bindings_count`
   - **get**：`ok`（是否命中）、`binding`（未命中时为 `null`）
