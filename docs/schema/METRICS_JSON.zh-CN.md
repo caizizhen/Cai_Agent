@@ -43,8 +43,13 @@
 - **`cai-agent schedule daemon`**（单实例锁获取成功、正常结束摘要）：**`schedule.daemon`**（**`tokens`** = **`total_executed`**；**`success`** = 未 **`KeyboardInterrupt`**）。
 - **`cai-agent gateway telegram bind` / `get` / `unbind` / `continue-hint`**：**`gateway.telegram.bind`** / **`gateway.telegram.get`** / **`gateway.telegram.unbind`** / **`gateway.telegram.continue_hint`**（CLI 子命令 **`continue-hint`**；**`get`** 的 **`success`** = 是否找到绑定）。
 - **`cai-agent gateway telegram allow add|list|rm`**：**`gateway.telegram.allow_add`** / **`allow_list`** / **`allow_rm`**。
+- **`cai-agent gateway telegram resolve-update`**：**`gateway.telegram.resolve_update`**（**`success`** = 无 **`error`** 且解析到 **`binding`**）。
+- **`cai-agent memory extract` / `list` / `instincts` / `search` / `prune` / `export` / `import` / `export-entries` / `import-entries`**：**`memory.extract`** / **`memory.list`** / **`memory.instincts`** / **`memory.search`** / **`memory.prune`** / **`memory.export`** / **`memory.import`** / **`memory.export_entries`** / **`memory.import_entries`**（**`tokens`** 视子命令为会话数、条目数、命中数、**`removed_total`**、导入计数等）。
+- **`cai-agent schedule add-memory-nudge`**：**`schedule.add_memory_nudge`**。
+- **`cai-agent quality-gate`**：**`quality_gate.run`**（**`tokens`** = **`len(checks)`**；**`success`** = **`ok`**）。
+- **`cai-agent security-scan`**：**`security_scan.run`**（**`tokens`** ≈ **`findings_count`** 或 **`scanned_files`**）。
 
-> 其它 **memory** 子命令（**`extract`/`list`/…**）、**`schedule`/`gateway telegram`** 的 **`resolve-update`** 等、**`quality-gate`/`security-scan`** 等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
+> 其它 **`hooks run-event`**、**`gateway telegram serve-webhook`** 长驻进程、**`mcp-check`** 等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
 
 ## 示例行
 

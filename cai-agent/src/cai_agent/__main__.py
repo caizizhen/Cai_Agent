@@ -5897,6 +5897,7 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
+        t_qg = time.perf_counter()
         _print_hook_status(
             settings,
             event="quality_gate_start",
@@ -5921,6 +5922,14 @@ def main(argv: list[str] | None = None) -> int:
                 event="quality_gate_end",
                 json_output=bool(args.json_output),
             )
+        checks_qg = result.get("checks") if isinstance(result.get("checks"), list) else []
+        _maybe_metrics_cli(
+            module="quality_gate",
+            event="quality_gate.run",
+            latency_ms=(time.perf_counter() - t_qg) * 1000.0,
+            tokens=len(checks_qg),
+            success=bool(result.get("ok")),
+        )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -5989,6 +5998,7 @@ def main(argv: list[str] | None = None) -> int:
             json_output=bool(args.json_output),
         )
         try:
+            t_ssc = time.perf_counter()
             result = run_security_scan(
                 settings,
                 exclude_globs=ex_arg,
@@ -6003,6 +6013,13 @@ def main(argv: list[str] | None = None) -> int:
                 event="security_scan_end",
                 json_output=bool(args.json_output),
             )
+        _maybe_metrics_cli(
+            module="security_scan",
+            event="security_scan.run",
+            latency_ms=(time.perf_counter() - t_ssc) * 1000.0,
+            tokens=int(result.get("findings_count") or result.get("scanned_files") or 0),
+            success=bool(result.get("ok")),
+        )
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -6172,6 +6189,7 @@ def main(argv: list[str] | None = None) -> int:
             mem_dir = root / "memory" / "instincts"
             mem_dir.mkdir(parents=True, exist_ok=True)
             if args.memory_action == "extract":
+                t_mx = time.perf_counter()
                 files = list_session_files(
                     cwd=str(root),
                     pattern=str(args.pattern),
@@ -6200,8 +6218,16 @@ def main(argv: list[str] | None = None) -> int:
                         ensure_ascii=False,
                     ),
                 )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.extract",
+                    latency_ms=(time.perf_counter() - t_mx) * 1000.0,
+                    tokens=int(entries_appended),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "list":
+                t_ml = time.perf_counter()
                 rows, vwarn = load_memory_entries_validated(root)
                 for w in vwarn:
                     print(f"[memory] {w}", file=sys.stderr)
@@ -6231,8 +6257,16 @@ def main(argv: list[str] | None = None) -> int:
                         cat = row.get("category", "")
                         snippet = str(row.get("text", ""))[:120].replace("\n", " ")
                         print(f"{tid}\t{cat}\t{snippet}")
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.list",
+                    latency_ms=(time.perf_counter() - t_ml) * 1000.0,
+                    tokens=len(rows),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "instincts":
+                t_mi = time.perf_counter()
                 files = sorted(
                     mem_dir.glob("instincts-*.md"),
                     key=lambda p: p.stat().st_mtime,
@@ -6253,9 +6287,17 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     for p in arr:
                         print(p)
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.instincts",
+                    latency_ms=(time.perf_counter() - t_mi) * 1000.0,
+                    tokens=len(arr),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "search":
                 sk = str(getattr(args, "sort", "") or "").strip() or None
+                t_msr = time.perf_counter()
                 hits = search_memory_entries(
                     root,
                     str(args.query),
@@ -6280,8 +6322,16 @@ def main(argv: list[str] | None = None) -> int:
                         print(
                             f"{row.get('id')}\t{row.get('category')}\t{row.get('text', '')[:200]}",
                         )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.search",
+                    latency_ms=(time.perf_counter() - t_msr) * 1000.0,
+                    tokens=len(hits),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "prune":
+                t_mp = time.perf_counter()
                 n = prune_expired_memory_entries(
                     root,
                     min_confidence=float(getattr(args, "min_confidence", 0.0) or 0.0),
@@ -6308,6 +6358,13 @@ def main(argv: list[str] | None = None) -> int:
                             "removed_by_reason="
                             + json.dumps(br, ensure_ascii=False, sort_keys=True),
                         )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.prune",
+                    latency_ms=(time.perf_counter() - t_mp) * 1000.0,
+                    tokens=int(n.get("removed_total") or 0),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "state":
                 rows, vwarn = load_memory_entries_validated(root)
@@ -6338,6 +6395,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 return 0
             if args.memory_action == "export":
+                t_mex = time.perf_counter()
                 target = Path(args.file).expanduser().resolve()
                 files = sorted(
                     mem_dir.glob("instincts-*.md"),
@@ -6364,8 +6422,16 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 else:
                     print(str(target))
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.export",
+                    latency_ms=(time.perf_counter() - t_mex) * 1000.0,
+                    tokens=len(files),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "import":
+                t_mim = time.perf_counter()
                 src = Path(args.file).expanduser().resolve()
                 arr = json.loads(src.read_text(encoding="utf-8"))
                 if not isinstance(arr, list):
@@ -6386,8 +6452,16 @@ def main(argv: list[str] | None = None) -> int:
                         ensure_ascii=False,
                     ),
                 )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.import",
+                    latency_ms=(time.perf_counter() - t_mim) * 1000.0,
+                    tokens=int(count),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "export-entries":
+                t_mee = time.perf_counter()
                 target = Path(args.file).expanduser().resolve()
                 bundle = export_memory_entries_bundle(root)
                 target.write_text(
@@ -6411,10 +6485,19 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 else:
                     print(str(target))
+                ent_n = bundle.get("entries") if isinstance(bundle.get("entries"), list) else []
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.export_entries",
+                    latency_ms=(time.perf_counter() - t_mee) * 1000.0,
+                    tokens=len(ent_n),
+                    success=True,
+                )
                 return 0
             if args.memory_action == "import-entries":
                 src = Path(args.file).expanduser().resolve()
                 doc = json.loads(src.read_text(encoding="utf-8"))
+                t_mie = time.perf_counter()
                 dry_run = bool(getattr(args, "dry_run", False))
                 valid_rows, errors = validate_memory_entries_bundle(doc)
                 report_path_raw = getattr(args, "error_report", None)
@@ -6464,6 +6547,13 @@ def main(argv: list[str] | None = None) -> int:
                         print(f"[memory] 详细错误报告已写入: {report_path}", file=sys.stderr)
                     return 2
                 if dry_run:
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.import_entries",
+                        latency_ms=(time.perf_counter() - t_mie) * 1000.0,
+                        tokens=len(valid_rows),
+                        success=True,
+                    )
                     return 0
                 n = import_memory_entries_bundle(root, doc)
                 print(
@@ -6471,6 +6561,13 @@ def main(argv: list[str] | None = None) -> int:
                         {"schema_version": "memory_entries_import_result_v1", "imported": n},
                         ensure_ascii=False,
                     ),
+                )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.import_entries",
+                    latency_ms=(time.perf_counter() - t_mie) * 1000.0,
+                    tokens=int(n),
+                    success=True,
                 )
                 return 0
             if args.memory_action == "health":
@@ -6689,6 +6786,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.schedule_action == "add-memory-nudge":
+            t_amn = time.perf_counter()
             out_path = str(getattr(args, "output_file", ".cai/memory-nudge-latest.json"))
             fail_th = str(getattr(args, "fail_on_severity", "high") or "high").strip().lower()
             goal = (
@@ -6729,6 +6827,13 @@ def main(argv: list[str] | None = None) -> int:
                     f"enabled={job.get('enabled')}",
                 )
                 print(f"goal={goal}")
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.add_memory_nudge",
+                latency_ms=(time.perf_counter() - t_amn) * 1000.0,
+                tokens=1,
+                success=True,
+            )
             return 0
         if args.schedule_action == "list":
             t_sl = time.perf_counter()
@@ -8251,6 +8356,7 @@ def main(argv: list[str] | None = None) -> int:
                 if bool(getattr(args, "create_missing", False)) and not tpl_r:
                     print("session-template 不能为空", file=sys.stderr)
                     return 2
+                t_gru = time.perf_counter()
                 payload = _resolve_gateway_session_from_update(
                     root=root,
                     map_path=map_path,
@@ -8258,11 +8364,19 @@ def main(argv: list[str] | None = None) -> int:
                     create_missing=bool(getattr(args, "create_missing", False)),
                     session_template=tpl_r,
                 )
+                gru_ms = (time.perf_counter() - t_gru) * 1000.0
                 row = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
                 created = bool(payload.get("created"))
                 chat_id = str(payload.get("chat_id") or "").strip()
                 user_id = str(payload.get("user_id") or "").strip()
                 err_r = str(payload.get("error") or "")
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.resolve_update",
+                    latency_ms=gru_ms,
+                    tokens=1 if row else 0,
+                    success=(not err_r and bool(row)),
+                )
                 if json_out:
                     print(json.dumps(payload, ensure_ascii=False))
                 elif err_r == "not_allowed":

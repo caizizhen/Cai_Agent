@@ -443,6 +443,141 @@ class MetricsJsonlTests(unittest.TestCase):
             self.assertEqual(row.get("module"), "gateway")
             self.assertEqual(row.get("event"), "gateway.telegram.bind")
 
+    def test_memory_list_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "ml.jsonl"
+            ws = Path(td) / "wsml"
+            (ws / "memory" / "instincts").mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["memory", "list", "--json", "--limit", "10"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "memory")
+            self.assertEqual(row.get("event"), "memory.list")
+
+    def test_quality_gate_appends_metrics_when_env_set(self) -> None:
+        fake = {
+            "schema_version": "quality_gate_result_v1",
+            "ok": True,
+            "failed_count": 0,
+            "checks": [{"name": "stub", "exit_code": 0}],
+        }
+        with TemporaryDirectory() as td:
+            root = Path(td) / "qgws"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            metrics_path = Path(td) / "qg.jsonl"
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.run_quality_gate", return_value=fake):
+                with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                    with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                        with redirect_stdout(buf):
+                            rc = main(
+                                [
+                                    "quality-gate",
+                                    "--config",
+                                    str(cfg),
+                                    "--json",
+                                    "--no-compile",
+                                    "--no-test",
+                                ],
+                            )
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "quality_gate")
+            self.assertEqual(row.get("event"), "quality_gate.run")
+
+    def test_security_scan_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td) / "sscws"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            metrics_path = Path(td) / "ssc.jsonl"
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(["security-scan", "--config", str(cfg), "--json"])
+            self.assertIn(rc, (0, 2))
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "security_scan")
+            self.assertEqual(row.get("event"), "security_scan.run")
+
+    def test_gateway_telegram_resolve_update_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td) / "gru"
+            root.mkdir(parents=True, exist_ok=True)
+            update_file = root / "update.json"
+            update_file.write_text(
+                json.dumps(
+                    {
+                        "update_id": 901,
+                        "message": {
+                            "message_id": 1,
+                            "chat": {"id": 6001},
+                            "from": {"id": 8001},
+                            "text": "m",
+                        },
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            metrics_path = Path(td) / "gru.jsonl"
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(
+                            [
+                                "gateway",
+                                "telegram",
+                                "resolve-update",
+                                "--update-file",
+                                str(update_file),
+                                "--create-missing",
+                                "--session-template",
+                                ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+                                "--json",
+                            ],
+                        )
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "gateway")
+            self.assertEqual(row.get("event"), "gateway.telegram.resolve_update")
+
+    def test_schedule_add_memory_nudge_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "amn.jsonl"
+            ws = Path(td) / "wsamn"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["schedule", "add-memory-nudge", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "schedule")
+            self.assertEqual(row.get("event"), "schedule.add_memory_nudge")
+
 
 if __name__ == "__main__":
     unittest.main()
