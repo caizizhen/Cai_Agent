@@ -2,10 +2,10 @@
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
-platforms + ops dashboard + skills hub manifest, repo-root
+platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
 ``plugins``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
-``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state --json``, plus
+``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -507,6 +507,15 @@ def main() -> int:
                 errs.append(f"memory state schema_version {st.get('schema_version')!r}")
             if not isinstance(st.get("counts"), dict):
                 errs.append("memory state counts not object")
+        pum = _run([*cli, "memory", "user-model", "--json", "--days", "7"], cwd=mh_td)
+        if pum.returncode != 0:
+            errs.append(f"memory user-model json exit {pum.returncode} stderr={pum.stderr!r}")
+        else:
+            um = json.loads((pum.stdout or "").strip())
+            if um.get("schema_version") != "memory_user_model_v1":
+                errs.append(f"memory user-model schema_version {um.get('schema_version')!r}")
+            if um.get("honcho_parity") != "stub":
+                errs.append(f"memory user-model honcho_parity {um.get('honcho_parity')!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)
@@ -642,6 +651,30 @@ def main() -> int:
             so = json.loads((sk.stdout or "").strip())
             if so.get("schema_version") != "skills_hub_manifest_v1":
                 errs.append(f"skills manifest schema {so.get('schema_version')!r}")
+        sks = _run(
+            [*cli, "skills", "hub", "suggest", "smoke evolution stub", "--json"],
+            cwd=gw_td,
+        )
+        if sks.returncode != 0:
+            errs.append(f"skills hub suggest exit {sks.returncode} stderr={sks.stderr!r}")
+        else:
+            evo = json.loads((sks.stdout or "").strip())
+            if evo.get("schema_version") != "skills_evolution_suggest_v1":
+                errs.append(f"skills suggest schema {evo.get('schema_version')!r}")
+            sp = evo.get("suggested_path")
+            if not isinstance(sp, str) or "_evolution_" not in sp:
+                errs.append(f"skills suggest path {sp!r}")
+        pp2 = _run([*cli, "gateway", "platforms", "list", "--json"], cwd=gw_td)
+        if pp2.returncode != 0:
+            errs.append(f"gateway platforms list 2 exit {pp2.returncode} stderr={pp2.stderr!r}")
+        else:
+            po2 = json.loads((pp2.stdout or "").strip())
+            if "telegram_webhook_pid_exists" not in po2:
+                errs.append("gateway platforms missing telegram_webhook_pid_exists")
+            pl2 = po2.get("platforms") or []
+            drow = next((x for x in pl2 if isinstance(x, dict) and x.get("id") == "discord"), None)
+            if not isinstance(drow, dict) or "env_present" not in drow:
+                errs.append("gateway platforms discord missing env_present")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-") as rec_td:
         pr = _run(

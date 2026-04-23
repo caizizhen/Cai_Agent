@@ -25,6 +25,7 @@
 - **`cai-agent observe report`**：成功生成报告后写入 **`observe.report`**。
 - **`cai-agent observe export`**：成功生成导出后写入 **`observe.export`**。
 - **`cai-agent memory health`**（文本或 **`--json`**）：成功生成健康负载后写入 **`memory.health`**（**`tokens`** ≈ **`counts.memory_entries`**）。
+- **`cai-agent memory user-model`**：**`memory.user_model`**（**`tokens`** ≈ **`sessions_recent_in_window`**）。
 - **`cai-agent recall`**（扫描或 **`--use-index`**，成功路径）：写入 **`recall.query`**（**`tokens`** ≈ **`sessions_scanned`**）。
 - **`cai-agent schedule stats`**：写入 **`schedule.stats`**（**`tokens`** = 任务行数 **`len(tasks)`**）。
 - **`cai-agent gateway status`**：写入 **`gateway.status`**（**`tokens`**=`0`）。
@@ -56,6 +57,7 @@
 - **`cai-agent insights`**：**`insights.summary`**；**`--cross-domain --json`** 时为 **`insights.cross_domain`**（**`tokens`** ≈ **`sessions_in_window`/`total_tokens`**；**`--fail-on-max-failure-rate`** 触发 exit **`2`** 时 **`success=false`**）。
 - **`cai-agent plugins`**：**`plugins.surface`**（**`tokens`** = 各组件 **`files_count`** 之和；**`--fail-on-min-health`** 未达标时 **`success=false`**）。
 - **`cai-agent skills hub manifest`**：**`skills.hub_manifest`**（**`tokens`** ≈ **`count`**）。
+- **`cai-agent skills hub suggest`**：**`skills.evolution_suggest`**（**`tokens`** ≈ **`len(goal)/64`** 下界 **`1`**；**`success`** 与 exit 一致）。
 - **`cai-agent commands` / `agents`**：**`commands.list`** / **`agents.list`**（**`tokens`** = 名称条数）。
 - **`cai-agent doctor`**：**`doctor.run`**（**`tokens`**=`0`**；**`success`** = exit **`0`**）。
 - **`cai-agent plan`**：**`plan.generate`**（**`tokens`** ≈ LLM **`usage.total_tokens`**；配置/goal 错误、中断、LLM 失败时 **`success=false`**）。

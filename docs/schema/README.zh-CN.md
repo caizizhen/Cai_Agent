@@ -31,7 +31,7 @@
 
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`（0~1）：当 `aggregates.failure_rate >= RATE` 时 `2`（与 `insights --fail-on-max-failure-rate` 语义一致）。
 
-**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 等事件；**`memory.*`**（含 **`health`/`state`/`nudge`/`extract`/`list`/…**）、**`recall`/`recall_index.*`/`schedule.*`/`gateway.*`**（含 **`gateway telegram serve-webhook`** 正常结束一轮）、**`hooks`/`sessions`/`stats`/`insights`/`plugins`/`skills hub manifest`/`commands`/`agents`/`doctor`/`plan`/`cost budget`/`export`/`observe-report`/`ops dashboard`/`board`**、**`init`/`models`/`workflow`/`release-ga`/`ui`**、**`mcp-check`**、**`quality_gate.run`/`security_scan.run`** 与 **`run`/`continue`/`command`/`agent`/`fix-build` 的 `*.invoke`** 等同见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md) **触发路径**。
+**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 等事件；**`memory.*`**（含 **`health`/`state`/`nudge`/`user_model`/`extract`/`list`/…**）、**`recall`/`recall_index.*`/`schedule.*`/`gateway.*`**（含 **`gateway telegram serve-webhook`** 正常结束一轮）、**`hooks`/`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`（**`manifest`/`evolution_suggest`**）/`commands`/`agents`/`doctor`/`plan`/`cost budget`/`export`/`observe-report`/`ops dashboard`/`board`**、**`init`/`models`/`workflow`/`release-ga`/`ui`**、**`mcp-check`**、**`quality_gate.run`/`security_scan.run`** 与 **`run`/`continue`/`command`/`agent`/`fix-build` 的 `*.invoke`** 等同见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md) **触发路径**。
 
 ---
 
@@ -274,7 +274,7 @@
 ## `gateway platforms list`（`--json`）
 
 - **实现**：`cai_agent.gateway_platforms.build_gateway_platforms_payload`；`cai-agent gateway platforms list --json`。
-- **`schema_version`**：**`gateway_platforms_v1`**；含 **`workspace`**、**`telegram_map_exists`**、**`platforms[]`**（各 **`id`** / **`implementation`**（`full`|`stub`|`planned`）/ **`cli_prefix`** / **`env`** / **`notes`** 等）。
+- **`schema_version`**：**`gateway_platforms_v1`**；含 **`workspace`**、**`telegram_map_exists`**、**`telegram_session_map_path`**、**`telegram_webhook_pid_path`** / **`telegram_webhook_pid_exists`**（生命周期 PID 文件是否落盘）、**`telegram_bot_token_env_present`**（是否检测到 **`CAI_TELEGRAM_BOT_TOKEN`** 或 **`TELEGRAM_BOT_TOKEN`** 已配置，**不输出**具体值）、**`platforms[]`**（各 **`id`** / **`implementation`**（`full`|`stub`|`planned`）/ **`cli_prefix`** / **`env`** / **`notes`**；stub 平台另含 **`env_present`**：各文档化环境变量是否**已非空配置**）。
 
 **Exit**：成功 → **`0`**。
 
@@ -295,6 +295,15 @@
 - **`schema_version`**：**`skills_hub_manifest_v1`**；含 **`count`**、**`entries[]`**（`name` / `path` / `size_bytes` / `mtime_iso`）、**`skills_dir_exists`**。
 
 **Exit**：成功 → **`0`**。
+
+---
+
+## `skills hub suggest`（`GOAL...` / `--json` / `--write`）
+
+- **实现**：`cai_agent.skills.build_skill_evolution_suggest`；`cai-agent skills hub suggest <任务描述…> [--write] [--json]`（**`GOAL` 建议写在 `--json` 之前**）。
+- **`schema_version`**：**`skills_evolution_suggest_v1`**；含 **`suggested_path`**（默认位于 **`skills/_evolution_<slug>.md`**）、**`preview`**、**`write_requested`** / **`written`** / **`file_existed_before`**（**`--write`** 仅在目标文件尚不存在时落盘，避免覆盖已有草稿）。
+
+**Exit**：成功 → **`0`**；**`goal` 为空** → **`2`**。
 
 ---
 
@@ -395,8 +404,9 @@
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
+| `memory user-model` | 占位摘要 **`memory_user_model_v1`**：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`**=`stub` | `--days` 控制会话 mtime 窗口（默认 14） |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）与 **`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）与 **`memory user-model --json`**（**`memory_user_model_v1`**）。
 
 ---
 

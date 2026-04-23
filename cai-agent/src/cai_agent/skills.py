@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -47,6 +48,49 @@ def iter_skill_names(skills: Iterable[Skill]) -> list[str]:
     """提取技能名称列表, 便于在 UI 或 system prompt 中展示."""
 
     return sorted({s.name for s in skills})
+
+
+def _slug_goal(goal: str) -> str:
+    s = re.sub(r"[^a-zA-Z0-9_-]+", "-", goal.strip()).strip("-").lower()[:80]
+    return s or "goal"
+
+
+def build_skill_evolution_suggest(
+    *,
+    root: str | Path,
+    goal: str,
+    write: bool = False,
+) -> dict[str, Any]:
+    """技能自进化闭环 MVP：根据任务文本给出可落盘草稿路径与预览（可选 ``--write``）。"""
+    base = Path(root).expanduser().resolve()
+    slug = _slug_goal(goal)
+    rel = f"skills/_evolution_{slug}.md"
+    path = base / rel
+    body = (
+        "# Evolution draft\n\n"
+        "## Source goal\n\n"
+        f"{goal.strip()}\n\n"
+        "## Next steps\n\n"
+        "- [ ] 复核命名与目录约定\n"
+        "- [ ] 从 `_evolution_` 前缀迁出并纳入正式 `skills/`\n"
+    )
+    existed_before = path.is_file()
+    written = False
+    if write:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if not existed_before:
+            path.write_text(body, encoding="utf-8")
+            written = True
+    return {
+        "schema_version": "skills_evolution_suggest_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(base),
+        "suggested_path": rel.replace("\\", "/"),
+        "write_requested": bool(write),
+        "written": written,
+        "file_existed_before": existed_before,
+        "preview": body[:800],
+    }
 
 
 def build_skills_hub_manifest(*, root: str | Path) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.17`**；**S7-01 AC2** 已扩 **`CAI_METRICS_JSONL`**（含 **`0.6.11`–`0.6.15`** 既有路径，及 **`0.6.16`** **`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`** 等；**`0.6.17`** **`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**）；**S8-02/S8-03**（**`0.6.10`** **`perf_ga_gate`/`security_ga_gate`**）；**S8-04**（**`0.6.9`**）；**S7-04**（**`0.6.8`**）；**S7-02/S7-03**（**`0.6.6`–`0.6.7`**）；**S6-04** **`gateway telegram continue-hint`**；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 34/34**；T1 **`pytest`** 例 **435 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.18`**；**S7-01 AC2** 已扩 **`CAI_METRICS_JSONL`**（含 **`0.6.11`–`0.6.15`** 既有路径，及 **`0.6.16`** **`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`** 等；**`0.6.17`** **`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**；**`0.6.18`** **`gateway platforms`/`skills hub suggest`/`memory user-model`**）；**S8-02/S8-03**（**`0.6.10`** **`perf_ga_gate`/`security_ga_gate`**）；**S8-04**（**`0.6.9`**）；**S7-04**（**`0.6.8`**）；**S7-02/S7-03**（**`0.6.6`–`0.6.7`**）；**S6-04** **`gateway telegram continue-hint`**；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 34/34**；T1 **`pytest`** 例 **442 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -18,7 +18,7 @@
 | ❌ 未开发        | 0      | 0%       |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **34/34 = 100%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。**S7-01 AC2** 主要 CLI 路径已覆盖（**`0.6.15`–`0.6.17`** 含 **`hooks`/`mcp-check`/`serve-webhook`**、**`sessions`/`stats`/`insights`/`plan`/`smoke` 常见面**、**`init`/`models`/`workflow`/`release-ga`/`ui`** 等）；长尾按需扩展，见 backlog **S7-01 交付注**。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **34/34 = 100%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。**S7-01 AC2** 主要 CLI 路径已覆盖（**`0.6.15`–`0.6.18`** 含 **`hooks`/`mcp-check`/`serve-webhook`**、**`sessions`/`stats`/`insights`/`plan`/`smoke` 常见面**、**`init`/`models`/`workflow`/`release-ga`/`ui`**、**`gateway platforms`/`skills hub suggest`/`memory user-model`** 等）；长尾按需扩展，见 backlog **S7-01 交付注**。
 
 ---
 
@@ -126,7 +126,7 @@
 
 ### Sprint 7：Observability Pro
 
-**S7-01～S7-04** 已在主线交付（**`0.6.6`–`0.6.8`**，见上表 **✅**）。**S7-01 AC2** 已覆盖冒烟常见 CLI（**`0.6.16`–`0.6.17`** 见 backlog **S7-01 交付注**）；长尾子命令仍为 **按需增量**。
+**S7-01～S7-04** 已在主线交付（**`0.6.6`–`0.6.8`**，见上表 **✅**）。**S7-01 AC2** 已覆盖冒烟常见 CLI（**`0.6.16`–`0.6.18`** 见 backlog **S7-01 交付注**）；长尾子命令仍为 **按需增量**。
 
 **开发关键文件**：**`cai_agent.metrics`**、**`observe_ops_report`**、**`observe_export`**、**`insights_cross_domain`**、**`schedule`**（按日聚合）、**`__main__.py`**。
 
@@ -230,3 +230,4 @@ Sprint 8（GA）
 - **2026-04-23 · Sprint 7 Observability（`0.6.15`）**：**S7-01 AC2** 再扩 **`hooks.run_event`/`gateway.telegram.serve_webhook`/`mcp.check`**；**`test_metrics_jsonl`** 增补。
 - **2026-04-23 · Sprint 7 Observability（`0.6.16`）**：**S7-01 AC2** 再扩 **`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`** 等；**`test_metrics_jsonl`** 增补。
 - **2026-04-23 · Sprint 7 Observability（`0.6.17`）**：**S7-01 AC2** 再扩 **`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**；**`test_metrics_jsonl`** 增补。
+- **2026-04-23 · 多平台网关 / 技能自进化 / 用户建模占位（`0.6.18`）**：**`gateway platforms_v1`** 运行时信号；**`skills hub suggest`**（**`skills_evolution_suggest_v1`**）；**`memory user-model`**（**`memory_user_model_v1`**）；**`test_gateway_user_model_skills_evolution`**；**`smoke_new_features`** 增补。

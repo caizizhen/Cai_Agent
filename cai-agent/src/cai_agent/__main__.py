@@ -3438,7 +3438,7 @@ def main(argv: list[str] | None = None) -> int:
     skills_p = sub.add_parser(
         "skills",
         parents=[common],
-        help="Skills Hub 辅助：从工作区 skills/ 导出分发清单等",
+        help="Skills Hub 辅助：manifest 清单与自进化草稿 suggest（skills hub …）",
     )
     skills_sub = skills_p.add_subparsers(dest="skills_action", required=True)
     skills_hub_p = skills_sub.add_parser("hub", help="Hub 分发相关子命令")
@@ -3452,6 +3452,27 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="json_output",
         help="输出 skills_hub_manifest_v1 JSON",
+    )
+    skills_hub_suggest_p = skills_hub_sub.add_parser(
+        "suggest",
+        help="技能自进化 MVP：根据任务文本生成可落盘的技能草稿路径与预览（可选 --write）",
+    )
+    skills_hub_suggest_p.add_argument(
+        "skills_suggest_goal",
+        metavar="GOAL",
+        nargs="+",
+        help="已完成的任务描述（用于命名草稿文件；建议放在选项前）",
+    )
+    skills_hub_suggest_p.add_argument(
+        "--write",
+        action="store_true",
+        help="在 suggested_path 不存在时写入预览 Markdown",
+    )
+    skills_hub_suggest_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_evolution_suggest_v1 JSON",
     )
     cmd_list_p = sub.add_parser(
         "commands",
@@ -4213,6 +4234,18 @@ def main(argv: list[str] | None = None) -> int:
         help="与 memory health 一致：计算 freshness 的创建时间窗口天数（默认 14）",
     )
     memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
+    memory_user_model = memory_sub.add_parser(
+        "user-model",
+        help="工作区用户建模占位摘要（Honcho 级能力的增量入口，非完整画像引擎）",
+    )
+    memory_user_model.add_argument(
+        "--days",
+        type=int,
+        default=14,
+        dest="user_model_days",
+        help="按会话文件 mtime 统计最近 N 天内的数量（默认 14）",
+    )
+    memory_user_model.add_argument("--json", action="store_true", dest="json_output")
 
     schedule_p = sub.add_parser(
         "schedule",
@@ -5228,26 +5261,54 @@ def main(argv: list[str] | None = None) -> int:
             print("skills: 仅支持 hub 子命令", file=sys.stderr)
             return 2
         hub_act = str(getattr(args, "skills_hub_action", "") or "").strip()
-        if hub_act != "manifest":
-            print("skills hub: 仅支持 manifest", file=sys.stderr)
+        if hub_act not in ("manifest", "suggest"):
+            print("skills hub: 仅支持 manifest / suggest", file=sys.stderr)
             return 2
         root_sk = Path.cwd().resolve()
-        from cai_agent.skills import build_skills_hub_manifest
+        if hub_act == "manifest":
+            from cai_agent.skills import build_skills_hub_manifest
 
-        t_sk = time.perf_counter()
-        payload_sm = build_skills_hub_manifest(root=str(root_sk))
+            t_sk = time.perf_counter()
+            payload_sm = build_skills_hub_manifest(root=str(root_sk))
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload_sm, ensure_ascii=False))
+            else:
+                print(
+                    f"skills Hub manifest: count={payload_sm.get('count')} "
+                    f"skills_dir_exists={payload_sm.get('skills_dir_exists')}",
+                )
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.hub_manifest",
+                latency_ms=(time.perf_counter() - t_sk) * 1000.0,
+                tokens=int(payload_sm.get("count") or 0),
+                success=True,
+            )
+            return 0
+        from cai_agent.skills import build_skill_evolution_suggest
+
+        goal_ev = " ".join(getattr(args, "skills_suggest_goal", []) or []).strip()
+        if not goal_ev:
+            print("goal 不能为空", file=sys.stderr)
+            return 2
+        t_sug = time.perf_counter()
+        payload_sug = build_skill_evolution_suggest(
+            root=str(root_sk),
+            goal=goal_ev,
+            write=bool(getattr(args, "write", False)),
+        )
         if bool(getattr(args, "json_output", False)):
-            print(json.dumps(payload_sm, ensure_ascii=False))
+            print(json.dumps(payload_sug, ensure_ascii=False))
         else:
             print(
-                f"skills Hub manifest: count={payload_sm.get('count')} "
-                f"skills_dir_exists={payload_sm.get('skills_dir_exists')}",
+                f"skills evolution suggest: path={payload_sug.get('suggested_path')} "
+                f"written={payload_sug.get('written')}",
             )
         _maybe_metrics_cli(
             module="skills",
-            event="skills.hub_manifest",
-            latency_ms=(time.perf_counter() - t_sk) * 1000.0,
-            tokens=int(payload_sm.get("count") or 0),
+            event="skills.evolution_suggest",
+            latency_ms=(time.perf_counter() - t_sug) * 1000.0,
+            tokens=max(1, len(goal_ev) // 64),
             success=True,
         )
         return 0
@@ -6928,6 +6989,31 @@ def main(argv: list[str] | None = None) -> int:
                         f"high={payload.get('severity_counts', {}).get('high', 0)}",
                     )
                     print(f"history_file={payload.get('history_file')}")
+                return 0
+            if args.memory_action == "user-model":
+                t_mum = time.perf_counter()
+                from cai_agent.user_model import build_memory_user_model_overview
+
+                payload_um = build_memory_user_model_overview(
+                    settings_mem,
+                    days=int(getattr(args, "user_model_days", 14) or 14),
+                )
+                tok_um = int(payload_um.get("sessions_recent_in_window") or 0)
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.user_model",
+                    latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                    tokens=tok_um,
+                    success=True,
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload_um, ensure_ascii=False))
+                else:
+                    print(
+                        f"[memory user-model] sessions_total={payload_um.get('sessions_total')} "
+                        f"recent={payload_um.get('sessions_recent_in_window')} "
+                        f"overlay={payload_um.get('overlay_present')}",
+                    )
                 return 0
         finally:
             _print_hook_status(

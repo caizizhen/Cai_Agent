@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.18 (2026-04-23)
+
+- **Multi-platform gateway / skills evolution / memory (MVP slice)**: **`gateway platforms list --json`** now includes **`telegram_webhook_pid_exists`**, **`telegram_bot_token_env_present`**, and per-stub-platform **`env_present`** (boolean only, no secret values). New **`skills hub suggest`** → **`skills_evolution_suggest_v1`** (optional **`--write`** to create a non-destructive draft under **`skills/_evolution_*.md`**). New **`memory user-model --json`** → **`memory_user_model_v1`** (session mtime window + optional **`.cai/user-model.json`** overlay; **`honcho_parity: stub`**). **`CAI_METRICS_JSONL`**: **`skills.evolution_suggest`**, **`memory.user_model`**. **`smoke_new_features`** extended.
+- **Tests**: **`test_gateway_user_model_skills_evolution.py`**, **`test_metrics_jsonl`** additions.
+
 ### 0.6.17 (2026-04-23)
 
 - **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`init.apply`**, **`models.*`** (per subcommand, e.g. **`models.list`** / **`models.fetch`**), **`workflow.run`** (including **`run_workflow` exceptions**), **`release_ga.gate`**, and **`ui.tui`**. **`docs/schema/METRICS_JSON.zh-CN.md`** and schema index updated.

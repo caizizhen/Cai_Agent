@@ -13,7 +13,7 @@
 | 类别 | 项目 | 状态 |
 |------|------|------|
 | 功能 | S1~S7 所有 P0/P1 测试通过 | ✅（以 **`pytest cai-agent/tests`** 为准） |
-| 回归 | 全量回归 435+ 用例通过 | ✅（**`0.6.17`** 本机；以 CI 为准） |
+| 回归 | 全量回归 442+ 用例通过 | ✅（**`0.6.18`** 本机；以 CI 为准） |
 | 性能 | recall 200 文件 < 5s | ✅（**`scripts/perf_ga_gate.py`** + **`test_perf_ga_s8_02`**） |
 | 性能 | schedule daemon 100 轮次无崩溃 | ✅（**`test_perf_ga_s8_02`** mock 执行；可选 **`perf_ga_gate.py --pytest-daemon`**） |
 | 性能 | gateway 500 消息无掉线（如已实现） | ⬜（**S8-02 AC3** 真机专项） |

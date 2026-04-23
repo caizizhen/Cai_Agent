@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.18（2026-04-23）
+
+- **多平台网关 / 技能自进化 / 记忆（MVP 切片）**：**`gateway platforms list --json`** 增补 **`telegram_webhook_pid_exists`**、**`telegram_bot_token_env_present`** 及各 stub 平台 **`env_present`**（仅布尔，不落密钥）。新增 **`skills hub suggest`** → **`skills_evolution_suggest_v1`**（可选 **`--write`** 写入 **`skills/_evolution_*.md`** 草稿，已存在则跳过）。新增 **`memory user-model --json`** → **`memory_user_model_v1`**（会话 mtime 窗口 + 可选 **`.cai/user-model.json`**；**`honcho_parity: stub`**）。**`CAI_METRICS_JSONL`**：**`skills.evolution_suggest`**、**`memory.user_model`**。**`smoke_new_features`** 已抽样。
+- **测试**：**`test_gateway_user_model_skills_evolution.py`**、**`test_metrics_jsonl`** 增补。
+
 ### 0.6.17（2026-04-23）
 
 - **可观测性（Hermes S7-01 AC2 扩展）**：**`CAI_METRICS_JSONL`** 追加 **`init.apply`**、**`models.*`**（按子命令，如 **`models.list`/`models.fetch`** 等）、**`workflow.run`**（含 **`run_workflow` 异常**）、**`release_ga.gate`**、**`ui.tui`**。**`docs/schema/METRICS_JSON.zh-CN.md`** 与索引已同步。

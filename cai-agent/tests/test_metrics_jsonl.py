@@ -767,6 +767,40 @@ class MetricsJsonlTests(unittest.TestCase):
             self.assertEqual(row.get("module"), "skills")
             self.assertEqual(row.get("event"), "skills.hub_manifest")
 
+    def test_skills_hub_suggest_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "sks.jsonl"
+            ws = Path(td) / "wssks"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["skills", "hub", "suggest", "metric smoke goal", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "skills")
+            self.assertEqual(row.get("event"), "skills.evolution_suggest")
+            self.assertIs(row.get("success"), True)
+
+    def test_memory_user_model_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "mum.jsonl"
+            ws = Path(td) / "wsmum"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["memory", "user-model", "--json", "--days", "7"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "memory")
+            self.assertEqual(row.get("event"), "memory.user_model")
+            self.assertIs(row.get("success"), True)
+
     def test_observe_report_standalone_appends_metrics_when_env_set(self) -> None:
         with TemporaryDirectory() as td:
             metrics_path = Path(td) / "obr.jsonl"
