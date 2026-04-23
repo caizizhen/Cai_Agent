@@ -3,7 +3,7 @@
 > 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 5  
 > 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S5  
 > 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_workflow*.py`  
-> **开发状态（2026-04-23）**：**S5-03**（`on_error`）与 **S5-04**（`budget_max_tokens` + `budget_used`/`budget_limit`/`budget_exceeded`）已在 `cai_agent/workflow.py` 落地；自动化见 `cai-agent/tests/test_cli_workflow.py`。与 CLI **`quality-gate`** 的硬编码联动仍为后续增量。
+> **开发状态（2026-04-23）**：**S5-03**（`on_error`）与 **S5-04**（`budget_max_tokens` + `budget_used`/`budget_limit`/`budget_exceeded` + root **`quality_gate`** 后置门禁）已在 `cai_agent/workflow.py` 落地；自动化见 `cai-agent/tests/test_cli_workflow.py`。
 
 ---
 
@@ -15,6 +15,7 @@
 | fan-out/fan-in 聚合 | `merge_strategy` 配置 | 合并策略正确性 |
 | fail-fast / continue-on-error | `on_error` 配置 | 失败传播策略 |
 | 预算门禁 | `budget_max_tokens` 配置 | 超预算中止行为 |
+| 后置质量门禁 | `quality_gate` 配置 | workflow 成功后执行 quality-gate，失败时回写 workflow 状态 |
 
 ---
 

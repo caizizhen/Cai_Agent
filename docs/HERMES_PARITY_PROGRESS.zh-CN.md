@@ -106,8 +106,8 @@
 
 **开发关键文件**：
 
-- `cai_agent/workflow.py`：`parallel_group`、**`on_error`**（S5-03）、**`budget_max_tokens`**（S5-04）与 **`subagent_io`** 汇总  
-**QA 等待信号**：编排与预算自动化见 `docs/qa/sprint5-subagents-testplan.md`；**质量门禁与 `quality-gate` 深度联动**仍为后续增量。
+- `cai_agent/workflow.py`：`parallel_group`、**`on_error`**（S5-03）、**`budget_max_tokens`**（S5-04）、root **`quality_gate`**（后置质量门禁）与 **`subagent_io`** 汇总  
+**QA 等待信号**：编排、预算与 workflow 后置 **`quality-gate`** 自动化见 `docs/qa/sprint5-subagents-testplan.md`。
 
 ---
 

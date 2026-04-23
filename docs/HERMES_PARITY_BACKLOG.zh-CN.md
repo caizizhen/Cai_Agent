@@ -262,7 +262,7 @@
 
 ### S5-04 预算与质量门禁联动
 - **Story**：作为运营，我希望并行工作流的总 token 消耗超过预算时自动中止，避免意外超支。
-- **主线实现（2026-04-23）**：`run_workflow` 读取根级 **`budget_max_tokens`**；已执行步骤的 **`total_tokens`** 在下一批开始前若 **≥** 预算则跳过未启动步骤（**`skip_reason=budget_exceeded`**）；`summary` / **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` 可为 **`workflow_budget_exceeded`**。测试：`cai-agent/tests/test_cli_workflow.py`。**与 `quality-gate` 的硬联动**仍为后续增量。
+- **主线实现（2026-04-23）**：`run_workflow` 读取根级 **`budget_max_tokens`**；已执行步骤的 **`total_tokens`** 在下一批开始前若 **≥** 预算则跳过未启动步骤（**`skip_reason=budget_exceeded`**）；`summary` / **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` 可为 **`workflow_budget_exceeded`**。同时补齐 root **`quality_gate`**：workflow 先成功时自动执行后置 **`quality-gate`**，输出 **`quality_gate`** 摘要与根级 **`post_gate`**（**`quality_gate_result_v1`**），失败时 `task.error` 为 **`workflow_quality_gate_failed`**。测试：`cai-agent/tests/test_cli_workflow.py`。
 - **AC**：
   1. workflow root 增加 `budget_max_tokens`（可选）。
   2. 超过预算时中止未启动的子任务，已运行的结果保留。

@@ -29,7 +29,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Run with an existing plan | `cai-agent run --plan-file ./PLAN.md "Implement step 1"` |
 | Machine-readable run | `cai-agent run --json "List open risks in the diff"` |
 | Sessions | `cai-agent run --save-session .cai-session.json "..."` then `cai-agent continue .cai-session.json "..."` |
-| Multi-step workflow | `cai-agent workflow workflow.json --json` (root `merge_strategy`, **`on_error`**: `fail_fast` / `continue_on_error`, optional **`budget_max_tokens`** + summary **`budget_*`**; steps may set **`parallel_group`**) |
+| Multi-step workflow | `cai-agent workflow workflow.json --json` (root `merge_strategy`, **`on_error`**: `fail_fast` / `continue_on_error`, optional **`budget_max_tokens`** + summary **`budget_*`**, optional root **`quality_gate`** + **`post_gate`** result; steps may set **`parallel_group`**) |
 | Quality gate / CI | `cai-agent quality-gate --json` (optional `--report-dir DIR`; `[quality_gate]` `test_policy` / `lint_policy`: `skip` or `fail_if_missing`) |
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
 | Memory | `cai-agent memory extract` → `memory/entries.jsonl` (stdout JSON **`memory_extract_v1`**); **`memory list --json`** → **`memory_list_v1`** with **`entries`**; **`memory search --json`** → **`memory_search_v1`**; instinct paths via **`memory instincts --json`** (**`memory_instincts_list_v1`**); **`memory export --json`** / **`export-entries --json`** → **`memory_instincts_export_v1`** / **`memory_entries_export_result_v1`** (optional; default stdout is still the output path); `memory prune`; **`memory health --json`** (Hermes parity: `health_score`, `grade`, `freshness` / `coverage` / `conflict_rate`, `--fail-on-grade`, `--max-conflict-compare-entries`); health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`); historical trend via `memory nudge-report --json` (`schema_version=1.2`, `health_score`, `freshness`, `--freshness-days`, `severity_jumps`); one-step schedule preset via `schedule add-memory-nudge` |
@@ -157,6 +157,13 @@ cai-agent sessions --details
 
 ```json
 {
+  "on_error": "continue_on_error",
+  "budget_max_tokens": 12000,
+  "quality_gate": {
+    "lint": true,
+    "security_scan": true,
+    "report_dir": ".cai/qg-report"
+  },
   "steps": [
     {"name": "scan", "goal": "Map the repo and key modules"},
     {"name": "plan", "goal": "Produce a refactor plan with risks"}
@@ -167,6 +174,8 @@ cai-agent sessions --details
 ```bash
 cai-agent workflow workflow.json --json
 ```
+
+The workflow JSON root also accepts `quality_gate: true | {...}`. When the workflow itself finishes successfully, CAI runs one post `quality-gate`, returns a `quality_gate` summary plus optional `post_gate` (`quality_gate_result_v1`), and fails the workflow if that gate fails.
 
 ## Alignment with Claude Code / Everything Claude Code
 
@@ -459,6 +468,8 @@ cai-agent continue .cai-session.json "From the analysis, output a three-phase pl
 ```bash
 cai-agent workflow workflow.json --json
 ```
+
+If `workflow.json` enables root `quality_gate`, the final JSON also includes `quality_gate` / `post_gate` fields so CI can treat the workflow as a single gated unit.
 
 **D** Inspect sessions:
 

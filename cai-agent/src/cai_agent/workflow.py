@@ -17,6 +17,7 @@ from cai_agent.memory import (
     extract_basic_instincts_from_session,
     save_instincts,
 )
+from cai_agent.quality_gate import run_quality_gate
 from cai_agent.task_state import new_task
 
 ROLE_RANK = {"default": 1, "explorer": 2, "reviewer": 3, "security": 4}
@@ -268,6 +269,47 @@ def _parse_budget_max_tokens(data: Dict[str, Any]) -> int | None:
     if n < 0:
         return None
     return n
+
+
+def _parse_workflow_quality_gate(data: Dict[str, Any]) -> dict[str, Any]:
+    """解析 root `quality_gate`（后置质量门禁硬联动）。"""
+    raw = data.get("quality_gate")
+    parsed = {
+        "requested": False,
+        "compile": None,
+        "test": None,
+        "lint": None,
+        "typecheck": None,
+        "security_scan": None,
+        "report_dir": None,
+    }
+    if raw in (None, False):
+        return parsed
+    if raw is True:
+        parsed["requested"] = True
+        return parsed
+    if not isinstance(raw, dict):
+        return parsed
+    if raw.get("enabled") is False:
+        return parsed
+    parsed["requested"] = True
+    for key in ("compile", "test", "lint", "typecheck", "security_scan"):
+        if isinstance(raw.get(key), bool):
+            parsed[key] = bool(raw.get(key))
+    report_dir = raw.get("report_dir")
+    if isinstance(report_dir, str) and report_dir.strip():
+        parsed["report_dir"] = report_dir.strip()
+    return parsed
+
+
+def _resolve_report_dir(base_dir: str, report_dir: Any) -> str | None:
+    """将 quality_gate.report_dir 解析为绝对路径；相对路径相对 workflow 文件目录。"""
+    if not isinstance(report_dir, str) or not report_dir.strip():
+        return None
+    p = Path(report_dir.strip()).expanduser()
+    if not p.is_absolute():
+        p = Path(base_dir).resolve() / p
+    return str(p.resolve())
 
 
 def _tokens_used_executed(results: List[Dict[str, Any]]) -> int:
@@ -648,17 +690,24 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     开始前若 **≥** 预算，则本批及之后未启动步骤全部 **`skipped`**（`skip_reason=budget_exceeded`）；
     本批已启动的并行组仍会跑完（已运行结果保留）。`summary` / `workflow.finished` 含 **`budget_used`** /
     **`budget_limit`** / **`budget_exceeded`**。
+
+    `quality_gate`（后续增量补齐）：root 可选 `true` 或对象；当 workflow 本身先成功完成时，
+    自动执行一次后置 `quality-gate`。对象可覆盖 `compile` / `test` / `lint` / `typecheck` /
+    `security_scan` / `report_dir`；若 gate 失败，workflow 最终标记为 failed，并在输出中附带
+    `quality_gate` 摘要与 `post_gate` 详细结果。
     """
     wf_task = new_task("workflow")
     wf_task.status = "running"
     events: List[Dict[str, Any]] = []
-    data = _load_workflow_file(path)
+    wf_path = Path(path).expanduser().resolve()
+    data = _load_workflow_file(str(wf_path))
     steps_data = data["steps"]
     on_error = _normalize_on_error(data)
     merge_strategy = str(data.get("merge_strategy", "require_manual")).strip().lower()
     if merge_strategy not in ("require_manual", "last_wins", "role_priority"):
         merge_strategy = "require_manual"
     budget_max = _parse_budget_max_tokens(data)
+    quality_gate_cfg = _parse_workflow_quality_gate(data)
 
     results: List[Dict[str, Any]] = []
     total_elapsed = 0
@@ -781,6 +830,88 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         tok_used > budget_max
         or any(str(r.get("skip_reason") or "") == "budget_exceeded" for r in results)
     )
+    fail_fast_tail = on_error == "fail_fast" and any(
+        str(r.get("skip_reason") or "") == "fail_fast_prior_batch" for r in results
+    )
+    ran_failed = any(_step_execution_failed(r) for r in results)
+    pre_gate_failed = fail_fast_tail or total_errors > 0 or ran_failed or budget_exceeded
+    post_gate: Dict[str, Any] | None = None
+    quality_gate_summary: dict[str, Any] = {
+        "requested": bool(quality_gate_cfg.get("requested")),
+        "ran": False,
+        "ok": None,
+        "failed_count": None,
+        "skip_reason": None,
+        "report_dir": _resolve_report_dir(str(wf_path.parent), quality_gate_cfg.get("report_dir")),
+    }
+    if quality_gate_summary["requested"]:
+        if pre_gate_failed:
+            quality_gate_summary["skip_reason"] = "workflow_failed"
+            events.append(
+                {
+                    "event": "workflow.quality_gate.skipped",
+                    "task_id": wf_task.task_id,
+                    "workflow_task_id": wf_task.task_id,
+                    "reason": "workflow_failed",
+                },
+            )
+        elif not any(not r.get("skipped") for r in results):
+            quality_gate_summary["skip_reason"] = "no_executed_steps"
+            events.append(
+                {
+                    "event": "workflow.quality_gate.skipped",
+                    "task_id": wf_task.task_id,
+                    "workflow_task_id": wf_task.task_id,
+                    "reason": "no_executed_steps",
+                },
+            )
+        else:
+            post_gate = run_quality_gate(
+                settings,
+                enable_compile=(
+                    settings.quality_gate_compile
+                    if quality_gate_cfg.get("compile") is None
+                    else bool(quality_gate_cfg.get("compile"))
+                ),
+                enable_test=(
+                    settings.quality_gate_test
+                    if quality_gate_cfg.get("test") is None
+                    else bool(quality_gate_cfg.get("test"))
+                ),
+                enable_lint=(
+                    settings.quality_gate_lint
+                    if quality_gate_cfg.get("lint") is None
+                    else bool(quality_gate_cfg.get("lint"))
+                ),
+                enable_typecheck=(
+                    settings.quality_gate_typecheck
+                    if quality_gate_cfg.get("typecheck") is None
+                    else bool(quality_gate_cfg.get("typecheck"))
+                ),
+                enable_security_scan=(
+                    settings.quality_gate_security_scan
+                    if quality_gate_cfg.get("security_scan") is None
+                    else bool(quality_gate_cfg.get("security_scan"))
+                ),
+                report_dir=quality_gate_summary["report_dir"],
+            )
+            quality_gate_summary.update(
+                {
+                    "ran": True,
+                    "ok": bool(post_gate.get("ok")),
+                    "failed_count": int(post_gate.get("failed_count", 0) or 0),
+                },
+            )
+            events.append(
+                {
+                    "event": "workflow.quality_gate.completed",
+                    "task_id": wf_task.task_id,
+                    "workflow_task_id": wf_task.task_id,
+                    "ok": bool(post_gate.get("ok")),
+                    "failed_count": int(post_gate.get("failed_count", 0) or 0),
+                    "report_dir": quality_gate_summary["report_dir"],
+                },
+            )
     summary = {
         "steps_count": len(results),
         "parallel_steps_count": sum(
@@ -813,6 +944,11 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "budget_limit": budget_max,
         "budget_used": tok_used,
         "budget_exceeded": budget_exceeded,
+        "quality_gate_requested": bool(quality_gate_summary["requested"]),
+        "quality_gate_ran": bool(quality_gate_summary["ran"]),
+        "quality_gate_ok": quality_gate_summary["ok"],
+        "quality_gate_failed_count": quality_gate_summary["failed_count"],
+        "quality_gate_skip_reason": quality_gate_summary["skip_reason"],
     }
     subagent_io = _build_subagent_io_summary(
         settings=settings,
@@ -838,10 +974,6 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     wf_task.ended_at = time.time()
     wf_task.elapsed_ms = int((wf_task.ended_at - wf_task.started_at) * 1000)
-    ran_failed = any(_step_execution_failed(r) for r in results)
-    fail_fast_tail = on_error == "fail_fast" and any(
-        str(r.get("skip_reason") or "") == "fail_fast_prior_batch" for r in results
-    )
     if fail_fast_tail:
         wf_task.status = "failed"
         wf_task.error = "workflow_fail_fast"
@@ -851,6 +983,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     elif budget_exceeded:
         wf_task.status = "failed"
         wf_task.error = "workflow_budget_exceeded"
+    elif quality_gate_summary["requested"] and quality_gate_summary["ran"] and not quality_gate_summary["ok"]:
+        wf_task.status = "failed"
+        wf_task.error = "workflow_quality_gate_failed"
     else:
         wf_task.status = "completed"
         wf_task.error = None
@@ -868,6 +1003,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             "budget_limit": budget_max,
             "budget_used": tok_used,
             "budget_exceeded": budget_exceeded,
+            "quality_gate_requested": bool(quality_gate_summary["requested"]),
+            "quality_gate_ran": bool(quality_gate_summary["ran"]),
+            "quality_gate_ok": quality_gate_summary["ok"],
         },
     )
     return {
@@ -878,5 +1016,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "subagent_io": subagent_io,
         "steps": results,
         "summary": summary,
+        "quality_gate": quality_gate_summary,
+        "post_gate": post_gate,
         "events": events,
     }

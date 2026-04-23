@@ -10,6 +10,7 @@
 - **`memory validate-entries`**: new subcommand → `memory_entries_file_validate_v1` JSON; exit 0 if clean, exit 2 if invalid lines; backed by `build_memory_entries_jsonl_validate_report`.
 - **`memory extract --structured`**: optional LLM-structured extraction; degrades to heuristic rules in mock/no-key mode via `extract_memory_entries_structured`.
 - **Subagent IO schema v1.1**: `workflow` output bumps `subagent_io_schema_version` to `1.1`; each step now includes `agent_template_id` (matched against `agents/` catalog) and optional `rpc_step_input`/`rpc_step_output` from `protocol`.
+- **Workflow post quality-gate linkage**: workflow JSON root now accepts `quality_gate` (`true` or an object overriding `compile` / `test` / `lint` / `typecheck` / `security_scan` / `report_dir`). When the workflow itself succeeds, `run_workflow` executes a post `quality-gate`, appends `quality_gate` summary + optional `post_gate` (`quality_gate_result_v1`), emits `workflow.quality_gate.*` events, and marks the workflow failed on gate failure (`workflow_quality_gate_failed`).
 - **`plan --json` stable schema**: `goal_empty` error now includes `"task": null`; all error branches include `plan_schema_version`.
 - **`hooks.json` auto-execution (non-dry-run)**: `hooks run-event` without `--dry-run` now actually executes matching scripts/commands (was always possible but now also wired to `script` field).
 - **Quality-gate frontend monorepo**: `CAI_QG_FRONTEND_MONOREPO=1` + `package.json` present → auto-appends `npm run -ws --if-present lint` to quality-gate checks.
@@ -24,7 +25,7 @@
 - **Skills auto-suggest hook**: set `CAI_SKILLS_AUTO_SUGGEST=1` to auto-run `build_skill_evolution_suggest` on `session_end` and drop a draft under `skills/_evolution_*.md`.
 - **`ONBOARDING.zh-CN.md`**: new step-by-step onboarding path doc (vision → fetch_url/MCP → doctor → run).
 - **Tools registry doc**: `docs/TOOLS_REGISTRY.zh-CN.md` catalogues all 13 tools with permission keys.
-- **Tests**: `test_memory_validate_entries_cli.py`, `test_hook_runtime.py` (script hook), updates to `test_plan_sessions_cli.py` / `test_cli_workflow.py` / `test_gateway_telegram_execute_goal.py` / `test_session_observe.py` / `test_stats_json.py` / `test_cli_board_and_workflow_snapshot.py` for schema version bumps.
+- **Tests**: `test_memory_validate_entries_cli.py`, `test_hook_runtime.py` (script hook), updates to `test_plan_sessions_cli.py` / `test_cli_workflow.py` / `test_gateway_telegram_execute_goal.py` / `test_session_observe.py` / `test_stats_json.py` / `test_cli_board_and_workflow_snapshot.py` for schema version bumps and workflow post-gate coverage.
 
 ### 0.6.18 (2026-04-23)
 

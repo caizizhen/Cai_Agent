@@ -97,6 +97,13 @@ cai-agent sessions --details
 
 ```json
 {
+  "on_error": "continue_on_error",
+  "budget_max_tokens": 12000,
+  "quality_gate": {
+    "lint": true,
+    "security_scan": true,
+    "report_dir": ".cai/qg-report"
+  },
   "steps": [
     {"name": "scan", "goal": "梳理仓库结构与关键模块"},
     {"name": "plan", "goal": "生成重构计划并列出风险"}
@@ -109,6 +116,8 @@ cai-agent sessions --details
 ```bash
 cai-agent workflow workflow.json --json
 ```
+
+workflow root 也支持 `quality_gate: true | {...}`。当 workflow 本身先成功结束时，CAI 会自动补跑一次后置 `quality-gate`，并在结果中返回 `quality_gate` 摘要与可选 `post_gate`（`quality_gate_result_v1`）；如果 gate 失败，workflow 会整体失败。
 
 ## 与 Claude Code / Everything Claude Code 的功能对齐
 
@@ -614,6 +623,10 @@ cai-agent continue .cai-session.json "基于刚才分析，输出可执行的三
 
 ```json
 {
+  "quality_gate": {
+    "lint": true,
+    "security_scan": true
+  },
   "steps": [
     {"name": "scan", "goal": "梳理仓库结构、关键模块和风险"},
     {"name": "plan", "goal": "输出三阶段重构计划，给出验证策略"},
@@ -635,6 +648,7 @@ cai-agent sessions --details
 ```
 
 如果你开启了 memory 相关能力，workflow 结束后会在工作区写入 instinct 快照（用于后续经验沉淀）。
+如果你启用了 root `quality_gate`，返回 JSON 里还会多出 `quality_gate` / `post_gate`，可以直接给 CI 当统一门禁结果使用。
 
 ## Demo：MCP 外部工具接入（端到端）
 
@@ -720,7 +734,7 @@ ctx ███░░░░░░░░░░░░░░░░░ ~512 / 32,768 (
 
 `workflow` 当前使用 JSON 文件，核心字段如下：
 
-- 根对象：`{"steps":[ ... ]}`；可选根字段：**`merge_strategy`**（`require_manual` / `last_wins` / `role_priority`）、**`on_error`**（`fail_fast` 默认 / `continue_on_error`，Hermes S5-03）、**`budget_max_tokens`**（Hermes S5-04，批间 token 预算；`summary` 含 **`budget_used`/`budget_limit`/`budget_exceeded`**）。步骤上可设 **`parallel_group`**（同名字符串同批并行）。
+- 根对象：`{"steps":[ ... ]}`；可选根字段：**`merge_strategy`**（`require_manual` / `last_wins` / `role_priority`）、**`on_error`**（`fail_fast` 默认 / `continue_on_error`，Hermes S5-03）、**`budget_max_tokens`**（Hermes S5-04，批间 token 预算；`summary` 含 **`budget_used`/`budget_limit`/`budget_exceeded`**）、**`quality_gate`**（`true` 或对象；workflow 成功后触发一次后置 `quality-gate`，结果含 **`quality_gate`** / 可选 **`post_gate`**）。步骤上可设 **`parallel_group`**（同名字符串同批并行）。
 - 每个 step 支持：
   - `name`：步骤名称（可选，不填自动 `step-N`）
   - `goal`：步骤目标（必填）
@@ -731,6 +745,11 @@ ctx ███░░░░░░░░░░░░░░░░░ ~512 / 32,768 (
 
 ```json
 {
+  "quality_gate": {
+    "test": true,
+    "lint": true,
+    "report_dir": ".cai/qg-report"
+  },
   "steps": [
     {"name": "repo-a-scan", "workspace": "D:/repoA", "goal": "分析代码结构"},
     {"name": "repo-a-plan", "workspace": "D:/repoA", "model": "gpt-4o-mini", "goal": "输出重构计划"},

@@ -5234,7 +5234,7 @@ def main(argv: list[str] | None = None) -> int:
     wf_p = sub.add_parser(
         "workflow",
         parents=[common],
-        help="根据 JSON workflow 文件依次运行多个步骤任务；或用 templates 列出/导出内置模板",
+        help="根据 JSON workflow 文件依次运行多个步骤任务（支持 on_error / budget_max_tokens / quality_gate）；或用 templates 列出/导出内置模板",
     )
     wf_p.add_argument(
         "file",
@@ -9639,6 +9639,15 @@ def main(argv: list[str] | None = None) -> int:
             print(f"elapsed_ms_avg={summary.get('elapsed_ms_avg', 0)}")
             print(f"tool_calls_total={summary.get('tool_calls_total', 0)}")
             print(f"tool_errors_total={summary.get('tool_errors_total', 0)}")
+            qg = result.get("quality_gate") if isinstance(result.get("quality_gate"), dict) else {}
+            if qg.get("requested"):
+                print(
+                    "quality_gate "
+                    f"ran={qg.get('ran')} "
+                    f"ok={qg.get('ok')} "
+                    f"failed_count={qg.get('failed_count')} "
+                    f"skip_reason={qg.get('skip_reason')}",
+                )
             for step in steps:
                 name = step.get("name") or ""
                 goal = (step.get("goal") or "")[:80]
@@ -9662,6 +9671,9 @@ def main(argv: list[str] | None = None) -> int:
                     if isinstance(st, dict) and int(st.get("error_count") or 0) > 0:
                         rc_wf = 2
                         break
+        qg = result.get("quality_gate") if isinstance(result.get("quality_gate"), dict) else {}
+        if rc_wf == 0 and bool(qg.get("requested")) and bool(qg.get("ran")) and qg.get("ok") is False:
+            rc_wf = 2
         wf_tk = result.get("task") if isinstance(result.get("task"), dict) else {}
         wf_sm = result.get("summary") if isinstance(result.get("summary"), dict) else {}
         wf_done = str(wf_tk.get("status") or "").strip().lower() == "completed"

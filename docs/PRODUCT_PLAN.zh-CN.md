@@ -15,7 +15,7 @@
 
 | 领域 | 已具备能力（摘要） |
 |------|---------------------|
-| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
+| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段、root **`quality_gate`** + 可选 **`post_gate`** 等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
 | **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
 | **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
@@ -86,7 +86,7 @@
 | 20 | **S4-04** 审计 JSONL 七种事件 | **完成** | [`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) |
 | 21 | **`task_id` 贯通** + **`ops dashboard` JSON** | **完成** | `run`/`continue`/`workflow`/`sessions`/`observe` |
 | 22 | 敏感扫描、高危命令二次确认 | **完成** | `security-scan --json`（密钥扫描）+ **`pii-scan`**（`pii_scan_result_v1`，覆盖信用卡/身份证/手机号/JWT/SSN）+ `run_command_approval_mode` 高危二次确认；`test_pii_scan.py`（11 cases） |
-| 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
+| 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算 + root **`quality_gate`** / **`post_gate`**（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
 | 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack 升级 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；bind/unbind/get/list/allow 完整映射管理；`test_gateway_discord_slack_cli.py`（19 cases） |
 | 25 | 技能自进化 / Hub | **完成** | `skills_hub_manifest_v1` + `skills_evolution_suggest_v1` + **`skills hub install`**；**`auto_extract_skill_after_task`**；**`skills hub serve`**；**`CAI_SKILLS_AUTO_SUGGEST`**；`test_skills_auto_extract_hub_serve.py`（8 cases） |
 | 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘（KPI 卡片 + 调度 SLA 表 + Top 工具表）；**`-o FILE`** 落盘；`test_ops_dashboard_html.py`（10 cases） |

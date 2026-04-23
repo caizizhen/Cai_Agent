@@ -470,6 +470,306 @@ class WorkflowCliTests(unittest.TestCase):
         self.assertIs(sm.get("budget_exceeded"), False)
         self.assertIn("budget_used", sm)
 
+    def test_workflow_quality_gate_runs_after_success(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf-qg.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "quality_gate": {"lint": True, "report_dir": ".cai/qg-report"},
+                        "steps": [{"name": "only", "goal": "g"}],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                sr = {
+                    "index": idx,
+                    "name": "only",
+                    "goal": "g",
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "ok",
+                    "finished": True,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 3,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": "g", "role": "default", "parallel_group": None},
+                        "output": {"answer": "ok"},
+                        "error": None,
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": "only",
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": 0,
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with (
+                    patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step),
+                    patch(
+                        "cai_agent.workflow.run_quality_gate",
+                        return_value={
+                            "schema_version": "quality_gate_result_v1",
+                            "ok": True,
+                            "failed_count": 0,
+                            "checks": [],
+                        },
+                    ) as qg_mock,
+                ):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        qg = out.get("quality_gate") or {}
+        self.assertTrue(qg.get("requested"))
+        self.assertTrue(qg.get("ran"))
+        self.assertTrue(qg.get("ok"))
+        self.assertEqual(out.get("task", {}).get("status"), "completed")
+        self.assertEqual(out.get("post_gate", {}).get("schema_version"), "quality_gate_result_v1")
+        self.assertEqual(
+            qg.get("report_dir"),
+            str((Path(tmp) / ".cai" / "qg-report").resolve()),
+        )
+        self.assertTrue(any(ev.get("event") == "workflow.quality_gate.completed" for ev in out.get("events") or []))
+        self.assertTrue(qg_mock.called)
+        self.assertTrue(qg_mock.call_args.kwargs.get("enable_lint"))
+
+    def test_workflow_quality_gate_failure_marks_workflow_failed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf-qg-fail.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "quality_gate": True,
+                        "steps": [{"name": "only", "goal": "g"}],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                sr = {
+                    "index": idx,
+                    "name": "only",
+                    "goal": "g",
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "ok",
+                    "finished": True,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 1,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": "g", "role": "default", "parallel_group": None},
+                        "output": {"answer": "ok"},
+                        "error": None,
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": "only",
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": 0,
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with (
+                    patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step),
+                    patch(
+                        "cai_agent.workflow.run_quality_gate",
+                        return_value={
+                            "schema_version": "quality_gate_result_v1",
+                            "ok": False,
+                            "failed_count": 2,
+                            "checks": [{"name": "python -m pytest -q", "exit_code": 1}],
+                        },
+                    ),
+                ):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        self.assertEqual(out.get("task", {}).get("status"), "failed")
+        self.assertEqual(out.get("task", {}).get("error"), "workflow_quality_gate_failed")
+        self.assertTrue(out.get("quality_gate", {}).get("ran"))
+        self.assertFalse(out.get("quality_gate", {}).get("ok"))
+        self.assertEqual(out.get("summary", {}).get("quality_gate_failed_count"), 2)
+
+    def test_workflow_quality_gate_skips_when_workflow_failed_first(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf-qg-skip.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "quality_gate": True,
+                        "steps": [{"name": "only", "goal": "g"}],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                sr = {
+                    "index": idx,
+                    "name": "only",
+                    "goal": "g",
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "bad",
+                    "finished": False,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 1,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": "g", "role": "default", "parallel_group": None},
+                        "output": {"answer": "bad"},
+                        "error": "tool_error_detected",
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": "only",
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": 1,
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with (
+                    patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step),
+                    patch("cai_agent.workflow.run_quality_gate") as qg_mock,
+                ):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        self.assertEqual(out.get("task", {}).get("error"), "workflow_has_step_errors")
+        self.assertFalse(out.get("quality_gate", {}).get("ran"))
+        self.assertEqual(out.get("quality_gate", {}).get("skip_reason"), "workflow_failed")
+        self.assertIsNone(out.get("post_gate"))
+        self.assertFalse(qg_mock.called)
+
+    def test_workflow_cli_returns_nonzero_when_quality_gate_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf-cli-qg.json"
+            wf_path.write_text(json.dumps({"steps": [{"name": "s1", "goal": "ignored"}]}), encoding="utf-8")
+            fake = {
+                "schema_version": "workflow_run_v1",
+                "task_id": "wf-qg",
+                "task": {
+                    "task_id": "wf-qg",
+                    "type": "workflow",
+                    "status": "failed",
+                    "error": "workflow_quality_gate_failed",
+                },
+                "subagent_io_schema_version": "1.1",
+                "subagent_io": {
+                    "inputs": {"steps_count": 1, "merge_strategy": "last_wins", "agent_templates": []},
+                    "merge": {"conflicts": []},
+                    "outputs": [],
+                },
+                "steps": [{"name": "s1", "index": 1, "error_count": 0}],
+                "summary": {
+                    "steps_count": 1,
+                    "tool_errors_total": 0,
+                    "elapsed_ms_total": 1,
+                    "elapsed_ms_avg": 1,
+                    "tool_calls_total": 0,
+                    "quality_gate_requested": True,
+                    "quality_gate_ran": True,
+                    "quality_gate_ok": False,
+                    "quality_gate_failed_count": 1,
+                    "quality_gate_skip_reason": None,
+                },
+                "quality_gate": {
+                    "requested": True,
+                    "ran": True,
+                    "ok": False,
+                    "failed_count": 1,
+                    "skip_reason": None,
+                    "report_dir": None,
+                },
+                "post_gate": {
+                    "schema_version": "quality_gate_result_v1",
+                    "ok": False,
+                    "failed_count": 1,
+                    "checks": [],
+                },
+                "events": [],
+            }
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.run_workflow", return_value=fake):
+                with redirect_stdout(buf):
+                    rc = main(["workflow", str(wf_path), "--json"])
+
+        self.assertEqual(rc, 2)
+        out = json.loads(buf.getvalue().strip())
+        self.assertEqual(out.get("post_gate", {}).get("schema_version"), "quality_gate_result_v1")
+
 
 if __name__ == "__main__":
     unittest.main()

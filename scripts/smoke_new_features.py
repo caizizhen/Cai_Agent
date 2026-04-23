@@ -114,10 +114,15 @@ def main() -> int:
         errs.append(f"run mock exit {p.returncode}")
     else:
         o = json.loads((p.stdout or "").strip())
-        if o.get("run_schema_version") != "1.0":
+        if o.get("run_schema_version") != "1.1":
             errs.append(f"run_schema_version: {o.get('run_schema_version')!r}")
         ev = o.get("events")
-        if not isinstance(ev, list) or len(ev) < 1:
+        if not (
+            isinstance(ev, dict)
+            and ev.get("schema_version") == "run_events_envelope_v1"
+            and isinstance(ev.get("items"), list)
+            and len(ev.get("items")) >= 1
+        ):
             errs.append(f"run events: {ev!r}")
         tid = str(o.get("task_id") or "").strip()
         td = o.get("task") if isinstance(o.get("task"), dict) else {}
@@ -514,7 +519,7 @@ def main() -> int:
             um = json.loads((pum.stdout or "").strip())
             if um.get("schema_version") != "memory_user_model_v1":
                 errs.append(f"memory user-model schema_version {um.get('schema_version')!r}")
-            if um.get("honcho_parity") != "stub":
+            if um.get("honcho_parity") not in ("stub", "behavior_extract"):
                 errs.append(f"memory user-model honcho_parity {um.get('honcho_parity')!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:

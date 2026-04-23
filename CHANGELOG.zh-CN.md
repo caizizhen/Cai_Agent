@@ -12,6 +12,7 @@
 - **`memory validate-entries`**：新子命令 → **`memory_entries_file_validate_v1`**；无脏行 exit **`0`**，有无效行 exit **`2`**；底层为 **`build_memory_entries_jsonl_validate_report`**。
 - **`memory extract --structured`**：可选 LLM 结构化抽取；mock/无 key 时回退启发式（**`extract_memory_entries_structured`**）。
 - **子 Agent IO schema v1.1**：`workflow` JSON 提升 **`subagent_io_schema_version`** 至 **`1.1`**；每步含 **`agent_template_id`**（与 **`agents/`** 目录匹配）及来自 **`protocol`** 的 **`rpc_step_input`/`rpc_step_output`**。
+- **Workflow 后置 quality-gate 联动**：workflow JSON root 新增 **`quality_gate`**（`true` 或对象，可覆盖 **`compile`** / **`test`** / **`lint`** / **`typecheck`** / **`security_scan`** / **`report_dir`**）。当 workflow 本身成功时，`run_workflow` 自动执行一次后置 **`quality-gate`**，输出追加 **`quality_gate`** 摘要与可选 **`post_gate`**（**`quality_gate_result_v1`**），事件流新增 **`workflow.quality_gate.*`**，gate 失败时 `task.error` 为 **`workflow_quality_gate_failed`**。
 - **`plan --json` 稳定 schema**：**`goal_empty`** 错误含 **`"task": null`**；各失败分支含 **`plan_schema_version`**。
 - **`hooks run-event` 实跑**：非 **`--dry-run`** 时执行匹配脚本/命令（与 **`script`** 字段贯通）。
 - **前端 monorepo 质量门禁**：**`CAI_QG_FRONTEND_MONOREPO=1`** 且存在 **`package.json`** 时，自动在 quality-gate 中追加 **`npm run -ws --if-present lint`**。
@@ -25,7 +26,7 @@
 - **`doctor` `.cai/` 健康**：**`build_doctor_cai_dir_health`** 将网关映射存在性与 **`hooks.json`** 合法性并入 JSON 与文本 **`doctor`** 输出。
 - **技能自动建议钩子**：设置 **`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 自动 **`build_skill_evolution_suggest`** 并 dry-run 落盘 **`skills/_evolution_*.md`**。
 - **文档**：新增 **`docs/ONBOARDING.zh-CN.md`**；**`docs/TOOLS_REGISTRY.zh-CN.md`** 汇总 13 个工具与权限键。
-- **测试**：**`test_memory_validate_entries_cli.py`**、**`test_hook_runtime.py`**（script hook）；**`test_plan_sessions_cli.py`** / **`test_cli_workflow.py`** / **`test_gateway_telegram_execute_goal.py`** / **`test_session_observe.py`** / **`test_stats_json.py`** / **`test_cli_board_and_workflow_snapshot.py`** 等随 schema 版本升级同步。
+- **测试**：**`test_memory_validate_entries_cli.py`**、**`test_hook_runtime.py`**（script hook）；**`test_plan_sessions_cli.py`** / **`test_cli_workflow.py`** / **`test_gateway_telegram_execute_goal.py`** / **`test_session_observe.py`** / **`test_stats_json.py`** / **`test_cli_board_and_workflow_snapshot.py`** 等随 schema 版本升级同步，并补齐 workflow 后置 gate 覆盖。
 
 ### 0.6.18（2026-04-23）
 
