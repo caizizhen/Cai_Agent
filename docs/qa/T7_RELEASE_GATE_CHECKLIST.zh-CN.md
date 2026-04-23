@@ -16,8 +16,14 @@
 |----|------|------|
 | Parity 矩阵 | 至少更新 [`PARITY_MATRIX.zh-CN.md`](../PARITY_MATRIX.zh-CN.md) 一行（`Next`→`Done` / `MCP` 链接 / `OOS` 备注） | [ ] |
 | 执行清单 | [`PRODUCT_PLAN.zh-CN.md`](../PRODUCT_PLAN.zh-CN.md) §二 / §三 与本次发版范围一致 | [ ] |
-| CHANGELOG | [`CHANGELOG.md`](../../CHANGELOG.md) 与 [`CHANGELOG.zh-CN.md`](../../CHANGELOG.zh-CN.md) 同步写入本版条目 | [ ] |
+| CHANGELOG | [`CHANGELOG.md`](../../CHANGELOG.md) 与 [`CHANGELOG.zh-CN.md`](../../CHANGELOG.zh-CN.md) 同步写入本版条目（流程见 [`CHANGELOG_SYNC.zh-CN.md`](../CHANGELOG_SYNC.zh-CN.md)） | [ ] |
 | Schema 索引 | [`docs/schema/README.zh-CN.md`](../schema/README.zh-CN.md) 中本版新增/变更 JSON 契约已描述 | [ ] |
+
+### 2.1 Gateway S8-02 AC3（若本版含 Gateway 发布）
+
+| 项 | 说明 | 通过 |
+|----|------|------|
+| 500 消息压测 | 按 [`GATEWAY_500_MSG_STRESS_RUNBOOK.zh-CN.md`](GATEWAY_500_MSG_STRESS_RUNBOOK.zh-CN.md) 执行并回填 [`docs/qa/runs/`](runs/)（可用 [`runs/TEMPLATE_GATEWAY_S8_AC3.zh-CN.md`](runs/TEMPLATE_GATEWAY_S8_AC3.zh-CN.md)） | [ ] |
 
 ## 3. 运行与健康
 

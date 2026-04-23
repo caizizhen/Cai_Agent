@@ -21,7 +21,7 @@
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
 | **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板，见 **`tui_task_board.py`**）；会话落盘含 `profile` |
 | **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘） |
-| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory/entries.jsonl` 追加前整文件洁净性门禁**（与 validate-entries 同源；救急 **`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
+| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略（**TTL/置信度** 见 [`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)）、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory/entries.jsonl` 追加前整文件洁净性门禁**（与 validate-entries 同源；救急 **`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
 | **跨会话** | `insights`、`recall`（含 sort、`no_hit_reason`、schema 演进）、`recall-index`（build/refresh/doctor/info/benchmark 等） |
 | **调度** | `schedule` CRUD、`daemon`、`run-due`、依赖与环检测、审计 JSONL（S4-04 七种事件）、跨轮次重试退避、并发上限、`schedule stats`（SLA） |
 | **Hooks** | `hooks` CLI、`hooks list`、`hooks run-event`（**`--dry-run`** / 实跑 JSON **`hooks_run_event_result_v1`**）；**`hooks.json`** 支持 **`script`**（`.py`/`.sh`/`.ps1`/…）与 **`command[]`**，路径逃逸防护；与 runner 对齐 |
@@ -103,7 +103,7 @@
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
 | T5 | Sprint3–8 专项 | 手工 | **计划已写** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
 | T6 | S3 TUI 模型面板 40 条 | 手工 | **计划已写** | [`s3-tui-model-panel-testplan.md`](qa/s3-tui-model-panel-testplan.md) |
-| T7 | 发版 gate | 人工 | **部分完成**（[检查清单](qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md)） | `doctor`、Parity、CHANGELOG、schema 抽样；清单可打印勾选 |
+| T7 | 发版 gate | 人工 | **部分完成**（[检查清单](qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md)） | `doctor`、Parity、CHANGELOG（[双语同步约定](../CHANGELOG_SYNC.zh-CN.md)）、schema 抽样；Gateway 发版见 [AC3 runbook](qa/GATEWAY_500_MSG_STRESS_RUNBOOK.zh-CN.md) |
 
 **冒烟子集**：`python scripts/smoke_new_features.py`（与 T2 同源入口）；详列命令与 schema 以 **schema README** 与脚本内校验为准。
 

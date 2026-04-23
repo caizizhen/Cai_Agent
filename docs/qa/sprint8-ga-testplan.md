@@ -16,7 +16,7 @@
 | 回归 | 全量回归 442+ 用例通过 | ✅（**`0.6.18`** 本机；以 CI 为准） |
 | 性能 | recall 200 文件 < 5s | ✅（**`scripts/perf_ga_gate.py`** + **`test_perf_ga_s8_02`**） |
 | 性能 | schedule daemon 100 轮次无崩溃 | ✅（**`test_perf_ga_s8_02`** mock 执行；可选 **`perf_ga_gate.py --pytest-daemon`**） |
-| 性能 | gateway 500 消息无掉线（如已实现） | ⬜（**S8-02 AC3** 真机专项） |
+| 性能 | gateway 500 消息无掉线（如已实现） | ⬜（**S8-02 AC3** 真机专项；见 **[`GATEWAY_500_MSG_STRESS_RUNBOOK.zh-CN.md`](GATEWAY_500_MSG_STRESS_RUNBOOK.zh-CN.md)** 与 **`docs/qa/runs/`** 回填） |
 | 安全 | security-scan 零 P0 告警 | ✅（**`scripts/security_ga_gate.py`** + **`test_sec_ga_s8_03`** 扫 **`src`**） |
 | 安全 | 无硬编码 API key 或 token | ✅（**`test_sec_ga_s8_03`** 引号 **`sk-`** 长字面量扫描） |
 | 安全 | gateway allowlist bypass 测试通过 | ✅（**`test_gateway_telegram_cli`** **`not_allowed`**） |

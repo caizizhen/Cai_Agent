@@ -60,7 +60,7 @@
 
 - [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**
 - [本轮已落地] **`append_memory_entry` / `import_memory_entries_bundle` 写入前** 对已有 `entries.jsonl` 做与 validate-entries **同源**的整文件洁净性门禁（脏文件拒绝追加；救急：`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`）；**`memory extract`** 在写条目前同样预检并 JSON 报错退出
-- 记忆 TTL/置信度策略与 `memory prune` 规则文档化
+- [本轮已落地] 记忆 TTL/置信度策略与 **`memory prune`/`state`/`health` 对齐说明**：[MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)
 - [本轮已落地] `memory nudge` schema 升级到 `1.1`：增加 `threshold_policy`、`risk_score`、`trend`，并保持 `severity/actions` 兼容字段
 - [本轮已落地] `memory extract --structured` 可选 LLM 结构化抽取（mock 回退启发式）
 
