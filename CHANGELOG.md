@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.15 (2026-04-23)
+
+- **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`mcp.check`**, **`hooks.run_event`**, and **`gateway.telegram.serve_webhook`** (after a normal **`serve-webhook`** server run). **`docs/schema/METRICS_JSON.zh-CN.md`** updated.
+- **Tests**: **`test_metrics_jsonl.py`** covers the three paths.
+
 ### 0.6.14 (2026-04-23)
 
 - **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`memory.extract` / `list` / `instincts` / `search` / `prune` / `export` / `import` / `export_entries` / `import_entries`**, **`quality_gate.run`**, **`security_scan.run`**, **`gateway.telegram.resolve_update`**, and **`schedule.add_memory_nudge`**. **`docs/schema/METRICS_JSON.zh-CN.md`** updated.

@@ -5332,6 +5332,13 @@ def main(argv: list[str] | None = None) -> int:
             if probe_result is not None:
                 print("--- tool probe ---")
                 print(probe_result)
+        _maybe_metrics_cli(
+            module="mcp",
+            event="mcp.check",
+            latency_ms=float(elapsed_ms),
+            tokens=len(tool_list),
+            success=bool(ok),
+        )
         return 0 if ok else 2
 
     if args.command == "sessions":
@@ -6102,6 +6109,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("--payload 须为 JSON object", file=sys.stderr)
                 return 2
             dry = bool(getattr(args, "dry_run", False))
+            t_hre = time.perf_counter()
             if hp is None or not hp.is_file():
                 err_payload = {
                     "schema_version": "hooks_run_event_result_v1",
@@ -6115,6 +6123,13 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(err_payload, ensure_ascii=False))
                 else:
                     print("[hooks] 未找到 hooks.json", file=sys.stderr)
+                _maybe_metrics_cli(
+                    module="hooks",
+                    event="hooks.run_event",
+                    latency_ms=(time.perf_counter() - t_hre) * 1000.0,
+                    tokens=0,
+                    success=False,
+                )
                 return 2
             if dry:
                 preview = preview_project_hooks(settings, event, hooks_path=hp)
@@ -6138,6 +6153,13 @@ def main(argv: list[str] | None = None) -> int:
                         rs = r.get("reason")
                         rs_txt = f" ({rs})" if isinstance(rs, str) and rs.strip() else ""
                         print(f"- {hid}: {st}{rs_txt}")
+                _maybe_metrics_cli(
+                    module="hooks",
+                    event="hooks.run_event",
+                    latency_ms=(time.perf_counter() - t_hre) * 1000.0,
+                    tokens=len(preview),
+                    success=True,
+                )
                 return 0
             results = run_project_hooks(
                 settings,
@@ -6173,6 +6195,13 @@ def main(argv: list[str] | None = None) -> int:
             bad = any(
                 isinstance(r, dict) and str(r.get("status") or "") in ("error", "blocked")
                 for r in results
+            )
+            _maybe_metrics_cli(
+                module="hooks",
+                event="hooks.run_event",
+                latency_ms=(time.perf_counter() - t_hre) * 1000.0,
+                tokens=len(results),
+                success=not bad,
             )
             return 2 if bad else 0
 
@@ -8409,6 +8438,7 @@ def main(argv: list[str] | None = None) -> int:
                 tok_cli = str(tok_arg).strip() if tok_arg else ""
                 tok_env = str(os.environ.get("CAI_TELEGRAM_BOT_TOKEN") or "").strip()
                 tok = tok_cli or tok_env or None
+                t_gws = time.perf_counter()
                 payload = _run_gateway_telegram_webhook_server(
                     root=root,
                     host=host,
@@ -8448,6 +8478,14 @@ def main(argv: list[str] | None = None) -> int:
                     "log_file": payload.get("log_file"),
                     "create_missing": payload.get("create_missing"),
                 }
+                handled_n = int(payload.get("handled_requests") or out.get("events_handled") or 0)
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.serve_webhook",
+                    latency_ms=(time.perf_counter() - t_gws) * 1000.0,
+                    tokens=handled_n,
+                    success=bool(payload.get("ok")),
+                )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(out, ensure_ascii=False))
                 else:

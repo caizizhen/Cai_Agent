@@ -3,6 +3,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -577,6 +578,130 @@ class MetricsJsonlTests(unittest.TestCase):
             row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
             self.assertEqual(row.get("module"), "schedule")
             self.assertEqual(row.get("event"), "schedule.add_memory_nudge")
+
+    def test_mcp_check_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "mcpm.jsonl"
+            root = Path(td) / "wsmcp"
+            cfg = root / "cai-agent.toml"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch(
+                        "cai_agent.__main__.dispatch",
+                        return_value="- tool_a\n- tool_b\n",
+                    ):
+                        with redirect_stdout(buf):
+                            rc = main(["mcp-check", "--config", str(cfg), "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "mcp")
+            self.assertEqual(row.get("event"), "mcp.check")
+            self.assertEqual(row.get("tokens"), 2)
+            self.assertTrue(row.get("success"))
+
+    def test_hooks_run_event_dry_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "hre.jsonl"
+            root = Path(td) / "wshre"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            hooks_dir = root / ".cai" / "hooks"
+            hooks_dir.mkdir(parents=True, exist_ok=True)
+            (hooks_dir / "hooks.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "hooks": [
+                            {
+                                "id": "echo-hook",
+                                "event": "observe_start",
+                                "enabled": True,
+                                "command": [sys.executable, "-c", "print(1)"],
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(
+                            [
+                                "hooks",
+                                "--config",
+                                str(cfg),
+                                "run-event",
+                                "observe_start",
+                                "--dry-run",
+                                "--json",
+                            ],
+                        )
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "hooks")
+            self.assertEqual(row.get("event"), "hooks.run_event")
+            self.assertEqual(row.get("tokens"), 1)
+            self.assertTrue(row.get("success"))
+
+    def test_gateway_telegram_serve_webhook_appends_metrics_when_env_set(self) -> None:
+        fake_payload = {
+            "ok": True,
+            "handled_requests": 2,
+            "host": "127.0.0.1",
+            "port": 18765,
+            "path": "/telegram/update",
+            "map_file": "m.json",
+            "log_file": "l.jsonl",
+            "create_missing": False,
+        }
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "gws.jsonl"
+            root = Path(td) / "wsgws"
+            root.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch(
+                        "cai_agent.__main__._run_gateway_telegram_webhook_server",
+                        return_value=fake_payload,
+                    ):
+                        with redirect_stdout(buf):
+                            rc = main(
+                                [
+                                    "gateway",
+                                    "telegram",
+                                    "serve-webhook",
+                                    "--host",
+                                    "127.0.0.1",
+                                    "--port",
+                                    "18766",
+                                    "--max-events",
+                                    "1",
+                                    "--json",
+                                ],
+                            )
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "gateway")
+            self.assertEqual(row.get("event"), "gateway.telegram.serve_webhook")
+            self.assertEqual(row.get("tokens"), 2)
+            self.assertTrue(row.get("success"))
 
 
 if __name__ == "__main__":

@@ -48,8 +48,11 @@
 - **`cai-agent schedule add-memory-nudge`**：**`schedule.add_memory_nudge`**。
 - **`cai-agent quality-gate`**：**`quality_gate.run`**（**`tokens`** = **`len(checks)`**；**`success`** = **`ok`**）。
 - **`cai-agent security-scan`**：**`security_scan.run`**（**`tokens`** ≈ **`findings_count`** 或 **`scanned_files`**）。
+- **`cai-agent mcp-check`**：**`mcp.check`**（**`latency_ms`** = CLI **`elapsed_ms`**；**`tokens`** = **`len(tool_names)`**；**`success`** = **`ok`**）。
+- **`cai-agent hooks run-event`**：**`hooks.run_event`**（**`tokens`** = dry-run 预览条数或执行 **`results`** 条数；**`success`** 与 exit 语义一致；未找到 **`hooks.json`** 时 **`success=false`**）。
+- **`cai-agent gateway telegram serve-webhook`**：**`gateway.telegram.serve_webhook`**（**`tokens`** ≈ **`handled_requests`**；**`success`** = 返回负载 **`ok`**；在 HTTP 服务正常结束一轮后打点）。
 
-> 其它 **`hooks run-event`**、**`gateway telegram serve-webhook`** 长驻进程、**`mcp-check`** 等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
+> 其它长尾子命令若需指标，仍按 **S7-01 AC2** 增量扩展。
 
 ## 示例行
 

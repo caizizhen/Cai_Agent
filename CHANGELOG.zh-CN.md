@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.15（2026-04-23）
+
+- **可观测性（Hermes S7-01 AC2 扩展）**：**`CAI_METRICS_JSONL`** 追加 **`mcp.check`**、**`hooks.run_event`**、**`gateway.telegram.serve_webhook`**（**`gateway telegram serve-webhook`** 正常结束一轮后）。**`docs/schema/METRICS_JSON.zh-CN.md`** 已同步。
+- **测试**：**`test_metrics_jsonl.py`** 覆盖上述路径。
+
 ### 0.6.14（2026-04-23）
 
 - **可观测性（Hermes S7-01 AC2 扩展）**：**`CAI_METRICS_JSONL`** 追加 **`memory.extract`/`list`/`instincts`/`search`/`prune`/`export`/`import`/`export_entries`/`import_entries`**、**`quality_gate.run`**、**`security_scan.run`**、**`gateway.telegram.resolve_update`**、**`schedule.add_memory_nudge`**。**`docs/schema/METRICS_JSON.zh-CN.md`** 已同步。
