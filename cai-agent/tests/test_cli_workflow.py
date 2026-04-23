@@ -10,6 +10,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cai_agent.__main__ import main
+from cai_agent.config import Settings
+from cai_agent.workflow import run_workflow
 
 
 class WorkflowCliTests(unittest.TestCase):
@@ -131,6 +133,230 @@ class WorkflowCliTests(unittest.TestCase):
             self.assertEqual(rc, 2)
             out = json.loads(buf.getvalue().strip())
             self.assertEqual(out.get("schema_version"), "workflow_run_v1")
+
+    def test_workflow_fail_fast_skips_remaining_steps(self) -> None:
+        """S5-03 / SAG-ERR-001: default fail_fast stops after first failing batch."""
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "steps": [
+                            {"name": "a", "goal": "g1"},
+                            {"name": "b", "goal": "g2"},
+                            {"name": "c", "goal": "g3"},
+                        ],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                name = str(raw_step.get("name") or "")
+                ok = name != "b"
+                sr = {
+                    "index": idx,
+                    "name": name,
+                    "goal": str(raw_step.get("goal", "")),
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "y" if ok else "n",
+                    "finished": ok,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0 if ok else 3,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": raw_step.get("goal"), "role": "default", "parallel_group": None},
+                        "output": {"answer": "y" if ok else "n"},
+                        "error": None if ok else "tool_error_detected",
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": name,
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": sr["error_count"],
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        steps = out.get("steps") or []
+        self.assertEqual(len(steps), 3)
+        names = [str(s.get("name")) for s in steps]
+        self.assertEqual(names, ["a", "b", "c"])
+        self.assertFalse(steps[0].get("skipped"))
+        self.assertTrue(steps[2].get("skipped"))
+        self.assertEqual(steps[2].get("skip_reason"), "fail_fast_prior_batch")
+        self.assertEqual(out.get("summary", {}).get("on_error"), "fail_fast")
+        self.assertEqual(int(out.get("summary", {}).get("steps_skipped") or 0), 1)
+        self.assertEqual(out.get("task", {}).get("error"), "workflow_fail_fast")
+
+    def test_workflow_continue_on_error_runs_all_steps(self) -> None:
+        """S5-03 / SAG-ERR-002: continue_on_error runs tail steps after a failure."""
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "on_error": "continue_on_error",
+                        "steps": [
+                            {"name": "a", "goal": "g1"},
+                            {"name": "b", "goal": "g2"},
+                            {"name": "c", "goal": "g3"},
+                        ],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                name = str(raw_step.get("name") or "")
+                ok = name != "b"
+                sr = {
+                    "index": idx,
+                    "name": name,
+                    "goal": str(raw_step.get("goal", "")),
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "y" if ok else "n",
+                    "finished": ok,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0 if ok else 2,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": raw_step.get("goal"), "role": "default", "parallel_group": None},
+                        "output": {"answer": "y" if ok else "n"},
+                        "error": None if ok else "tool_error_detected",
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": name,
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": sr["error_count"],
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        steps = out.get("steps") or []
+        self.assertEqual(len(steps), 3)
+        self.assertFalse(any(s.get("skipped") for s in steps))
+        self.assertEqual(out.get("summary", {}).get("on_error"), "continue_on_error")
+        self.assertEqual(int(out.get("summary", {}).get("steps_skipped") or 0), 0)
+        self.assertEqual(str(out.get("steps", [{}])[2].get("answer")), "y")
+
+    def test_workflow_on_error_normalizes_dashed_alias(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "on_error": "continue-on-error",
+                        "steps": [{"name": "only", "goal": "g"}],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with patch("cai_agent.workflow._run_single_step") as m:
+                    m.return_value = (
+                        {
+                            "index": 1,
+                            "name": "only",
+                            "goal": "g",
+                            "workspace": tmp,
+                            "provider": "x",
+                            "model": "y",
+                            "elapsed_ms": 0,
+                            "answer": "ok",
+                            "finished": True,
+                            "prompt_tokens": 0,
+                            "completion_tokens": 0,
+                            "total_tokens": 0,
+                            "tool_calls_count": 0,
+                            "used_tools": [],
+                            "error_count": 0,
+                            "role": "default",
+                            "parallel_group": None,
+                            "protocol": {
+                                "input": {"goal": "g", "role": "default", "parallel_group": None},
+                                "output": {"answer": "ok"},
+                                "error": None,
+                            },
+                        },
+                        {
+                            "event": "workflow.step.completed",
+                            "step_index": 1,
+                            "name": "only",
+                            "elapsed_ms": 0,
+                            "tool_calls_count": 0,
+                            "error_count": 0,
+                            "parallel_group": None,
+                        },
+                        str(tmp),
+                    )
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        self.assertEqual(out.get("summary", {}).get("on_error"), "continue_on_error")
 
 
 if __name__ == "__main__":

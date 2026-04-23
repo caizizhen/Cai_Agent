@@ -250,6 +250,7 @@
 
 ### S5-03 fail-fast 与 continue-on-error 策略
 - **Story**：作为 CI，我希望并行工作流在一个子任务失败时有两种行为可选：立即中止或继续其他分支。
+- **主线实现（2026-04-23）**：`cai_agent.workflow.run_workflow` 读取根级 **`on_error`**；`fail_fast` 时后续步骤写入 **`skipped`** 占位并 **`workflow.step.skipped`** 事件；`continue_on_error` 时 merge/conflict 仅基于成功步骤。测试：`cai-agent/tests/test_cli_workflow.py`。
 - **AC**：
   1. workflow root 增加 `on_error: fail_fast | continue_on_error`（默认 `fail_fast`）。
   2. `continue_on_error` 模式：失败的子任务标记为 `failed`，其他子任务继续，merge 阶段跳过失败项。

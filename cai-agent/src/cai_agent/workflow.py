@@ -21,6 +21,87 @@ from cai_agent.task_state import new_task
 ROLE_RANK = {"default": 1, "explorer": 2, "reviewer": 3, "security": 4}
 
 
+def _normalize_on_error(data: Dict[str, Any]) -> str:
+    """Root `on_error`: fail_fast（默认）| continue_on_error（Hermes S5-03）。"""
+    raw = data.get("on_error", "fail_fast")
+    s = str(raw).strip().lower().replace("-", "_")
+    if s in ("failfast", "fail_fast", ""):
+        return "fail_fast"
+    if s in ("continue_on_error", "continueonerror"):
+        return "continue_on_error"
+    return "fail_fast"
+
+
+def _step_execution_failed(step: Dict[str, Any]) -> bool:
+    """步骤已实际执行且视为失败（用于 fail_fast 判定）；不含 skip 占位。"""
+    if step.get("skipped"):
+        return False
+    if int(step.get("error_count") or 0) > 0:
+        return True
+    return not bool(step.get("finished"))
+
+
+def _step_ok_for_merge(step: Dict[str, Any]) -> bool:
+    """参与 merge / conflict 检测的成功步骤（跳过与执行失败均排除）。"""
+    if step.get("skipped"):
+        return False
+    if int(step.get("error_count") or 0) > 0:
+        return False
+    return bool(step.get("finished"))
+
+
+def _skipped_step_stub(
+    settings: Settings,
+    idx: int,
+    raw_step: dict[str, Any],
+    *,
+    reason: str,
+) -> dict[str, Any]:
+    """fail_fast 提前中止后，为未运行步骤写入占位，便于与 workflow.steps 对齐。"""
+    goal = str(raw_step.get("goal", "")).strip()
+    name = str(raw_step.get("name") or f"step-{idx}").strip()
+    ws_raw = raw_step.get("workspace")
+    if isinstance(ws_raw, str) and ws_raw.strip():
+        workspace = os.path.abspath(ws_raw.strip())
+    else:
+        workspace = settings.workspace
+    pg_raw = raw_step.get("parallel_group")
+    parallel_group = str(pg_raw).strip() if isinstance(pg_raw, str) and pg_raw.strip() else None
+    role_raw = str(raw_step.get("role") or "default").strip().lower()
+    if role_raw not in ("default", "explorer", "reviewer", "security"):
+        role_raw = "default"
+    return {
+        "index": idx,
+        "name": name,
+        "goal": goal,
+        "workspace": workspace,
+        "provider": settings.provider,
+        "model": settings.model,
+        "elapsed_ms": 0,
+        "answer": "",
+        "finished": False,
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "tool_calls_count": 0,
+        "used_tools": [],
+        "error_count": 0,
+        "role": role_raw,
+        "parallel_group": parallel_group,
+        "skipped": True,
+        "skip_reason": reason,
+        "protocol": {
+            "input": {
+                "goal": goal,
+                "role": role_raw,
+                "parallel_group": parallel_group,
+            },
+            "output": {"answer": ""},
+            "error": None,
+        },
+    }
+
+
 def _load_workflow_file(path: str) -> Dict[str, Any]:
     p = Path(path).expanduser().resolve()
     if not p.is_file():
@@ -163,7 +244,9 @@ def _build_subagent_io_summary(
                 "id": str(step.get("index") or ""),
                 "name": str(step.get("name") or ""),
                 "role": str(step.get("role") or "default"),
-                "ok": bool(step.get("finished")) and int(step.get("error_count") or 0) == 0,
+                "ok": (not step.get("skipped"))
+                and bool(step.get("finished"))
+                and int(step.get("error_count") or 0) == 0,
                 "answer": str(step.get("answer") or ""),
                 "error": (
                     str((step.get("protocol") or {}).get("error"))
@@ -273,18 +356,23 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     JSON 结构示例：
     {
+      "on_error": "fail_fast",
       "merge_strategy": "require_manual",
       "steps": [
         {"name": "analyze", "goal": "分析当前项目结构"},
         {"name": "plan", "goal": "为登录功能生成实现计划", "workspace": ".", "model": "gpt-4o-mini"}
       ]
     }
+
+    `on_error`（Hermes S5-03）：`fail_fast`（默认）表示任一步骤执行失败则中止后续步骤并写入
+    `skipped` 占位；`continue_on_error` 则跑完全部步骤，且 merge/conflict 仅统计成功完成的步骤。
     """
     wf_task = new_task("workflow")
     wf_task.status = "running"
     events: List[Dict[str, Any]] = []
     data = _load_workflow_file(path)
     steps_data = data["steps"]
+    on_error = _normalize_on_error(data)
     merge_strategy = str(data.get("merge_strategy", "require_manual")).strip().lower()
     if merge_strategy not in ("require_manual", "last_wins", "role_priority"):
         merge_strategy = "require_manual"
@@ -354,11 +442,44 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             total_errors += int(step_result.get("error_count") or 0)
             instincts_roots.add(workspace)
 
-        idx += len(batch)
+        next_idx = idx + len(batch)
+        batch_failed = any(
+            _step_execution_failed(sr) for sr, _, _ in batch_results
+        )
+        if on_error == "fail_fast" and batch_failed:
+            j = next_idx
+            while j <= len(steps_data):
+                raw_skip = steps_data[j - 1]
+                if not isinstance(raw_skip, dict):
+                    raise ValueError(f"workflow.steps[{j - 1}] 必须是 JSON object")
+                sk = _skipped_step_stub(
+                    settings,
+                    j,
+                    raw_skip,
+                    reason="fail_fast_prior_batch",
+                )
+                results.append(sk)
+                events.append(
+                    {
+                        "event": "workflow.step.skipped",
+                        "task_id": wf_task.task_id,
+                        "workflow_task_id": wf_task.task_id,
+                        "step_index": j,
+                        "name": sk.get("name"),
+                        "parallel_group": sk.get("parallel_group"),
+                        "reason": "fail_fast_prior_batch",
+                    },
+                )
+                j += 1
+            break
 
-    conflicts = _detect_conflicts(results)
-    merge_decision = _merge_decision_for_strategy(merge_strategy, conflicts, results)
+        idx = next_idx
 
+    merge_inputs = [r for r in results if _step_ok_for_merge(r)]
+    conflicts = _detect_conflicts(merge_inputs)
+    merge_decision = _merge_decision_for_strategy(merge_strategy, conflicts, merge_inputs)
+
+    skipped_count = sum(1 for r in results if r.get("skipped"))
     summary = {
         "steps_count": len(results),
         "parallel_steps_count": sum(
@@ -382,9 +503,12 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "merge_confidence": _merge_confidence(
             merge_decision,
             len(conflicts),
-            total_steps=len(results),
+            total_steps=max(len(results), 1),
         ),
         "merge_strategy": merge_strategy,
+        "on_error": on_error,
+        "steps_skipped": skipped_count,
+        "merge_steps_considered": len(merge_inputs),
     }
     subagent_io = _build_subagent_io_summary(
         steps=results,
@@ -396,9 +520,10 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     try:
         if instincts_roots:
+            ran_only = [r for r in results if not r.get("skipped")]
             sess_like = {
-                "goal": " ; ".join(str(r.get("goal", "")) for r in results),
-                "answer": "\n\n".join(str(r.get("answer", "")) for r in results),
+                "goal": " ; ".join(str(r.get("goal", "")) for r in ran_only),
+                "answer": "\n\n".join(str(r.get("answer", "")) for r in ran_only),
             }
             instincts = extract_basic_instincts_from_session(sess_like)
             for root in instincts_roots:
@@ -408,8 +533,16 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     wf_task.ended_at = time.time()
     wf_task.elapsed_ms = int((wf_task.ended_at - wf_task.started_at) * 1000)
-    wf_task.status = "completed" if total_errors == 0 else "failed"
-    wf_task.error = None if total_errors == 0 else "workflow_has_step_errors"
+    ran_failed = any(_step_execution_failed(r) for r in results)
+    if skipped_count > 0 and on_error == "fail_fast":
+        wf_task.status = "failed"
+        wf_task.error = "workflow_fail_fast"
+    elif total_errors == 0 and not ran_failed:
+        wf_task.status = "completed"
+        wf_task.error = None
+    else:
+        wf_task.status = "failed"
+        wf_task.error = "workflow_has_step_errors"
     events.append(
         {
             "event": "workflow.finished",
@@ -419,6 +552,8 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             "merge_decision": merge_decision,
             "merge_strategy": merge_strategy,
             "tool_errors_total": total_errors,
+            "on_error": on_error,
+            "steps_skipped": skipped_count,
         },
     )
     return {
