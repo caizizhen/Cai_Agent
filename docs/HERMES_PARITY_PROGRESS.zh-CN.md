@@ -4,7 +4,7 @@
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
-> 说明：**开发和 QA 以本文件为当前起点**，开发按"待开发"列表依序认领，QA 按"待测试"列表在开发完成后介入。产品级 **完成 / 未开始 / 测试交接** 的一页汇总以 **`PRODUCT_PLAN.zh-CN.md` §三之二** 为准（与 [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 互链 **QA-2 / `QA_SKIP_LOG`**，自测可不写新 **`runs/`** 回归文件）。
+> 说明：**开发和 QA 以本文件为当前起点**，开发按"待开发"列表依序认领，QA 按"待测试"列表在开发完成后介入。产品级 **已完成 vs 未完成** 总览以 **`PRODUCT_PLAN.zh-CN.md` §〇** 为准；**进度百分比与 QA 移交** 以 **同文件 §三之二** 为准（与 [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 互链 **QA-2 / `QA_SKIP_LOG`**，自测可不写新 **`runs/`** 回归文件）。
 
 ---
 
