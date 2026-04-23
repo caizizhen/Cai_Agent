@@ -79,8 +79,8 @@
 
 | 口径 | 计算方式 | **当前值** |
 |------|----------|------------|
-| **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 **22、23**）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 85%**（**22÷26≈84.6%**；较上统计周期 **+3.8pp**） |
-| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34 | **约 68%**（**23÷34≈67.6%**；较上统计周期 **+2.9pp**） |
+| **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 **22、23**）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 85%**（**22÷26≈84.6%**；分子口径同 §二 **3.1**） |
+| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34 | **约 68%**（**23÷34≈67.6%**；与 **`HERMES_PARITY_PROGRESS.zh-CN.md`** ✅ 表一致） |
 | **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **356 passed**（**2026-04-23** 本机复核；见上表 T1） |
 
 ### 3.1 §二 开发项（1–26）状态计数
@@ -109,7 +109,7 @@
 |------|----------|------|------------|----------|---------------------|
 | **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**356 passed**（**2026-04-23** Windows 本机 `pytest cai-agent/tests -q` 复核；以执行机为准） |
 | **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；**`smoke_new_features`** 亦 **`python -m cai_agent`**；开发侧 **2026-04-23** 复核：[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS** |
-| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`security-scan`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`run --json` `task_id`**、**`workflow --json` `task_id`**、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 / exit `2`）**、**`recall-index info --json`（无索引 / exit `0`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
+| **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`security-scan`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`run --json` `task_id`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 / exit `2`）**、**`recall-index info --json`（无索引 / exit `0`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
 | **QA-6** | Sprint3–8 专项 | 手工 | 测试 | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md`；**未开发项 24–26 对应段落待开发完成后再测**（**22、23** 见 §二 **部分完成** MVP） | 计划已写 |
@@ -138,4 +138,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）；**Hermes 34 Story 约 68%**（**23÷34≈67.6%**）；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-04 `budget_max_tokens`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json` `task_id`**；S5-01～S5-04 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 356 passed**（本机）、T2 **[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) PASS**。）*
+*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）；**Hermes 34 Story 约 68%**（**23÷34≈67.6%**）；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-04 `budget_max_tokens`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）；S5-01～S5-04 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 356 passed**（本机复核）、T2 **[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) PASS**。）*

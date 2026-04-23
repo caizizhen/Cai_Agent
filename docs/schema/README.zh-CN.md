@@ -209,7 +209,7 @@
 
 **Exit**：文件缺失/解析失败 → `2`；默认成功 `0`。`--fail-on-step-errors`：`task.status == failed` 或 `summary.tool_errors_total > 0` 或任一步 `error_count > 0` → `2`。
 
-**冒烟**：`scripts/smoke_new_features.py` 在 **`CAI_MOCK=1`** 下对最小 **`workflow.json`** 执行 **`workflow … --json`**，断言 **`workflow_run_v1`** 与根级 **`task_id`** 一致。
+**冒烟**：`scripts/smoke_new_features.py` 在 **`CAI_MOCK=1`** 下对最小 **`workflow.json`** 执行 **`workflow … --json`**，断言 **`workflow_run_v1`**、根级 **`task_id`**，以及 **`summary.on_error`** / **`budget_limit`** / **`budget_used`** / **`budget_exceeded`**（无预算帽时为 **`null`** / 数值 / **`false`**）。
 
 ---
 

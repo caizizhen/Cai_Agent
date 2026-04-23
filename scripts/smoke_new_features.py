@@ -8,7 +8,8 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
-``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``),
+``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
+``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
 
 Run from repository root:
@@ -141,6 +142,16 @@ def main() -> int:
             wnt = str((wtd or {}).get("task_id") or "").strip()
             if not wtid or wtid != wnt:
                 errs.append(f"workflow json task_id mismatch top={wtid!r} nested={wnt!r}")
+            sm = wo.get("summary") if isinstance(wo.get("summary"), dict) else {}
+            if sm.get("on_error") != "fail_fast":
+                errs.append(f"workflow summary.on_error {sm.get('on_error')!r}")
+            for bk in ("budget_limit", "budget_used", "budget_exceeded"):
+                if bk not in sm:
+                    errs.append(f"workflow summary missing {bk}")
+            if sm.get("budget_limit") is not None:
+                errs.append(f"workflow budget_limit expected None got {sm.get('budget_limit')!r}")
+            if sm.get("budget_exceeded") is not False:
+                errs.append(f"workflow budget_exceeded expected False got {sm.get('budget_exceeded')!r}")
 
     p = _run([*cli, "cost", "budget"])
     if p.returncode not in (0, 2):
