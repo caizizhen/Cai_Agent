@@ -703,6 +703,214 @@ class MetricsJsonlTests(unittest.TestCase):
             self.assertEqual(row.get("tokens"), 2)
             self.assertTrue(row.get("success"))
 
+    def test_sessions_list_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "sess.jsonl"
+            ws = Path(td) / "wssess"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["sessions", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "sessions")
+            self.assertEqual(row.get("event"), "sessions.list")
+
+    def test_stats_summary_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "st.jsonl"
+            ws = Path(td) / "wsst"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["stats", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "stats")
+            self.assertEqual(row.get("event"), "stats.summary")
+
+    def test_insights_summary_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "ins.jsonl"
+            ws = Path(td) / "wsins"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["insights", "--json", "--days", "7"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "insights")
+            self.assertEqual(row.get("event"), "insights.summary")
+
+    def test_skills_hub_manifest_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "skm.jsonl"
+            ws = Path(td) / "wssk"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["skills", "hub", "manifest", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "skills")
+            self.assertEqual(row.get("event"), "skills.hub_manifest")
+
+    def test_observe_report_standalone_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "obr.jsonl"
+            ws = Path(td) / "wsobr"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["observe-report", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "observe")
+            self.assertEqual(row.get("event"), "observe.report")
+
+    def test_ops_dashboard_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "opsm.jsonl"
+            ws = Path(td) / "wsops"
+            ws.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(ws)):
+                    with redirect_stdout(buf):
+                        rc = main(["ops", "dashboard", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "ops")
+            self.assertEqual(row.get("event"), "ops.dashboard")
+
+    def test_plan_goal_empty_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "pl.jsonl"
+            root = Path(td) / "wspl"
+            cfg = root / "cai-agent.toml"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(["plan", "--config", str(cfg), "--json", " ", " "])
+            self.assertEqual(rc, 2)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "plan")
+            self.assertEqual(row.get("event"), "plan.generate")
+            self.assertFalse(row.get("success"))
+
+    def test_doctor_run_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "doc.jsonl"
+            root = Path(td) / "wsdoc"
+            cfg = root / "cai-agent.toml"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch("cai_agent.__main__.run_doctor", return_value=0):
+                        with redirect_stdout(buf):
+                            rc = main(["doctor", "--config", str(cfg), "--json"])
+            self.assertEqual(rc, 0)
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "doctor")
+            self.assertEqual(row.get("event"), "doctor.run")
+
+    def test_export_target_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "exp.jsonl"
+            root = Path(td) / "wsexp"
+            cfg = root / "cai-agent.toml"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            fake = {
+                "schema_version": "export_cli_v1",
+                "target": "cursor",
+                "copied": ["rules", "skills"],
+            }
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch("cai_agent.__main__.export_target", return_value=fake):
+                        with redirect_stdout(buf):
+                            rc = main(["export", "--config", str(cfg), "--target", "cursor"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "export")
+            self.assertEqual(row.get("event"), "export.target")
+            self.assertEqual(row.get("tokens"), 2)
+
+    def test_hooks_list_json_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "hl.jsonl"
+            root = Path(td) / "wshl"
+            root.mkdir(parents=True, exist_ok=True)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                "[llm]\nbase_url = \"http://x/v1\"\nmodel = \"m\"\napi_key = \"k\"\n",
+                encoding="utf-8",
+            )
+            hooks_dir = root / "hooks"
+            hooks_dir.mkdir(parents=True, exist_ok=True)
+            (hooks_dir / "hooks.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "hooks": [
+                            {
+                                "id": "h1",
+                                "event": "observe_start",
+                                "enabled": True,
+                                "command": [sys.executable, "-c", "print(1)"],
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(["hooks", "--config", str(cfg), "list", "--json"])
+            self.assertEqual(rc, 0)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "hooks")
+            self.assertEqual(row.get("event"), "hooks.list")
+            self.assertEqual(row.get("tokens"), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

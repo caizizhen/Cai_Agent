@@ -4898,15 +4898,25 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
-        return run_doctor(
+        t_doc = time.perf_counter()
+        rc_doc = run_doctor(
             settings,
             json_output=bool(getattr(args, "json_output", False)),
             fail_on_missing_api_key=bool(
                 getattr(args, "fail_on_missing_api_key", False),
             ),
         )
+        _maybe_metrics_cli(
+            module="doctor",
+            event="doctor.run",
+            latency_ms=(time.perf_counter() - t_doc) * 1000.0,
+            tokens=0,
+            success=(int(rc_doc) == 0),
+        )
+        return rc_doc
 
     if args.command == "plan":
+        t_plan = time.perf_counter()
         try:
             settings = Settings.from_env(
                 config_path=args.config,
@@ -4928,6 +4938,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(str(e), file=sys.stderr)
+            _maybe_metrics_cli(
+                module="plan",
+                event="plan.generate",
+                latency_ms=(time.perf_counter() - t_plan) * 1000.0,
+                tokens=0,
+                success=False,
+            )
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -4953,6 +4970,13 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print("goal 不能为空", file=sys.stderr)
+            _maybe_metrics_cli(
+                module="plan",
+                event="plan.generate",
+                latency_ms=(time.perf_counter() - t_plan) * 1000.0,
+                tokens=0,
+                success=False,
+            )
             return 2
 
         rules_text = load_rule_text(settings)
@@ -5011,6 +5035,14 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print("已手动停止（Ctrl+C）。", file=sys.stderr)
+            u_int = get_usage_counters()
+            _maybe_metrics_cli(
+                module="plan",
+                event="plan.generate",
+                latency_ms=(time.perf_counter() - t_plan) * 1000.0,
+                tokens=int(u_int.get("total_tokens") or 0),
+                success=False,
+            )
             return 130
         except Exception as e:
             plan_task.status = "failed"
@@ -5038,6 +5070,14 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(f"生成计划失败: {e}", file=sys.stderr)
+            u_err = get_usage_counters()
+            _maybe_metrics_cli(
+                module="plan",
+                event="plan.generate",
+                latency_ms=(time.perf_counter() - t_plan) * 1000.0,
+                tokens=int(u_err.get("total_tokens") or 0),
+                success=False,
+            )
             return 2
         elapsed_ms = int((time.perf_counter() - started) * 1000)
         usage = get_usage_counters()
@@ -5072,6 +5112,13 @@ def main(argv: list[str] | None = None) -> int:
             out_p = Path(str(wp)).expanduser().resolve()
             out_p.parent.mkdir(parents=True, exist_ok=True)
             out_p.write_text(plan_text.strip() + "\n", encoding="utf-8")
+        _maybe_metrics_cli(
+            module="plan",
+            event="plan.generate",
+            latency_ms=(time.perf_counter() - t_plan) * 1000.0,
+            tokens=int(usage.get("total_tokens") or 0),
+            success=True,
+        )
         return 0
 
     if args.command == "models":
@@ -5088,7 +5135,14 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        t_plg = time.perf_counter()
         surface = list_plugin_surface(settings)
+        plg_tok = 0
+        comps_plg = surface.get("components")
+        if isinstance(comps_plg, dict):
+            for meta_plg in comps_plg.values():
+                if isinstance(meta_plg, dict):
+                    plg_tok += int(meta_plg.get("files_count") or 0)
         if args.json_output:
             print(json.dumps(surface, ensure_ascii=False))
         else:
@@ -5105,7 +5159,21 @@ def main(argv: list[str] | None = None) -> int:
         if isinstance(min_h, int):
             hs = int(surface.get("health_score") or 0)
             if hs < int(min_h):
+                _maybe_metrics_cli(
+                    module="plugins",
+                    event="plugins.surface",
+                    latency_ms=(time.perf_counter() - t_plg) * 1000.0,
+                    tokens=plg_tok,
+                    success=False,
+                )
                 return 2
+        _maybe_metrics_cli(
+            module="plugins",
+            event="plugins.surface",
+            latency_ms=(time.perf_counter() - t_plg) * 1000.0,
+            tokens=plg_tok,
+            success=True,
+        )
         return 0
 
     if args.command == "skills":
@@ -5120,6 +5188,7 @@ def main(argv: list[str] | None = None) -> int:
         root_sk = Path.cwd().resolve()
         from cai_agent.skills import build_skills_hub_manifest
 
+        t_sk = time.perf_counter()
         payload_sm = build_skills_hub_manifest(root=str(root_sk))
         if bool(getattr(args, "json_output", False)):
             print(json.dumps(payload_sm, ensure_ascii=False))
@@ -5128,6 +5197,13 @@ def main(argv: list[str] | None = None) -> int:
                 f"skills Hub manifest: count={payload_sm.get('count')} "
                 f"skills_dir_exists={payload_sm.get('skills_dir_exists')}",
             )
+        _maybe_metrics_cli(
+            module="skills",
+            event="skills.hub_manifest",
+            latency_ms=(time.perf_counter() - t_sk) * 1000.0,
+            tokens=int(payload_sm.get("count") or 0),
+            success=True,
+        )
         return 0
 
     if args.command == "commands":
@@ -5141,6 +5217,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        t_cmdn = time.perf_counter()
         names = list_command_names(settings)
         if args.json_output:
             print(
@@ -5154,6 +5231,13 @@ def main(argv: list[str] | None = None) -> int:
                 print("(无命令模板)")
             for n in names:
                 print(f"/{n}")
+        _maybe_metrics_cli(
+            module="commands",
+            event="commands.list",
+            latency_ms=(time.perf_counter() - t_cmdn) * 1000.0,
+            tokens=len(names),
+            success=True,
+        )
         return 0
 
     if args.command == "agents":
@@ -5167,6 +5251,7 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        t_ag = time.perf_counter()
         names = list_agent_names(settings)
         if args.json_output:
             print(
@@ -5180,6 +5265,13 @@ def main(argv: list[str] | None = None) -> int:
                 print("(无子代理模板)")
             for n in names:
                 print(n)
+        _maybe_metrics_cli(
+            module="agents",
+            event="agents.list",
+            latency_ms=(time.perf_counter() - t_ag) * 1000.0,
+            tokens=len(names),
+            success=True,
+        )
         return 0
 
     if args.command == "mcp-check":
@@ -5342,6 +5434,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if ok else 2
 
     if args.command == "sessions":
+        t_sess = time.perf_counter()
         files = list_session_files(
             cwd=os.getcwd(),
             pattern=str(args.pattern),
@@ -5434,9 +5527,17 @@ def main(argv: list[str] | None = None) -> int:
                         ap = d.get("answer_preview")
                         if isinstance(ap, str) and ap:
                             print(f"    answer={ap}")
+        _maybe_metrics_cli(
+            module="sessions",
+            event="sessions.list",
+            latency_ms=(time.perf_counter() - t_sess) * 1000.0,
+            tokens=len(files),
+            success=True,
+        )
         return 0
 
     if args.command == "stats":
+        t_stats = time.perf_counter()
         files = list_session_files(
             cwd=os.getcwd(),
             pattern=str(args.pattern),
@@ -5526,9 +5627,17 @@ def main(argv: list[str] | None = None) -> int:
                 print("models_distribution:")
                 for m, cnt in by_model.items():
                     print(f"  {m}: {cnt}")
+        _maybe_metrics_cli(
+            module="stats",
+            event="stats.summary",
+            latency_ms=(time.perf_counter() - t_stats) * 1000.0,
+            tokens=int(summary.get("sessions_count") or 0),
+            success=True,
+        )
         return 0
 
     if args.command == "insights":
+        t_ins = time.perf_counter()
         payload = _build_insights_payload(
             cwd=os.getcwd(),
             pattern=str(args.pattern),
@@ -5538,6 +5647,13 @@ def main(argv: list[str] | None = None) -> int:
         if bool(getattr(args, "insights_cross_domain", False)):
             if not bool(args.json_output):
                 print("insights: --cross-domain 需要同时指定 --json", file=sys.stderr)
+                _maybe_metrics_cli(
+                    module="insights",
+                    event="insights.cross_domain",
+                    latency_ms=(time.perf_counter() - t_ins) * 1000.0,
+                    tokens=int(payload.get("sessions_in_window") or payload.get("total_tokens") or 0),
+                    success=False,
+                )
                 return 2
             from cai_agent.insights_cross_domain import build_insights_cross_domain_v1
 
@@ -5580,11 +5696,21 @@ def main(argv: list[str] | None = None) -> int:
                         continue
                     print(f"  {row.get('path')} errors={row.get('error_count')}")
         mx = getattr(args, "fail_on_max_failure_rate", None)
+        rc_ins = 0
         if isinstance(mx, (int, float)):
             fr = float(payload.get("failure_rate") or 0.0)
             if fr + 1e-12 >= float(mx):
-                return 2
-        return 0
+                rc_ins = 2
+        tok_ins = int(payload.get("sessions_in_window") or payload.get("total_tokens") or 0)
+        is_cd = bool(getattr(args, "insights_cross_domain", False)) and bool(args.json_output)
+        _maybe_metrics_cli(
+            module="insights",
+            event="insights.cross_domain" if is_cd else "insights.summary",
+            latency_ms=(time.perf_counter() - t_ins) * 1000.0,
+            tokens=tok_ins,
+            success=(rc_ins == 0),
+        )
+        return rc_ins
 
     if args.command == "recall":
         idx_arg = getattr(args, "index_path", None)
@@ -6064,18 +6190,42 @@ def main(argv: list[str] | None = None) -> int:
         hooks_dir_s = str(hooks_dir).strip() if hooks_dir is not None else ""
         hp = resolve_hooks_json_path(settings, hooks_dir=hooks_dir_s or None)
         if args.hooks_action == "list":
+            t_hl = time.perf_counter()
             cat = describe_hooks_catalog(settings, hooks_path=hp)
+            rows_hl = cat.get("hooks") if isinstance(cat.get("hooks"), list) else []
+            n_hl = len(rows_hl)
             if bool(getattr(args, "json_output", False)):
                 print(json.dumps(cat, ensure_ascii=False))
                 err = cat.get("error")
                 if err in ("hooks_json_not_found", "invalid_hooks_document"):
+                    _maybe_metrics_cli(
+                        module="hooks",
+                        event="hooks.list",
+                        latency_ms=(time.perf_counter() - t_hl) * 1000.0,
+                        tokens=n_hl,
+                        success=False,
+                    )
                     return 2
             else:
                 if cat.get("error") == "hooks_json_not_found":
                     print("[hooks] 未找到 hooks.json（尝试 hooks/ 与 .cai/hooks/）", file=sys.stderr)
+                    _maybe_metrics_cli(
+                        module="hooks",
+                        event="hooks.list",
+                        latency_ms=(time.perf_counter() - t_hl) * 1000.0,
+                        tokens=0,
+                        success=False,
+                    )
                     return 2
                 if cat.get("error") == "invalid_hooks_document":
                     print("[hooks] hooks.json 格式无效：缺少 hooks 数组", file=sys.stderr)
+                    _maybe_metrics_cli(
+                        module="hooks",
+                        event="hooks.list",
+                        latency_ms=(time.perf_counter() - t_hl) * 1000.0,
+                        tokens=0,
+                        success=False,
+                    )
                     return 2
                 print(f"hooks_file={cat.get('hooks_file')}")
                 print(f"hooks_profile={cat.get('hooks_profile')}")
@@ -6093,6 +6243,13 @@ def main(argv: list[str] | None = None) -> int:
                         f"- id={hid} event={ev} enabled={row.get('enabled')} "
                         f"command={cmd} disabled={row.get('disabled_by_config')}{rs_txt}",
                     )
+            _maybe_metrics_cli(
+                module="hooks",
+                event="hooks.list",
+                latency_ms=(time.perf_counter() - t_hl) * 1000.0,
+                tokens=n_hl,
+                success=True,
+            )
             return 0
         if args.hooks_action == "run-event":
             event = str(getattr(args, "event", "") or "").strip()
@@ -7464,11 +7621,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "cost":
         if args.cost_action == "budget":
             settings_cost = Settings.from_env(config_path=None)
+            t_cost = time.perf_counter()
             _print_hook_status(
                 settings_cost,
                 event="cost_budget_start",
                 json_output=True,
             )
+            rc_cost = 2
+            total_t_cost = 0
             try:
                 cfg_max = int(settings_cost.cost_budget_max_tokens)
                 max_tokens = (
@@ -7476,6 +7636,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 agg = aggregate_sessions(cwd=os.getcwd(), limit=200)
                 total_tokens = int(agg.get("total_tokens", 0))
+                total_t_cost = total_tokens
                 state = "pass"
                 if total_tokens > max_tokens:
                     state = "fail"
@@ -7488,14 +7649,21 @@ def main(argv: list[str] | None = None) -> int:
                     "max_tokens": max_tokens,
                 }
                 print(json.dumps(payload, ensure_ascii=False))
-                rc = 0 if state != "fail" else 2
+                rc_cost = 0 if state != "fail" else 2
             finally:
                 _print_hook_status(
                     settings_cost,
                     event="cost_budget_end",
                     json_output=True,
                 )
-            return rc
+            _maybe_metrics_cli(
+                module="cost",
+                event="cost.budget",
+                latency_ms=(time.perf_counter() - t_cost) * 1000.0,
+                tokens=total_t_cost,
+                success=(rc_cost == 0),
+            )
+            return rc_cost
 
     if args.command == "export":
         try:
@@ -7518,6 +7686,7 @@ def main(argv: list[str] | None = None) -> int:
             event="export_start",
             json_output=True,
         )
+        t_exp = time.perf_counter()
         try:
             result = export_target(settings, str(args.target))
         finally:
@@ -7527,6 +7696,14 @@ def main(argv: list[str] | None = None) -> int:
                 json_output=True,
             )
         print(json.dumps(result, ensure_ascii=False))
+        copied = result.get("copied") if isinstance(result.get("copied"), list) else []
+        _maybe_metrics_cli(
+            module="export",
+            event="export.target",
+            latency_ms=(time.perf_counter() - t_exp) * 1000.0,
+            tokens=len(copied),
+            success=True,
+        )
         return 0
 
     if args.command == "observe":
@@ -7707,6 +7884,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "observe-report":
+        t_obr = time.perf_counter()
         obs = build_observe_payload(
             cwd=os.getcwd(),
             pattern=str(getattr(args, "pattern", ".cai-session*.json")),
@@ -7724,12 +7902,14 @@ def main(argv: list[str] | None = None) -> int:
         if bool(getattr(args, "json_output", False)):
             print(json.dumps(payload, ensure_ascii=False))
         else:
+            obs_obr = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
+            ag_obr = obs_obr.get("aggregates") if isinstance(obs_obr.get("aggregates"), dict) else {}
             print(
                 f"[observe-report] state={payload.get('state')} "
-                f"sessions={payload.get('sessions_count')} "
-                f"failure_rate={payload.get('failure_rate')} "
-                f"total_tokens={payload.get('total_tokens')} "
-                f"tool_errors={payload.get('tool_errors_total')}",
+                f"sessions={obs_obr.get('sessions_count')} "
+                f"failure_rate={ag_obr.get('failure_rate')} "
+                f"total_tokens={ag_obr.get('total_tokens')} "
+                f"tool_errors={ag_obr.get('tool_errors_total')}",
             )
             alerts = payload.get("alerts") or []
             if isinstance(alerts, list):
@@ -7738,11 +7918,21 @@ def main(argv: list[str] | None = None) -> int:
                         continue
                     print(f"- {a.get('severity')} {a.get('name')}: {a.get('detail')}")
         st = str(payload.get("state") or "")
+        rc_obr = 0
         if st == "fail":
-            return 2
-        if bool(getattr(args, "fail_on_warn", False)) and st == "warn":
-            return 2
-        return 0
+            rc_obr = 2
+        elif bool(getattr(args, "fail_on_warn", False)) and st == "warn":
+            rc_obr = 2
+        obsr_m = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
+        agm_m = obsr_m.get("aggregates") if isinstance(obsr_m.get("aggregates"), dict) else {}
+        _maybe_metrics_cli(
+            module="observe",
+            event="observe.report",
+            latency_ms=(time.perf_counter() - t_obr) * 1000.0,
+            tokens=int(agm_m.get("total_tokens") or 0),
+            success=(rc_obr == 0),
+        )
+        return rc_obr
 
     if args.command == "ops":
         oa = str(getattr(args, "ops_action", "") or "").strip()
@@ -7752,6 +7942,7 @@ def main(argv: list[str] | None = None) -> int:
         root_ops = Path.cwd().resolve()
         from cai_agent.ops_dashboard import build_ops_dashboard_payload
 
+        t_ops = time.perf_counter()
         payload_ops = build_ops_dashboard_payload(
             cwd=str(root_ops),
             observe_pattern=str(getattr(args, "pattern", ".cai-session*.json")),
@@ -7769,10 +7960,19 @@ def main(argv: list[str] | None = None) -> int:
                 f"schedule_tasks={sm.get('schedule_tasks_in_stats')} "
                 f"cost_tokens={sm.get('cost_total_tokens')}",
             )
+        sm_m = payload_ops.get("summary") if isinstance(payload_ops.get("summary"), dict) else {}
+        _maybe_metrics_cli(
+            module="ops",
+            event="ops.dashboard",
+            latency_ms=(time.perf_counter() - t_ops) * 1000.0,
+            tokens=int(sm_m.get("sessions_count") or sm_m.get("schedule_tasks_in_stats") or 0),
+            success=True,
+        )
         return 0
 
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
+        t_bd = time.perf_counter()
         board_json = bool(getattr(args, "json_output", False))
         failed_only = bool(getattr(args, "failed_only", False))
         task_id_filter = str(getattr(args, "task_id", "") or "").strip()
@@ -7919,6 +8119,14 @@ def main(argv: list[str] | None = None) -> int:
                 event="board_end",
                 json_output=board_json,
             )
+        obs_bd = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
+        _maybe_metrics_cli(
+            module="board",
+            event="board.summary",
+            latency_ms=(time.perf_counter() - t_bd) * 1000.0,
+            tokens=int(obs_bd.get("sessions_count") or 0),
+            success=True,
+        )
         if bool(getattr(args, "fail_on_failed_sessions", False)):
             obs2 = payload.get("observe") if isinstance(payload.get("observe"), dict) else {}
             sess_rows = obs2.get("sessions") if isinstance(obs2.get("sessions"), list) else []

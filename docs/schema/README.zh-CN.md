@@ -31,7 +31,7 @@
 
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`（0~1）：当 `aggregates.failure_rate >= RATE` 时 `2`（与 `insights --fail-on-max-failure-rate` 语义一致）。
 
-**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 等事件；**`memory.*`**（含 **`health`/`state`/`nudge`/`extract`/`list`/…**）、**`recall`/`recall_index.*`/`schedule.*`/`gateway.*`**（含 **`gateway telegram serve-webhook`** 正常结束一轮）、**`hooks run-event`**、**`mcp-check`**、**`quality_gate.run`/`security_scan.run`** 与 **`run`/`continue`/`command`/`agent`/`fix-build` 的 `*.invoke`** 等同见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md) **触发路径**。
+**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 等事件；**`memory.*`**（含 **`health`/`state`/`nudge`/`extract`/`list`/…**）、**`recall`/`recall_index.*`/`schedule.*`/`gateway.*`**（含 **`gateway telegram serve-webhook`** 正常结束一轮）、**`hooks`/`sessions`/`stats`/`insights`/`plugins`/`skills hub manifest`/`commands`/`agents`/`doctor`/`plan`/`cost budget`/`export`/`observe-report`/`ops dashboard`/`board`**、**`mcp-check`**、**`quality_gate.run`/`security_scan.run`** 与 **`run`/`continue`/`command`/`agent`/`fix-build` 的 `*.invoke`** 等同见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md) **触发路径**。
 
 ---
 

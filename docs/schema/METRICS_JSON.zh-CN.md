@@ -51,6 +51,20 @@
 - **`cai-agent mcp-check`**：**`mcp.check`**（**`latency_ms`** = CLI **`elapsed_ms`**；**`tokens`** = **`len(tool_names)`**；**`success`** = **`ok`**）。
 - **`cai-agent hooks run-event`**：**`hooks.run_event`**（**`tokens`** = dry-run 预览条数或执行 **`results`** 条数；**`success`** 与 exit 语义一致；未找到 **`hooks.json`** 时 **`success=false`**）。
 - **`cai-agent gateway telegram serve-webhook`**：**`gateway.telegram.serve_webhook`**（**`tokens`** ≈ **`handled_requests`**；**`success`** = 返回负载 **`ok`**；在 HTTP 服务正常结束一轮后打点）。
+- **`cai-agent sessions`**：**`sessions.list`**（**`tokens`** = 列出的会话文件数 **`len(files)`**）。
+- **`cai-agent stats`**：**`stats.summary`**（**`tokens`** = **`sessions_count`** 汇总值）。
+- **`cai-agent insights`**：**`insights.summary`**；**`--cross-domain --json`** 时为 **`insights.cross_domain`**（**`tokens`** ≈ **`sessions_in_window`/`total_tokens`**；**`--fail-on-max-failure-rate`** 触发 exit **`2`** 时 **`success=false`**）。
+- **`cai-agent plugins`**：**`plugins.surface`**（**`tokens`** = 各组件 **`files_count`** 之和；**`--fail-on-min-health`** 未达标时 **`success=false`**）。
+- **`cai-agent skills hub manifest`**：**`skills.hub_manifest`**（**`tokens`** ≈ **`count`**）。
+- **`cai-agent commands` / `agents`**：**`commands.list`** / **`agents.list`**（**`tokens`** = 名称条数）。
+- **`cai-agent doctor`**：**`doctor.run`**（**`tokens`**=`0`**；**`success`** = exit **`0`**）。
+- **`cai-agent plan`**：**`plan.generate`**（**`tokens`** ≈ LLM **`usage.total_tokens`**；配置/goal 错误、中断、LLM 失败时 **`success=false`**）。
+- **`cai-agent cost budget`**：**`cost.budget`**（**`tokens`** = **`total_tokens`** 聚合；**`state=fail`** 时 **`success=false`**）。
+- **`cai-agent export`**：**`export.target`**（**`tokens`** = **`len(copied)`**）。
+- **`cai-agent observe-report`**：**`observe.report`**（与 **`observe report`** 同事件名；**`tokens`** ≈ **`observe.aggregates.total_tokens`**；**`state=fail`** 或 **`--fail-on-warn`** 触发 **`2`** 时 **`success=false`**）。
+- **`cai-agent ops dashboard`**：**`ops.dashboard`**（**`tokens`** ≈ **`summary.sessions_count`** 或 **`schedule_tasks_in_stats`**）。
+- **`cai-agent board`**：**`board.summary`**（**`tokens`** ≈ 内嵌 **`observe.sessions_count`**）。
+- **`cai-agent hooks list`**：**`hooks.list`**（**`tokens`** = 目录 **`hooks`** 条数；**`hooks.json` 缺失/无效** 时 **`success=false`**）。
 
 > 其它长尾子命令若需指标，仍按 **S7-01 AC2** 增量扩展。
 

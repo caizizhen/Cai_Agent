@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.16 (2026-04-23)
+
+- **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`sessions.list`**, **`stats.summary`**, **`insights.summary` / `insights.cross_domain`**, **`plugins.surface`**, **`skills.hub_manifest`**, **`commands.list`**, **`agents.list`**, **`doctor.run`**, **`plan.generate`**, **`cost.budget`**, **`export.target`**, **`observe.report`** (standalone **`observe-report`**), **`ops.dashboard`**, **`board.summary`**, and **`hooks.list`**. **`docs/schema/METRICS_JSON.zh-CN.md`** updated.
+- **Tests**: **`test_metrics_jsonl.py`** covers the new paths.
+
 ### 0.6.15 (2026-04-23)
 
 - **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`mcp.check`**, **`hooks.run_event`**, and **`gateway.telegram.serve_webhook`** (after a normal **`serve-webhook`** server run). **`docs/schema/METRICS_JSON.zh-CN.md`** updated.
