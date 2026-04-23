@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 96%**（**25÷26**）；**Hermes 约 68%**（**23÷34**）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **359 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.1`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`gateway platforms`/`ops dashboard`/`skills hub manifest`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **359 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 96%**（**25÷26**）；**Hermes 约 71%**（**24÷34**）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **361 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.2`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`gateway telegram list`**（**`allowed_chat_ids`**）、**`gateway platforms`/`ops dashboard`/`skills hub manifest`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **361 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
 
 ## 对照基线
 
@@ -119,6 +119,7 @@
 - `serve-webhook` 新增 `--execute-on-update` 与 `--goal-template`，可在接收 update 后直接触发执行路径并记录 answer 预览
 - `serve-webhook` 新增执行后回发链路：支持 `--reply-on-execution` / `--telegram-bot-token` / `--reply-template`，将执行结果通过 Telegram `sendMessage` 回发（并记录回发状态）
 - **`0.6.1`**：**`gateway platforms list --json`**（**`gateway_platforms_v1`**）：多平台 **实现阶段目录**（Telegram **full**；Discord/Slack **stub** + **`env`** 引导；其余 **planned**）
+- **`0.6.2`（Hermes S6-03）**：**`allowed_chat_ids`** 写入 **`telegram-session-map.json`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`/`serve-webhook`** **`not_allowed`**；**`serve-webhook`** 补齐 **`--reply-on-execution`** / **`--telegram-bot-token`**（或 **`CAI_TELEGRAM_BOT_TOKEN`**）/ **`--reply-template`**，及 **`--reply-on-deny`**
 
 ### J. 运营面板 / Skills Hub（CLI MVP，`0.6.1`）
 

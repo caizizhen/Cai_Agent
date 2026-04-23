@@ -516,6 +516,10 @@ def main() -> int:
                 errs.append(f"gateway list action {go.get('action')!r}")
             if not isinstance(go.get("bindings"), list):
                 errs.append("gateway list bindings not list")
+            if not isinstance(go.get("allowed_chat_ids"), list):
+                errs.append("gateway list allowed_chat_ids not list")
+            if "allowlist_enabled" not in go:
+                errs.append("gateway list missing allowlist_enabled")
         pp = _run([*cli, "gateway", "platforms", "list", "--json"], cwd=gw_td)
         if pp.returncode != 0:
             errs.append(f"gateway platforms list exit {pp.returncode} stderr={pp.stderr!r}")

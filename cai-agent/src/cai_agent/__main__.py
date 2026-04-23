@@ -1779,15 +1779,39 @@ def _resolve_gateway_map_path(root: Path, raw_path: str | None) -> Path:
     return _resolve_schedule_path(root, raw_path, ".cai/gateway/telegram-session-map.json")
 
 
+def _parse_allowed_chat_ids(raw: Any) -> list[str]:
+    if not isinstance(raw, list):
+        return []
+    out: list[str] = []
+    for x in raw:
+        s = str(x).strip()
+        if s and s not in out:
+            out.append(s)
+    return out
+
+
+def _telegram_chat_id_allowed(chat_id: str, doc: dict[str, Any]) -> bool:
+    """若 ``allowed_chat_ids`` 非空，则仅允许列表中的 ``chat_id``；空列表表示不启用白名单（兼容旧文件）。"""
+    allowed = _parse_allowed_chat_ids(doc.get("allowed_chat_ids"))
+    if not allowed:
+        return True
+    return str(chat_id or "").strip() in set(allowed)
+
+
 def _load_gateway_map(path: Path) -> dict[str, Any]:
+    empty: dict[str, Any] = {
+        "schema_version": "gateway_telegram_map_v1",
+        "bindings": {},
+        "allowed_chat_ids": [],
+    }
     if not path.is_file():
-        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+        return dict(empty)
     try:
         obj = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
-        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+        return dict(empty)
     if not isinstance(obj, dict):
-        return {"schema_version": "gateway_telegram_map_v1", "bindings": {}}
+        return dict(empty)
     binds = obj.get("bindings")
     if not isinstance(binds, dict):
         binds = {}
@@ -1805,7 +1829,12 @@ def _load_gateway_map(path: Path) -> dict[str, Any]:
             "user_id": user_id,
             "session_file": session_file,
         }
-    return {"schema_version": "gateway_telegram_map_v1", "bindings": out}
+    allowed = _parse_allowed_chat_ids(obj.get("allowed_chat_ids"))
+    return {
+        "schema_version": "gateway_telegram_map_v1",
+        "bindings": out,
+        "allowed_chat_ids": allowed,
+    }
 
 
 def _save_gateway_map(path: Path, doc: dict[str, Any]) -> None:
@@ -1863,6 +1892,18 @@ def _resolve_gateway_session_from_update(
             "ok": False,
             "error": "invalid_update",
             "message": "无法从 update JSON 提取 chat_id/user_id",
+        }
+    if not _telegram_chat_id_allowed(chat_id, doc):
+        return {
+            "schema_version": "gateway_telegram_map_v1",
+            "action": "resolve-update",
+            "ok": False,
+            "error": "not_allowed",
+            "message": "chat_id 不在 allowed_chat_ids 白名单（S6-03）",
+            "map_file": str(map_path),
+            "chat_id": chat_id,
+            "user_id": user_id,
+            "binding": None,
         }
     key = f"{chat_id}:{user_id}"
     row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
@@ -1942,6 +1983,8 @@ def _run_gateway_telegram_webhook_server(
     reply_on_execution: bool,
     telegram_bot_token: str | None,
     reply_template: str,
+    reply_on_deny: bool,
+    deny_message: str,
     log_file: Path,
     max_requests: int,
 ) -> dict[str, Any]:
@@ -1978,6 +2021,21 @@ def _run_gateway_telegram_webhook_server(
                 session_template=session_template,
             )
             execution: dict[str, Any] | None = None
+            err0 = str(payload.get("error") or "")
+            deny_reply_result: dict[str, Any] | None = None
+            if (
+                err0 == "not_allowed"
+                and bool(reply_on_deny)
+                and isinstance(telegram_bot_token, str)
+                and telegram_bot_token.strip()
+            ):
+                cid_deny = str(payload.get("chat_id") or "").strip()
+                if cid_deny:
+                    deny_reply_result = _telegram_send_message(
+                        bot_token=telegram_bot_token.strip(),
+                        chat_id=cid_deny,
+                        text=str(deny_message or "未授权。").strip() or "未授权。",
+                    )
             if bool(payload.get("ok")) and execute_on_update:
                 chat_id = str(payload.get("chat_id") or "").strip()
                 user_id = str(payload.get("user_id") or "").strip()
@@ -2028,7 +2086,15 @@ def _run_gateway_telegram_webhook_server(
                         }
                     execution["reply"] = reply_result
             elif execute_on_update:
-                execution = {"triggered": False, "ok": False, "reason": "resolve_failed"}
+                if err0 == "not_allowed":
+                    execution = {
+                        "triggered": False,
+                        "ok": False,
+                        "reason": "not_allowed",
+                        "deny_reply": deny_reply_result,
+                    }
+                else:
+                    execution = {"triggered": False, "ok": False, "reason": "resolve_failed"}
             if execution is not None:
                 payload = {**payload, "execution": execution}
             log_row = {
@@ -2039,7 +2105,12 @@ def _run_gateway_telegram_webhook_server(
             log_file.parent.mkdir(parents=True, exist_ok=True)
             with log_file.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(log_row, ensure_ascii=False) + "\n")
-            code = 200 if bool(payload.get("ok")) else 422
+            if err0 == "not_allowed":
+                code = 200
+            elif bool(payload.get("ok")):
+                code = 200
+            else:
+                code = 422
             self.server._handled += 1  # type: ignore[attr-defined]
             self._write_json(code, payload)
             if self.server._handled >= self.server._max_requests:  # type: ignore[attr-defined]
@@ -2071,6 +2142,7 @@ def _run_gateway_telegram_webhook_server(
         "create_missing": bool(create_missing),
         "execute_on_update": bool(execute_on_update),
         "reply_on_execution": bool(reply_on_execution),
+        "reply_on_deny": bool(reply_on_deny),
     }
 
 
@@ -4160,6 +4232,20 @@ def main(argv: list[str] | None = None) -> int:
     gw_tg_list.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
     gw_tg_list.add_argument("--json", action="store_true", dest="json_output")
 
+    gw_tg_allow = gw_tg_sub.add_parser("allow", help="Telegram chat_id 白名单（S6-03，写入映射 JSON）")
+    gw_tg_allow_sub = gw_tg_allow.add_subparsers(dest="gateway_telegram_allow_action", required=True)
+    gw_tg_allow_add = gw_tg_allow_sub.add_parser("add", help="追加允许的 chat_id")
+    gw_tg_allow_add.add_argument("--chat-id", required=True)
+    gw_tg_allow_add.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_tg_allow_list = gw_tg_allow_sub.add_parser("list", help="列出白名单 chat_id")
+    gw_tg_allow_list.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_allow_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_tg_allow_rm = gw_tg_allow_sub.add_parser("rm", help="移除 chat_id")
+    gw_tg_allow_rm.add_argument("--chat-id", required=True)
+    gw_tg_allow_rm.add_argument("--map-file", default=None, help="映射文件路径（默认 .cai/gateway/telegram-session-map.json）")
+    gw_tg_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+
     gw_tg_unbind = gw_tg_sub.add_parser("unbind", help="解除单个 chat_id+user_id 映射")
     gw_tg_unbind.add_argument("--chat-id", required=True)
     gw_tg_unbind.add_argument("--user-id", required=True)
@@ -4213,6 +4299,33 @@ def main(argv: list[str] | None = None) -> int:
         "--goal-template",
         default="用户({user_id})在 chat({chat_id}) 发送消息：{text}",
         help="执行模式下的 goal 模板（支持 {chat_id}/{user_id}/{text}）",
+    )
+    gw_tg_serve.add_argument(
+        "--reply-on-execution",
+        action="store_true",
+        default=False,
+        help="执行完成后将结果回发到 Telegram（需 --telegram-bot-token）",
+    )
+    gw_tg_serve.add_argument(
+        "--telegram-bot-token",
+        default=None,
+        help="Bot token（亦可设环境变量 CAI_TELEGRAM_BOT_TOKEN）",
+    )
+    gw_tg_serve.add_argument(
+        "--reply-template",
+        default="执行完成 ok={ok}\n{answer}",
+        help="回发文本模板（支持 {chat_id}/{user_id}/{text}/{answer}/{ok}）",
+    )
+    gw_tg_serve.add_argument(
+        "--reply-on-deny",
+        action="store_true",
+        default=False,
+        help="白名单拒绝时仍向 chat 发送拒绝短讯（需 token；S6-03）",
+    )
+    gw_tg_serve.add_argument(
+        "--deny-message",
+        default="此 CAI Agent Bot 未授权本对话。",
+        help="与 --reply-on-deny 配合",
     )
     gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
 
@@ -6960,6 +7073,7 @@ def main(argv: list[str] | None = None) -> int:
                     for _, v in sorted(bindings.items(), key=lambda x: x[0])
                     if isinstance(v, dict)
                 ]
+                allowed_ids = _parse_allowed_chat_ids(doc.get("allowed_chat_ids"))
                 payload = {
                     "schema_version": "gateway_telegram_map_v1",
                     "action": "list",
@@ -6967,14 +7081,77 @@ def main(argv: list[str] | None = None) -> int:
                     "map_file": str(map_path),
                     "bindings": items,
                     "bindings_count": len(items),
+                    "allowed_chat_ids": allowed_ids,
+                    "allowlist_enabled": bool(allowed_ids),
                 }
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
-                    print(f"bindings={len(items)}")
+                    print(f"bindings={len(items)} allowlist={len(allowed_ids)}")
                     for row in items:
                         print(f"- chat_id={row.get('chat_id')} user_id={row.get('user_id')} session_file={row.get('session_file')}")
                 return 0
+            if act == "allow":
+                sub_allow = str(getattr(args, "gateway_telegram_allow_action", "") or "").strip()
+                allowed = _parse_allowed_chat_ids(doc.get("allowed_chat_ids"))
+                if sub_allow == "add":
+                    cid_a = str(getattr(args, "chat_id", "") or "").strip()
+                    if not cid_a:
+                        print("--chat-id 不能为空", file=sys.stderr)
+                        return 2
+                    if cid_a not in allowed:
+                        allowed.append(cid_a)
+                    doc["allowed_chat_ids"] = sorted(set(allowed))
+                    _save_gateway_map(map_path, doc)
+                    out_a = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "allow_add",
+                        "ok": True,
+                        "map_file": str(map_path),
+                        "chat_id": cid_a,
+                        "allowed_chat_ids": allowed,
+                    }
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_a, ensure_ascii=False))
+                    else:
+                        print(f"allow_add chat_id={cid_a} total={len(allowed)}")
+                    return 0
+                if sub_allow == "list":
+                    out_l = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "allow_list",
+                        "ok": True,
+                        "map_file": str(map_path),
+                        "allowed_chat_ids": allowed,
+                    }
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_l, ensure_ascii=False))
+                    else:
+                        print(f"allowed_chat_ids ({len(allowed)}): {','.join(allowed) if allowed else '(empty — 不限制)'}")
+                    return 0
+                if sub_allow == "rm":
+                    cid_r = str(getattr(args, "chat_id", "") or "").strip()
+                    if not cid_r:
+                        print("--chat-id 不能为空", file=sys.stderr)
+                        return 2
+                    removed_r = cid_r in allowed
+                    doc["allowed_chat_ids"] = [x for x in allowed if x != cid_r]
+                    _save_gateway_map(map_path, doc)
+                    out_r = {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "action": "allow_rm",
+                        "ok": removed_r,
+                        "map_file": str(map_path),
+                        "chat_id": cid_r,
+                        "allowed_chat_ids": doc["allowed_chat_ids"],
+                    }
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_r, ensure_ascii=False))
+                    else:
+                        print(f"allow_rm chat_id={cid_r} removed={removed_r}")
+                    return 0 if removed_r else 2
+                print("gateway telegram allow: 未知子命令", file=sys.stderr)
+                return 2
             if act == "unbind":
                 chat_id = str(getattr(args, "chat_id", "") or "").strip()
                 user_id = str(getattr(args, "user_id", "") or "").strip()
@@ -7045,50 +7222,29 @@ def main(argv: list[str] | None = None) -> int:
                     else:
                         print("update JSON 根对象必须为 object", file=sys.stderr)
                     return 2
-                chat_id, user_id = _extract_telegram_ids_from_update(update_obj)
-                if not chat_id or not user_id:
-                    payload = {
-                        "schema_version": "gateway_telegram_map_v1",
-                        "action": "resolve-update",
-                        "ok": False,
-                        "error": "invalid_update",
-                        "message": "无法从 update JSON 提取 chat_id/user_id",
-                    }
-                    if json_out:
-                        print(json.dumps(payload, ensure_ascii=False))
-                    else:
-                        print("无法从 update JSON 提取 chat_id/user_id", file=sys.stderr)
+                tpl_r = str(
+                    getattr(args, "session_template", ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json")
+                    or ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json",
+                ).strip()
+                if bool(getattr(args, "create_missing", False)) and not tpl_r:
+                    print("session-template 不能为空", file=sys.stderr)
                     return 2
-                key = f"{chat_id}:{user_id}"
-                row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
-                created = False
-                if row is None and bool(getattr(args, "create_missing", False)):
-                    tpl = str(getattr(args, "session_template", "") or "").strip()
-                    if not tpl:
-                        print("session-template 不能为空", file=sys.stderr)
-                        return 2
-                    rel = tpl.format(chat_id=chat_id, user_id=user_id)
-                    p = Path(rel).expanduser()
-                    if not p.is_absolute():
-                        p = (root / p).resolve()
-                    else:
-                        p = p.resolve()
-                    row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
-                    bindings[key] = row
-                    _save_gateway_map(map_path, doc)
-                    created = True
-                payload = {
-                    "schema_version": "gateway_telegram_map_v1",
-                    "action": "resolve-update",
-                    "ok": bool(row),
-                    "created": created,
-                    "map_file": str(map_path),
-                    "chat_id": chat_id,
-                    "user_id": user_id,
-                    "binding": row,
-                }
+                payload = _resolve_gateway_session_from_update(
+                    root=root,
+                    map_path=map_path,
+                    update_obj=update_obj,
+                    create_missing=bool(getattr(args, "create_missing", False)),
+                    session_template=tpl_r,
+                )
+                row = payload.get("binding") if isinstance(payload.get("binding"), dict) else None
+                created = bool(payload.get("created"))
+                chat_id = str(payload.get("chat_id") or "").strip()
+                user_id = str(payload.get("user_id") or "").strip()
+                err_r = str(payload.get("error") or "")
                 if json_out:
                     print(json.dumps(payload, ensure_ascii=False))
+                elif err_r == "not_allowed":
+                    print(payload.get("message") or "not_allowed", file=sys.stderr)
                 elif row:
                     print(
                         f"resolved chat_id={chat_id} user_id={user_id} "
@@ -7096,11 +7252,13 @@ def main(argv: list[str] | None = None) -> int:
                     )
                 else:
                     print(f"mapping_not_found chat_id={chat_id} user_id={user_id}")
+                if err_r == "not_allowed":
+                    return 2
                 return 0 if row else 2
             if act == "serve-webhook":
                 host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1")
                 port = int(getattr(args, "port", 18765))
-                max_events = int(getattr(args, "max_events", 1))
+                max_events = int(getattr(args, "max_events", 0))
                 create_missing = bool(getattr(args, "create_missing", False))
                 session_template = str(
                     getattr(args, "session_template", ".cai/gateway/sessions/tg-{chat_id}-{user_id}.json")
@@ -7111,6 +7269,10 @@ def main(argv: list[str] | None = None) -> int:
                     getattr(args, "log_file", None),
                     ".cai/gateway/telegram-webhook-events.jsonl",
                 )
+                tok_arg = getattr(args, "telegram_bot_token", None)
+                tok_cli = str(tok_arg).strip() if tok_arg else ""
+                tok_env = str(os.environ.get("CAI_TELEGRAM_BOT_TOKEN") or "").strip()
+                tok = tok_cli or tok_env or None
                 payload = _run_gateway_telegram_webhook_server(
                     root=root,
                     host=host,
@@ -7122,7 +7284,19 @@ def main(argv: list[str] | None = None) -> int:
                     max_requests=max_events,
                     execute_on_update=bool(getattr(args, "execute_on_update", False)),
                     goal_template=str(
-                        getattr(args, "goal_template", "Telegram inbound message: {text}") or "Telegram inbound message: {text}",
+                        getattr(args, "goal_template", "用户({user_id})在 chat({chat_id}) 发送消息：{text}")
+                        or "用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+                    ),
+                    reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
+                    telegram_bot_token=tok,
+                    reply_template=str(
+                        getattr(args, "reply_template", "执行完成 ok={ok}\n{answer}")
+                        or "执行完成 ok={ok}\n{answer}",
+                    ),
+                    reply_on_deny=bool(getattr(args, "reply_on_deny", False)),
+                    deny_message=str(
+                        getattr(args, "deny_message", "此 CAI Agent Bot 未授权本对话。")
+                        or "此 CAI Agent Bot 未授权本对话。",
                     ),
                 )
                 out = {

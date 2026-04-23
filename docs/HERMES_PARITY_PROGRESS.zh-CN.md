@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.1`**；**§二 24–26** CLI **MVP**（**`gateway platforms`/`skills hub manifest`/`ops dashboard`**）已合主线；Hermes **34 Story ✅ 仍为 23/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **359 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.2`**；**Hermes S6-03**（**`allowed_chat_ids`** + **`gateway telegram allow`**）已合主线；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 24/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **361 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 23     | 68%      |
+| ✅ 已完成        | 24     | 71%      |
 | ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 11     | 32%      |
+| ❌ 未开发        | 10     | 29%      |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **23/34 ≈ 67.6%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **24/34 ≈ 70.6%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
 
 ---
 
@@ -50,6 +50,7 @@
 | **S5-02**   | fan-out/fan-in 结果聚合 | `subagent_io.merge`（`decision` / `confidence` / `conflicts` 等）、`merge_confidence`；与并行组摘要同源；`test_cli_workflow.py` |
 | **S5-03**   | fail-fast / continue-on-error | 根级 **`on_error`**（`fail_fast` 默认 / `continue-on-error` 别名 → `continue_on_error`）；`summary.on_error`、`steps_skipped`、`merge_steps_considered`；事件 **`workflow.step.skipped`**；`tests/test_cli_workflow.py` |
 | **S5-04**   | 预算与 token 门禁 | 根级 **`budget_max_tokens`**；批间 **`total_tokens`** 累计 ≥ 预算则 **`skipped`/`budget_exceeded`**；`summary` 与 **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` **`workflow_budget_exceeded`**；`tests/test_cli_workflow.py` |
+| **S6-03**   | Telegram **`allowed_chat_ids` 白名单** | 映射 JSON 根级 **`allowed_chat_ids`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`** / **`serve-webhook`** 路径 **`not_allowed`**；**`list --json`** 含 **`allowed_chat_ids`** / **`allowlist_enabled`**；可选 **`serve-webhook --reply-on-deny`**；`tests/test_gateway_telegram_cli.py` |
 
 
 ---
@@ -103,18 +104,17 @@
 
 | Story ID  | 标题                          | 优先级 | 估算  | 测试计划                                                                                            |
 | --------- | --------------------------- | --- | --- | ----------------------------------------------------------------------------------------------- |
-| **S6-03** | 用户身份绑定与 allowlist（**安全前置**） | P0  | M   | [sprint6-gateway-telegram-testplan.md](qa/sprint6-gateway-telegram-testplan.md) GTW-SEC-001~007 |
 | **S6-01** | gateway 命令组基础结构             | P1  | XL  | GTW-BASE-001~003                                                                                |
 | **S6-02** | Telegram 消息收发               | P1  | XL  | GTW-TG-001~006                                                                                  |
 | **S6-04** | 跨端会话连续性                     | P2  | L   | GTW-CONT-001                                                                                    |
 
 
-**注意**：S6-03（安全）**必须先完成**才允许进行 S6-02 的手工测试，避免 Bot 未授权可用的安全风险。  
+**注意**：**S6-03（allowlist）已在主线以 CLI MVP 收口**；S6-02 手工测仍建议配置 **`allowed_chat_ids`** 与测试 Bot。  
 **开发关键文件**：
 
 - `cai-agent/src/cai_agent/gateway/`（新建模块）
 - `__main__.py`：新增 `gateway` 顶级命令组  
-**QA 等待信号**：S6-01 + S6-03 提测后开始自动化测试；S6-02 需要测试人员准备测试 Bot Token
+**QA 等待信号**：S6-01 提测后开始 GTW-BASE；S6-02 需要测试人员准备测试 Bot Token
 
 ---
 

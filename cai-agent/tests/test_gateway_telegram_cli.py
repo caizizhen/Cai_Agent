@@ -336,3 +336,94 @@ class GatewayTelegramCliTests(unittest.TestCase):
                     )
                 self.assertFalse(ok2)
                 self.assertEqual(payload2.get("error"), "send_failed")
+
+    def test_list_includes_allowed_chat_ids(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["gateway", "telegram", "list", "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertIn("allowed_chat_ids", payload)
+            self.assertEqual(payload.get("allowed_chat_ids"), [])
+            self.assertIs(payload.get("allowlist_enabled"), False)
+
+    def test_allow_add_and_block_resolve_by_allowlist(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            update_file = root / "upd.json"
+            update_file.write_text(
+                json.dumps(
+                    {
+                        "message": {
+                            "chat": {"id": 9999},
+                            "from": {"id": 1},
+                            "text": "x",
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            buf_add = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_add):
+                    rc_add = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "allow",
+                            "add",
+                            "--chat-id",
+                            "1111",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc_add, 0)
+            self.assertIn("1111", json.loads(buf_add.getvalue().strip()).get("allowed_chat_ids") or [])
+
+            buf_denied = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_denied):
+                    rc_denied = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "resolve-update",
+                            "--update-file",
+                            str(update_file),
+                            "--create-missing",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc_denied, 2)
+            denied = json.loads(buf_denied.getvalue().strip())
+            self.assertEqual(denied.get("error"), "not_allowed")
+
+            buf_allow9 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_allow9):
+                    rc_ok = main(
+                        ["gateway", "telegram", "allow", "add", "--chat-id", "9999", "--json"],
+                    )
+            self.assertEqual(rc_ok, 0)
+
+            buf_ok = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf_ok):
+                    rc_resolve = main(
+                        [
+                            "gateway",
+                            "telegram",
+                            "resolve-update",
+                            "--update-file",
+                            str(update_file),
+                            "--create-missing",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc_resolve, 0)
+            okp = json.loads(buf_ok.getvalue().strip())
+            self.assertTrue(okp.get("ok"))

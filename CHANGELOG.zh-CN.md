@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.2（2026-04-23）
+
+- **Gateway（Hermes S6-03）**：映射 JSON 根级可选 **`allowed_chat_ids`**（**`gateway_telegram_map_v1`**）。**`gateway telegram allow add|list|rm`**。**`resolve-update`** / **`serve-webhook`** 在非空白名单且 **`chat_id`** 未命中时返回 **`error`=`not_allowed`**。**`list --json`** 增加 **`allowed_chat_ids`**、**`allowlist_enabled`**。**`serve-webhook`**：补齐此前缺失参数（**`--reply-on-execution`**、**`--telegram-bot-token`** / 环境变量 **`CAI_TELEGRAM_BOT_TOKEN`**、**`--reply-template`**），并新增 **`--reply-on-deny`** / **`--deny-message`**。
+- **测试与冒烟**：**`test_gateway_telegram_cli.py`** 白名单用例；冒烟校验 **`list`** 白名单字段。
+
 ### 0.6.1（2026-04-23）
 
 - **Gateway（开发项 24 MVP）**：**`cai-agent gateway platforms list --json`** → **`gateway_platforms_v1`**（Telegram **`full`**，Discord/Slack **`stub`**，其余 **`planned`**）。

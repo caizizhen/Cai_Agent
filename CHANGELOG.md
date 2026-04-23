@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.2 (2026-04-23)
+
+- **Gateway (Hermes S6-03)**: Optional root **`allowed_chat_ids`** on **`gateway_telegram_map_v1`** map file. **`gateway telegram allow add|list|rm`**. **`resolve-update`** / **`serve-webhook`** return **`not_allowed`** when the list is non-empty and **`chat_id`** is missing. **`list --json`** adds **`allowed_chat_ids`** and **`allowlist_enabled`**. **`serve-webhook`**: wired missing kwargs (**`--reply-on-execution`**, **`--telegram-bot-token`** / **`CAI_TELEGRAM_BOT_TOKEN`**, **`--reply-template`**), plus **`--reply-on-deny`** / **`--deny-message`** for optional Telegram rejection text.
+- **Tests / smoke**: `test_gateway_telegram_cli.py` allowlist cases; smoke asserts **`list`** allowlist fields.
+
 ### 0.6.1 (2026-04-23)
 
 - **Gateway (dev item 24 MVP)**: `cai-agent gateway platforms list --json` → **`gateway_platforms_v1`** (Telegram `full`, Discord/Slack `stub`, others `planned`).

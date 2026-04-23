@@ -177,14 +177,15 @@
 
 ## `gateway telegram`（`--json`）
 
-- **实现**：`__main__.py` `gateway` → `telegram` 子命令；会话映射默认文件 **`.cai/gateway/telegram-session-map.json`**（可用 **`--map-file`** 覆盖，相对路径以工作区根解析）。
-- **`schema_version`**：stdout JSON 均为 **`gateway_telegram_map_v1`**；顶层含 **`action`**（`bind` / `get` / `list` / `unbind` / `resolve-update` / `serve-webhook`）及 **`map_file`** 等。
+- **实现**：`__main__.py` `gateway` → `telegram` 子命令；会话映射默认文件 **`.cai/gateway/telegram-session-map.json`**（可用 **`--map-file`** 覆盖，相对路径以工作区根解析）。磁盘 JSON 除 **`bindings`** 外可含根级 **`allowed_chat_ids`**（字符串数组）；**非空**时仅允许这些 **`chat_id`** 走 **`resolve-update`** / **`serve-webhook`** 成功路径（否则 **`error`=`not_allowed`**，**S6-03**）。
+- **白名单 CLI**：**`gateway telegram allow add --chat-id …`** / **`allow list`** / **`allow rm --chat-id …`**（`action` 分别为 **`allow_add`** / **`allow_list`** / **`allow_rm`**）。
+- **`schema_version`**：stdout JSON 均为 **`gateway_telegram_map_v1`**；顶层含 **`action`**（`bind` / `get` / `list` / `unbind` / **`allow_*`** / `resolve-update` / `serve-webhook`）及 **`map_file`** 等。
 - **字段摘要（随子命令变化）**：
   - **bind**：`ok`、`binding`（`chat_id` / `user_id` / `session_file`）、`bindings_count`
   - **get**：`ok`（是否命中）、`binding`（未命中时为 `null`）
-  - **list**：`ok`、`bindings`（数组）、`bindings_count`
+  - **list**：`ok`、`bindings`（数组）、`bindings_count`、**`allowed_chat_ids`**（数组）、**`allowlist_enabled`**（bool）
   - **unbind**：`ok`、`removed`、`binding`、`bindings_count`
-  - **resolve-update**：失败时 `ok:false` 与 **`error`**（`invalid_args` / `read_update_failed` / `invalid_update`）及 `message`；成功时 `created`、`chat_id`、`user_id`、`binding`
+  - **resolve-update**：失败时 `ok:false` 与 **`error`**（`invalid_args` / `read_update_failed` / `invalid_update` / **`not_allowed`**）及 `message`；成功时 `created`、`chat_id`、`user_id`、`binding`
   - **serve-webhook**：服务结束后的单行摘要含 `ok`、`host`、`port`、`path`、`events_handled`、`log_file`、`create_missing` 等（与运行态一致）
 
 **Exit**：缺参、读 update 失败、`resolve-update` 无映射且未创建等 → **`2`**；**`get`/`unbind`/`resolve-update`** 在「未找到绑定 / 无移除 / 无映射且未 `--create-missing`」等业务失败时 → **`2`**；**`serve-webhook`** 正常结束 → **`0`**；未知 `telegram` 子命令 → **`2`**。
