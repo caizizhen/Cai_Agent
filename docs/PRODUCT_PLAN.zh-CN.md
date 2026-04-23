@@ -138,4 +138,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）；**Hermes 34 Story 约 68%**（**23÷34≈67.6%**）；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-04 `budget_max_tokens`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）；S5-01～S5-04 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 356 passed** + 冒烟 **`NEW_FEATURE_CHECKS_OK`**（**2026-04-23**）、T2 **[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) PASS**。）*
+*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）与 **Hermes 34 Story 约 68%**（**23÷34≈67.6%**）均满足 §3.0 **>20%** 同步基线；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-04 `budget_max_tokens`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）；S5-01～S5-04 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 356 passed** + 冒烟 **`NEW_FEATURE_CHECKS_OK`**（**2026-04-23**）、T2 **[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) PASS**。）*
