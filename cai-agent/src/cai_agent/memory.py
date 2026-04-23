@@ -668,18 +668,29 @@ def build_memory_health_payload(
     session_limit: int = 200,
     conflict_threshold: float = 0.85,
     max_conflict_compare_entries: int = 400,
+    reference_now: datetime | None = None,
+    session_mtime_start: datetime | None = None,
+    session_mtime_end_exclusive: datetime | None = None,
 ) -> dict[str, Any]:
-    """S2-01：综合记忆健康评分 JSON（schema_version 1.0）。"""
+    """S2-01：综合记忆健康评分 JSON（schema_version 1.0）。
+
+    可选 ``session_mtime_start`` / ``session_mtime_end_exclusive``（与 ``reference_now`` 联用）用于按 UTC 时间窗截取会话（例如跨域按日趋势）。
+    """
     from cai_agent.session import list_session_files, load_session
 
     root_path = Path(root).expanduser().resolve()
-    now = datetime.now(UTC)
-    since_sessions = now - timedelta(days=max(1, int(days)))
+    clock = reference_now if reference_now is not None else datetime.now(UTC)
+    if session_mtime_start is not None and session_mtime_end_exclusive is not None:
+        since_sessions = session_mtime_start
+        mtime_end_exc: datetime | None = session_mtime_end_exclusive
+    else:
+        since_sessions = clock - timedelta(days=max(1, int(days)))
+        mtime_end_exc = None
 
     entries, memory_warnings = load_memory_entries_validated(root_path)
     fresh_metrics = compute_memory_freshness_metrics(
         entries,
-        now=now,
+        now=clock,
         freshness_days=int(freshness_days),
     )
     n_entries = int(fresh_metrics["memory_entries"])
@@ -693,10 +704,14 @@ def build_memory_health_payload(
     recent_sessions: list[Path] = []
     for p in session_paths:
         try:
-            if datetime.fromtimestamp(p.stat().st_mtime, UTC) >= since_sessions:
-                recent_sessions.append(p)
+            ts = datetime.fromtimestamp(p.stat().st_mtime, UTC)
         except OSError:
             continue
+        if ts < since_sessions:
+            continue
+        if mtime_end_exc is not None and ts >= mtime_end_exc:
+            continue
+        recent_sessions.append(p)
 
     covered = 0
     skipped_short_goal = 0
@@ -775,7 +790,7 @@ def build_memory_health_payload(
 
     return {
         "schema_version": "1.0",
-        "generated_at": now.isoformat(),
+        "generated_at": clock.isoformat(),
         "window": {
             "days": max(1, int(days)),
             "since_sessions": since_sessions.isoformat(),

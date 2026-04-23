@@ -82,23 +82,70 @@ def aggregate_sessions(
     }
 
 
+def _tool_error_stats_from_messages(messages: list[Any]) -> tuple[int, dict[str, int]]:
+    """从会话 ``messages`` 统计工具调用失败次数（与 ``__main__._collect_tool_stats`` 口径一致）。"""
+    err_tools: dict[str, int] = {}
+    errors = 0
+    for m in messages:
+        if not isinstance(m, dict) or m.get("role") != "user":
+            continue
+        content = m.get("content")
+        if not isinstance(content, str):
+            continue
+        try:
+            obj = json.loads(content)
+        except Exception:
+            continue
+        if not isinstance(obj, dict):
+            continue
+        tn = obj.get("tool")
+        if not isinstance(tn, str) or not tn.strip():
+            continue
+        name = tn.strip()
+        result = obj.get("result")
+        if isinstance(result, str):
+            r = result.lower()
+            if (
+                "失败" in result
+                or "error" in r
+                or "exception" in r
+                or "traceback" in r
+            ):
+                errors += 1
+                err_tools[name] = err_tools.get(name, 0) + 1
+    return errors, err_tools
+
+
 def build_observe_payload(
     *,
     cwd: str | None = None,
     pattern: str = ".cai-session*.json",
     limit: int = 100,
+    since_ts: int | None = None,
+    scan_cap: int | None = None,
 ) -> dict[str, Any]:
-    """稳定顶层键集合，供 dashboard / CI 消费。"""
+    """稳定顶层键集合，供 dashboard / CI 消费。
+
+    ``since_ts``：仅保留会话文件 ``mtime >= since_ts`` 的条目（用于 ``observe report`` 时间窗）。
+    ``scan_cap``：当 ``since_ts`` 非空时，从磁盘至多扫描的文件数（默认 ``max(limit*20,200)`` 上限 2000）。
+    """
     obs_task = new_task("observe")
     obs_task.status = "running"
-    files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     base = Path(cwd or ".").expanduser().resolve()
+    if since_ts is not None:
+        cap = scan_cap if scan_cap is not None else min(max(limit * 20, 200), 2000)
+        raw_files = list_session_files(cwd=cwd, pattern=pattern, limit=cap)
+        files = [p for p in raw_files if int(p.stat().st_mtime) >= int(since_ts)][: max(limit, 1)]
+    else:
+        files = list_session_files(cwd=cwd, pattern=pattern, limit=limit)
     sessions: list[dict[str, Any]] = []
     total_tokens = 0
     prompt_tokens = 0
     completion_tokens = 0
     failed_count = 0
     total_elapsed = 0
+    tool_errors_total = 0
+    tool_err_acc: dict[str, int] = {}
     for p in files:
         try:
             s = load_session(str(p))
@@ -130,6 +177,12 @@ def build_observe_payload(
             rel_path = str(p.relative_to(base))
         except ValueError:
             rel_path = str(p)
+        msgs = s.get("messages")
+        if isinstance(msgs, list):
+            te, byn = _tool_error_stats_from_messages(msgs)
+            tool_errors_total += te
+            for k, v in byn.items():
+                tool_err_acc[k] = tool_err_acc.get(k, 0) + v
         sessions.append(
             {
                 "path": rel_path,
@@ -157,6 +210,7 @@ def build_observe_payload(
     obs_task.ended_at = ended
     obs_task.elapsed_ms = int((ended - obs_task.started_at) * 1000)
     obs_task.status = "completed"
+    top_err = sorted(tool_err_acc.items(), key=lambda x: -x[1])[:10]
     ag = {
         "total_tokens": total_tokens,
         "prompt_tokens": prompt_tokens,
@@ -166,6 +220,8 @@ def build_observe_payload(
         "failure_rate": (float(failed_count) / n) if n else 0.0,
         "run_events_total": run_events_total,
         "sessions_with_events": sessions_with_events,
+        "tool_errors_total": int(tool_errors_total),
+        "tool_errors_top": [{"tool": k, "errors": v} for k, v in top_err],
     }
     events: list[dict[str, Any]] = [
         {

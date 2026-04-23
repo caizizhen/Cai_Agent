@@ -3732,6 +3732,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="RATE",
         help="可选：窗口内 failure_rate >= RATE（0~1）时 exit 2，便于 CI",
     )
+    insights_p.add_argument(
+        "--cross-domain",
+        action="store_true",
+        dest="insights_cross_domain",
+        help="需与 --json 同用：输出 insights_cross_domain_v1（按 UTC 日对齐的 recall/memory/schedule 趋势，S7-03）",
+    )
     recall_p = sub.add_parser(
         "recall",
         help="跨会话检索：按关键词/正则匹配历史会话内容（Hermes-style recall）",
@@ -4413,7 +4419,10 @@ def main(argv: list[str] | None = None) -> int:
         help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
     )
 
-    obs_p = sub.add_parser("observe", help="输出可观测聚合 JSON")
+    obs_p = sub.add_parser(
+        "observe",
+        help="可观测性：observe 聚合；子命令 report / export（按日 CSV·JSON·Markdown，S7-04）",
+    )
     obs_p.add_argument("--pattern", default=".cai-session*.json")
     obs_p.add_argument("--limit", type=int, default=100)
     obs_p.add_argument(
@@ -4424,6 +4433,54 @@ def main(argv: list[str] | None = None) -> int:
         help="可选：aggregates.failure_rate >= RATE（0~1）时 exit 2，与 insights 语义一致",
     )
     obs_p.add_argument("--json", action="store_true", dest="json_output")
+    obs_sub = obs_p.add_subparsers(dest="observe_action", required=False)
+    obs_rep = obs_sub.add_parser(
+        "report",
+        help="过去 N 天运营摘要（JSON 或 Markdown）；默认 --format json",
+    )
+    obs_rep.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="回溯天数（默认 7）",
+    )
+    obs_rep.add_argument(
+        "--format",
+        choices=["markdown", "json"],
+        default="json",
+        help="输出格式：markdown 或 json（默认 json）",
+    )
+    obs_rep.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        help="写入文件路径（可选）；父目录不存在时创建；默认 stdout",
+    )
+    obs_exp = obs_sub.add_parser(
+        "export",
+        help="按 UTC 日历日导出（CSV / JSON / Markdown；S7-04）",
+    )
+    obs_exp.add_argument(
+        "--days",
+        type=int,
+        default=30,
+        dest="observe_export_days",
+        help="回溯天数（默认 30）",
+    )
+    obs_exp.add_argument(
+        "--format",
+        choices=["csv", "json", "markdown"],
+        default="json",
+        dest="observe_export_format",
+        help="输出格式（默认 json）",
+    )
+    obs_exp.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        dest="observe_export_output",
+        help="输出文件路径（可选）；未指定时写入 stdout",
+    )
 
     obs_report_p = sub.add_parser("observe-report", help="基于 observe 生成告警与报表摘要")
     obs_report_p.add_argument("--pattern", default=".cai-session*.json")
@@ -5449,7 +5506,21 @@ def main(argv: list[str] | None = None) -> int:
             limit=int(args.limit),
             days=int(args.days),
         )
-        if bool(args.json_output):
+        if bool(getattr(args, "insights_cross_domain", False)):
+            if not bool(args.json_output):
+                print("insights: --cross-domain 需要同时指定 --json", file=sys.stderr)
+                return 2
+            from cai_agent.insights_cross_domain import build_insights_cross_domain_v1
+
+            doc = build_insights_cross_domain_v1(
+                cwd=os.getcwd(),
+                base_insights=payload,
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+                days=int(args.days),
+            )
+            print(json.dumps(doc, ensure_ascii=False))
+        elif bool(args.json_output):
             print(json.dumps(payload, ensure_ascii=False))
         else:
             print(
@@ -7141,18 +7212,140 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "observe":
+        from cai_agent.metrics import maybe_append_metrics_from_env, metrics_event_v1
+
         settings_obs = Settings.from_env(config_path=None)
+        act_ob = str(getattr(args, "observe_action", "") or "").strip()
+        if act_ob == "export":
+            from cai_agent.observe_export import (
+                build_observe_export_v1,
+                render_observe_export_csv,
+                render_observe_export_markdown,
+            )
+
+            fmt = str(getattr(args, "observe_export_format", "json") or "json").lower()
+            exp_json_out = fmt == "json"
+            days_x = max(int(getattr(args, "observe_export_days", 30) or 30), 1)
+            hook_exp: dict[str, Any] = {
+                "kind": "export",
+                "pattern": str(args.pattern),
+                "limit": int(args.limit),
+                "days": days_x,
+                "format": fmt,
+            }
+            _print_hook_status(
+                settings_obs,
+                event="observe_start",
+                json_output=exp_json_out,
+                hook_payload=hook_exp,
+            )
+            t_ex0 = time.perf_counter()
+            try:
+                doc = build_observe_export_v1(
+                    cwd=os.getcwd(),
+                    pattern=str(args.pattern),
+                    limit=int(args.limit),
+                    days=days_x,
+                )
+            finally:
+                _print_hook_status(
+                    settings_obs,
+                    event="observe_end",
+                    json_output=exp_json_out,
+                    hook_payload=hook_exp,
+                )
+            ex_ms = (time.perf_counter() - t_ex0) * 1000.0
+            if fmt == "csv":
+                body = render_observe_export_csv(doc)
+            elif fmt == "markdown":
+                body = render_observe_export_markdown(doc)
+            else:
+                body = json.dumps(doc, ensure_ascii=False, indent=2)
+            out_path = getattr(args, "observe_export_output", None)
+            if isinstance(out_path, str) and out_path.strip():
+                outp = Path(out_path.strip())
+                outp.parent.mkdir(parents=True, exist_ok=True)
+                outp.write_text(body, encoding="utf-8")
+            print(body)
+            tok_sum = sum(int(r.get("token_total") or 0) for r in (doc.get("rows") or []) if isinstance(r, dict))
+            maybe_append_metrics_from_env(
+                metrics_event_v1(
+                    module="observe",
+                    event="observe.export",
+                    latency_ms=ex_ms,
+                    tokens=tok_sum,
+                    success=True,
+                ),
+            )
+            return 0
+
+        if act_ob == "report":
+            from cai_agent.observe_ops_report import build_observe_ops_report_v1, render_observe_ops_markdown
+
+            fmt = str(getattr(args, "format", "json") or "json").lower()
+            rep_json_out = fmt == "json"
+            days = max(int(getattr(args, "days", 7) or 7), 1)
+            hook_rep: dict[str, Any] = {
+                "kind": "report",
+                "pattern": str(args.pattern),
+                "limit": int(args.limit),
+                "days": days,
+                "format": fmt,
+            }
+            _print_hook_status(
+                settings_obs,
+                event="observe_start",
+                json_output=rep_json_out,
+                hook_payload=hook_rep,
+            )
+            t_rep0 = time.perf_counter()
+            try:
+                doc = build_observe_ops_report_v1(
+                    cwd=os.getcwd(),
+                    pattern=str(args.pattern),
+                    limit=int(args.limit),
+                    days=days,
+                )
+            finally:
+                _print_hook_status(
+                    settings_obs,
+                    event="observe_end",
+                    json_output=rep_json_out,
+                    hook_payload=hook_rep,
+                )
+            rep_ms = (time.perf_counter() - t_rep0) * 1000.0
+            body = (
+                json.dumps(doc, ensure_ascii=False, indent=2)
+                if fmt == "json"
+                else render_observe_ops_markdown(doc)
+            )
+            out_path = getattr(args, "output", None)
+            if isinstance(out_path, str) and out_path.strip():
+                outp = Path(out_path.strip())
+                outp.parent.mkdir(parents=True, exist_ok=True)
+                outp.write_text(body, encoding="utf-8")
+            print(body)
+            maybe_append_metrics_from_env(
+                metrics_event_v1(
+                    module="observe",
+                    event="observe.report",
+                    latency_ms=rep_ms,
+                    tokens=int(doc.get("token_total") or 0),
+                    success=True,
+                ),
+            )
+            return 0
+
         obs_json = bool(getattr(args, "json_output", False))
         obs_payload: dict[str, Any] | None = None
+        hook_sum = {"kind": "summary", "pattern": str(args.pattern), "limit": int(args.limit)}
         _print_hook_status(
             settings_obs,
             event="observe_start",
             json_output=obs_json,
-            hook_payload={
-                "pattern": str(args.pattern),
-                "limit": int(args.limit),
-            },
+            hook_payload=hook_sum,
         )
+        t_sum0 = time.perf_counter()
         try:
             obs_payload = build_observe_payload(
                 cwd=os.getcwd(),
@@ -7173,10 +7366,19 @@ def main(argv: list[str] | None = None) -> int:
                 settings_obs,
                 event="observe_end",
                 json_output=obs_json,
-                hook_payload={
-                    "pattern": str(args.pattern),
-                    "limit": int(args.limit),
-                },
+                hook_payload=hook_sum,
+            )
+        sum_ms = (time.perf_counter() - t_sum0) * 1000.0
+        if obs_payload is not None:
+            agm = obs_payload.get("aggregates") if isinstance(obs_payload.get("aggregates"), dict) else {}
+            maybe_append_metrics_from_env(
+                metrics_event_v1(
+                    module="observe",
+                    event="observe.summary",
+                    latency_ms=sum_ms,
+                    tokens=int(agm.get("total_tokens") or 0),
+                    success=True,
+                ),
             )
         mx_obs = getattr(args, "fail_on_max_failure_rate", None)
         if obs_payload is not None and isinstance(mx_obs, (int, float)):

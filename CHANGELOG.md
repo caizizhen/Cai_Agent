@@ -2,6 +2,21 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.8 (2026-04-23)
+
+- **Observability (Hermes S7-04)**: **`cai-agent observe export`** (`--days`, **`--format` csv|json|markdown**, **`-o`**) → **`observe_export_v1`** with per-day **`rows`** (sessions, tokens, schedule ok/fail, **memory** score/grade). **`cai_agent.observe_export`**, **`schedule.aggregate_schedule_audit_by_calendar_day_utc`** reuse. **`smoke_new_features`** writes **`observe-export.json`** in the sessions/observe temp dir.
+- **Tests**: **`test_observe_export_cli.py`**.
+
+### 0.6.7 (2026-04-23)
+
+- **Observability (Hermes S7-03)**: **`cai-agent insights --json --cross-domain`** → **`insights_cross_domain_v1`** with **`recall_hit_rate_trend`** (`.cai-recall-index.json` substring probe **`the`** / `index_missing`), **`memory_health_trend`** (per-day **`build_memory_health_payload`** via session **mtime** window), **`schedule_success_trend`** (**`aggregate_schedule_audit_by_calendar_day_utc`**). **`build_memory_health_payload`** gains optional **`reference_now` / `session_mtime_start` / `session_mtime_end_exclusive`**. **`smoke_new_features`** covers cross-domain.
+- **Tests**: **`test_insights_cross_domain.py`**.
+
+### 0.6.6 (2026-04-23)
+
+- **Observability (Hermes S7-01 / S7-02)**: **`cai_agent.metrics`** (`metrics_schema_v1`) with optional append to **`CAI_METRICS_JSONL`** after **`observe`** / **`observe report`**. **`cai-agent observe report`** (`--days`, **`--format` json|markdown**, **`-o`**) builds **`observe_ops_report_v1`** (root **`schema_version` `1.0`**). **`build_observe_payload`** gains time-window filtering plus **`tool_errors_total` / `tool_errors_top`** in **`aggregates`**.
+- **Docs / smoke / tests**: **`docs/schema/METRICS_JSON.zh-CN.md`**; schema index + **`smoke_new_features.py`** **`observe report`**; **`test_observe_ops_report_cli.py`**, **`test_metrics_jsonl.py`**.
+
 ### 0.6.5 (2026-04-23)
 
 - **Gateway (Hermes S6-04)**: **`cai-agent gateway telegram continue-hint`** prints JSON (**`gateway_telegram_continue_hint_v1`**) with shell-safe **`continue_cli`** lines for bound **`session_file`** paths (optional **`--chat-id`** + **`--user-id`**, or list all). **`/help`** / **`/new`** slash text points to this command. QA plan **`docs/qa/sprint6-gateway-telegram-testplan.md`** adds **GTW-CONT-001~003**.

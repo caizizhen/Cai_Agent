@@ -34,7 +34,7 @@
 - **期望**：成功时 `success=true`，失败时 `success=false`
 
 ### OBS-RPT-001：`observe report` JSON 基础结构
-- **执行**：`cai-agent observe report --days 7 --json`
+- **执行**：`cai-agent observe report --days 7 --format json`
 - **期望**：包含 `schema_version="1.0"`、`session_count`、`success_rate`、`token_total`、`tool_error_rate`
 
 ### OBS-RPT-002：`observe report --format markdown` 可读性
@@ -43,23 +43,23 @@
 
 ### OBS-RPT-003：空数据时报告返回零值而非崩溃
 - **前置条件**：无任何会话记录
-- **执行**：`cai-agent observe report --json`
-- **期望**：exit 0，`session_count=0`，`success_rate=0.0`
+- **执行**：`cai-agent observe report --format json`
+- **期望**：exit 0，`session_count=0`，`success_rate=1.0`（无失败样本时的默认）
 
 ### OBS-RPT-004：`top_failing_tools` 正确排序
 - **前置条件**：tool A 失败 5 次，tool B 失败 2 次
-- **执行**：`cai-agent observe report --json`
+- **执行**：`cai-agent observe report --format json`
 - **期望**：`top_failing_tools[0].tool = A`
 
 ### OBS-RPT-005：`--days` 时间窗口过滤正确
 - **前置条件**：有 7 天前和 14 天前的会话各一组
 - **执行**：
-  - `observe report --json --days 10`（期望只包含 7 天前那组）
-  - `observe report --json --days 20`（期望两组都包含）
+  - `observe report --format json --days 10`（期望只包含 7 天前那组）
+  - `observe report --format json --days 20`（期望两组都包含）
 
 ### OBS-CROSS-001：跨域洞察输出三条趋势序列
 - **前置条件**：有 memory/recall/schedule 的历史数据
-- **执行**：`cai-agent insights --cross-domain --json --days 14`
+- **执行**：`cai-agent insights --json --cross-domain --days 14`
 - **期望**：包含 `recall_hit_rate_trend`、`memory_health_trend`、`schedule_success_trend`（均为数组）
 
 ### OBS-CROSS-002：趋势数组按时间升序排列
@@ -71,11 +71,11 @@
 - **期望**：生成合法 CSV，首行为列名，包含日期/session_count/success_rate 等列
 
 ### OBS-EXP-002：`observe export --format json`
-- **执行**：`cai-agent observe export --format json -o out.json`
+- **执行**：`cai-agent observe export --format json --days 30 -o out.json`（根对象 **`observe_export_v1`**，按日数据在 **`rows`**）
 - **期望**：合法 JSON 数组，每项为一天的汇总数据
 
 ### OBS-EXP-003：`observe export --format markdown`
-- **执行**：`cai-agent observe export --format markdown -o out.md`
+- **执行**：`cai-agent observe export --format markdown --days 30 -o out.md`
 - **期望**：合法 Markdown 表格，可直接粘贴至文档
 
 ---
@@ -83,7 +83,7 @@
 ## 3. 边界与异常用例
 
 ### OBS-RPT-006：同输入多次运行输出一致（确定性）
-- **执行**：同一数据集运行两次 `observe report --json`
+- **执行**：同一数据集运行两次 `observe report --format json`
 - **期望**：输出完全一致（JSON 字段值相同）
 
 ### OBS-EXP-004：目标文件不可写时报错

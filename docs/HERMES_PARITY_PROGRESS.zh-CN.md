@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.5`**；**S6-04** **`gateway telegram continue-hint`**（**`gateway_telegram_continue_hint_v1`**）+ **`docs/qa/sprint6-gateway-telegram-testplan.md`** **GTW-CONT**；此前 **S6-01/S6-02/S6-03** 仍有效；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 27/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **373 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.8`**；**S7-04** **`observe export`**（**`observe_export_v1`**）；此前 **S7-03**（**`0.6.7`** **`insights --json --cross-domain`**）；**S7-01/S7-02**（**`0.6.6`**）；**S6-04** **`gateway telegram continue-hint`**（**`gateway_telegram_continue_hint_v1`**）+ **`docs/qa/sprint6-gateway-telegram-testplan.md`** **GTW-CONT**；此前 **S6-01/S6-02/S6-03** 仍有效；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 31/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **385 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 27     | 79%      |
+| ✅ 已完成        | 31     | 91%      |
 | ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 7      | 21%      |
+| ❌ 未开发        | 3      | 9%       |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **27/34 ≈ 79.4%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **31/34 ≈ 91.2%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
 
 ---
 
@@ -54,6 +54,10 @@
 | **S6-02**   | Telegram **`serve-webhook` 执行与回发** | **`_execute_gateway_telegram_goal`**：绑定 **`session_file`** 与 **`run`/`continue`** 同源加载/写回；**`_telegram_send_text_chunked`**；slash **`/ping`** / **`/status`** / **`/help`** / **`/start`** / **`/new`** / **`/stop`**（默认 **`gateway stop`** 提示，可选 env 远程 **`stop_webhook`**）；**`test_gateway_telegram_execute_goal.py`**。**真机**媒体/附件等仍为 **GTW-TG** 扩展 |
 | **S6-03**   | Telegram **`allowed_chat_ids` 白名单** | 映射 JSON 根级 **`allowed_chat_ids`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`** / **`serve-webhook`** 路径 **`not_allowed`**；**`list --json`** 含 **`allowed_chat_ids`** / **`allowlist_enabled`**；可选 **`serve-webhook --reply-on-deny`**；`tests/test_gateway_telegram_cli.py` |
 | **S6-04**   | **跨端会话连续性（CLI ↔ Telegram）** | **`gateway telegram continue-hint`**（**`gateway_telegram_continue_hint_v1`**）；slash **`/help`**/**`/new`** 引导；**`docs/qa/sprint6-gateway-telegram-testplan.md`** **GTW-CONT-001~003**；**`test_gateway_telegram_cli.py`** |
+| **S7-01**   | 统一指标模型 **`metrics_schema_v1`** | **`cai_agent.metrics`**、`METRICS_SCHEMA_VERSION`、**`CAI_METRICS_JSONL`** 追加写；**`observe.summary`** / **`observe.report`**；**`docs/schema/METRICS_JSON.zh-CN.md`**；**`test_metrics_jsonl.py`**。Backlog **AC2**（memory/recall/schedule/gateway 等**各模块**统一打点）仍为 **增量**，见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) **S7-01 交付注** |
+| **S7-02**   | **`observe report` 运营摘要导出** | **`observe report`**（**`--days`**、**`--format`** `json`/`markdown`、**`-o`**）；**`observe_ops_report_v1`** 顶层 **`schema_version`=`1.0`**；**`cai_agent.observe_ops_report`** + **`build_observe_payload`** 时间窗；**`test_observe_ops_report_cli.py`**；**`smoke_new_features`** 抽样 |
+| **S7-03**   | **跨域关联洞察（按日趋势）** | **`insights --json --cross-domain`** → **`insights_cross_domain_v1`**（嵌 **`insights`=`1.1`**）；**`recall_hit_rate_trend`** / **`memory_health_trend`** / **`schedule_success_trend`**；**`cai_agent.insights_cross_domain`** + **`schedule.aggregate_schedule_audit_by_calendar_day_utc`**；**`memory.build_memory_health_payload`** 会话 **mtime** 窗；**`test_insights_cross_domain.py`**；**`smoke_new_features`** |
+| **S7-04**   | **`observe export` 按日导出** | **`observe export`**（**`--days`**、**`--format` csv|json|markdown**、**`-o`**）；**`observe_export_v1`** / **`rows`**；**`cai_agent.observe_export`**；**`test_observe_export_cli.py`**；**`smoke_new_features`**（**`observe-export.json`**） |
 
 
 ---
@@ -117,20 +121,11 @@
 
 ### Sprint 7：Observability Pro
 
+**S7-01～S7-04** 已在主线交付（**`0.6.6`–`0.6.8`**，见上表 **✅**）。**S7-01 AC2**（各模块 metrics 全量打点）仍为增量，见 backlog **S7-01 交付注**。
 
-| Story ID  | 标题                                | 优先级 | 估算  | 测试计划                                                                                                  |
-| --------- | --------------------------------- | --- | --- | ----------------------------------------------------------------------------------------------------- |
-| **S7-01** | 统一指标模型（metrics schema）            | P1  | M   | [sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md) OBS-METRICS-001~003 |
-| **S7-02** | `observe report` 导出命令             | P1  | L   | OBS-RPT-001~006                                                                                       |
-| **S7-03** | 跨域关联洞察（`insights --cross-domain`） | P2  | L   | OBS-CROSS-001~002                                                                                     |
-| **S7-04** | 运营看板导出（CSV/JSON/Markdown）         | P2  | M   | OBS-EXP-001~004                                                                                       |
+**开发关键文件**：**`cai_agent.metrics`**、**`observe_ops_report`**、**`observe_export`**、**`insights_cross_domain`**、**`schedule`**（按日聚合）、**`__main__.py`**。
 
-
-**开发关键文件**：
-
-- `__main__.py`：`observe` 增加 `report`/`export` 子命令；`insights` 增加 `--cross-domain`
-- 新建 `cai-agent/src/cai_agent/metrics.py`（统一指标模型）  
-**QA 等待信号**：S7-01 + S7-02 提测后开始 OBS-RPT 系列测试
+**QA 等待信号**：**OBS-METRICS**（扩展）、**OBS-RPT**、**OBS-CROSS**、**OBS-EXP**（**`test_observe_export_cli`** + **`smoke_new_features`** 已抽样 **export**）。
 
 ---
 
@@ -145,7 +140,7 @@
 | **S8-04**     | 发布说明与迁移指南 | P1  | M   | 文档验证                                                               |
 
 
-> Sprint 8 依赖 S2~S7 全部 P0/P1 完成后才能启动。
+> **注**：**Sprint 7（S7-01～S7-04）** 主线 **CLI MVP** 已收口（**`0.6.6`–`0.6.8`**）。S8 **压测 / 安全审计 / 迁移指南**（S8-02~04）仍建议按 [`sprint8-ga-testplan.md`](qa/sprint8-ga-testplan.md) 与产品裁量排期；**S8-01** 回归入口见上表 **✅**。
 
 ---
 
@@ -189,7 +184,7 @@ Sprint 8（GA）
 | S4     | S4-01~S4-05 已合并主线（PR #18~#22） | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT + SCH-SLA；故障注入 SCH-FI-001~003 |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01～S6-04 合并 | 自动化 **GTW-BASE** + **GTW-SEC** + **`test_gateway_telegram_execute_goal`** + **`test_gateway_telegram_cli`（continue-hint）**；**GTW-TG** 真机待 Bot Token |
-| S7     | S7-01/S7-02 合并             | 运行 `test_observe*.py` + OBS-RPT-001~006           |
+| S7     | **S7-01～S7-04 已合 `0.6.6`–`0.6.8`** | **OBS-EXP/RPT/CROSS** 见 [sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md)；**S7-01 AC2** OBS-METRICS 扩展 |
 | S8     | S2~S7 全部 P0/P1 完成          | 全量回归 + 压测 + 安全审计 + 发布冒烟                           |
 
 
@@ -225,3 +220,6 @@ Sprint 8（GA）
 - **2026-04-23 · Sprint 6 Gateway（`0.6.3`）**：**`gateway setup|start|status|stop`**（**`gateway_lifecycle.py`**）；**`serve-webhook`** 长文本分块与 slash 快捷回复（**S6-02** 部分）。
 - **2026-04-23 · Sprint 6 Gateway（`0.6.4`）**：**`_execute_gateway_telegram_goal`** 会话写回；**`/stop`** 与 env 门控；**`test_gateway_telegram_execute_goal.py`**。
 - **2026-04-23 · Sprint 6 Gateway（`0.6.5`）**：**`gateway telegram continue-hint`**（**S6-04**）；**`sprint6-gateway-telegram-testplan.md`** **GTW-CONT**。
+- **2026-04-23 · Sprint 7 Observability（`0.6.6`）**：**`metrics_schema_v1`** + **`CAI_METRICS_JSONL`**（**`observe.summary`/`observe.report`**）；**`observe report`**（**`observe_ops_report_v1`**）；**`test_observe_ops_report_cli`/`test_metrics_jsonl`** + **`smoke_new_features`** 抽样。
+- **2026-04-23 · Sprint 7 Observability（`0.6.7`）**：**`insights --json --cross-domain`**（**`insights_cross_domain_v1`**）；**`aggregate_schedule_audit_by_calendar_day_utc`**；**`test_insights_cross_domain`**。
+- **2026-04-23 · Sprint 7 Observability（`0.6.8`）**：**`observe export`**（**`observe_export_v1`**）；**`observe_export.py`**；**`test_observe_export_cli`**。

@@ -335,6 +335,7 @@
 - **测试用例 ID**：OBS-METRICS-001 ~ OBS-METRICS-008
 - **依赖**：S4-04
 - **估算**：M
+- **主线交付注（`0.6.6`）**：**AC1/3** 已合（**`cai_agent.metrics`**、**`METRICS_SCHEMA_VERSION`**、**`docs/schema/METRICS_JSON.zh-CN.md`**）。**AC2**：当前仅 **`observe`** 路径写 **`CAI_METRICS_JSONL`**（**`observe.summary`** / **`observe.report`**）；**memory / recall / schedule / gateway** 等模块级打点为 **后续增量**（与 **OBS-METRICS** 扩展一致）。
 
 ### S7-02 observe report（周报/日报导出）
 - **Story**：作为运营，我希望用一条命令生成过去 7 天的运营摘要报告（会话量/成功率/成本/工具错误率），导出 Markdown 或 JSON。
@@ -346,6 +347,7 @@
 - **测试用例 ID**：OBS-RPT-001 ~ OBS-RPT-010
 - **依赖**：S7-01
 - **估算**：L
+- **主线交付注（`0.6.6`）**：**`cai-agent observe report`**（**`--days` / `--format` / `-o`**），**`observe_ops_report_v1`** 顶层 **`schema_version`=`1.0`**；字段含 **session_count**、**success_rate**、**token_total/avg**、**tool_error_rate**、**top_failing_tools**；自动化 **`test_observe_ops_report_cli.py`**、**`smoke_new_features`**。
 
 ### S7-03 跨域关联洞察（memory/recall/schedule 趋势联合）
 - **Story**：作为运营，我希望看到"记忆质量变化"与"recall 命中率"的关联趋势，判断 memory 提炼是否改善了搜索效果。
@@ -356,6 +358,7 @@
 - **测试用例 ID**：OBS-CROSS-001 ~ OBS-CROSS-006
 - **依赖**：S7-02，S2-01，S3-01
 - **估算**：L
+- **主线交付注（`0.6.7`）**：**`insights --json --cross-domain`** → **`insights_cross_domain_v1`**；三条趋势 **`recall_hit_rate_trend`**（索引子串 **`the`** / 无索引 **`index_missing`**）、**`memory_health_trend`**（按日 **`build_memory_health_payload`** + 会话 **mtime** 窗）、**`schedule_success_trend`**（**`aggregate_schedule_audit_by_calendar_day_utc`**）。与 AC 字面「**`recall_hit_rate_trend`**」对齐的可演进项：后续可改为真实 recall 命中率统计。
 
 ### S7-04 运营看板导出（JSON/CSV/Markdown）
 - **Story**：作为运营，我希望能把关键指标一键导出为多种格式，直接粘贴进例会文档或导入 BI 工具。
@@ -366,6 +369,7 @@
 - **测试用例 ID**：OBS-EXP-001 ~ OBS-EXP-006
 - **依赖**：S7-02
 - **估算**：M
+- **主线交付注（`0.6.8`）**：**`observe export`**（**`--days`**、**`--format` csv|json|markdown**、**`-o`**）；根 **`schema_version`=`observe_export_v1`**，**`rows`** 按 UTC 日历日；**`cai_agent.observe_export`**；**`test_observe_export_cli.py`**；**`smoke_new_features`** 写 **`observe-export.json`** 并校验 **`rows` 长度**。
 
 ---
 

@@ -4,8 +4,8 @@
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest, repo-root
 ``plugins``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
-``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
-``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
+``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
+``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -306,6 +306,34 @@ def main() -> int:
             siw = io.get("sessions_in_window")
             if type(siw) is not int or siw != 0:
                 errs.append(f"insights sessions_in_window want 0 got {siw!r}")
+        pic = _run(
+            [
+                *cli,
+                "insights",
+                "--json",
+                "--cross-domain",
+                "--days",
+                "3",
+                "--limit",
+                "5",
+            ],
+            cwd=ins_td,
+        )
+        if pic.returncode != 0:
+            errs.append(f"insights cross-domain exit {pic.returncode} stderr={pic.stderr!r}")
+        else:
+            ioc = json.loads((pic.stdout or "").strip())
+            if ioc.get("schema_version") != "insights_cross_domain_v1":
+                errs.append(f"insights cross-domain schema {ioc.get('schema_version')!r}")
+            for k in (
+                "recall_hit_rate_trend",
+                "memory_health_trend",
+                "schedule_success_trend",
+            ):
+                if k not in ioc or not isinstance(ioc.get(k), list):
+                    errs.append(f"insights cross-domain missing {k}")
+            if len(ioc.get("recall_hit_rate_trend") or []) != 3:
+                errs.append("insights cross-domain recall trend len")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-board-") as brd_td:
         pb = _run([*cli, "board", "--json"], cwd=brd_td)
@@ -343,6 +371,53 @@ def main() -> int:
             obn = rep.get("observe")
             if not isinstance(obn, dict):
                 errs.append("observe-report observe not object")
+        pr2 = _run(
+            [*cli, "observe", "report", "--format", "json", "--days", "1"],
+            cwd=so_td,
+        )
+        if pr2.returncode != 0:
+            errs.append(f"observe report json exit {pr2.returncode} stderr={pr2.stderr!r}")
+        else:
+            try:
+                r2 = json.loads((pr2.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"observe report json parse: {e}")
+            else:
+                if r2.get("schema_version") != "1.0":
+                    errs.append(f"observe report schema_version {r2.get('schema_version')!r}")
+                if r2.get("report_kind") != "observe_ops_report_v1":
+                    errs.append(f"observe report report_kind {r2.get('report_kind')!r}")
+                sc = r2.get("session_count")
+                if type(sc) is not int or sc != 0:
+                    errs.append(f"observe report session_count want 0 got {sc!r}")
+        exp_path = Path(so_td) / "observe-export.json"
+        pr3 = _run(
+            [
+                *cli,
+                "observe",
+                "export",
+                "--format",
+                "json",
+                "--days",
+                "2",
+                "-o",
+                str(exp_path),
+            ],
+            cwd=so_td,
+        )
+        if pr3.returncode != 0:
+            errs.append(f"observe export exit {pr3.returncode} stderr={pr3.stderr!r}")
+        else:
+            try:
+                exdoc = json.loads(exp_path.read_text(encoding="utf-8").strip())
+            except (OSError, json.JSONDecodeError) as e:
+                errs.append(f"observe export read/parse: {e}")
+            else:
+                if exdoc.get("schema_version") != "observe_export_v1":
+                    errs.append(f"observe export schema {exdoc.get('schema_version')!r}")
+                erows = exdoc.get("rows")
+                if not isinstance(erows, list) or len(erows) != 2:
+                    errs.append(f"observe export rows len {erows!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-hooks-") as hk_td:
         hp = Path(hk_td)

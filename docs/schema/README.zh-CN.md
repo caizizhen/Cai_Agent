@@ -4,7 +4,7 @@
 
 **主入口兜底**：`main()` 若未能分发到已知子命令（仅应出现于内部实现不同步），**exit `2`** 并向 stderr 打印一行诊断（此前兜底为 **`1`** 且无提示）。
 
-**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)。其余命令契约 **以本节为准**，更新时只改本文件与上述两文件，勿再新增平行 schema 文档。
+**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
 
 ### S1-02 / S1-03 收口口径（本仓）
 
@@ -24,10 +24,55 @@
 | `generated_at` | string (ISO8601) | |
 | `workspace` / `pattern` / `limit` | string / int | |
 | `sessions_count` / `sessions` | int / array | 会话行含 `path`、`mtime`、`error_count`、`task_id`、`task_status`、`events_count` 等 |
-| `aggregates` | object | `total_tokens`、`failed_count`、`failure_rate`、`run_events_total` 等 |
+| `aggregates` | object | `total_tokens`、`failed_count`、`failure_rate`、`run_events_total`、`tool_errors_total`、`tool_errors_top` 等 |
 | `task` / `events` | object / array | 内部 observe 任务与 `observe.summarized` 事件 |
 
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`（0~1）：当 `aggregates.failure_rate >= RATE` 时 `2`（与 `insights --fail-on-max-failure-rate` 语义一致）。
+
+**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 事件，见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)。
+
+---
+
+## `observe report`（`--format json` / `--format markdown`）
+
+- **实现**：`cai_agent.observe_ops_report.build_observe_ops_report_v1`（内部调用 `build_observe_payload`，按 **`mtime`** 与 **`--days`** 时间窗过滤）
+- **顶层 `schema_version`**：`1.0`（运营报告信封，与内嵌 **`observe.schema_version`** `1.1` 区分）
+
+| 顶层字段（摘要） | 类型 | 说明 |
+|------------------|------|------|
+| `report_kind` | string | `observe_ops_report_v1` |
+| `window_days` / `generated_at` | int / string | |
+| `session_count` / `success_rate` / `failure_rate` | int / float | |
+| `token_total` / `token_avg` | int / float | |
+| `tool_error_rate` | float | **`tool_errors_total` / `session_count`**（无会话时为 `0`） |
+| `top_failing_tools` | array | `{ "tool", "errors" }` |
+| `observe` | object | 完整 **`build_observe_payload`** 结果 |
+
+**参数**：继承父级 **`--pattern` / `--limit`**；子命令专有 **`--days`**、**`--format`**、**`-o`/`--output`**。
+
+**Exit**：默认 `0`。**指标**：成功执行后追加 **`observe.report`**（同上 **`CAI_METRICS_JSONL`**）。
+
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`observe report --format json --days 1`**，断言 **`schema_version`=`1.0`** 与 **`report_kind`=`observe_ops_report_v1`**。
+
+---
+
+## `observe export`（S7-04）
+
+- **实现**：`cai_agent.observe_export.build_observe_export_v1`
+- **`schema_version`**：`observe_export_v1`；**`report_kind`**：`observe_export_daily_v1`
+- **子命令**：**`cai-agent observe export`**（继承父级 **`--pattern` / `--limit`**）
+
+| 参数 | 说明 |
+|------|------|
+| **`--days`** | 回溯天数（默认 **30**；dest **`observe_export_days`**，与 **`observe report --days`** 独立） |
+| **`--format`** | **`csv`** / **`json`** / **`markdown`**（dest **`observe_export_format`**） |
+| **`-o`/`--output`** | 输出文件（dest **`observe_export_output`**）；省略则 **stdout** |
+
+**`rows[]` 字段（摘要）**：**`date`**、**`session_count`**、**`success_rate`** / **`failure_rate`**、**`token_total`** / **`token_avg`**、**`schedule_tasks_ok`** / **`schedule_tasks_failed`** / **`schedule_success_rate`**、**`memory_health_score`** / **`memory_grade`**（按日与 **`aggregate_schedule_audit_by_calendar_day_utc`**、**`build_memory_health_payload`** 对齐）。
+
+**Exit**：默认 **`0`**。**指标**：成功执行后 **`observe.export`**（**`CAI_METRICS_JSONL`**）。
+
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区 **`observe export --format json --days 2 -o …`**，断言 **`observe_export_v1`** 且 **`rows`** 长度为 **`days`**。
 
 ---
 
@@ -65,6 +110,26 @@
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`：`failure_rate >= RATE` → `2`。
 
 **冒烟**：`scripts/smoke_new_features.py` 在**空临时工作区**执行 **`insights --json`**，断言 **`schema_version`=`1.1`** 且 **`sessions_in_window`=`0`**（无窗口内会话时的快速路径与完整路径输出一致）。
+
+---
+
+## `insights --json --cross-domain`（S7-03）
+
+- **实现**：`cai_agent.insights_cross_domain.build_insights_cross_domain_v1`（嵌套 **`insights`** 为 `_build_insights_payload` 的 **`1.1`** 对象）
+- **`schema_version`**：`insights_cross_domain_v1`
+- **必选**：与 **`--json`** 同用；否则 **exit `2`**（stderr 一行提示）。
+
+| 顶层字段（摘要） | 类型 | 说明 |
+|------------------|------|------|
+| `window` | object | `days`、`since`、`until_exclusive`（UTC）、`pattern`、`limit`、`memory_session_pattern` |
+| `insights` | object | 与 **`insights --json`** 根对象同源 **`1.1`** |
+| `recall_hit_rate_trend` | array | 按 **UTC 日历日** 升序；无 **`.cai-recall-index.json`** 时 **`hit_rate`=`null`**，`no_index_reason`=`index_missing`；有索引时为子串探测 **`the`** 的 **`probe_hits`/`indexed_rows`** 比值 |
+| `memory_health_trend` | array | 每日 **`build_memory_health_payload`**（会话 **mtime** 落入该日）的 **`health_score`** / **`grade`** / **`recent_sessions`** |
+| `schedule_success_trend` | array | 来自 **`aggregate_schedule_audit_by_calendar_day_utc`**（`task.completed` vs `task.failed`/`task.retrying`） |
+
+**Exit**：与 **`insights --json`** 相同（含 **`--fail-on-max-failure-rate`**，对嵌套 **`insights.failure_rate`** 判定）。
+
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`insights --json --cross-domain --days 3`**，断言 **`insights_cross_domain_v1`** 与三条 trend 数组长度等于 **`days`**。
 
 ---
 

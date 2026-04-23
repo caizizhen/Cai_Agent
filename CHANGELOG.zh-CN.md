@@ -4,6 +4,21 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.8（2026-04-23）
+
+- **可观测性（Hermes S7-04）**：**`cai-agent observe export`**（**`--days`**、**`--format` csv|json|markdown**、**`-o`**）→ **`observe_export_v1`**，**`rows`** 为按 UTC 日一行（会话数、成功率、token、**调度** ok/fail、**记忆健康** 分/档）。**`cai_agent.observe_export`**；**`smoke_new_features`** 在同目录写 **`observe-export.json`** 抽样。
+- **测试**：**`test_observe_export_cli.py`**。
+
+### 0.6.7（2026-04-23）
+
+- **可观测性（Hermes S7-03）**：**`cai-agent insights --json --cross-domain`** → **`insights_cross_domain_v1`**，含 **`recall_hit_rate_trend`**（**`.cai-recall-index.json`** 子串探测 **`the`** / 无索引 **`index_missing`**）、**`memory_health_trend`**（按日 **`build_memory_health_payload`**，会话 **mtime** 窗）、**`schedule_success_trend`**（**`aggregate_schedule_audit_by_calendar_day_utc`**）。**`build_memory_health_payload`** 增加可选 **`reference_now` / `session_mtime_start` / `session_mtime_end_exclusive`**。**`smoke_new_features`** 已抽样。
+- **测试**：**`test_insights_cross_domain.py`**。
+
+### 0.6.6（2026-04-23）
+
+- **可观测性（Hermes S7-01 / S7-02）**：**`cai_agent.metrics`**（**`metrics_schema_v1`**），若设置 **`CAI_METRICS_JSONL`** 则在 **`observe`** / **`observe report`** 成功后追加一行 JSONL。**`cai-agent observe report`**（**`--days`**、**`--format` json|markdown**、**`-o`**）生成 **`observe_ops_report_v1`**（顶层 **`schema_version`=`1.0`**）。**`build_observe_payload`** 支持时间窗过滤，**`aggregates`** 含 **`tool_errors_total` / `tool_errors_top`**。
+- **文档 / 冒烟 / 测试**：**`docs/schema/METRICS_JSON.zh-CN.md`**；契约索引与 **`smoke_new_features.py`** 抽样 **`observe report`**；**`test_observe_ops_report_cli.py`**、**`test_metrics_jsonl.py`**。
+
 ### 0.6.5（2026-04-23）
 
 - **Gateway（Hermes S6-04）**：**`cai-agent gateway telegram continue-hint`**（**`--json`** → **`gateway_telegram_continue_hint_v1`**），输出 **`continue_cli`**（**`shlex.quote`** 路径）与 **`session_path_resolved`**；**`--chat-id`+`--user-id`** 成对筛选或两者皆省略列出全部。Slash **`/help`**、**`/new`** 文案指向该命令。**`docs/qa/sprint6-gateway-telegram-testplan.md`** 增补 **GTW-CONT-001~003**。

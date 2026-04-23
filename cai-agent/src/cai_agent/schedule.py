@@ -4,7 +4,7 @@ import json
 import math
 import time
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -663,3 +663,88 @@ def compute_schedule_stats_from_audit(
         "audit_lines_in_window": lines_used,
         "tasks": tasks_out,
     }
+
+
+def aggregate_schedule_audit_by_calendar_day_utc(
+    *,
+    cwd: str | None = None,
+    days: int = 7,
+    audit_path: Path | str | None = None,
+) -> list[dict[str, Any]]:
+    """按 UTC 日历日聚合 ``task.completed`` / ``task.failed``（``task.retrying`` 计入 fail 侧，与 SLA 聚合口径一致）。"""
+    ddays = max(1, min(int(days), 366))
+    now = datetime.now(UTC)
+    cutoff_ts = now.timestamp() - float(ddays) * 86400.0
+    ap = Path(audit_path).expanduser().resolve() if audit_path else _schedule_audit_path(cwd)
+
+    end_d = now.date()
+    start_d = end_d - timedelta(days=ddays - 1)
+    dates_list: list[date] = []
+    cur = start_d
+    while cur <= end_d:
+        dates_list.append(cur)
+        cur = cur + timedelta(days=1)
+
+    per_day: dict[str, dict[str, int]] = {
+        d.isoformat(): {"success_count": 0, "fail_count": 0} for d in dates_list
+    }
+
+    if ap.is_file():
+        try:
+            text = ap.read_text(encoding="utf-8")
+        except Exception:
+            text = ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            if not isinstance(row, dict):
+                continue
+            if not str(row.get("event") or "").strip():
+                det0 = row.get("details") if isinstance(row.get("details"), dict) else {}
+                row = {
+                    **row,
+                    "event": _schedule_audit_event_from_legacy(
+                        action=str(row.get("action") or ""),
+                        status=str(row.get("status") or ""),
+                        details=det0,
+                    ),
+                }
+            dt = _parse_audit_row_ts(row)
+            if dt is None or dt.timestamp() < cutoff_ts:
+                continue
+            ev = str(row.get("event") or "").strip()
+            if ev not in ("task.completed", "task.failed", "task.retrying"):
+                continue
+            dk = dt.date().isoformat()
+            if dk not in per_day:
+                continue
+            b = per_day[dk]
+            if ev == "task.completed":
+                b["success_count"] = int(b["success_count"]) + 1
+            else:
+                b["fail_count"] = int(b["fail_count"]) + 1
+
+    out: list[dict[str, Any]] = []
+    for d in dates_list:
+        dk = d.isoformat()
+        b = per_day.get(dk) or {"success_count": 0, "fail_count": 0}
+        sc = int(b.get("success_count") or 0)
+        fc = int(b.get("fail_count") or 0)
+        rc = sc + fc
+        rate = (float(sc) / float(rc)) if rc > 0 else None
+        ts0 = datetime(d.year, d.month, d.day, tzinfo=UTC)
+        out.append(
+            {
+                "ts": ts0.isoformat(),
+                "date": dk,
+                "success_count": sc,
+                "fail_count": fc,
+                "success_rate": rate,
+            },
+        )
+    return out
