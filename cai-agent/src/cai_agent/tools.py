@@ -764,6 +764,25 @@ def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     raise SandboxError(f"未知工具: {name}")
 
 
+DISPATCH_TOOL_NAMES: frozenset[str] = frozenset(
+    {
+        "read_file",
+        "list_dir",
+        "list_tree",
+        "write_file",
+        "make_dir",
+        "run_command",
+        "glob_search",
+        "search_text",
+        "git_status",
+        "git_diff",
+        "mcp_list_tools",
+        "mcp_call_tool",
+        "fetch_url",
+    }
+)
+
+
 def tools_spec_markdown() -> str:
     return """可用工具（通过 JSON 调用）：
 - read_file: {"path": "...", "line_start": 1, "line_end": 120} — line_end 可省略表示读到文件末尾

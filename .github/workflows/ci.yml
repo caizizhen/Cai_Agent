@@ -30,6 +30,9 @@ jobs:
       - name: Pytest
         run: python -m pytest -q cai-agent/tests
 
+      - name: TOOLS_REGISTRY.zh-CN.md up-to-date
+        run: python scripts/gen_tools_registry_zh.py --check
+
       - name: CLI regression script
         run: python scripts/run_regression.py
 

@@ -1,6 +1,7 @@
 # CAI Agent 工具注册表
 
-本文档从 `cai-agent/src/cai_agent/tools.py` 提炼，列出 Agent 在执行阶段可调用的全部工具。
+本文档由仓库根目录 **`scripts/gen_tools_registry_zh.py`** 根据 **`cai-agent/src/cai_agent/tools_registry_doc.py`** 中的 **`BUILTIN_TOOLS_DOC_ROWS`** 自动生成。修改工具表请编辑该 Python 元数据后运行生成脚本，**勿手写表格行**。
+静态章节（权限模型、Hooks 等）亦由同一模板输出；若需改写请编辑 **`tools_registry_doc.py`** 中的 `_MARKDOWN_DOC_FOOTER`。
 
 ## 工具分类
 
@@ -15,7 +16,7 @@
 | `git_diff` | Git（只读） | `git_diff` | 只读 `git diff`，支持 `staged` 标志 |
 | `write_file` | 文件系统（写入） | `write_file` | 在工作区写入/覆盖文件 |
 | `make_dir` | 文件系统（写入） | `write_file` | 在工作区内递归创建目录（等同 `mkdir -p`） |
-| `run_command` | Shell 执行 | `run_command` | 按白名单 argv[0] 执行命令；受 `[permissions].run_command_allowed_commands` 约束 |
+| `run_command` | Shell 执行 | `run_command` | 按白名单 `argv[0]` 执行命令；受 `[permissions].run_command_allowed_commands` 约束 |
 | `fetch_url` | 网络（只读） | `fetch_url` | HTTPS GET；受主机白名单与 `[permissions].fetch_url` 约束；**`[fetch_url].max_redirects`**（**1–50**，默认 **20**）或 **`CAI_FETCH_URL_MAX_REDIRECTS`** 控制跟随重定向次数；请求前 **`getaddrinfo`** 解析 IP 校验（反 DNS rebinding），内网解析需 **`allow_private_resolved_ips`** / **`CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS`** |
 | `mcp_list_tools` | MCP Bridge | `mcp_list_tools` | 从 MCP Bridge 拉取工具清单（短时缓存） |
 | `mcp_call_tool` | MCP Bridge | `mcp_call_tool` | 调用 MCP Bridge 工具（需 `mcp_enabled=true`） |

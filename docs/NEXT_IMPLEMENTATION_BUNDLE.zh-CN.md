@@ -22,7 +22,7 @@
 ### 工具与 Notebook
 
 - Notebook 单元读写工具或 MCP 认证路径
-- [本轮已落地] 与官方工具分类对齐的 **工具注册表文档**：静态 **[`docs/TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)**（13 工具）；从 **`tools.py`** **自动生成**仍为 backlog
+- [本轮已落地] 与官方工具分类对齐的 **工具注册表文档**：**[`docs/TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)**（13 工具）由 **`scripts/gen_tools_registry_zh.py`** 根据 **`cai_agent/tools_registry_doc.py`** 的 **`BUILTIN_TOOLS_DOC_ROWS`** 生成；**`tools.DISPATCH_TOOL_NAMES`** 与元数据由 **`test_tools_registry_doc_sync.py`** 校验；CI **`gen_tools_registry_zh.py --check`**
 
 ### 任务与 UI
 
