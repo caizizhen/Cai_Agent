@@ -16,7 +16,7 @@
 | 领域 | 已具备能力（摘要） |
 |------|---------------------|
 | **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段、root **`quality_gate`** + 可选 **`post_gate`** 等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
-| **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限 + **`max_redirects`/`CAI_FETCH_URL_MAX_REDIRECTS`**）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
+| **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限 + **`max_redirects`/`CAI_FETCH_URL_MAX_REDIRECTS`** + **解析后 IP 校验** / **`allow_private_resolved_ips`**）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
 | **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
 | **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板，见 **`tui_task_board.py`**）；会话落盘含 `profile` |

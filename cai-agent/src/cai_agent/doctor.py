@@ -138,6 +138,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "fetch_url_unrestricted": settings.fetch_url_unrestricted,
         "fetch_url_allowed_hosts_count": len(settings.fetch_url_allowed_hosts),
         "fetch_url_max_redirects": settings.fetch_url_max_redirects,
+        "fetch_url_allow_private_resolved_ips": settings.fetch_url_allow_private_resolved_ips,
         "permission_fetch_url": settings.permission_fetch_url,
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
@@ -204,7 +205,8 @@ def run_doctor(
         )
         print(
             f" | {mode} | 权限={settings.permission_fetch_url} "
-            f"| max_redirects={settings.fetch_url_max_redirects}",
+            f"| max_redirects={settings.fetch_url_max_redirects}"
+            f" | allow_private_dns={settings.fetch_url_allow_private_resolved_ips}",
         )
     else:
         print()

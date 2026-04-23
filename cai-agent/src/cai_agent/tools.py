@@ -4,11 +4,12 @@ import glob
 import ipaddress
 import json
 import os
+import socket
 import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import quote, urlparse
+from urllib.parse import ParseResult, quote, urlparse
 from typing import Any, Callable
 
 import httpx
@@ -518,6 +519,63 @@ def _reject_private_ip_literal(host: str) -> None:
         raise SandboxError("fetch_url 拒绝访问保留/私网/组播地址")
 
 
+def _fetch_url_effective_port(parsed: ParseResult, scheme: str) -> int:
+    p = parsed.port
+    if isinstance(p, int) and p > 0:
+        return int(p)
+    return 443 if scheme == "https" else 80
+
+
+def _reject_fetch_url_resolved_unsafe_addrs(host: str, port: int) -> None:
+    """拒绝 DNS 解析到私网/本机等地址（缓解 DNS rebinding / 内网 SSRF）。
+
+    在发起 TCP 前做一次 ``getaddrinfo`` 校验；与真实连接之间仍存在极窄 TOCTOU 窗口，
+    内网解析场景可显式开启 ``[fetch_url].allow_private_resolved_ips``。
+    """
+    try:
+        infos = socket.getaddrinfo(
+            host,
+            port,
+            type=socket.SOCK_STREAM,
+            proto=socket.IPPROTO_TCP,
+        )
+    except OSError as e:
+        raise SandboxError(f"fetch_url DNS 解析失败: {e}") from e
+    if not infos:
+        raise SandboxError("fetch_url DNS 无可用地址")
+    seen: set[str] = set()
+    for item in infos:
+        if len(item) < 5:
+            continue
+        sockaddr = item[4]
+        if not sockaddr:
+            continue
+        raw_ip = sockaddr[0]
+        if not isinstance(raw_ip, str):
+            continue
+        if "%" in raw_ip:
+            raw_ip = raw_ip.split("%", 1)[0]
+        if raw_ip in seen:
+            continue
+        seen.add(raw_ip)
+        try:
+            addr = ipaddress.ip_address(raw_ip)
+        except ValueError:
+            continue
+        if (
+            addr.is_private
+            or addr.is_loopback
+            or addr.is_link_local
+            or addr.is_reserved
+            or addr.is_multicast
+            or addr.is_unspecified
+        ):
+            raise SandboxError(
+                "fetch_url 拒绝 DNS 解析到私网/本机/保留/组播地址（反 DNS rebinding）"
+                f": {raw_ip!r}"
+            )
+
+
 def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
     if not settings.fetch_url_enabled:
         raise SandboxError(
@@ -547,6 +605,10 @@ def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
         host, settings.fetch_url_allowed_hosts
     ):
         raise SandboxError(f"fetch_url 主机不在白名单: {host!r}")
+
+    eff_port = _fetch_url_effective_port(parsed, scheme)
+    if not settings.fetch_url_allow_private_resolved_ips:
+        _reject_fetch_url_resolved_unsafe_addrs(host, eff_port)
 
     headers = {
         "User-Agent": "cai-agent-fetch_url/1",
@@ -713,7 +775,7 @@ def tools_spec_markdown() -> str:
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
-- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；受 permissions.fetch_url 约束
+- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1；受 permissions.fetch_url 约束
 - write_file: {"path": "相对路径", "content": "文件全文"}
 - make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
 - run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符

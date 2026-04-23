@@ -55,6 +55,7 @@ exclude_globs = [
 enabled = true
 unrestricted = true
 # max_redirects = 20   # 可选：1–50，控制 fetch_url GET 跟随重定向次数
+# allow_private_resolved_ips = true   # 仅当白名单主机解析到内网 IP 且需放行时开启（默认 false：解析后拒绝私网/本机）
 
 [permissions]
 write_file = "allow"

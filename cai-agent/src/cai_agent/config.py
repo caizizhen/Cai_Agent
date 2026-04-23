@@ -238,6 +238,7 @@ class Settings:
     fetch_url_max_bytes: int
     fetch_url_timeout_sec: float
     fetch_url_max_redirects: int
+    fetch_url_allow_private_resolved_ips: bool
     cost_budget_max_tokens: int
     hooks_profile: str
     hooks_disabled_ids: tuple[str, ...]
@@ -609,6 +610,17 @@ class Settings:
                 fetch_url_max_redirects = 20
         fetch_url_max_redirects = max(1, min(50, int(fetch_url_max_redirects)))
 
+        if os.getenv("CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS") is not None:
+            fetch_url_allow_private_resolved_ips = _env_bool(
+                "CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS", False
+            )
+        else:
+            raw_apri = fu.get("allow_private_resolved_ips")
+            if isinstance(raw_apri, bool):
+                fetch_url_allow_private_resolved_ips = raw_apri
+            else:
+                fetch_url_allow_private_resolved_ips = False
+
         cost_sec = _section(file_data, "cost")
         raw_max = cost_sec.get("budget_max_tokens")
         if isinstance(raw_max, int) and not isinstance(raw_max, bool):
@@ -786,6 +798,7 @@ class Settings:
             fetch_url_max_bytes=fetch_url_max_bytes,
             fetch_url_timeout_sec=fetch_url_timeout_sec,
             fetch_url_max_redirects=fetch_url_max_redirects,
+            fetch_url_allow_private_resolved_ips=fetch_url_allow_private_resolved_ips,
             cost_budget_max_tokens=cost_budget_max_tokens,
             hooks_profile=hooks_profile,
             hooks_disabled_ids=tuple(disabled_ids),
