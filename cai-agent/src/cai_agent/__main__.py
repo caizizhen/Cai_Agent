@@ -2031,7 +2031,7 @@ def _run_gateway_telegram_webhook_server(
             ):
                 cid_deny = str(payload.get("chat_id") or "").strip()
                 if cid_deny:
-                    deny_reply_result = _telegram_send_message(
+                    deny_reply_result = _telegram_send_text_chunked(
                         bot_token=telegram_bot_token.strip(),
                         chat_id=cid_deny,
                         text=str(deny_message or "未授权。").strip() or "未授权。",
@@ -2045,46 +2045,71 @@ def _run_gateway_telegram_webhook_server(
                 msg = obj.get("message")
                 if isinstance(msg, dict):
                     text_hint = str(msg.get("text") or "").strip()
-                goal = goal_template.format(
-                    chat_id=chat_id,
-                    user_id=user_id,
-                    text=text_hint,
-                ).strip()
-                ok_exec, out_exec = _execute_scheduled_goal(
-                    config_path=None,
-                    workspace_hint=str(root),
-                    workspace_override=str(root),
-                    model_override=None,
-                    goal=goal,
-                )
-                execution = {
-                    "triggered": True,
-                    "ok": bool(ok_exec),
-                    "goal": goal,
-                    "answer_preview": out_exec[:240],
-                    "session_file": workspace_override or None,
-                }
-                if reply_on_execution:
-                    reply_text = reply_template.format(
+                first_tok = text_hint.strip().split(None, 1)[0] if text_hint.strip() else ""
+                if first_tok.startswith("/"):
+                    ans_slash = _telegram_slash_reply_text(first_tok, map_path=map_path)
+                    execution = {
+                        "triggered": True,
+                        "slash": True,
+                        "ok": True,
+                        "command": first_tok,
+                        "answer_preview": ans_slash[:500],
+                        "session_file": workspace_override or None,
+                    }
+                    if reply_on_execution:
+                        if telegram_bot_token:
+                            execution["reply"] = _telegram_send_text_chunked(
+                                bot_token=telegram_bot_token,
+                                chat_id=chat_id,
+                                text=ans_slash,
+                            )
+                        else:
+                            execution["reply"] = {
+                                "ok": False,
+                                "error": "missing_bot_token",
+                                "message": "未配置 Telegram bot token",
+                            }
+                else:
+                    goal = goal_template.format(
                         chat_id=chat_id,
                         user_id=user_id,
                         text=text_hint,
-                        answer=out_exec[:1000],
-                        ok=str(bool(ok_exec)).lower(),
                     ).strip()
-                    if telegram_bot_token:
-                        reply_result = _telegram_send_message(
-                            bot_token=telegram_bot_token,
+                    ok_exec, out_exec = _execute_scheduled_goal(
+                        config_path=None,
+                        workspace_hint=str(root),
+                        workspace_override=str(root),
+                        model_override=None,
+                        goal=goal,
+                    )
+                    execution = {
+                        "triggered": True,
+                        "ok": bool(ok_exec),
+                        "goal": goal,
+                        "answer_preview": out_exec[:240],
+                        "session_file": workspace_override or None,
+                    }
+                    if reply_on_execution:
+                        reply_text = reply_template.format(
                             chat_id=chat_id,
-                            text=reply_text,
-                        )
-                    else:
-                        reply_result = {
-                            "ok": False,
-                            "error": "missing_bot_token",
-                            "message": "未配置 Telegram bot token",
-                        }
-                    execution["reply"] = reply_result
+                            user_id=user_id,
+                            text=text_hint,
+                            answer=out_exec[:1000],
+                            ok=str(bool(ok_exec)).lower(),
+                        ).strip()
+                        if telegram_bot_token:
+                            reply_result = _telegram_send_text_chunked(
+                                bot_token=telegram_bot_token,
+                                chat_id=chat_id,
+                                text=reply_text,
+                            )
+                        else:
+                            reply_result = {
+                                "ok": False,
+                                "error": "missing_bot_token",
+                                "message": "未配置 Telegram bot token",
+                            }
+                        execution["reply"] = reply_result
             elif execute_on_update:
                 if err0 == "not_allowed":
                     execution = {
@@ -2168,9 +2193,11 @@ def _telegram_send_message(
         method="POST",
         headers={"Content-Type": "application/json"},
     )
+    status_code = 200
     try:
         with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
             raw = resp.read().decode("utf-8")
+            status_code = int(getattr(resp, "status", 200) or 200)
             obj = json.loads(raw)
     except urllib.error.HTTPError as e:
         return {"ok": False, "error": "http_error", "status": int(e.code), "message": str(e)}
@@ -2180,8 +2207,59 @@ def _telegram_send_message(
         return {"ok": False, "error": "invalid_response"}
     return {
         "ok": bool(obj.get("ok")),
-        "status": int(getattr(resp, "status", 200) or 200),
+        "status": status_code,
     }
+
+
+def _telegram_send_text_chunked(
+    *,
+    bot_token: str,
+    chat_id: str,
+    text: str,
+    timeout_sec: float = 8.0,
+    chunk_max: int = 3900,
+) -> dict[str, Any]:
+    """Telegram sendMessage 单条上限约 4096 UTF-8 字符；按块顺序发送（S6-02）。"""
+    body = str(text or "")
+    if len(body) <= chunk_max:
+        return _telegram_send_message(
+            bot_token=bot_token,
+            chat_id=chat_id,
+            text=body,
+            timeout_sec=timeout_sec,
+        )
+    chunks: list[dict[str, Any]] = []
+    for i in range(0, len(body), chunk_max):
+        part = body[i : i + chunk_max]
+        r = _telegram_send_message(
+            bot_token=bot_token,
+            chat_id=chat_id,
+            text=part,
+            timeout_sec=timeout_sec,
+        )
+        chunks.append(r)
+        if not r.get("ok"):
+            return {
+                "ok": False,
+                "error": "chunk_send_failed",
+                "chunk_index": len(chunks) - 1,
+                "chunks_attempted": len(chunks),
+                "last": r,
+            }
+    return {"ok": True, "chunks": len(chunks), "last": chunks[-1] if chunks else {}}
+
+
+def _telegram_slash_reply_text(slash_first_token: str, *, map_path: Path) -> str:
+    sl = slash_first_token.strip().lower()
+    if sl in ("/ping",):
+        return "pong — CAI Agent Telegram webhook"
+    if sl in ("/status",):
+        return f"ok — map={map_path.name}；完整 JSON 请在本机运行: cai-agent gateway status --json"
+    if sl in ("/help", "/start"):
+        return "命令: /ping /status /help；其它文本将按 workflow 配置执行（若开启 execute-on-update）。"
+    if sl.startswith("/new"):
+        return "请在工作区用 CLI `cai-agent continue <会话文件>` 续聊（跨端文档见产品计划 S6-04）。"
+    return f"未知命令 {slash_first_token!r}；发送 /help"
 
 
 def _acquire_schedule_daemon_lock(
@@ -4204,12 +4282,110 @@ def main(argv: list[str] | None = None) -> int:
         help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
     )
     gateway_sub = gateway_p.add_subparsers(dest="gateway_action", required=True)
+
+    gw_setup = gateway_sub.add_parser(
+        "setup",
+        help="Gateway 引导：写入 .cai/gateway/telegram-config.json（Hermes S6-01）",
+    )
+    gw_setup.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录；决定 .cai/gateway 位置与配置中的 workspace）",
+    )
+    gw_setup.add_argument("--telegram-bot-token", default=None, dest="gateway_setup_bot_token")
+    gw_setup.add_argument(
+        "--use-env-token",
+        action="store_true",
+        dest="gateway_setup_use_env_token",
+        help="执行阶段从环境变量 CAI_TELEGRAM_BOT_TOKEN 读取 token（可与文件内 token 并存）",
+    )
+    gw_setup.add_argument(
+        "--allow-chat-id",
+        action="append",
+        default=[],
+        dest="gateway_setup_allow_chat_ids",
+        metavar="CHAT_ID",
+        help="追加到 telegram-session-map.json 的 allowed_chat_ids（可重复）",
+    )
+    gw_setup.add_argument("--host", default="127.0.0.1", dest="gateway_setup_host")
+    gw_setup.add_argument("--port", type=int, default=18765, dest="gateway_setup_port")
+    gw_setup.add_argument("--max-events", type=int, default=0, dest="gateway_setup_max_events")
+    gw_setup.add_argument("--create-missing", action="store_true", dest="gateway_setup_create_missing")
+    gw_setup.add_argument("--execute-on-update", action="store_true", dest="gateway_setup_execute_on_update")
+    gw_setup.add_argument("--reply-on-execution", action="store_true", dest="gateway_setup_reply_on_execution")
+    gw_setup.add_argument("--reply-on-deny", action="store_true", dest="gateway_setup_reply_on_deny")
+    gw_setup.add_argument(
+        "--goal-template",
+        default="用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+        dest="gateway_setup_goal_template",
+    )
+    gw_setup.add_argument(
+        "--reply-template",
+        default="执行完成 ok={ok}\n{answer}",
+        dest="gateway_setup_reply_template",
+    )
+    gw_setup.add_argument(
+        "--deny-message",
+        default="此 CAI Agent Bot 未授权本对话。",
+        dest="gateway_setup_deny_message",
+    )
+    gw_setup.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_start = gateway_sub.add_parser(
+        "start",
+        help="按 telegram-config.json 后台启动 gateway telegram serve-webhook（写 PID 文件）",
+    )
+    gw_start.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
+    )
+    gw_start.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_stat = gateway_sub.add_parser("status", help="映射 / 白名单 / webhook 子进程状态（S6-01）")
+    gw_stat.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
+    )
+    gw_stat.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_stop = gateway_sub.add_parser("stop", help="停止 start 写入 PID 的 webhook 子进程")
+    gw_stop.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
+    )
+    gw_stop.add_argument("--json", action="store_true", dest="json_output")
+
     gw_tg = gateway_sub.add_parser("telegram", help="Telegram 映射管理")
+    gw_tg.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录；影响默认 map 路径等）",
+    )
     gw_tg_sub = gw_tg.add_subparsers(dest="gateway_telegram_action", required=True)
 
     gw_plat = gateway_sub.add_parser(
         "platforms",
         help="多平台 Gateway 适配目录（Telegram 与其它 messenger 状态）",
+    )
+    gw_plat.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
     )
     gw_plat_sub = gw_plat.add_subparsers(dest="gateway_platforms_action", required=True)
     gw_plat_list = gw_plat_sub.add_parser("list", help="列出各平台实现阶段与引导字段")
@@ -6987,8 +7163,105 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "gateway":
-        root = Path.cwd().resolve()
-        if getattr(args, "gateway_action", None) == "platforms":
+        raw_gw = getattr(args, "gateway_workspace", None)
+        if raw_gw is not None and str(raw_gw).strip():
+            root = Path(str(raw_gw).strip()).expanduser().resolve()
+        else:
+            root = Path.cwd().resolve()
+
+        ga = getattr(args, "gateway_action", None)
+        if ga in {"setup", "start", "status", "stop"}:
+            from cai_agent import gateway_lifecycle
+
+            if ga == "setup":
+                allow_raw = list(getattr(args, "gateway_setup_allow_chat_ids", None) or [])
+                allow_ids = [str(x).strip() for x in allow_raw if str(x).strip()]
+                tok_arg = getattr(args, "gateway_setup_bot_token", None)
+                tok = str(tok_arg).strip() if tok_arg else None
+                serve = {
+                    "host": str(getattr(args, "gateway_setup_host", "127.0.0.1") or "127.0.0.1").strip(),
+                    "port": int(getattr(args, "gateway_setup_port", 18765) or 18765),
+                    "max_events": int(getattr(args, "gateway_setup_max_events", 0) or 0),
+                    "create_missing": bool(getattr(args, "gateway_setup_create_missing", False)),
+                    "execute_on_update": bool(getattr(args, "gateway_setup_execute_on_update", False)),
+                    "reply_on_execution": bool(getattr(args, "gateway_setup_reply_on_execution", False)),
+                    "reply_on_deny": bool(getattr(args, "gateway_setup_reply_on_deny", False)),
+                    "goal_template": str(
+                        getattr(
+                            args,
+                            "gateway_setup_goal_template",
+                            "用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+                        )
+                        or "用户({user_id})在 chat({chat_id}) 发送消息：{text}",
+                    ),
+                    "reply_template": str(
+                        getattr(args, "gateway_setup_reply_template", "执行完成 ok={ok}\n{answer}")
+                        or "执行完成 ok={ok}\n{answer}",
+                    ),
+                    "deny_message": str(
+                        getattr(args, "gateway_setup_deny_message", "此 CAI Agent Bot 未授权本对话。")
+                        or "此 CAI Agent Bot 未授权本对话。",
+                    ),
+                }
+                out_st = gateway_lifecycle.build_setup_payload(
+                    root=root,
+                    use_env_token=bool(getattr(args, "gateway_setup_use_env_token", False)),
+                    bot_token=tok,
+                    workspace=str(root),
+                    serve=serve,
+                    allow_chat_ids=allow_ids or None,
+                )
+                json_st = bool(getattr(args, "json_output", False))
+                if json_st:
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    print(
+                        f"[gateway setup] config={out_st.get('config_path')} workspace={out_st.get('workspace')}",
+                    )
+                return 0
+            if ga == "start":
+                out_st = gateway_lifecycle.start_webhook_subprocess(root)
+                json_st = bool(getattr(args, "json_output", False))
+                if json_st:
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    if out_st.get("ok"):
+                        print(
+                            f"[gateway start] pid={out_st.get('pid')} pid_file={out_st.get('pid_file')} "
+                            f"stdout={out_st.get('stdout_log')}",
+                        )
+                    else:
+                        print(f"[gateway start] failed: {out_st.get('error')}", file=sys.stderr)
+                return 0 if out_st.get("ok") else 2
+            if ga == "status":
+                out_st = gateway_lifecycle.build_status_payload(root)
+                json_st = bool(getattr(args, "json_output", False))
+                if json_st:
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    print(
+                        f"[gateway status] config_exists={out_st.get('config_exists')} "
+                        f"webhook_running={out_st.get('webhook_running')} "
+                        f"webhook_pid={out_st.get('webhook_pid')} allowlist={out_st.get('allowlist_enabled')}",
+                    )
+                return 0
+            if ga == "stop":
+                out_st = gateway_lifecycle.stop_webhook_subprocess(root)
+                json_st = bool(getattr(args, "json_output", False))
+                if json_st:
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    print(
+                        f"[gateway stop] ok={out_st.get('ok')} stopped={out_st.get('stopped')} "
+                        f"error={out_st.get('error')}",
+                    )
+                if out_st.get("ok"):
+                    return 0
+                if str(out_st.get("error") or "") == "no_pid_file":
+                    return 0
+                return 2
+
+        if ga == "platforms":
             actp = str(getattr(args, "gateway_platforms_action", "") or "").strip()
             if actp != "list":
                 print("gateway platforms: 未知子命令", file=sys.stderr)

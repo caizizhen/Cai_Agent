@@ -7,7 +7,7 @@ platforms + ops dashboard + skills hub manifest, repo-root
 ``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
---json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+--json, gateway status --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
@@ -529,6 +529,15 @@ def main() -> int:
                 errs.append(f"gateway platforms schema {po.get('schema_version')!r}")
             if not isinstance(po.get("platforms"), list):
                 errs.append("gateway platforms not list")
+        gst = _run([*cli, "gateway", "status", "--json"], cwd=gw_td)
+        if gst.returncode != 0:
+            errs.append(f"gateway status exit {gst.returncode} stderr={gst.stderr!r}")
+        else:
+            gso = json.loads((gst.stdout or "").strip())
+            if gso.get("schema_version") != "gateway_lifecycle_status_v1":
+                errs.append(f"gateway status schema {gso.get('schema_version')!r}")
+            if "config_exists" not in gso:
+                errs.append("gateway status missing config_exists")
         od = _run([*cli, "ops", "dashboard", "--json"], cwd=gw_td)
         if od.returncode != 0:
             errs.append(f"ops dashboard exit {od.returncode} stderr={od.stderr!r}")

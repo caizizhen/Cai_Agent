@@ -4,6 +4,12 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.3（2026-04-23）
+
+- **Gateway 生命周期（Hermes S6-01）**：**`cai-agent gateway setup|start|status|stop`**，实现于 **`cai_agent.gateway_lifecycle`**（**`gateway_telegram_config_v1`** 写入 **`.cai/gateway/telegram-config.json`**，PID **`.cai/gateway/telegram-webhook.pid`**）。**`setup`** 与 **`serve-webhook`** 开关/模板对齐，**`--allow-chat-id`** 可重复合并 **`allowed_chat_ids`**。**`start`** 后台拉起 **`gateway telegram serve-webhook`**（日志在 **`.cai/gateway/`**）。**`telegram`**、**`platforms`** 与生命周期子命令支持 **`-w`/`--workspace`** 指定工作区根。
+- **Gateway（Hermes S6-02 部分）**：Webhook 拒绝与执行回发使用 **`_telegram_send_text_chunked`**（约 3900 字分块）。以 **`/`** 开头的首 token 走 slash 回复（**`/ping`**、**`/status`**、**`/help`**、**`/start`**、**`/new`** 等），**不**再进入 **`_execute_scheduled_goal`**。
+- **测试与冒烟**：**`tests/test_gateway_lifecycle_cli.py`**；**`scripts/smoke_new_features.py`** 校验 **`gateway status --json`**（**`gateway_lifecycle_status_v1`**）。
+
 ### 0.6.2（2026-04-23）
 
 - **Gateway（Hermes S6-03）**：映射 JSON 根级可选 **`allowed_chat_ids`**（**`gateway_telegram_map_v1`**）。**`gateway telegram allow add|list|rm`**。**`resolve-update`** / **`serve-webhook`** 在非空白名单且 **`chat_id`** 未命中时返回 **`error`=`not_allowed`**。**`list --json`** 增加 **`allowed_chat_ids`**、**`allowlist_enabled`**。**`serve-webhook`**：补齐此前缺失参数（**`--reply-on-execution`**、**`--telegram-bot-token`** / 环境变量 **`CAI_TELEGRAM_BOT_TOKEN`**、**`--reply-template`**），并新增 **`--reply-on-deny`** / **`--deny-message`**。

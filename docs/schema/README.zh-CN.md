@@ -189,6 +189,17 @@
   - **serve-webhook**：服务结束后的单行摘要含 `ok`、`host`、`port`、`path`、`events_handled`、`log_file`、`create_missing` 等（与运行态一致）
 
 **Exit**：缺参、读 update 失败、`resolve-update` 无映射且未创建等 → **`2`**；**`get`/`unbind`/`resolve-update`** 在「未找到绑定 / 无移除 / 无映射且未 `--create-missing`」等业务失败时 → **`2`**；**`serve-webhook`** 正常结束 → **`0`**；未知 `telegram` 子命令 → **`2`**。
+- **工作区根**：**`gateway telegram -w DIR …`**（或各子命令等价的 **`--workspace`**）将 **DIR** 作为 Gateway 上下文根（默认映射路径等）；与 **`gateway setup|start|status|stop`** 上的 **`-w`** 语义一致。
+
+---
+
+## `gateway setup` / `start` / `status` / `stop`（Hermes **S6-01**）
+
+- **实现**：`cai_agent.gateway_lifecycle`；CLI 在 **`__main__.py`** 的 **`gateway`** 分支分发。
+- **`gateway setup`**：写入 **`.cai/gateway/telegram-config.json`**（**`schema_version`=`gateway_telegram_config_v1`**），可选 **`serve_webhook`** 字段（与 **`gateway telegram serve-webhook`** 对齐的开关/模板）；**`--allow-chat-id`** 可重复，合并进 **`telegram-session-map.json`** 的 **`allowed_chat_ids`**。stdout **`--json`** 含 **`ok`**、**`config_path`**、**`workspace`** 等。
+- **`gateway start`**：按配置文件组装 **`python -m cai_agent gateway telegram serve-webhook …`** 后台进程，写 **`.cai/gateway/telegram-webhook.pid`**（**`gateway_telegram_pid_v1`**）。stdout **`gateway_lifecycle_start_v1`**（**`ok`** / **`pid`** / **`pid_file`** / 日志路径等）。
+- **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等）。
+- **`gateway stop`**：读 PID 文件并结束进程；stdout **`gateway_lifecycle_stop_v1`**。**无 PID 文件**时 **`ok:false`**、**`error`=`no_pid_file`**（CLI **exit `0`**，幂等）；**`stop_failed`** 等 → **exit `2`**。**`start`** 在配置缺失时 **exit `2`**。
 
 ---
 

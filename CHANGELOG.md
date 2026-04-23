@@ -2,6 +2,12 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.3 (2026-04-23)
+
+- **Gateway lifecycle (Hermes S6-01)**: **`cai-agent gateway setup|start|status|stop`** backed by **`cai_agent.gateway_lifecycle`** (writes **`gateway_telegram_config_v1`** to **`.cai/gateway/telegram-config.json`**, PID **`.cai/gateway/telegram-webhook.pid`**). **`setup`** mirrors **`serve-webhook`** flags and optional **`--allow-chat-id`**. **`start`** spawns **`gateway telegram serve-webhook`** detached (logs under **`.cai/gateway/`**). **`-w`/`--workspace`** on **`telegram`**, **`platforms`**, and lifecycle subcommands sets the workspace root.
+- **Gateway (Hermes S6-02 partial)**: Webhook deny / execution replies use **`_telegram_send_text_chunked`** (~3900 chars). Slash-first messages (**`/ping`**, **`/status`**, **`/help`**, **`/start`**, **`/new`**) get inline replies without running **`_execute_scheduled_goal`**.
+- **Tests / smoke**: **`tests/test_gateway_lifecycle_cli.py`**; **`scripts/smoke_new_features.py`** asserts **`gateway status --json`** (**`gateway_lifecycle_status_v1`**).
+
 ### 0.6.2 (2026-04-23)
 
 - **Gateway (Hermes S6-03)**: Optional root **`allowed_chat_ids`** on **`gateway_telegram_map_v1`** map file. **`gateway telegram allow add|list|rm`**. **`resolve-update`** / **`serve-webhook`** return **`not_allowed`** when the list is non-empty and **`chat_id`** is missing. **`list --json`** adds **`allowed_chat_ids`** and **`allowlist_enabled`**. **`serve-webhook`**: wired missing kwargs (**`--reply-on-execution`**, **`--telegram-bot-token`** / **`CAI_TELEGRAM_BOT_TOKEN`**, **`--reply-template`**), plus **`--reply-on-deny`** / **`--deny-message`** for optional Telegram rejection text.
