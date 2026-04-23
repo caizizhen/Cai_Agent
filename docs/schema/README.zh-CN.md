@@ -125,7 +125,9 @@
 |------------------|------|------|
 | `window` | object | `days`、`since`、`until_exclusive`（UTC）、`pattern`、`limit`、`memory_session_pattern` |
 | `insights` | object | 与 **`insights --json`** 根对象同源 **`1.1`** |
-| `recall_hit_rate_trend` | array | 按 **UTC 日历日** 升序；无 **`.cai-recall-index.json`** 时 **`hit_rate`=`null`**，`no_index_reason`=`index_missing`；有索引时为子串探测 **`the`** 的 **`probe_hits`/`indexed_rows`** 比值 |
+| `recall_hit_rate_metric_kind` | string | 固定 **`index_probe`**：标明 **`recall_hit_rate_trend`** 的 **`hit_rate`** 为索引子串探测，**不等价**于 **`recall`** 查询命中率 |
+| `recall_hit_rate_metric_note` | string | 英文短说明，供看板/集成方展示；与 S7-03 backlog「真实 recall 统计」演进项区分 |
+| `recall_hit_rate_trend` | array | 按 **UTC 日历日** 升序；每元素含 **`metric_kind`**：`index_probe`（有索引）或 **`unavailable`**（无索引，含 **`metric_unavailability_reason`**=`index_missing`）；有索引时 **`hit_rate`** 为固定 **`probe_query`**（当前实现为 **`the`**）子串命中率 |
 | `memory_health_trend` | array | 每日 **`build_memory_health_payload`**（会话 **mtime** 落入该日）的 **`health_score`** / **`grade`** / **`recent_sessions`** |
 | `schedule_success_trend` | array | 来自 **`aggregate_schedule_audit_by_calendar_day_utc`**（`task.completed` vs `task.failed`/`task.retrying`） |
 

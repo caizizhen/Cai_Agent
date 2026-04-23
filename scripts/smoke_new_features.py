@@ -330,6 +330,11 @@ def main() -> int:
             ioc = json.loads((pic.stdout or "").strip())
             if ioc.get("schema_version") != "insights_cross_domain_v1":
                 errs.append(f"insights cross-domain schema {ioc.get('schema_version')!r}")
+            if ioc.get("recall_hit_rate_metric_kind") != "index_probe":
+                errs.append(
+                    f"insights cross-domain recall_hit_rate_metric_kind "
+                    f"{ioc.get('recall_hit_rate_metric_kind')!r}",
+                )
             for k in (
                 "recall_hit_rate_trend",
                 "memory_health_trend",

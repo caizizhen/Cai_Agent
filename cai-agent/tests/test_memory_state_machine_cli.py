@@ -4,7 +4,7 @@ import io
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -107,6 +107,23 @@ class MemoryStateMachineCliTests(unittest.TestCase):
             self.assertEqual(out.get("schema_version"), "memory_extract_v1")
             self.assertEqual(out.get("entries_appended"), 0)
             self.assertEqual(out.get("written"), [])
+
+    def test_memory_extract_fails_when_entries_jsonl_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "memory" / "instincts").mkdir(parents=True, exist_ok=True)
+            (root / "memory" / "entries.jsonl").write_text('{"bad":1}\n', encoding="utf-8")
+            buf = io.StringIO()
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf), redirect_stderr(err):
+                    rc = main(["memory", "extract", "--limit", "5"])
+            self.assertEqual(rc, 2)
+            out = json.loads(buf.getvalue().strip())
+            self.assertEqual(out.get("schema_version"), "memory_extract_v1")
+            self.assertIs(out.get("ok"), False)
+            self.assertIn("error", out)
+            self.assertIn("validate-entries", err.getvalue())
 
     def test_memory_prune_removes_non_active_when_requested(self) -> None:
         with tempfile.TemporaryDirectory() as td:

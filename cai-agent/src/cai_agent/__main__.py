@@ -72,6 +72,7 @@ from cai_agent.memory import (
     save_instincts,
     search_memory_entries,
     sort_memory_rows,
+    require_memory_entries_jsonl_clean_before_write,
     validate_memory_entries_bundle,
 )
 from cai_agent.plugin_registry import list_plugin_surface
@@ -7023,6 +7024,30 @@ def main(argv: list[str] | None = None) -> int:
             mem_dir.mkdir(parents=True, exist_ok=True)
             if args.memory_action == "extract":
                 t_mx = time.perf_counter()
+                try:
+                    require_memory_entries_jsonl_clean_before_write(root)
+                except ValueError as e:
+                    print(
+                        json.dumps(
+                            {
+                                "schema_version": "memory_extract_v1",
+                                "written": [],
+                                "entries_appended": 0,
+                                "ok": False,
+                                "error": str(e),
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                    print(str(e), file=sys.stderr)
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.extract",
+                        latency_ms=(time.perf_counter() - t_mx) * 1000.0,
+                        tokens=0,
+                        success=False,
+                    )
+                    return 2
                 files = list_session_files(
                     cwd=str(root),
                     pattern=str(args.pattern),
@@ -7425,7 +7450,18 @@ def main(argv: list[str] | None = None) -> int:
                         success=True,
                     )
                     return 0
-                n = import_memory_entries_bundle(root, doc)
+                try:
+                    n = import_memory_entries_bundle(root, doc)
+                except ValueError as e:
+                    print(f"[memory] {e}", file=sys.stderr)
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.import_entries",
+                        latency_ms=(time.perf_counter() - t_mie) * 1000.0,
+                        tokens=0,
+                        success=False,
+                    )
+                    return 2
                 print(
                     json.dumps(
                         {"schema_version": "memory_entries_import_result_v1", "imported": n},

@@ -21,7 +21,7 @@
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
 | **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板，见 **`tui_task_board.py`**）；会话落盘含 `profile` |
 | **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘） |
-| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
+| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory/entries.jsonl` 追加前整文件洁净性门禁**（与 validate-entries 同源；救急 **`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
 | **跨会话** | `insights`、`recall`（含 sort、`no_hit_reason`、schema 演进）、`recall-index`（build/refresh/doctor/info/benchmark 等） |
 | **调度** | `schedule` CRUD、`daemon`、`run-due`、依赖与环检测、审计 JSONL（S4-04 七种事件）、跨轮次重试退避、并发上限、`schedule stats`（SLA） |
 | **Hooks** | `hooks` CLI、`hooks list`、`hooks run-event`（**`--dry-run`** / 实跑 JSON **`hooks_run_event_result_v1`**）；**`hooks.json`** 支持 **`script`**（`.py`/`.sh`/`.ps1`/…）与 **`command[]`**，路径逃逸防护；与 runner 对齐 |
@@ -30,7 +30,7 @@
 | **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest）；**`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**，源目录 vs **`.cursor/cai-agent-export`** 差异报告，不写盘） |
 | **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
 | **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)） |
-| **技能 Hub** | **`skills hub manifest --json`**；**`skills hub suggest`**；**`skills hub install`**（manifest 选择性安装，`--only`/`--dry-run`）；**`skills hub serve`**；**`auto_extract_skill_after_task`**；**`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 后 dry-run 落盘演进草稿 |
+| **技能 Hub** | **`skills hub manifest --json`**；**`skills hub suggest`**；**`skills hub install`**（manifest 选择性安装，`--only`/`--dry-run`）；**`skills hub serve`**；**`auto_extract_skill_after_task`**（可选 **`settings`** → **LLM** 生成草稿，返回 **`draft_method`**；无 key/mock 仍为模板）；**`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 后 dry-run 落盘演进草稿（当前为 **`build_skill_evolution_suggest`**，与 API 级 **`auto_extract_skill_after_task`** 可组合使用） |
 | **子代理 / RPC** | `parallel_group`、**`subagent_io`**（**`subagent_io_schema_version`=`1.1`**，每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、`on_error`、预算控制；**RPC 标准 IO TypedDict**；**`agent_templates`** 与 **`workflow --templates`**（三套内置模板） |
 
 ### 〇.2 仍有差距或待演进（P2 方向）
@@ -103,7 +103,7 @@
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
 | T5 | Sprint3–8 专项 | 手工 | **计划已写** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
 | T6 | S3 TUI 模型面板 40 条 | 手工 | **计划已写** | [`s3-tui-model-panel-testplan.md`](qa/s3-tui-model-panel-testplan.md) |
-| T7 | 发版 gate | 人工 | **部分完成** | `doctor`、Parity、CHANGELOG、schema 抽样 |
+| T7 | 发版 gate | 人工 | **部分完成**（[检查清单](qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md)） | `doctor`、Parity、CHANGELOG、schema 抽样；清单可打印勾选 |
 
 **冒烟子集**：`python scripts/smoke_new_features.py`（与 T2 同源入口）；详列命令与 schema 以 **schema README** 与脚本内校验为准。
 
@@ -169,4 +169,4 @@
 
 ---
 
-*文档版本：2026-04-23 — 在 A 部分（§22–§26）已合入基础上，同步 **0.7.0** 能力：`run_schema_version`/`run_events_envelope_v1`、TUI `/tasks`、`hooks` **`script`**、**`memory validate-entries`/`extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康** 等；**`CHANGELOG.md` §0.7.0** 为英文权威条目，本表与 **`PARITY_MATRIX`** / **`NEXT_IMPLEMENTATION_BUNDLE`** 对齐；**发行 tarball 版本号** 以 **`cai-agent/pyproject.toml`** / **`cai_agent.__version__`** 为准（若尚未 bump 至 0.7.0，以仓库实际为准）。*
+*文档版本：2026-04-23 — 在 A 部分（§22–§26）已合入基础上，同步 **0.7.0** 能力：`run_schema_version`/`run_events_envelope_v1`、TUI `/tasks`、`hooks` **`script`**、**`memory validate-entries`/`extract --structured`**、**`memory/entries.jsonl` 追加前整文件校验**（**`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL`** 救急）、**`auto_extract_skill_after_task` LLM 草稿（`draft_method`）**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康** 等；**`CHANGELOG.md` §0.7.0** 为英文权威条目，本表与 **`PARITY_MATRIX`** / **`NEXT_IMPLEMENTATION_BUNDLE`** 对齐；**发行 tarball 版本号** 以 **`cai-agent/pyproject.toml`** / **`cai_agent.__version__`** 为准（若尚未 bump 至 0.7.0，以仓库实际为准）。*

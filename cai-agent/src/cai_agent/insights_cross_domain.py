@@ -1,4 +1,8 @@
-"""Hermes S7-03：``insights --cross-domain`` 按 UTC 日历日对齐的趋势序列。"""
+"""Hermes S7-03：``insights --cross-domain`` 按 UTC 日历日对齐的趋势序列。
+
+``recall_hit_rate_trend`` 中 ``hit_rate`` 为 **索引子串探测**（固定 ``probe_query``），
+与 ``cai-agent recall`` 查询命中率不同；根级 ``recall_hit_rate_metric_kind`` 标明语义。
+"""
 
 from __future__ import annotations
 
@@ -123,6 +127,7 @@ def build_insights_cross_domain_v1(
                 {
                     "ts": ts_iso,
                     "date": dk,
+                    "metric_kind": "index_probe",
                     "hit_rate": rsum.get("hit_rate"),
                     "indexed_rows": int(rsum.get("indexed_rows") or 0),
                     "probe_hits": int(rsum.get("probe_hits") or 0),
@@ -135,6 +140,8 @@ def build_insights_cross_domain_v1(
                 {
                     "ts": ts_iso,
                     "date": dk,
+                    "metric_kind": "unavailable",
+                    "metric_unavailability_reason": "index_missing",
                     "hit_rate": None,
                     "indexed_rows": 0,
                     "probe_hits": 0,
@@ -167,6 +174,11 @@ def build_insights_cross_domain_v1(
     return {
         "schema_version": "insights_cross_domain_v1",
         "generated_at": clock.isoformat(),
+        "recall_hit_rate_metric_kind": "index_probe",
+        "recall_hit_rate_metric_note": (
+            "hit_rate is derived from recall-index rows and a fixed substring probe_query; "
+            "it is not the same metric as `cai-agent recall` query hit-rate (see S7-03 backlog)."
+        ),
         "window": {
             "days": ndays,
             "since": datetime(start_d.year, start_d.month, start_d.day, tzinfo=UTC).isoformat(),

@@ -10,6 +10,10 @@
 - **TUI 任务看板**：**`/tasks`** 与 **`Ctrl+B`** 只读面板（**`.cai-schedule.json`** 与 **`.cai/last-workflow.json`**），实现见 **`tui_task_board.py`**。
 - **Hooks `script` 自动执行**：**`hook_runtime.py`** 除 **`command[]`** 外解析 **`script`**（`.py`/`.sh`/`.ps1`/`.cmd`/`.bat`），含路径逃逸防护与平台规范化；**`hooks/README.md`** 已更新。
 - **`memory validate-entries`**：新子命令 → **`memory_entries_file_validate_v1`**；无脏行 exit **`0`**，有无效行 exit **`2`**；底层为 **`build_memory_entries_jsonl_validate_report`**。
+- **`memory/entries.jsonl` 写入门禁**：**`append_memory_entry`** / **`import_memory_entries_bundle`** 在追加前要求已有文件通过 **`validate-entries`** 同源行级校验（**`require_memory_entries_jsonl_clean_before_write`**）；**`memory extract`** 写条目前预检，脏数据时 stdout JSON **`ok: false`** 且 exit **`2`**。救急：**`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**。
+- **`auto_extract_skill_after_task` LLM 草稿**：可选 **`settings`**，在具备 **API key** 且非 **mock** 时经 **`chat_completion_by_role`** 生成 Markdown；返回 **`draft_method`**（**`llm`** | **`template`**）。
+- **`insights --json --cross-domain`**：**`insights_cross_domain_v1`** 增加 **`recall_hit_rate_metric_kind`**（**`index_probe`**）、**`recall_hit_rate_metric_note`**，且 **`recall_hit_rate_trend`** 每行含 **`metric_kind`**（**`index_probe`/`unavailable`**）与无索引时的 **`metric_unavailability_reason`**，避免将索引子串探测命中率与 **`recall`** 查询命中率混淆。
+- **文档**：新增 **`docs/qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md`**（与 **PRODUCT_PLAN** T7 对齐的发版手工门禁清单）。
 - **`memory extract --structured`**：可选 LLM 结构化抽取；mock/无 key 时回退启发式（**`extract_memory_entries_structured`**）。
 - **子 Agent IO schema v1.1**：`workflow` JSON 提升 **`subagent_io_schema_version`** 至 **`1.1`**；每步含 **`agent_template_id`**（与 **`agents/`** 目录匹配）及来自 **`protocol`** 的 **`rpc_step_input`/`rpc_step_output`**。
 - **Workflow 后置 quality-gate 联动**：workflow JSON root 新增 **`quality_gate`**（`true` 或对象，可覆盖 **`compile`** / **`test`** / **`lint`** / **`typecheck`** / **`security_scan`** / **`report_dir`**）。当 workflow 本身成功时，`run_workflow` 自动执行一次后置 **`quality-gate`**，输出追加 **`quality_gate`** 摘要与可选 **`post_gate`**（**`quality_gate_result_v1`**），事件流新增 **`workflow.quality_gate.*`**，gate 失败时 `task.error` 为 **`workflow_quality_gate_failed`**。
@@ -26,7 +30,7 @@
 - **`doctor` `.cai/` 健康**：**`build_doctor_cai_dir_health`** 将网关映射存在性与 **`hooks.json`** 合法性并入 JSON 与文本 **`doctor`** 输出。
 - **技能自动建议钩子**：设置 **`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 自动 **`build_skill_evolution_suggest`** 并 dry-run 落盘 **`skills/_evolution_*.md`**。
 - **文档**：新增 **`docs/ONBOARDING.zh-CN.md`**；**`docs/TOOLS_REGISTRY.zh-CN.md`** 汇总 13 个工具与权限键。
-- **测试**：**`test_memory_validate_entries_cli.py`**、**`test_hook_runtime.py`**（script hook）；**`test_plan_sessions_cli.py`** / **`test_cli_workflow.py`** / **`test_gateway_telegram_execute_goal.py`** / **`test_session_observe.py`** / **`test_stats_json.py`** / **`test_cli_board_and_workflow_snapshot.py`** 等随 schema 版本升级同步，并补齐 workflow 后置 gate 覆盖。
+- **测试**：**`test_memory_validate_entries_cli.py`**、**`test_hook_runtime.py`**（script hook）；**`test_plan_sessions_cli.py`** / **`test_cli_workflow.py`** / **`test_gateway_telegram_execute_goal.py`** / **`test_session_observe.py`** / **`test_stats_json.py`** / **`test_cli_board_and_workflow_snapshot.py`** 等随 schema 版本升级同步，并补齐 workflow 后置 gate 覆盖；**`test_memory_entry_validate.py`** / **`test_memory_state_machine_cli.py`** / **`test_memory_import_entries_cli.py`**（**`entries.jsonl`** 写入门禁）；**`test_skills_auto_extract_hub_serve.py`**（LLM 草稿路径）。
 
 ### 0.6.18（2026-04-23）
 

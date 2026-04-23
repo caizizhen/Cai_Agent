@@ -231,6 +231,34 @@ class MemoryImportEntriesCliTests(unittest.TestCase):
             self.assertEqual(payload.get("imported"), 1)
             self.assertTrue((root / "memory" / "entries.jsonl").is_file())
 
+    def test_import_entries_rejects_when_existing_entries_dirty(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            mem = root / "memory"
+            mem.mkdir(parents=True, exist_ok=True)
+            (mem / "entries.jsonl").write_text('{"invalid":true}\n', encoding="utf-8")
+            bundle = {
+                "schema_version": "memory_entries_bundle_v1",
+                "entries": [
+                    {
+                        "id": "imp-2",
+                        "category": "unit",
+                        "text": "ok",
+                        "confidence": 0.6,
+                        "expires_at": None,
+                        "created_at": "2022-02-02T00:00:00+00:00",
+                    },
+                ],
+            }
+            bundle_path = root / "bundle.json"
+            bundle_path.write_text(json.dumps(bundle, ensure_ascii=False) + "\n", encoding="utf-8")
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stderr(err):
+                    rc = main(["memory", "import-entries", str(bundle_path)])
+            self.assertEqual(rc, 2)
+            self.assertIn("validate-entries", err.getvalue())
+
 
 if __name__ == "__main__":
     unittest.main()

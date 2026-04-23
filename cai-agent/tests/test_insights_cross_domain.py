@@ -42,12 +42,16 @@ class InsightsCrossDomainTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             doc = json.loads(buf.getvalue().strip())
             self.assertEqual(doc.get("schema_version"), "insights_cross_domain_v1")
+            self.assertEqual(doc.get("recall_hit_rate_metric_kind"), "index_probe")
+            self.assertIsInstance(doc.get("recall_hit_rate_metric_note"), str)
             self.assertEqual(doc.get("insights", {}).get("schema_version"), "1.1")
             self.assertEqual(len(doc.get("recall_hit_rate_trend") or []), 4)
             self.assertEqual(len(doc.get("memory_health_trend") or []), 4)
             self.assertEqual(len(doc.get("schedule_success_trend") or []), 4)
             r0 = (doc.get("recall_hit_rate_trend") or [])[0]
             self.assertEqual(r0.get("no_index_reason"), "index_missing")
+            self.assertEqual(r0.get("metric_kind"), "unavailable")
+            self.assertEqual(r0.get("metric_unavailability_reason"), "index_missing")
 
     def test_schedule_aggregate_by_day_counts_completed(self) -> None:
         with TemporaryDirectory() as td:
@@ -117,8 +121,10 @@ class InsightsCrossDomainTests(unittest.TestCase):
             doc = json.loads(buf.getvalue().strip())
             trends = doc.get("recall_hit_rate_trend") or []
             today_tr = next(t for t in trends if t.get("date") == datetime.now(UTC).date().isoformat())
+            self.assertEqual(today_tr.get("metric_kind"), "index_probe")
             self.assertIsNotNone(today_tr.get("hit_rate"))
             self.assertEqual(int(today_tr.get("indexed_rows") or 0), 2)
+            self.assertEqual(doc.get("recall_hit_rate_metric_kind"), "index_probe")
 
 
 if __name__ == "__main__":

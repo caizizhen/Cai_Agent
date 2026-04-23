@@ -358,7 +358,7 @@
 - **测试用例 ID**：OBS-CROSS-001 ~ OBS-CROSS-006
 - **依赖**：S7-02，S2-01，S3-01
 - **估算**：L
-- **主线交付注（`0.6.7`）**：**`insights --json --cross-domain`** → **`insights_cross_domain_v1`**；三条趋势 **`recall_hit_rate_trend`**（索引子串 **`the`** / 无索引 **`index_missing`**）、**`memory_health_trend`**（按日 **`build_memory_health_payload`** + 会话 **mtime** 窗）、**`schedule_success_trend`**（**`aggregate_schedule_audit_by_calendar_day_utc`**）。与 AC 字面「**`recall_hit_rate_trend`**」对齐的可演进项：后续可改为真实 recall 命中率统计。
+- **主线交付注（`0.6.7`）**：**`insights --json --cross-domain`** → **`insights_cross_domain_v1`**；三条趋势 **`recall_hit_rate_trend`**（索引子串 **`the`** / 无索引 **`index_missing`**）、**`memory_health_trend`**（按日 **`build_memory_health_payload`** + 会话 **mtime** 窗）、**`schedule_success_trend`**（**`aggregate_schedule_audit_by_calendar_day_utc`**）。**`recall_hit_rate_metric_kind`=`index_probe`** 与 **`recall_hit_rate_metric_note`** 标明 **`hit_rate`** 语义；**`recall_hit_rate_trend[]`** 行内 **`metric_kind`**（**`index_probe`/`unavailable`**）避免与 **`recall`** 查询命中率混淆。与 AC 字面「**`recall_hit_rate_trend`**」对齐的可演进项：后续可改为真实 recall 命中率统计。
 
 ### S7-04 运营看板导出（JSON/CSV/Markdown）
 - **Story**：作为运营，我希望能把关键指标一键导出为多种格式，直接粘贴进例会文档或导入 BI 工具。

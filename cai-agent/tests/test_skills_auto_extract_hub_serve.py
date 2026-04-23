@@ -8,7 +8,9 @@ import sys
 import threading
 import time
 import urllib.request
+from dataclasses import dataclass
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -28,11 +30,19 @@ def _cli(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str
         timeout=30,
     )
 
+from cai_agent import skills as skills_mod
 from cai_agent.skills import (
     auto_extract_skill_after_task,
     build_skills_hub_manifest,
     serve_skills_hub,
 )
+
+
+@dataclass
+class _FakeSkillExtractSettings:
+    mock: bool = False
+    api_key: str = "sk-test"
+    profiles: tuple[object, ...] = (object(),)
 
 
 # ---------------------------------------------------------------------------
@@ -48,6 +58,7 @@ def test_auto_extract_skill_writes_file(tmp_path: Path) -> None:
         write=True,
     )
     assert result["schema_version"] == "skills_auto_extract_v1"
+    assert result.get("draft_method") == "template"
     assert result["written"] is True
     skill_path = tmp_path / result["suggested_path"]
     assert skill_path.is_file()
@@ -75,6 +86,44 @@ def test_auto_extract_skill_goal_preview(tmp_path: Path) -> None:
     long_goal = "x" * 200
     result = auto_extract_skill_after_task(root=tmp_path, goal=long_goal, write=False)
     assert len(result["goal_preview"]) <= 120
+
+
+def test_auto_extract_skill_llm_path_uses_drafted_body(tmp_path: Path) -> None:
+    llm_body = (
+        "# Auto-extracted Skill Draft\n\n"
+        "## 任务目标\n\nDo X\n\n"
+        "## 答案摘要\n\nDone\n\n"
+        "## 可复用步骤建议\n\n- step one\n\n"
+        "## 注意事项 / 坑\n\n- none\n"
+    )
+    with patch.object(skills_mod, "_draft_skill_markdown_via_llm", return_value=llm_body):
+        result = auto_extract_skill_after_task(
+            root=tmp_path,
+            goal="实现缓存",
+            answer="使用 LRU。",
+            write=True,
+            settings=_FakeSkillExtractSettings(),
+        )
+    assert result.get("draft_method") == "llm"
+    p = tmp_path / result["suggested_path"]
+    text = p.read_text(encoding="utf-8")
+    assert "step one" in text
+    assert "## 后续" in text
+    assert "<!-- TODO" not in text
+
+
+def test_auto_extract_skill_falls_back_when_llm_returns_none(tmp_path: Path) -> None:
+    with patch.object(skills_mod, "_draft_skill_markdown_via_llm", return_value=None):
+        result = auto_extract_skill_after_task(
+            root=tmp_path,
+            goal="回退测试",
+            answer="答案",
+            write=True,
+            settings=_FakeSkillExtractSettings(),
+        )
+    assert result.get("draft_method") == "template"
+    p = tmp_path / result["suggested_path"]
+    assert "<!-- TODO" in p.read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@
 
 ### 状态与观测
 
+- [本轮已落地] **`insights --json --cross-domain`**：**`insights_cross_domain_v1`** 增加 **`recall_hit_rate_metric_kind`/`recall_hit_rate_metric_note`** 与 **`recall_hit_rate_trend[]`** 行级 **`metric_kind`**，避免将索引子串探测与 **`recall`** 查询命中率混淆（S7-03 诚实标注）
 - [本轮已落地] 会话落盘与 **`run_schema_version`**（当前 **`1.1`**）对齐；**`session_events.wrap_run_events`**
 - [本轮已落地] 结构化进度流：**`progress_ring.py`** + **`graph._emit`** 写入 ring；**`run --json`** 含 **`progress_ring`** 摘要
 
@@ -56,7 +57,8 @@
 
 ### 记忆
 
-- [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**（写入前全量 schema 校验仍为演进项）
+- [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**
+- [本轮已落地] **`append_memory_entry` / `import_memory_entries_bundle` 写入前** 对已有 `entries.jsonl` 做与 validate-entries **同源**的整文件洁净性门禁（脏文件拒绝追加；救急：`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`）；**`memory extract`** 在写条目前同样预检并 JSON 报错退出
 - 记忆 TTL/置信度策略与 `memory prune` 规则文档化
 - [本轮已落地] `memory nudge` schema 升级到 `1.1`：增加 `threshold_policy`、`risk_score`、`trend`，并保持 `severity/actions` 兼容字段
 - [本轮已落地] `memory extract --structured` 可选 LLM 结构化抽取（mock 回退启发式）
@@ -95,7 +97,7 @@
 - [本轮已落地] **§23 RPC 标准 IO + 内置工作流模板**：`RpcStepInput` / `RpcStepOutput` TypedDict（`rpc_step_input_v1` / `rpc_step_output_v1`）；`workflow --templates` 列出内置模板；`workflow --template <name> --goal <text>` 执行内置模板；三套内置模板：`explore-implement-review`、`security-audit`、`parallel-research`；`test_workflow_templates_rpc.py`（14 cases）
 - [本轮已落地] **§24 Discord Bot Polling MVP**：`gateway discord serve-polling [--token TOKEN] [--channel CHANNEL_ID] [--poll-interval N]`；bind/unbind/get/list/allow/deny 映射管理；`gateway_discord.py`；`test_gateway_discord_slack_cli.py`（19 cases）
 - [本轮已落地] **§24 Slack Events API Webhook MVP**：`gateway slack serve-webhook [--signing-secret S] [--bot-token T] [--host H] [--port P]`；HMAC 签名验证；bind/allow 映射管理；`gateway_slack.py`；`gateway platforms list --json` 中 Discord/Slack 状态升级为 `mvp`
-- [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(task_id, summary, ...)` 任务完成后自动写回 `skills/_evolution_<id>.md`；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py`（8 cases）
+- [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(..., settings=...)` 在具备 **API key** 且非 **mock** 时经 **`chat_completion_by_role`** 生成 Markdown 草稿（**`draft_method`=`llm`**；失败回退 **`template`**）；否则仍为占位模板；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py` 已扩 case
 - [本轮已落地] **§26 运营面板 HTML 导出**：`ops dashboard --format html [-o FILE]` 生成自包含单文件 HTML 仪表盘（KPI 卡片、调度 SLA 表、Top 工具表）；`build_ops_dashboard_html(payload)` 函数；`test_ops_dashboard_html.py`（10 cases）
 
 ### 导出与生态

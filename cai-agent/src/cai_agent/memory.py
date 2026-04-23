@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
 from dataclasses import dataclass
@@ -100,6 +101,7 @@ def append_memory_entry(
     if bad:
         msg = "; ".join(bad)
         raise ValueError(msg)
+    require_memory_entries_jsonl_clean_before_write(root)
     path = _entries_path(root)
     with path.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
@@ -207,6 +209,34 @@ def build_memory_entries_jsonl_validate_report(root: str | Path) -> dict[str, An
     }
 
 
+def _memory_entries_jsonl_write_guard_disabled() -> bool:
+    return os.environ.get("CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
+        "on",
+    )
+
+
+def require_memory_entries_jsonl_clean_before_write(root: str | Path) -> None:
+    """在追加写入 ``memory/entries.jsonl`` 前要求整文件无无效行（与 validate-entries 同源规则）。
+
+    可通过环境变量 ``CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`` 跳过（迁移/救急）。
+    """
+    if _memory_entries_jsonl_write_guard_disabled():
+        return
+    rep = build_memory_entries_jsonl_validate_report(root)
+    if not rep.get("exists"):
+        return
+    if rep.get("ok"):
+        return
+    raise ValueError(
+        "memory/entries.jsonl 存在未通过 memory_entry_v1 校验的行；"
+        "请先运行 `cai-agent memory validate-entries` 修复后再写入。"
+        "若需临时跳过检查，可设置环境变量 CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1。"
+    )
+
+
 def export_memory_entries_bundle(root: str | Path) -> dict[str, Any]:
     valid, warnings = load_memory_entries_validated(root)
     return {
@@ -235,6 +265,7 @@ def import_memory_entries_bundle(root: str | Path, bundle: dict[str, Any]) -> in
             msg = f"entries[{i}] schema 无效: " + "; ".join(errs)
             raise ValueError(msg)
         to_write.append(row)
+    require_memory_entries_jsonl_clean_before_write(root)
     path = _entries_path(root)
     with path.open("a", encoding="utf-8") as f:
         for row in to_write:
