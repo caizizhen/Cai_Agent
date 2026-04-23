@@ -3,9 +3,9 @@
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
-``plugins``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
+``plugins --json --with-compat-matrix``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
-``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json``, plus
+``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json`` + ``memory user-model export``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -228,7 +228,14 @@ def main() -> int:
         errs.append("smoke expects repo-root cai-agent.toml for plugins/doctor --json")
     else:
         pp = _run(
-            [*cli, "plugins", "--json", "--config", str(cfg_repo)],
+            [
+                *cli,
+                "plugins",
+                "--json",
+                "--with-compat-matrix",
+                "--config",
+                str(cfg_repo),
+            ],
             cwd=str(root),
         )
         if pp.returncode != 0:
@@ -240,6 +247,13 @@ def main() -> int:
             comps = po.get("components")
             if not isinstance(comps, dict):
                 errs.append("plugins components not object")
+            cm = po.get("compat_matrix")
+            if not isinstance(cm, dict):
+                errs.append("plugins compat_matrix not object")
+            elif cm.get("schema_version") != "plugin_compat_matrix_v1":
+                errs.append(
+                    f"plugins compat_matrix schema_version {cm.get('schema_version')!r}",
+                )
         pd = _run(
             [*cli, "doctor", "--json", "--config", str(cfg_repo)],
             cwd=str(root),
@@ -252,6 +266,13 @@ def main() -> int:
                 errs.append(f"doctor schema_version {do.get('schema_version')!r}")
             if not isinstance(do.get("workspace"), str) or not str(do.get("workspace")).strip():
                 errs.append("doctor workspace missing")
+            plug = do.get("plugins")
+            if not isinstance(plug, dict):
+                errs.append("doctor plugins not object")
+            else:
+                dcm = (plug.get("compat_matrix") or {}).get("schema_version")
+                if dcm != "plugin_compat_matrix_v1":
+                    errs.append(f"doctor plugins.compat_matrix schema_version {dcm!r}")
         pmcp = _run(
             [*cli, "mcp-check", "--json", "--list-only", "--config", str(cfg_repo)],
             cwd=str(root),
@@ -526,6 +547,16 @@ def main() -> int:
                 errs.append(f"memory user-model schema_version {um.get('schema_version')!r}")
             if um.get("honcho_parity") not in ("stub", "behavior_extract"):
                 errs.append(f"memory user-model honcho_parity {um.get('honcho_parity')!r}")
+        pume = _run([*cli, "memory", "user-model", "export", "--days", "7"], cwd=mh_td)
+        if pume.returncode != 0:
+            errs.append(f"memory user-model export exit {pume.returncode} stderr={pume.stderr!r}")
+        else:
+            ub = json.loads((pume.stdout or "").strip())
+            if ub.get("schema_version") != "user_model_bundle_v1":
+                errs.append(f"memory user-model export schema_version {ub.get('schema_version')!r}")
+            ubo = ub.get("overview")
+            if not isinstance(ubo, dict) or ubo.get("schema_version") != "memory_user_model_v1":
+                errs.append("memory user-model export overview missing or wrong schema")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)

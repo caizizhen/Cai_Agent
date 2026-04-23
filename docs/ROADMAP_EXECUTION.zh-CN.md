@@ -14,21 +14,18 @@
 
 ### 2) 统一命令入口
 - 现状：`plan/run/continue/commands/command/agents/agent/workflow` 已形成主链路
-- 下一步：
-  - 补齐 `fix-build`、`security-scan` 命令模板与 CLI 快捷入口
-  - 在 TUI 中映射常用命令模板
+- **已落地（主线）**：`fix-build` / `security-scan` 命令与 `commands/` 模板；TUI **`/fix-build`**、**`/security-scan`**（见 **NEXT_IMPLEMENTATION_BUNDLE** 补记）。
+- **仍属演进 / 非阻塞**：更多斜杠模板与「一键组合」可按 Sprint 再增。
 
 ### 3) 权限与安全最小体系
 - 现状：`sandbox.py` 路径越界防护 + `tools.py` 命令白名单
-- 下一步：
-  - 增加敏感信息扫描命令（针对 prompt 与文件）
-  - 增加高危命令二次确认策略（可配置）
+- **已落地（主线）**：**`pii-scan`**（**`pii_scan_result_v1`**）；**`run_command_approval_mode`** + **`run_command_high_risk_patterns`**（高危命令二次确认）。
+- **仍属演进**：针对 **prompt 内联** 的专项扫描策略、更多规则集可按需迭代。
 
 ### 4) 任务状态与可观测
 - 现状：`sessions`、`stats`、`workflow` 已有最小统计
-- 下一步：
-  - 统一任务 ID 与状态流（pending/running/completed/failed）
-  - 输出结构化事件日志，支持后续 Dashboard 消费
+- **已落地（主线）**：**`task_id`** 贯通 run/continue/workflow/sessions/observe；**`run`/`continue` JSON** 含 **`run_events_envelope_v1`**；**`board`/`observe`/`insights`** 等同源事件聚合。
+- **仍属演进**：面向 **Dashboard 消费** 的独立事件总线 / 动态运营 Web 见 **§P2** 与 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)。
 
 ## P1（4-8 周）效率引擎
 
@@ -36,48 +33,43 @@
 
 ### 1) 记忆与学习系统 v1
 - 目标：将会话经验沉淀为可检索“项目记忆”
-- 里程碑：
-  - 定义记忆 schema（来源、置信度、TTL）
-  - 支持导入导出与检索排序
+- **已落地（主线）**：`memory` 全家桶、**`memory health`/`state`/`nudge`**、**`validate-entries`/`extract --structured`**、**`[models.routing]`** 之外的 **TTL/置信度** 策略见 [`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)。
+- **仍属演进**：更重的 **Honcho 级用户建模** 见 RFC [`docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md)。
 
 ### 2) 上下文与成本治理
 - 目标：把 token/cost 从“统计”升级为“策略”
-- 里程碑：
-  - 模型路由建议（复杂任务高配，常规任务低成本）
-  - compact 建议时机（研究完成、里程碑后、失败重试前）
+- **已落地（主线）**：**`models suggest`**；**`[models.routing]`** + **`models routing-test`**（含成本条件）；**`compact_hint` 与 `cost_budget_max_tokens` 约 85% 联动**（见 **PRODUCT_PLAN** / **CHANGELOG 0.7.0**）。
+- **仍属演进**：更细的「按会话阶段自动切 profile」与 **Dashboard 成本视图**。
 
 ### 3) 多 Agent 编排 v1
 - 目标：提供“探索-实现-评审”模板化协作
-- 里程碑：
-  - 标准子代理输入/输出协议
-  - 汇总冲突检测与结果融合
+- **已落地（主线）**：**`workflow --templates`**、**`subagent_io_schema_version`=`1.1`**、**`parallel_group`**、**`on_error`/`budget_*`**、**`quality_gate` 后置** 等（见 **PRODUCT_PLAN §二 23**）。
+- **仍属演进**：更丰富的 **冲突融合策略 UI** 与可视化编排。
 
 ### 4) 质量门禁
 - 已落地：
   - `cai-agent quality-gate`（compileall、pytest、可选 ruff、可选 mypy、可选 `[[quality_gate.extra]]`、可选内嵌 security-scan）
   - 模块：`cai-agent/src/cai_agent/quality_gate.py`
-- 下一步：
-  - 按仓库语言栈扩展默认 gate 模板（如前端 monorepo）
-  - 报告与 CI 徽章消费示例
+- **已落地（增量）**：**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**；**`security-scan --badge`**（**`security_badge_v1`**）。
+- **仍属演进**：更多语言栈默认模板；**CI 徽章**消费示例与文档外链。
 
 ## P2（8-12 周）生态与平台化
 
 ### 1) 跨工具兼容层
 - 目标：对齐 Cursor/Codex/OpenCode 主要配置维度
-- 输出物：
-  - 兼容性映射规范：`docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`
-  - 配置生成脚本（目标格式转换）
+- **已落地（主线）**：**`cai-agent export --target`**；人读/机读映射 **[`CROSS_HARNESS_COMPATIBILITY.zh-CN.md`](CROSS_HARNESS_COMPATIBILITY.zh-CN.md)** / **[`CROSS_HARNESS_COMPATIBILITY.md`](CROSS_HARNESS_COMPATIBILITY.md)**；**`plugin_compat_matrix_v1`**（**`plugins --json --with-compat-matrix`** / **`doctor`**）。
+- **仍属演进**：更多目标格式的 **一键转换脚本** 与 ECC 深度对齐。
 
 ### 2) 可视化运营面板
 - 目标：从“命令行可用”升级到“团队可运营”
-- 指标：
-  - 任务队列、失败率、token 成本、规则命中、安全告警
+- **已落地（MVP + Phase A/B）**：**`ops dashboard`**（JSON / HTML 单文件；**`--html-refresh-seconds`**）；**`ops serve`** 只读 HTTP（与 **`ops_dashboard_v1`** 同源）；契约见 **PRODUCT_PLAN §二 26** 与 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)。
+- **仍属演进**：Phase C（SSE / 实时队列 / RBAC 等）同上文档。
 
 ### 3) 插件市场与版本治理
 - 目标：形成可发布、可回滚、可评估的生态机制
 - 里程碑：
-  - 插件版本兼容矩阵
-  - 插件健康评分与风险提示
+  - **插件版本兼容矩阵**（**已落地**：`plugin_compat_matrix_v1` + `doctor`/`plugins` 消费路径；见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md)）
+  - 插件健康评分与风险提示（**已有** `plugins_surface_v1.health_score`；后续可做阈值告警与 CHANGELOG 联动）
 
 ## 推荐 KPI
 

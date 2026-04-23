@@ -32,14 +32,15 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Multi-step workflow | `cai-agent workflow workflow.json --json` (root `merge_strategy`, **`on_error`**: `fail_fast` / `continue_on_error`, optional **`budget_max_tokens`** + summary **`budget_*`**, optional root **`quality_gate`** + **`post_gate`** result; steps may set **`parallel_group`**) |
 | Quality gate / CI | `cai-agent quality-gate --json` (optional `--report-dir DIR`; `[quality_gate]` `test_policy` / `lint_policy`: `skip` or `fail_if_missing`) |
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
-| Memory | `cai-agent memory extract` → `memory/entries.jsonl` (stdout JSON **`memory_extract_v1`**); **`memory list --json`** → **`memory_list_v1`** with **`entries`**; **`memory search --json`** → **`memory_search_v1`**; instinct paths via **`memory instincts --json`** (**`memory_instincts_list_v1`**); **`memory export --json`** / **`export-entries --json`** → **`memory_instincts_export_v1`** / **`memory_entries_export_result_v1`** (optional; default stdout is still the output path); `memory prune`; **`memory health --json`** (Hermes parity: `health_score`, `grade`, `freshness` / `coverage` / `conflict_rate`, `--fail-on-grade`, `--max-conflict-compare-entries`); health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`); historical trend via `memory nudge-report --json` (`schema_version=1.2`, `health_score`, `freshness`, `--freshness-days`, `severity_jumps`); one-step schedule preset via `schedule add-memory-nudge` |
+| Memory | `cai-agent memory extract` → `memory/entries.jsonl` (stdout JSON **`memory_extract_v1`**); **`memory list --json`** → **`memory_list_v1`** with **`entries`**; **`memory search --json`** → **`memory_search_v1`**; instinct paths via **`memory instincts --json`** (**`memory_instincts_list_v1`**); **`memory export --json`** / **`export-entries --json`** → **`memory_instincts_export_v1`** / **`memory_entries_export_result_v1`** (optional; default stdout is still the output path); `memory prune`; **`memory health --json`** (Hermes parity: `health_score`, `grade`, `freshness` / `coverage` / `conflict_rate`, `--fail-on-grade`, `--max-conflict-compare-entries`); health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`); historical trend via `memory nudge-report --json` (`schema_version=1.2`, `health_score`, `freshness`, `--freshness-days`, `severity_jumps`); **`memory user-model --json`** → **`memory_user_model_v1`** (`honcho_parity: behavior_extract`); **`memory user-model export`** → **`user_model_bundle_v1`** (archival bundle); one-step schedule preset via `schedule add-memory-nudge` |
 | Memory state machine | `cai-agent memory state --json` → `active/stale/expired` distribution; `memory list --json` includes per-entry `state` / `state_reason`; `memory prune --drop-non-active` (optional `--state-stale-after-days`, `--state-min-active-confidence`) |
 | Gateway Telegram MVP | `cai-agent gateway telegram bind|get|list|unbind`; `resolve-update`; `serve-webhook --execute-on-update --reply-on-execution --telegram-bot-token ...` |
 | Release gate matrix | `cai-agent release-ga --json --with-memory-state --memory-max-stale-ratio 0.5 --memory-max-expired-ratio 0.1` (+ existing `--with-doctor`, `--with-memory-nudge`) |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
-| Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
-| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic) |
+| Ops dashboard | `cai-agent ops dashboard --format json|text|html` ( **`ops_dashboard_v1`** ); HTML supports **`--html-refresh-seconds`** ( **`meta refresh`** ); **`cai-agent ops serve`** exposes **`GET /v1/ops/dashboard`** and **`GET /v1/ops/dashboard.html`** (read-only HTTP sidecar; optional **`CAI_OPS_API_TOKEN`** ); see **`docs/OPS_DYNAMIC_WEB_API.md`** |
+| Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.md` and `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
+| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic); **`--with-compat-matrix`** emits **`plugin_compat_matrix_v1`** — human notes: `docs/PLUGIN_COMPAT_MATRIX.md` / `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` |
 
 ### Permissions (tools)
 
@@ -65,17 +66,21 @@ Do not commit real API keys.
 | `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
 | `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
 | `docs/PRODUCT_PLAN.zh-CN.md` | **Single execution plan**: Hermes gap summary, ordered dev items, test progress |
+| `docs/IMPLEMENTATION_STATUS.md` | Rolling “what shipped / what is open” (EN); Chinese: `docs/IMPLEMENTATION_STATUS.zh-CN.md` |
+| `docs/OPS_DYNAMIC_WEB_API.md` | Dynamic ops web: HTTP contract + Phase A–C scope (EN); Chinese: `docs/OPS_DYNAMIC_WEB_API.zh-CN.md` |
 | `docs/schema/README.zh-CN.md` | JSON `--json` schema index (`schema_version`, fields, exit conventions; S1-02) |
 | `docs/HERMES_PARITY_BACKLOG.zh-CN.md` | Hermes-aligned story backlog (importable IDs + AC) |
 | `docs/HERMES_PARITY_PROGRESS.zh-CN.md` | Hermes parity progress rollup vs backlog |
 | `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
 | `docs/MODEL_SWITCHER_BACKLOG.zh-CN.md` | Feature pack: in-UI model switcher + profile management + routing |
+| `docs/MODEL_ROUTING_RULES.md` / `docs/MODEL_ROUTING_RULES.zh-CN.md` | Declarative `[models.routing]` + `models routing-test` |
 | `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA); Sprint 3 acceptance is §4 |
 | `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` | P1 decision: MCP-first WebSearch/Notebook + how `board --json` aligns with `observe` |
 | `docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md` | Optimization backlog vs claude-code + ECC; Dev/QA sync |
 | `docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` | Hermes parity sprint plan (companion to PRODUCT_PLAN) |
 | `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
-| `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
+| `docs/CROSS_HARNESS_COMPATIBILITY.md` / `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
+| `docs/PLUGIN_COMPAT_MATRIX.md` / `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` | Machine-readable plugin ↔ harness matrix (`plugin_compat_matrix_v1`) |
 | `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md` | Long-form backlog vs fusion vision |
 | `docs/MCP_WEB_RECIPE.zh-CN.md` | MCP-only web/search alternative to `fetch_url` |
 | `docs/QA_REGRESSION_LOGGING.md` | QA: where regression Markdown logs go; `QA_LOG_DIR` / `QA_SKIP_LOG` |
@@ -188,7 +193,7 @@ The workflow JSON root also accepts `quality_gate: true | {...}`. When the workf
   - **Safety**: path confinement, command allowlist, read-only git tools, MCP timeouts/auth.
 - **Content**: `rules/common`, `rules/python`, `skills/`, plus `commands/`, `agents/`, `hooks/` as the extensibility surface.
 
-See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/PRODUCT_PLAN.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
+See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/PRODUCT_PLAN.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/PLUGIN_COMPAT_MATRIX.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
 
 ## Architecture (high level)
 
@@ -604,7 +609,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-`scripts/run_regression.py` (from the repo root) prepends `cai-agent/src` on `PYTHONPATH` and shells **`python -m cai_agent`** for CLI checks; it also runs **`scripts/smoke_new_features.py`**, which uses the same **`python -m cai_agent`** entrypoint for JSON envelope checks (`plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `mcp-check --json`, `sessions` / `observe-report` in an empty temp cwd, `hooks list` + `hooks run-event --dry-run --json`, `plugins --json`, `doctor --json`, `insights --json`, `board --json`, `memory health` + `memory state --json`, `init --json`, `schedule add|list|rm|stats --json`, `gateway telegram list --json`, `recall --json`, and `memory list|search|export|export-entries --json` in temporary workspace cwds where applicable). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
+`scripts/run_regression.py` (from the repo root) prepends `cai-agent/src` on `PYTHONPATH` and shells **`python -m cai_agent`** for CLI checks; it also runs **`scripts/smoke_new_features.py`**, which uses the same **`python -m cai_agent`** entrypoint for JSON envelope checks (`plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`, plus `mcp-check --json`, `sessions` / `observe-report` in an empty temp cwd, `hooks list` + `hooks run-event --dry-run --json`, `plugins --json --with-compat-matrix`, `doctor --json`, `insights --json`, `board --json`, `memory health` + `memory state --json`, `memory user-model --json`, `memory user-model export`, `ops dashboard --json`, `init --json`, `schedule add|list|rm|stats --json`, `gateway telegram list --json`, `recall --json`, and `memory list|search|export|export-entries --json` in temporary workspace cwds where applicable). `mcp-check` may exit `2` when MCP is disabled; the script treats that as OK. If no inference server is reachable, `models` may fail unless you set `REGRESSION_STRICT_MODELS=1` to require a successful `models` call (for environments where the gateway is always up).
 
 **Regression audit trail**: each successful or failed run writes a timestamped Markdown report under `docs/qa/runs/` (override with `QA_LOG_DIR`; disable with `QA_SKIP_LOG=1`). See `docs/QA_REGRESSION_LOGGING.md` (English) and `docs/QA_REGRESSION_LOGGING.zh-CN.md` (Chinese).
 

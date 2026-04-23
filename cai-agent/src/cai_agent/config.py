@@ -6,6 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from cai_agent.model_routing import (
+    ModelRoutingRule,
+    model_routing_enabled as _model_routing_enabled_from_toml,
+    parse_model_routing_section,
+)
 from cai_agent.profiles import (
     KNOWN_PROVIDERS,
     Profile,
@@ -225,6 +230,8 @@ class Settings:
     quality_gate_extra_commands: tuple[tuple[str, ...], ...]
     context_compact_after_iterations: int
     context_compact_min_messages: int
+    context_compact_on_tool_error: bool
+    context_compact_after_tool_calls: int
     security_scan_exclude_globs: tuple[str, ...]
     security_scan_rule_overrides: tuple[tuple[str, bool], ...]
     permission_write_file: str
@@ -252,6 +259,9 @@ class Settings:
     active_profile_id: str
     subagent_profile_id: str | None
     planner_profile_id: str | None
+    # [models.routing]：按 goal 与 role 覆盖 profile（见 model_routing.py）。
+    model_routing_enabled: bool
+    model_routing_rules: tuple[ModelRoutingRule, ...]
     active_api_key_env: str | None
     anthropic_version: str
     anthropic_max_tokens: int
@@ -499,6 +509,29 @@ class Settings:
             context_compact_min_messages = max(0, int(cmm))
         else:
             context_compact_min_messages = 8
+
+        if os.getenv("CAI_CONTEXT_COMPACT_ON_TOOL_ERROR") is not None:
+            context_compact_on_tool_error = _env_bool("CAI_CONTEXT_COMPACT_ON_TOOL_ERROR", True)
+        else:
+            raw_cote = ctx.get("compact_on_tool_error")
+            if isinstance(raw_cote, bool):
+                context_compact_on_tool_error = raw_cote
+            else:
+                context_compact_on_tool_error = True
+
+        if os.getenv("CAI_CONTEXT_COMPACT_AFTER_TOOL_CALLS") is not None:
+            context_compact_after_tool_calls = max(
+                0,
+                int(os.environ["CAI_CONTEXT_COMPACT_AFTER_TOOL_CALLS"]),
+            )
+        else:
+            raw_catc = ctx.get("compact_after_tool_calls")
+            if isinstance(raw_catc, int) and not isinstance(raw_catc, bool):
+                context_compact_after_tool_calls = max(0, int(raw_catc))
+            elif isinstance(raw_catc, float) and not isinstance(raw_catc, bool):
+                context_compact_after_tool_calls = max(0, int(raw_catc))
+            else:
+                context_compact_after_tool_calls = 0
 
         sec_ex = sec.get("exclude_globs")
         if isinstance(sec_ex, list):
@@ -754,6 +787,9 @@ class Settings:
         subagent_profile_id = _validate_route(subagent_id)
         planner_profile_id = _validate_route(planner_id)
 
+        model_routing_rules = parse_model_routing_section(file_data)
+        routing_on = _model_routing_enabled_from_toml(file_data)
+
         return cls(
             provider=provider,
             workspace=workspace,
@@ -785,6 +821,8 @@ class Settings:
             quality_gate_extra_commands=quality_gate_extra_commands,
             context_compact_after_iterations=context_compact_after_iterations,
             context_compact_min_messages=context_compact_min_messages,
+            context_compact_on_tool_error=context_compact_on_tool_error,
+            context_compact_after_tool_calls=context_compact_after_tool_calls,
             security_scan_exclude_globs=security_scan_exclude_globs,
             security_scan_rule_overrides=security_scan_rule_overrides,
             permission_write_file=permission_write_file,
@@ -808,6 +846,8 @@ class Settings:
             active_profile_id=active_profile_id,
             subagent_profile_id=subagent_profile_id,
             planner_profile_id=planner_profile_id,
+            model_routing_enabled=routing_on,
+            model_routing_rules=model_routing_rules,
             active_api_key_env=active_api_key_env,
             anthropic_version=anthropic_version,
             anthropic_max_tokens=anthropic_max_tokens,

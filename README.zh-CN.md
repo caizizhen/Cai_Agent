@@ -18,7 +18,7 @@
 - **唯一产品计划（开发顺序 + Hermes 对比 + 测试进度）**：[docs/PRODUCT_PLAN.zh-CN.md](docs/PRODUCT_PLAN.zh-CN.md)（**排期以此为准**；与 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 差异摘要、已合并 `memory health` 分支说明见内文）。
 - **Hermes 对齐（Story / 进度 / Sprint）**：[docs/HERMES_PARITY_BACKLOG.zh-CN.md](docs/HERMES_PARITY_BACKLOG.zh-CN.md)（34 条可导入 backlog）、[docs/HERMES_PARITY_PROGRESS.zh-CN.md](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md](docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md)；总测计划 [docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md](docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md)。
 - **对标双参考源（Claude Code + ECC）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)。
-- **模型切换功能包（细节）**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)、[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（§4 Sprint 3 DoD）。
+- **模型切换功能包（细节）**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)、[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（§4 Sprint 3 DoD）；声明式路由 **[docs/MODEL_ROUTING_RULES.zh-CN.md](docs/MODEL_ROUTING_RULES.zh-CN.md)** / **[docs/MODEL_ROUTING_RULES.md](docs/MODEL_ROUTING_RULES.md)**（**`[models.routing]`**、**`models routing-test`**）。
 - **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)。
 - **对标 Claude Code / ECC 优化同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)。
 - **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
@@ -26,6 +26,8 @@
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。
 - **演进历史**：**[CHANGELOG.md](CHANGELOG.md)**（默认英文）、**[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)**（中文全文）。
+- **近期实现与未完成摘要**：[docs/IMPLEMENTATION_STATUS.zh-CN.md](docs/IMPLEMENTATION_STATUS.zh-CN.md)（英文：[docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)）。
+- **动态运营 Web（HTTP 契约）**：[docs/OPS_DYNAMIC_WEB_API.zh-CN.md](docs/OPS_DYNAMIC_WEB_API.zh-CN.md)（英文：[docs/OPS_DYNAMIC_WEB_API.md](docs/OPS_DYNAMIC_WEB_API.md)）。
 - **升级与破坏性变更（0.5.x → 0.6.x）**：[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)（英文步骤清单；Hermes **S8-04**）。
 - **QA 回归记录**：每次跑 `python scripts/run_regression.py` 会在 `docs/qa/runs/` 生成带时间戳的 Markdown 报告；策略与变量见 **[docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)**（英文镜像：[docs/QA_REGRESSION_LOGGING.md](docs/QA_REGRESSION_LOGGING.md)）。
 
@@ -145,10 +147,13 @@ workflow root 也支持 `quality_gate: true | {...}`。当 workflow 本身先成
 - `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（能力对比、缺口与发布门禁）
 - `docs/PRODUCT_PLAN.zh-CN.md`（唯一执行清单：Hermes 对比 + 开发项 + 测试进度）
 - `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`（记忆与成本治理方案）
-- `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`（跨工具兼容映射）
+- `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` / [`docs/CROSS_HARNESS_COMPATIBILITY.md`](docs/CROSS_HARNESS_COMPATIBILITY.md)（跨工具兼容映射）
+- `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` / [`docs/PLUGIN_COMPAT_MATRIX.md`](docs/PLUGIN_COMPAT_MATRIX.md)（插件机读兼容矩阵说明）
 - `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`（补齐总册 backlog）
 - `docs/MCP_WEB_RECIPE.zh-CN.md`（Web 能力 MCP 配方）
 - `docs/schema/README.zh-CN.md`（**JSON 输出契约索引**：`schema_version`、主要字段、exit 约定 S1-02）
+- `docs/IMPLEMENTATION_STATUS.zh-CN.md` / [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)（**近期已交付 vs 仍开放**滚动摘要）
+- `docs/OPS_DYNAMIC_WEB_API.zh-CN.md` / [`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md)（**`ops serve`** / Phase A–C 契约）
 
 ## 高层架构示意
 
@@ -591,6 +596,23 @@ cai-agent memory nudge-report --json --days 30 --freshness-days 14
 - `--limit` 只读取历史文件尾部 N 行再过滤（默认 200）；
 - 可与 `schedule add-memory-nudge` 配合形成“生成快照 + 聚合看板”的治理闭环。
 
+### `cai-agent memory user-model` / `export`
+
+- **`memory user-model --json`**：输出 **`memory_user_model_v1`**，从近期会话统计工具频次、错误率与 goal 摘要（**`honcho_parity: behavior_extract`**），可选合并 **`.cai/user-model.json`**。
+- **`memory user-model export [--days N]`**：stdout 恒为 JSON **`user_model_bundle_v1`**（嵌 **`overview`**，便于归档/CI）；**`--days` 请写在 `export` 子命令之后**（argparse 限制）。
+
+```bash
+cai-agent memory user-model --json --days 14
+cai-agent memory user-model export --days 7
+```
+
+### `cai-agent ops dashboard` / `ops serve`
+
+- **`ops dashboard`**：聚合 **`board_v1`** + 调度 SLA + 成本 rollup（**`ops_dashboard_v1`**）。**`--format html`** 可配合 **`--html-refresh-seconds`** 嵌入浏览器定时刷新（**Phase A**）。
+- **`ops serve`**：本机只读 HTTP 侧车（**Phase B**），路径 **`GET /v1/ops/dashboard`** / **`GET /v1/ops/dashboard.html`**；**`--allow-workspace`** 控制允许查询的工作区根；若设置 **`CAI_OPS_API_TOKEN`**，请求需带 **`Authorization: Bearer …`**。
+
+契约与未完成项（Phase C）见 **[`docs/OPS_DYNAMIC_WEB_API.zh-CN.md`](docs/OPS_DYNAMIC_WEB_API.zh-CN.md)**（英文：**[`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md)**）。滚动「已交付 / 仍开放」摘要：**[`docs/IMPLEMENTATION_STATUS.zh-CN.md`](docs/IMPLEMENTATION_STATUS.zh-CN.md)**。
+
 ### `cai-agent schedule`（生产护栏补充）
 
 ```bash
@@ -808,6 +830,19 @@ cai-agent workflow path/to/workflow.json --json
 - `--execute-on-update` + `--goal-template`：接收消息后触发执行链
 - `--reply-on-execution` + `--telegram-bot-token` + `--reply-template`：执行后自动调用 Telegram `sendMessage` 回传结果
 
+### Gateway（Discord）
+
+- `gateway discord bind|get|list|unbind` / `allow`：与 Telegram 同构的会话映射与白名单
+- `gateway discord serve-polling`：轮询频道消息（可选 `--execute-on-message` / `--reply-on-execution`）
+- `gateway discord register-commands` / `list-commands`：向 Discord 注册或列出 Slash（默认 `ping`/`help`/`status`/`new`，与 Telegram 斜杠语义对齐；能力边界见 [`docs/GATEWAY_DISCORD_TELEGRAM_PARITY.zh-CN.md`](docs/GATEWAY_DISCORD_TELEGRAM_PARITY.zh-CN.md)）
+
+### Gateway（Slack）
+
+- `gateway slack serve-webhook`：同一 HTTP 服务既收 **Events API**（`application/json`），也收 **Slash Commands / Interactivity**（`application/x-www-form-urlencoded`），均可用 **`X-Slack-Signature`** + `CAI_SLACK_SIGNING_SECRET` 校验
+- `--execute-on-event`：频道消息走 `graph`；**`--execute-on-slash`**：`/cai <goal>` 同源执行
+- Slash 帮助使用 **Block Kit**（`blocks`）；配置说明见 [`docs/GATEWAY_SLACK_SLASH_BLOCKKIT.zh-CN.md`](docs/GATEWAY_SLACK_SLASH_BLOCKKIT.zh-CN.md)
+- **`gateway maps summarize`**：跨多个工作区根输出 Telegram/Discord/Slack 绑定列表（`gateway_maps_summarize_v1`）；可选绑定元数据见 [`docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md`](docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md)
+
 ### Memory（状态机治理）
 
 已从“条目存储”升级到“状态治理”：
@@ -905,7 +940,7 @@ cd ..
 py scripts/run_regression.py
 ```
 
-  `run_regression.py` 在仓库根执行时，将 **`cai-agent/src`** 置于 **`PYTHONPATH`** 并主要通过 **`python -m cai_agent`** 调用 CLI；同时运行 **`scripts/smoke_new_features.py`**（内部同样 **`python -m cai_agent`**），校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`、仓库根 **`mcp-check`/`plugins`/`doctor` --json**、空目录 **`sessions`/`observe-report`/`insights`/`board` --json**、隔离目录 **`hooks list` + `run-event --dry-run --json`**、**`memory health`/`memory state` --json**，以及**临时工作区**下的 `init --json`、`schedule add|list|rm|stats --json`、`gateway telegram list --json`、`recall --json`、`memory list|search|export|export-entries --json` 等 JSON 契约。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
+  `run_regression.py` 在仓库根执行时，将 **`cai-agent/src`** 置于 **`PYTHONPATH`** 并主要通过 **`python -m cai_agent`** 调用 CLI；同时运行 **`scripts/smoke_new_features.py`**（内部同样 **`python -m cai_agent`**），校验 `plan` / `run` / `stats` / `sessions` / `observe` / `commands` / `agents` / `cost budget`、仓库根 **`mcp-check --json`**、**`plugins --json --with-compat-matrix`**、**`doctor --json`**、空目录 **`sessions`/`observe-report`/`insights`/`board` --json**、隔离目录 **`hooks list` + `run-event --dry-run --json`**、**`memory health`/`memory state` --json**、**`memory user-model --json`** / **`memory user-model export`**，以及**临时工作区**下的 `init --json`、`schedule add|list|rm|stats --json`、`gateway telegram list --json`、`recall --json`、`memory list|search|export|export-entries --json`、**`ops dashboard --json`** 等 JSON 契约。`mcp-check` 在 MCP 未启用时退出码可能为 `2`，脚本已按预期处理。若本地无推理服务，`models` 可能失败，可设置环境变量 `REGRESSION_STRICT_MODELS=1` 强制要求 `models` 成功（用于网关已就绪的环境）。
 
   **回归审计留痕**：每次执行结束会在 `docs/qa/runs/` 写入 `regression-YYYYMMDD-HHmmss.md`（可用 `QA_LOG_DIR` 改目录，`QA_SKIP_LOG=1` 关闭写文件）。说明见 [docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)。
 

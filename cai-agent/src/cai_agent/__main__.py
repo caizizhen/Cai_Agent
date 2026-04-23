@@ -72,7 +72,6 @@ from cai_agent.memory import (
     save_instincts,
     search_memory_entries,
     sort_memory_rows,
-    require_memory_entries_jsonl_clean_before_write,
     validate_memory_entries_bundle,
 )
 from cai_agent.plugin_registry import list_plugin_surface
@@ -3010,6 +3009,57 @@ def _cmd_models(args: argparse.Namespace) -> int:
         )
         return 0
 
+    if action == "routing-test":
+        if not bool(getattr(args, "json_output", False)):
+            print("routing-test 需要 --json", file=sys.stderr)
+            return 2
+        role_raw = str(getattr(args, "routing_test_role", "active") or "active").strip().lower()
+        goal = str(getattr(args, "routing_test_goal", "") or "").strip()
+        total_used = int(getattr(args, "routing_test_total_tokens", 0) or 0)
+        from cai_agent.model_routing import first_matching_routing_rule
+
+        rules = settings.model_routing_rules
+        rout_on = settings.model_routing_enabled
+        cost_max = int(settings.cost_budget_max_tokens or 0)
+        matched = first_matching_routing_rule(
+            rules,
+            role=role_raw,
+            goal=goal,
+            cost_budget_max_tokens=cost_max,
+            total_tokens_used=total_used,
+        )
+        base_id = str(settings.active_profile_id or "")
+        eff = matched.profile_id if matched is not None else base_id
+        mr: dict[str, Any] | None = None
+        if matched is not None:
+            mr = {
+                "profile": matched.profile_id,
+                "roles": list(matched.roles),
+                "goal_regex": matched.goal_regex,
+                "goal_substring": matched.goal_substring,
+                "cost_budget_remaining_tokens_below": matched.cost_budget_remaining_tokens_below,
+            }
+        rem: int | None
+        if cost_max > 0:
+            rem = max(0, int(cost_max) - int(total_used))
+        else:
+            rem = None
+        out_rt = {
+            "schema_version": "models_routing_test_v1",
+            "role": role_raw,
+            "goal_preview": goal[:500],
+            "model_routing_enabled": rout_on,
+            "rules_count": len(rules),
+            "cost_budget_max_tokens": cost_max,
+            "total_tokens_used": total_used,
+            "cost_budget_remaining": rem,
+            "base_profile_id": base_id,
+            "effective_profile_id": eff,
+            "matched_rule": mr,
+        }
+        print(json.dumps(out_rt, ensure_ascii=False))
+        return 0
+
     # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
     target = _resolve_config_target(settings)
     # 合成 default 不应持久化：仅显式配置才作为写入基线。
@@ -3439,7 +3489,7 @@ def main(argv: list[str] | None = None) -> int:
     models_p = sub.add_parser(
         "models",
         parents=[models_parent],
-        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/route",
+        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/suggest/route/routing-test",
     )
     models_sub = models_p.add_subparsers(dest="models_action", required=False)
 
@@ -3530,6 +3580,32 @@ def main(argv: list[str] | None = None) -> int:
         help="输出 models_suggest_v1 JSON",
     )
 
+    _mrtx = models_sub.add_parser(
+        "routing-test",
+        help="模拟 [models.routing] 首条命中（仅 --json；不写配置）",
+    )
+    _mrtx.add_argument(
+        "--role",
+        default="active",
+        dest="routing_test_role",
+        choices=("active", "subagent", "planner"),
+        help="当前调用角色（与路由 rules 的 roles 对齐）",
+    )
+    _mrtx.add_argument(
+        "--goal",
+        default="",
+        dest="routing_test_goal",
+        help="用于 goal_regex / goal_substring 匹配的目标文本",
+    )
+    _mrtx.add_argument(
+        "--total-tokens-used",
+        type=int,
+        default=0,
+        dest="routing_test_total_tokens",
+        help="与 [cost].budget_max_tokens 组合模拟剩余预算（成本条件规则）",
+    )
+    _mrtx.add_argument("--json", action="store_true", dest="json_output", help="输出 models_routing_test_v1 JSON")
+
     _mrt = models_sub.add_parser(
         "route",
         help="写回 [models] 的 subagent / planner 路由（不改 active、不改 profile 表体）",
@@ -3578,6 +3654,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         metavar="SCORE",
         help="可选：扩展面 health_score < SCORE（0~100）时 exit 2，便于 CI",
+    )
+    plugins_p.add_argument(
+        "--with-compat-matrix",
+        action="store_true",
+        dest="plugins_with_compat_matrix",
+        help="与 --json 联用：附加 plugin_compat_matrix_v1（跨 harness 兼容矩阵）",
     )
     skills_p = sub.add_parser(
         "skills",
@@ -4517,6 +4599,18 @@ def main(argv: list[str] | None = None) -> int:
         help="按会话文件 mtime 统计最近 N 天内的数量（默认 14）",
     )
     memory_user_model.add_argument("--json", action="store_true", dest="json_output")
+    um_sub = memory_user_model.add_subparsers(dest="user_model_action", required=False)
+    um_export = um_sub.add_parser(
+        "export",
+        help="导出 user_model_bundle_v1（嵌套 memory_user_model_v1 overview）",
+    )
+    um_export.add_argument(
+        "--days",
+        type=int,
+        default=14,
+        dest="user_model_days",
+        help="统计窗口天数（仅写在 export 子命令后时生效）",
+    )
 
     schedule_p = sub.add_parser(
         "schedule",
@@ -4916,6 +5010,13 @@ def main(argv: list[str] | None = None) -> int:
     ops_dash.add_argument("--limit", type=int, default=100)
     ops_dash.add_argument("--schedule-days", type=int, default=30)
     ops_dash.add_argument("--audit-file", default=None)
+    ops_dash.add_argument(
+        "--html-refresh-seconds",
+        type=int,
+        default=0,
+        dest="ops_html_refresh_seconds",
+        help="仅 --format html：>0 时在 HTML 内加入 meta refresh（秒）",
+    )
 
     gateway_p = sub.add_parser(
         "gateway",
@@ -5560,6 +5661,7 @@ def main(argv: list[str] | None = None) -> int:
             "fetch": "models.fetch",
             "ping": "models.ping",
             "route": "models.route",
+            "routing-test": "models.routing_test",
             "suggest": "models.suggest",
             "add": "models.add",
             "use": "models.use",
@@ -5581,7 +5683,7 @@ def main(argv: list[str] | None = None) -> int:
                     tok_m = 1
                 else:
                     tok_m = len(ld2.profiles)
-        elif act_m in {"add", "use", "rm", "route", "edit", "suggest"} and int(rc_mdl) == 0:
+        elif act_m in {"add", "use", "rm", "route", "routing-test", "edit", "suggest"} and int(rc_mdl) == 0:
             tok_m = 1
         _maybe_metrics_cli(
             module="models",
@@ -5605,6 +5707,10 @@ def main(argv: list[str] | None = None) -> int:
             settings = replace(settings, model=str(args.model).strip())
         t_plg = time.perf_counter()
         surface = list_plugin_surface(settings)
+        if bool(getattr(args, "plugins_with_compat_matrix", False)):
+            from cai_agent.plugin_registry import build_plugin_compat_matrix
+
+            surface = {**surface, "compat_matrix": build_plugin_compat_matrix()}
         plg_tok = 0
         comps_plg = surface.get("components")
         if isinstance(comps_plg, dict):
@@ -7024,30 +7130,36 @@ def main(argv: list[str] | None = None) -> int:
             mem_dir.mkdir(parents=True, exist_ok=True)
             if args.memory_action == "extract":
                 t_mx = time.perf_counter()
-                try:
-                    require_memory_entries_jsonl_clean_before_write(root)
-                except ValueError as e:
-                    print(
-                        json.dumps(
-                            {
-                                "schema_version": "memory_extract_v1",
-                                "written": [],
-                                "entries_appended": 0,
-                                "ok": False,
-                                "error": str(e),
-                            },
-                            ensure_ascii=False,
-                        ),
-                    )
-                    print(str(e), file=sys.stderr)
-                    _maybe_metrics_cli(
-                        module="memory",
-                        event="memory.extract",
-                        latency_ms=(time.perf_counter() - t_mx) * 1000.0,
-                        tokens=0,
-                        success=False,
-                    )
-                    return 2
+                from cai_agent.memory import require_memory_entries_jsonl_clean_before_write
+
+                entries_jsonl = root / "memory" / "entries.jsonl"
+                if entries_jsonl.is_file():
+                    try:
+                        require_memory_entries_jsonl_clean_before_write(root)
+                    except ValueError as e:
+                        msg = str(e).strip() or "entries_jsonl_dirty"
+                        print(msg, file=sys.stderr)
+                        print(
+                            json.dumps(
+                                {
+                                    "schema_version": "memory_extract_v1",
+                                    "ok": False,
+                                    "error": "entries_jsonl_dirty",
+                                    "message": msg,
+                                    "written": [],
+                                    "entries_appended": 0,
+                                },
+                                ensure_ascii=False,
+                            ),
+                        )
+                        _maybe_metrics_cli(
+                            module="memory",
+                            event="memory.extract",
+                            latency_ms=(time.perf_counter() - t_mx) * 1000.0,
+                            tokens=0,
+                            success=False,
+                        )
+                        return 2
                 files = list_session_files(
                     cwd=str(root),
                     pattern=str(args.pattern),
@@ -7453,7 +7565,7 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     n = import_memory_entries_bundle(root, doc)
                 except ValueError as e:
-                    print(f"[memory] {e}", file=sys.stderr)
+                    print(str(e).strip() or "import rejected", file=sys.stderr)
                     _maybe_metrics_cli(
                         module="memory",
                         event="memory.import_entries",
@@ -7605,12 +7717,28 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             if args.memory_action == "user-model":
                 t_mum = time.perf_counter()
-                from cai_agent.user_model import build_memory_user_model_overview
-
-                payload_um = build_memory_user_model_overview(
-                    settings_mem,
-                    days=int(getattr(args, "user_model_days", 14) or 14),
+                from cai_agent.user_model import (
+                    build_memory_user_model_overview,
+                    build_user_model_bundle_v1,
                 )
+
+                uact = str(getattr(args, "user_model_action", "") or "").strip().lower()
+                days_um = int(getattr(args, "user_model_days", 14) or 14)
+                if uact == "export":
+                    bundle = build_user_model_bundle_v1(settings_mem, days=days_um)
+                    ov = bundle.get("overview") if isinstance(bundle.get("overview"), dict) else {}
+                    tok_um = int(ov.get("sessions_recent_in_window") or 0)
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.user_model.export",
+                        latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                        tokens=tok_um,
+                        success=True,
+                    )
+                    print(json.dumps(bundle, ensure_ascii=False))
+                    return 0
+
+                payload_um = build_memory_user_model_overview(settings_mem, days=days_um)
                 tok_um = int(payload_um.get("sessions_recent_in_window") or 0)
                 _maybe_metrics_cli(
                     module="memory",
@@ -8706,7 +8834,12 @@ def main(argv: list[str] | None = None) -> int:
             output_str = json.dumps(payload_ops, ensure_ascii=False)
         elif ops_fmt == "html":
             from cai_agent.ops_dashboard import build_ops_dashboard_html
-            output_str = build_ops_dashboard_html(payload_ops)
+
+            hrs = int(getattr(args, "ops_html_refresh_seconds", 0) or 0)
+            output_str = build_ops_dashboard_html(
+                payload_ops,
+                html_refresh_seconds=hrs if hrs > 0 else None,
+            )
         else:
             sm = payload_ops.get("summary") if isinstance(payload_ops.get("summary"), dict) else {}
             output_str = (

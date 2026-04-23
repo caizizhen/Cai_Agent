@@ -90,18 +90,135 @@ def _discord_request(
         return {"_error": True, "message": str(e)}
 
 
+def _discord_exchange(
+    method: str,
+    path: str,
+    bot_token: str,
+    *,
+    json_data: list[dict[str, Any]] | dict[str, Any] | None = None,
+) -> Any:
+    """底层 REST 交换（可 mock）；``json_data`` 为 list 时原样 JSON 编码（注册 Slash 命令）。"""
+    url = f"{_DISCORD_API}{path}"
+    headers = {
+        "Authorization": f"Bot {bot_token}",
+        "Content-Type": "application/json",
+        "User-Agent": "CaiAgent/1 (https://github.com)",
+    }
+    raw = json.dumps(json_data, ensure_ascii=False).encode("utf-8") if json_data is not None else None
+    req = urllib.request.Request(url, data=raw, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8")
+            if not body.strip():
+                return [] if method.upper() == "PUT" else {}
+            return json.loads(body)
+    except urllib.error.HTTPError as e:
+        b = e.read().decode("utf-8", errors="replace")
+        try:
+            return {"_error": True, "status": e.code, **json.loads(b)}
+        except Exception:
+            return {"_error": True, "status": e.code, "body": b[:500]}
+    except Exception as e:
+        return {"_error": True, "message": str(e)}
+
+
+def discord_default_slash_command_specs() -> list[dict[str, Any]]:
+    """与 Telegram 表面对齐的 Application Command 草案（name + type=1 CHAT_INPUT）。"""
+    return [
+        {"name": "ping", "description": "Ping CAI", "type": 1},
+        {"name": "help", "description": "Help", "type": 1},
+        {"name": "status", "description": "Status", "type": 1},
+        {"name": "new", "description": "New session", "type": 1},
+    ]
+
+
+def discord_resolve_application(bot_token: str) -> dict[str, Any]:
+    data = _discord_exchange("GET", "/oauth2/applications/@me", bot_token)
+    if isinstance(data, dict) and data.get("_error"):
+        return {"ok": False, "error": data}
+    if isinstance(data, dict) and data.get("id") is not None:
+        return {"ok": True, "application_id": str(data["id"])}
+    return {"ok": False, "error": {"message": "unexpected_resolve_payload", "raw": data}}
+
+
+def discord_list_application_commands(
+    bot_token: str,
+    *,
+    guild_id: str | None = None,
+) -> dict[str, Any]:
+    app = discord_resolve_application(bot_token)
+    if not app.get("ok"):
+        return {**app, "commands": [], "guild_id": guild_id}
+    aid = str(app.get("application_id") or "")
+    path = (
+        f"/applications/{aid}/guilds/{guild_id}/commands"
+        if guild_id
+        else f"/applications/{aid}/commands"
+    )
+    data = _discord_exchange("GET", path, bot_token)
+    if isinstance(data, dict) and data.get("_error"):
+        return {"ok": False, "error": data, "commands": [], "guild_id": guild_id}
+    if isinstance(data, list):
+        return {"ok": True, "commands": data, "guild_id": guild_id}
+    return {"ok": False, "error": {"message": "unexpected_list_payload"}, "commands": [], "guild_id": guild_id}
+
+
+def discord_register_application_commands(
+    bot_token: str,
+    *,
+    guild_id: str | None = None,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    specs = discord_default_slash_command_specs()
+    app = discord_resolve_application(bot_token)
+    if not app.get("ok"):
+        return {
+            "ok": False,
+            "dry_run": dry_run,
+            "registered": False,
+            "commands": [],
+            "error": app.get("error"),
+        }
+    aid = str(app.get("application_id") or "")
+    if dry_run:
+        return {"ok": True, "dry_run": True, "registered": False, "commands": specs}
+    path = (
+        f"/applications/{aid}/guilds/{guild_id}/commands"
+        if guild_id
+        else f"/applications/{aid}/commands"
+    )
+    data = _discord_exchange("PUT", path, bot_token, json_data=specs)
+    if isinstance(data, dict) and data.get("_error"):
+        return {"ok": False, "dry_run": False, "registered": False, "commands": [], "error": data}
+    if isinstance(data, list):
+        return {"ok": True, "dry_run": False, "registered": True, "commands": data}
+    return {"ok": False, "dry_run": False, "registered": False, "commands": [], "error": {"message": "unexpected_put"}}
+
+
 # ---------------------------------------------------------------------------
 # 会话映射管理
 # ---------------------------------------------------------------------------
 
-def discord_bind(root: Path, channel_id: str, session_file: str) -> dict[str, Any]:
+def discord_bind(
+    root: Path,
+    channel_id: str,
+    session_file: str,
+    *,
+    guild_id: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any]:
     m = _read_map(root)
-    m["bindings"][channel_id] = {
+    row: dict[str, Any] = {
         "session_file": session_file,
         "bound_at": datetime.now(UTC).isoformat(),
     }
+    if guild_id is not None and str(guild_id).strip():
+        row["guild_id"] = str(guild_id).strip()
+    if label is not None and str(label).strip():
+        row["label"] = str(label).strip()
+    m["bindings"][channel_id] = row
     _write_map(root, m)
-    return {"ok": True, "channel_id": channel_id, "session_file": session_file}
+    return {"ok": True, "channel_id": channel_id, "session_file": session_file, "binding": row}
 
 
 def discord_unbind(root: Path, channel_id: str) -> dict[str, Any]:

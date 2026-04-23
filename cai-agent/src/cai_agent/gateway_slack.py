@@ -94,14 +94,26 @@ def _slack_post(
 # 会话映射管理
 # ---------------------------------------------------------------------------
 
-def slack_bind(root: Path, channel_id: str, session_file: str) -> dict[str, Any]:
+def slack_bind(
+    root: Path,
+    channel_id: str,
+    session_file: str,
+    *,
+    team_id: str | None = None,
+    label: str | None = None,
+) -> dict[str, Any]:
     m = _read_map(root)
-    m["bindings"][channel_id] = {
+    row: dict[str, Any] = {
         "session_file": session_file,
         "bound_at": datetime.now(UTC).isoformat(),
     }
+    if team_id is not None and str(team_id).strip():
+        row["team_id"] = str(team_id).strip()
+    if label is not None and str(label).strip():
+        row["label"] = str(label).strip()
+    m["bindings"][channel_id] = row
     _write_map(root, m)
-    return {"ok": True, "channel_id": channel_id, "session_file": session_file}
+    return {"ok": True, "channel_id": channel_id, "session_file": session_file, "binding": row}
 
 
 def slack_unbind(root: Path, channel_id: str) -> dict[str, Any]:
@@ -192,6 +204,122 @@ def _verify_slack_signature(
         signing_secret.encode("utf-8"), base, hashlib.sha256
     ).hexdigest()
     return hmac.compare_digest(expected, received_sig)
+
+
+def verify_slack_request_signature(
+    signing_secret: str,
+    timestamp: str,
+    body: bytes,
+    received_sig: str,
+) -> bool:
+    """公开别名：Slack ``X-Slack-Signature`` 校验（与 Events / Slash 同源）。"""
+    return _verify_slack_signature(signing_secret, timestamp, body, received_sig)
+
+
+def slack_try_execute_channel_text(
+    root: Path,
+    *,
+    channel_id: str,
+    user_id: str,
+    text: str,
+    bot_token: str,
+) -> dict[str, Any]:
+    """Slash 触发执行钩子；默认未实现，测试可 patch。"""
+    _ = (root, channel_id, user_id, bot_token)
+    return {"executed": False, "answer_preview": ""}
+
+
+def build_slack_slash_command_http_response(
+    *,
+    root: Path,
+    command: str,
+    text: str,
+    channel_id: str,
+    user_id: str,
+    bot_token: str,
+    execute_on_slash: bool,
+    reply_on_execution: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """构造 Slack Slash Command 同步 JSON 响应（不经 HTTP 服务单元测试）。"""
+    _ = reply_on_execution
+    m = _read_map(root)
+    al = [str(x) for x in (m.get("allowed_channel_ids") or []) if str(x).strip()]
+    if al and channel_id not in al:
+        return (
+            {"response_type": "ephemeral", "text": "此频道未在白名单内。请使用 `gateway slack allow add`。"},
+            {"blocked": True},
+        )
+
+    cmd = str(command or "").strip()
+    if cmd != "/cai":
+        return (
+            {"response_type": "ephemeral", "text": f"未知命令 `{cmd}`（仅支持 `/cai`）"},
+            {"blocked": False},
+        )
+
+    raw = (text or "").strip()
+    low = raw.lower()
+
+    if low in ("help", "?") or low.startswith("help "):
+        blocks: list[dict[str, Any]] = [
+            {
+                "type": "header",
+                "text": {"type": "plain_text", "text": "CAI Slack /cai", "emoji": True},
+            },
+            {
+                "type": "section",
+                "text": {
+                    "type": "mrkdwn",
+                    "text": "可用子命令：`help` `ping` 或在开启执行标志后发送目标文本。",
+                },
+            },
+        ]
+        return (
+            {"response_type": "ephemeral", "blocks": blocks, "text": "cai-agent help"},
+            {"blocked": False},
+        )
+
+    if low == "ping":
+        return ({"response_type": "ephemeral", "text": "pong"}, {"blocked": False})
+
+    if execute_on_slash and raw:
+        result = slack_try_execute_channel_text(
+            root,
+            channel_id=channel_id,
+            user_id=user_id,
+            text=raw,
+            bot_token=bot_token,
+        )
+        if result.get("executed"):
+            prev = str(result.get("answer_preview") or "")
+            return (
+                {"response_type": "ephemeral", "text": prev or "(no output)"},
+                {"executed": True},
+            )
+        return (
+            {"response_type": "ephemeral", "text": str(result.get("error") or "未执行")},
+            {"executed": False},
+        )
+
+    return (
+        {"response_type": "ephemeral", "text": "发送 `help` 查看用法，或 `ping` 测试。"},
+        {"blocked": False},
+    )
+
+
+def slack_interactivity_http_response(payload: dict[str, Any]) -> dict[str, Any]:
+    """Block Kit 等交互回调的占位响应（ephemeral）。"""
+    ptype = str(payload.get("type") or "")
+    return {
+        "response_type": "ephemeral",
+        "text": f"收到交互：{ptype}",
+        "blocks": [
+            {
+                "type": "section",
+                "text": {"type": "mrkdwn", "text": f"payload.type=`{ptype}`"},
+            },
+        ],
+    }
 
 
 # ---------------------------------------------------------------------------

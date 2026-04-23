@@ -4,7 +4,7 @@
 
 **主入口兜底**：`main()` 若未能分发到已知子命令（仅应出现于内部实现不同步），**exit `2`** 并向 stderr 打印一行诊断（此前兜底为 **`1`** 且无提示）。
 
-**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
+**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。**独立 JSON Schema**（机器校验、可入 CI）：`cai-agent/src/cai_agent/schemas/` 下如 **`plugin_compat_matrix_v1.schema.json`**、**`models_routing_test_v1.schema.json`**、**`memory_entry_v1.schema.json`** 等。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
 
 **从 0.5.x 升级 0.6.x**：破坏性 `--json` 形态与 exit 码摘要见 **[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**（Hermes **S8-04**）。
 
@@ -152,12 +152,13 @@
 
 ## `plugins` / `plugins --json`
 
-- **实现**：`cai_agent.plugin_registry.list_plugin_surface`
+- **实现**：`cai_agent.plugin_registry.list_plugin_surface`；可选 **`build_plugin_compat_matrix`**
 - **`schema_version`**：`plugins_surface_v1`；另含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
+- **`--with-compat-matrix`**（与 **`--json`** 同用）：顶层附加 **`compat_matrix`**，其 **`schema_version`**=`plugin_compat_matrix_v1`（跨 harness 能力表）；人读说明见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](../PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](../PLUGIN_COMPAT_MATRIX.md)；**`compat_matrix`** 内可选 **`doc_anchor`/`doc_anchor_en`、`detail_doc`/`detail_doc_en`** 指向中英文维护页；机器校验见 **`cai-agent/src/cai_agent/schemas/plugin_compat_matrix_v1.schema.json`**。
 
 **Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`。
 
-**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`plugins --json`**，断言 **`plugins_surface_v1`** 与 **`components`**。
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`plugins --json --with-compat-matrix`**，断言 **`plugins_surface_v1`**、**`components`** 与 **`compat_matrix.schema_version`**。
 
 ---
 
@@ -295,7 +296,7 @@
 
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
 - **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens` 等）与 **`board`** / **`schedule_stats`** / **`cost_aggregate`**。
-- **动态 Web / HTTP 侧车（草案）**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**（与 CLI 同源载荷；**非**内置 HTTP 实现）。
+- **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`**（HTML 路由可选 query **`html_refresh_seconds`**），载荷与上表同源。
 
 **Exit**：成功 → **`0`**。
 
@@ -356,7 +357,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 
@@ -383,8 +384,9 @@
 | `models fetch` | 对象：`schema_version`=`models_fetch_v1`、`models[]`（排序去重后的模型 id 字符串） | **`models_fetch_v1`** |
 | `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等） | **`models_ping_v1`** |
 | `models suggest` | 单行对象 **`models_suggest_v1`**：`task_description`、`matched_role`、`reason`、`suggested_profiles[]`、`active_profile_id`、`hint` 等 | **`cai-agent models suggest <任务描述…> --json`** |
+| `models routing-test` | 单行对象 **`models_routing_test_v1`**：`role`、`goal_preview`、`model_routing_enabled`、`rules_count`、**`cost_budget_max_tokens`/`total_tokens_used`/`cost_budget_remaining`**、`base_profile_id`、`effective_profile_id`、`matched_rule`（可含 **`cost_budget_remaining_tokens_below`**）；**不调 LLM**；机器校验见 **`cai-agent/src/cai_agent/schemas/models_routing_test_v1.schema.json`** | **`cai-agent models routing-test [--goal "…"] [--role …] [--total-tokens-used N] --json`** |
 
-**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。**`suggest`**：成功 → **`0`**；空描述等 → **`2`**。
+**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。**`suggest`**：成功 → **`0`**；空描述等 → **`2`**。**`routing-test`**：缺 **`--goal`** 等 → **`2`**；否则 **`0`**。
 
 ---
 
@@ -428,10 +430,11 @@
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
-| `memory user-model` | **`memory_user_model_v1`**：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`** 为 **`stub`** 或 **`behavior_extract`**（由会话统计推导工具偏好、错误率与近期 goal 摘要） | `--days` 控制会话 mtime 窗口（默认 14） |
+| `memory user-model` | **`memory_user_model_v1`**（**`--json`**）：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`** 为 **`stub`** 或 **`behavior_extract`** | 根级 **`--days`** 控制会话 mtime 窗口（默认 14） |
+| `memory user-model export` | **`user_model_bundle_v1`**：含 **`exported_at`**、**`bundle_kind`**（**`behavior_overview`**）、嵌套 **`overview`**（同 **`memory_user_model_v1`**） | **`export` 子命令后的 `--days`** 控制窗口；**恒为 JSON stdout** |
 | `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）与 **`memory user-model --json`**（**`memory_user_model_v1`**）。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory user-model --json`**（**`memory_user_model_v1`**）与 **`memory user-model export`**（**`user_model_bundle_v1`**）。
 
 ---
 

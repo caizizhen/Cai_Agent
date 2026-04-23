@@ -1,5 +1,7 @@
 # 跨工具兼容映射（Cursor/Codex/OpenCode/Claude）
 
+> 英文版：[CROSS_HARNESS_COMPATIBILITY.md](CROSS_HARNESS_COMPATIBILITY.md)
+
 本文件定义 Cai_Agent 面向多 Agent 工具链的兼容映射策略。
 
 ## 目标
@@ -39,6 +41,10 @@
 - `schema`：固定为 `export-v2`，表示本仓库导出器的 JSON 外形代际。
 - `manifest_version`：语义化版本（当前 **2.1.0**），仅在增加字段、改变 `copied` 语义或目标目录约定时递增；与 ECC 等多 harness 生态对齐时，消费方可按 `manifest_version` 做兼容分支。
 - `target`：`cursor` | `codex` | `opencode`。
+
+## 机读兼容矩阵（CLI / doctor）
+
+与上表同一语义的 **JSON** 由 **`plugin_compat_matrix_v1`** 承载：`cai-agent plugins --json --with-compat-matrix`，且 **`doctor --json`** 的 **`plugins.compat_matrix`** 同源。人读与维护约定见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md)。
 
 ## 验收条件（P2）
 

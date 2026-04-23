@@ -26,6 +26,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from cai_agent import llm_factory
+from cai_agent.model_routing import parse_model_routing_section
 from cai_agent.profiles import Profile
 
 
@@ -52,6 +53,9 @@ class _MockSettings:
     context_window: int = 8192
     context_window_source: str = "llm"
     llm_max_http_retries: int = 50
+    model_routing_enabled: bool = True
+    model_routing_rules: tuple = ()
+    cost_budget_max_tokens: int = 0
 
 
 _ANTHROPIC_P = Profile(
@@ -447,6 +451,72 @@ class ChatCompletionByRoleTests(_AdapterStubMixin, unittest.TestCase):
         )
         llm_factory.chat_completion_by_role(settings, [], role="subagent")
         projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.model, _LOCAL_P.model)
+
+    def test_models_routing_cost_only_when_remaining_low(self) -> None:
+        rules = parse_model_routing_section(
+            {
+                "models": {
+                    "routing": {
+                        "rules": [
+                            {
+                                "roles": ["active"],
+                                "cost_budget_remaining_tokens_below": 1000,
+                                "profile": "local",
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+        settings = dc_replace(
+            _make_settings((_OPENAI_P, _LOCAL_P), active="oai"),
+            model_routing_rules=rules,
+            cost_budget_max_tokens=50_000,
+        )
+        from unittest.mock import patch
+
+        with patch(
+            "cai_agent.llm_factory.get_usage_counters",
+            return_value={
+                "total_tokens": 49_600,
+                "prompt_tokens": 1,
+                "completion_tokens": 1,
+            },
+        ):
+            llm_factory.chat_completion_by_role(settings, [], role="active")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.active_profile_id, "local")
+
+    def test_models_routing_overrides_planner_profile_from_goal(self) -> None:
+        rules = parse_model_routing_section(
+            {
+                "models": {
+                    "routing": {
+                        "rules": [
+                            {
+                                "roles": ["planner"],
+                                "goal_substring": "SPECIAL_MARKER_XYZ",
+                                "profile": "local",
+                            },
+                        ],
+                    },
+                },
+            },
+        )
+        settings = dc_replace(
+            _make_settings(
+                (_OPENAI_P, _ANTHROPIC_P, _LOCAL_P),
+                active="oai",
+                planner="anthro",
+            ),
+            model_routing_rules=rules,
+            model_routing_enabled=True,
+        )
+        msgs = [{"role": "user", "content": "prefix SPECIAL_MARKER_XYZ suffix"}]
+        llm_factory.chat_completion_by_role(settings, msgs, role="planner")
+        projected, _ = self._openai_calls[-1]
+        self.assertEqual(projected.active_profile_id, "local")
         self.assertEqual(projected.model, _LOCAL_P.model)
 
     def test_projection_context_window_source_when_profile_pins_window(self) -> None:

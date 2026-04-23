@@ -1,0 +1,230 @@
+"""只读运营 HTTP 侧车（Phase B）：``GET /v1/ops/dashboard`` / ``dashboard.html``。
+
+与 ``build_ops_dashboard_payload`` / ``build_ops_dashboard_html`` 同源；契约见仓库
+``docs/OPS_DYNAMIC_WEB_API.zh-CN.md`` §3。
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import re
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import sys
+from pathlib import Path
+from typing import TextIO
+from urllib.parse import parse_qs, unquote, urlparse
+
+from cai_agent.ops_dashboard import build_ops_dashboard_html, build_ops_dashboard_payload
+
+
+class OpsApiThreadingServer(ThreadingHTTPServer):
+    """携带 allowlist 与可选 Bearer 校验配置。"""
+
+    allow_roots: frozenset[Path]
+    api_token: str | None
+
+
+class OpsApiRequestHandler(BaseHTTPRequestHandler):
+    server_version = "cai-agent-ops-api/1.0"
+
+    def log_message(self, fmt: str, *args: object) -> None:
+        return
+
+    def _send(self, code: int, body: bytes, content_type: str) -> None:
+        self.send_response(code)
+        self.send_header("Content-Type", content_type)
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def _send_json(self, code: int, obj: object) -> None:
+        raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
+        self._send(code, raw, "application/json; charset=utf-8")
+
+    def _auth_ok(self) -> bool:
+        token = getattr(self.server, "api_token", None)
+        if not token:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            return False
+        got = auth[7:].strip()
+        return bool(got) and got == token
+
+    def _workspace_allowed(self, root: Path) -> bool:
+        roots: frozenset[Path] = getattr(self.server, "allow_roots", frozenset())
+        return root in roots
+
+    def _parse_positive_int(self, raw: str | None, default: int, *, name: str, max_v: int) -> int:
+        if raw is None or raw == "":
+            return default
+        try:
+            v = int(str(raw).strip(), 10)
+        except ValueError as e:
+            raise ValueError(f"invalid_int:{name}") from e
+        if v < 1 or v > max_v:
+            raise ValueError(f"out_of_range:{name}")
+        return v
+
+    def _safe_observe_pattern(self, raw: str | None, default: str) -> str:
+        s = (raw if raw is not None else default) or default
+        s = str(s).strip()
+        if not s or ".." in s or "\x00" in s:
+            raise ValueError("invalid_observe_pattern")
+        if re.search(r"[/\\]", s):
+            raise ValueError("invalid_observe_pattern")
+        return s
+
+    def _resolve_audit_path(self, workspace: Path, raw: str | None) -> Path | None:
+        if raw is None or str(raw).strip() == "":
+            return None
+        p = Path(unquote(str(raw).strip())).expanduser()
+        if not p.is_absolute():
+            p = (workspace / p).resolve()
+        else:
+            p = p.resolve()
+        try:
+            p.relative_to(workspace)
+        except ValueError as e:
+            raise PermissionError("audit_file outside workspace") from e
+        return p
+
+    def do_GET(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path or ""
+        if path not in ("/v1/ops/dashboard", "/v1/ops/dashboard.html"):
+            self._send_json(404, {"error": "not_found", "path": path})
+            return
+        if not self._auth_ok():
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        try:
+            q = parse_qs(parsed.query, keep_blank_values=False)
+        except ValueError:
+            self._send_json(400, {"error": "bad_query"})
+            return
+
+        def one(key: str) -> str | None:
+            xs = q.get(key)
+            if not xs:
+                return None
+            return xs[0]
+
+        ws_raw = one("workspace")
+        if not ws_raw or not str(ws_raw).strip():
+            self._send_json(400, {"error": "missing_workspace"})
+            return
+        try:
+            workspace = Path(unquote(str(ws_raw).strip())).expanduser().resolve()
+        except OSError:
+            self._send_json(400, {"error": "invalid_workspace"})
+            return
+        if not workspace.is_dir():
+            self._send_json(400, {"error": "workspace_not_a_directory"})
+            return
+        if not self._workspace_allowed(workspace):
+            self._send_json(403, {"error": "workspace_not_allowed"})
+            return
+
+        try:
+            observe_pattern = self._safe_observe_pattern(one("observe_pattern"), ".cai-session*.json")
+            observe_limit = self._parse_positive_int(
+                one("observe_limit"), 100, name="observe_limit", max_v=50_000
+            )
+            schedule_days = self._parse_positive_int(
+                one("schedule_days"), 30, name="schedule_days", max_v=3660
+            )
+            cost_session_limit = self._parse_positive_int(
+                one("cost_session_limit"), 200, name="cost_session_limit", max_v=50_000
+            )
+            audit_path = self._resolve_audit_path(workspace, one("audit_file"))
+        except ValueError as e:
+            self._send_json(400, {"error": "bad_request", "detail": str(e)})
+            return
+        except PermissionError as e:
+            self._send_json(400, {"error": "bad_request", "detail": str(e)})
+            return
+
+        try:
+            payload = build_ops_dashboard_payload(
+                cwd=str(workspace),
+                observe_pattern=observe_pattern,
+                observe_limit=observe_limit,
+                schedule_days=schedule_days,
+                audit_path=audit_path,
+                cost_session_limit=cost_session_limit,
+            )
+        except OSError as e:
+            self._send_json(400, {"error": "io_error", "detail": str(e)})
+            return
+
+        if path == "/v1/ops/dashboard":
+            self._send_json(200, payload)
+            return
+        html_refresh: int | None = None
+        raw_rf = one("html_refresh_seconds")
+        if raw_rf is not None and str(raw_rf).strip() != "":
+            try:
+                v_rf = int(str(raw_rf).strip(), 10)
+            except ValueError:
+                self._send_json(400, {"error": "bad_request", "detail": "invalid_int:html_refresh_seconds"})
+                return
+            if v_rf < 0 or v_rf > 86_400:
+                self._send_json(
+                    400,
+                    {"error": "bad_request", "detail": "out_of_range:html_refresh_seconds"},
+                )
+                return
+            html_refresh = v_rf if v_rf > 0 else None
+        html = build_ops_dashboard_html(payload, html_refresh_seconds=html_refresh)
+        body = html.encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def run_ops_api_server(
+    *,
+    host: str,
+    port: int,
+    allow_workspaces: list[str],
+    stderr: TextIO | None = None,
+) -> int:
+    """阻塞运行 HTTP 服务直到 ``KeyboardInterrupt``。成功启动返回 ``0``。"""
+    err = stderr if stderr is not None else sys.stderr
+    if not allow_workspaces:
+        err.write("ops serve: allow_workspaces is empty\n")
+        return 2
+    roots: list[Path] = []
+    for raw in allow_workspaces:
+        p = Path(raw).expanduser().resolve()
+        if not p.is_dir():
+            err.write(f"ops serve: not a directory: {p}\n")
+            return 2
+        roots.append(p)
+    allow = frozenset(roots)
+    token_raw = (os.environ.get("CAI_OPS_API_TOKEN") or "").strip()
+    api_token = token_raw or None
+
+    httpd = OpsApiThreadingServer((host, port), OpsApiRequestHandler)
+    httpd.allow_roots = allow
+    httpd.api_token = api_token
+
+    err.write(
+        f"ops serve: listening http://{host}:{port}\n"
+        f"  allow workspaces ({len(allow)}): {', '.join(str(x) for x in sorted(allow))}\n"
+        f"  CAI_OPS_API_TOKEN: {'set' if api_token else 'unset'}\n"
+        "  GET /v1/ops/dashboard?workspace=...&observe_pattern=...\n",
+    )
+    try:
+        httpd.serve_forever(poll_interval=0.5)
+    except KeyboardInterrupt:
+        err.write("ops serve: stopped\n")
+        return 0
+    finally:
+        httpd.server_close()
+    return 0

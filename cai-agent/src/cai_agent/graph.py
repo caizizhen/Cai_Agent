@@ -46,6 +46,12 @@ class AgentState(TypedDict, total=False):
     finished: bool
     answer: str
     compact_hint_sent: NotRequired[bool]
+    # 成功完成的工具轮次数（dispatch 未返回「工具执行失败」前缀）。
+    tool_call_count: NotRequired[int]
+    # 最近一次注入「工具里程碑」压缩提示时的 tool_call_count。
+    compact_milestone_last_tc: NotRequired[int]
+    # tools_node 在工具失败时置 True；llm_node 注入一次性收束提示后清 False。
+    tool_error_compact_pending: NotRequired[bool]
 
 
 def _core_system_prompt(workspace: str) -> str:
@@ -120,6 +126,37 @@ def build_app(
                 "compact_hint_sent": bool(state.get("compact_hint_sent")),
             }
 
+        extra_state: dict[str, Any] = {}
+        if bool(state.get("tool_error_compact_pending")):
+            if getattr(settings, "context_compact_on_tool_error", True):
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": (
+                            "[工具执行失败后的压缩建议] 上一轮工具未成功；请先向用户说明失败原因或补救思路，"
+                            "避免在同一问题上重复无效调用；必要时缩短对上下文的依赖，并考虑使用 "
+                            '{"type":"finish","message":"..."} 结束本轮。'
+                        ),
+                    },
+                )
+            extra_state["tool_error_compact_pending"] = False
+
+        th_tool = int(getattr(settings, "context_compact_after_tool_calls", 0) or 0)
+        tc = int(state.get("tool_call_count") or 0)
+        last_m = int(state.get("compact_milestone_last_tc") or 0)
+        if th_tool > 0 and tc > 0 and tc % th_tool == 0 and last_m < tc:
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        f"[工具里程碑，已成功工具轮次={tc}] 上下文已较长；请优先用 "
+                        '{"type":"finish","message":"..."} 给出阶段性摘要，'
+                        "或仅保留下一步最关键的一次工具调用。"
+                    ),
+                },
+            )
+            extra_state["compact_milestone_last_tc"] = tc
+
         prior_compact = bool(state.get("compact_hint_sent"))
         compact_hint_sent = prior_compact
         if (
@@ -181,6 +218,7 @@ def build_app(
                 "answer": err_msg,
                 "pending": None,
                 "compact_hint_sent": compact_hint_sent,
+                **extra_state,
             }
         usage_snapshot = get_last_usage()
         _emit(
@@ -203,6 +241,7 @@ def build_app(
                 "answer": "已手动停止本次运行。",
                 "pending": None,
                 "compact_hint_sent": compact_hint_sent,
+                **extra_state,
             }
         messages.append({"role": "assistant", "content": text})
         _emit(
@@ -231,6 +270,7 @@ def build_app(
                 "iteration": iteration,
                 "pending": None,
                 "compact_hint_sent": compact_hint_sent,
+                **extra_state,
             }
 
         t = obj.get("type")
@@ -246,6 +286,7 @@ def build_app(
                 "answer": str(obj.get("message", "")),
                 "pending": None,
                 "compact_hint_sent": compact_hint_sent,
+                **extra_state,
             }
         if t == "tool":
             name = str(obj.get("name", ""))
@@ -266,6 +307,7 @@ def build_app(
                 "iteration": iteration,
                 "pending": {"name": name, "args": args},
                 "compact_hint_sent": compact_hint_sent,
+                **extra_state,
             }
 
         messages.append(
@@ -281,6 +323,7 @@ def build_app(
             "iteration": iteration,
             "pending": None,
             "compact_hint_sent": compact_hint_sent,
+            **extra_state,
         }
 
     def tools_node(state: AgentState) -> dict[str, Any]:
@@ -316,7 +359,15 @@ def build_app(
         if len(raw) > 100_000:
             raw = raw[:100_000] + "…[截断]"
         messages.append({"role": "user", "content": raw})
-        return {"messages": messages, "pending": None}
+        is_err = isinstance(out, str) and out.startswith("工具执行失败")
+        prev_tc = int(state.get("tool_call_count") or 0)
+        tool_call_count = prev_tc + (0 if is_err else 1)
+        return {
+            "messages": messages,
+            "pending": None,
+            "tool_call_count": tool_call_count,
+            "tool_error_compact_pending": bool(is_err),
+        }
 
     def route_after_llm(state: AgentState) -> Literal["end", "tools", "again"]:
         if state.get("finished"):
@@ -351,4 +402,7 @@ def initial_state(settings: Settings, user_goal: str) -> AgentState:
         "iteration": 0,
         "pending": None,
         "finished": False,
+        "tool_call_count": 0,
+        "compact_milestone_last_tc": 0,
+        "tool_error_compact_pending": False,
     }

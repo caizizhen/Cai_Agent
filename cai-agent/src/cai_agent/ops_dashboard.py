@@ -74,10 +74,15 @@ def _h(text: Any) -> str:
     return html.escape(str(text))
 
 
-def build_ops_dashboard_html(payload: dict[str, Any]) -> str:
+def build_ops_dashboard_html(
+    payload: dict[str, Any],
+    *,
+    html_refresh_seconds: int | None = None,
+) -> str:
     """将 ``ops_dashboard_v1`` 载荷渲染为单文件 HTML 仪表盘。
 
     无外部依赖，内嵌 CSS + 少量内联样式，支持离线打开。
+    ``html_refresh_seconds`` > 0 时插入 ``meta http-equiv=refresh``（Phase A 轻量刷新）。
     """
     gen_at = _h(payload.get("generated_at", ""))
     workspace = _h(payload.get("workspace", ""))
@@ -119,12 +124,18 @@ def build_ops_dashboard_html(payload: dict[str, Any]) -> str:
     fail_rate_pct = f"{failure_rate * 100:.1f}%"
     fail_color = "#d32f2f" if failure_rate > 0.2 else ("#f57c00" if failure_rate > 0.05 else "#388e3c")
 
+    refresh_line = ""
+    if html_refresh_seconds is not None:
+        sec = int(html_refresh_seconds)
+        if sec > 0:
+            refresh_line = f'  <meta http-equiv="refresh" content="{_h(sec)}">\n'
+
     html_body = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>CAI Agent 运营面板</title>
+{refresh_line}  <title>CAI Agent 运营面板</title>
   <style>
     *, *::before, *::after {{ box-sizing: border-box; }}
     body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;

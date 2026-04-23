@@ -11,6 +11,7 @@ from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.models import ping_profile
+from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
 
 
 def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
@@ -123,6 +124,8 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "profiles_count": len(settings.profiles),
         "subagent_profile_id": settings.subagent_profile_id or None,
         "planner_profile_id": settings.planner_profile_id or None,
+        "model_routing_enabled": bool(getattr(settings, "model_routing_enabled", True)),
+        "model_routing_rules_count": len(getattr(settings, "model_routing_rules", ()) or ()),
         "temperature": settings.temperature,
         "llm_timeout_sec": settings.llm_timeout_sec,
         "http_trust_env": settings.http_trust_env,
@@ -146,6 +149,11 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "workspace_is_dir": root.is_dir(),
         "git_inside_work_tree": inside,
         "cai_dir_health": build_doctor_cai_dir_health(root),
+        "plugins": {
+            "schema_version": "doctor_plugins_bundle_v1",
+            "surface": list_plugin_surface(settings),
+            "compat_matrix": build_plugin_compat_matrix(),
+        },
     }
 
 
@@ -260,6 +268,15 @@ def run_doctor(
         print(f"  hooks.json={hf} valid={hv}")
     else:
         print("  hooks.json=（未找到，可选）")
+    print()
+    surf = list_plugin_surface(settings)
+    hs = int(surf.get("health_score") or 0)
+    print("插件扩展面:")
+    print(f"  health_score={hs}（机读: cai-agent plugins --json）")
+    print(
+        "  兼容矩阵: cai-agent plugins --json --with-compat-matrix；"
+        "说明见 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md（英文: docs/PLUGIN_COMPAT_MATRIX.md）",
+    )
     print()
     print("建议下一步:")
     print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")

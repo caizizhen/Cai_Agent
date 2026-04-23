@@ -14,21 +14,20 @@
 ### 网络与只读 HTTP
 
 - 内置 `**fetch_url`**：HTTPS GET、主机白名单、响应体大小上限、超时；默认关闭 + 权限默认 `deny`；配置见 `cai-agent.toml` `[fetch_url]`、`[permissions].fetch_url`
-- [本轮已落地] **`fetch_url` 跟随重定向次数**：**`[fetch_url].max_redirects`**（**1–50**，默认 **20**）或 **`CAI_FETCH_URL_MAX_REDIRECTS`**；`httpx.Client(max_redirects=…)`；**`doctor`** JSON/文本展示 **`fetch_url_max_redirects`**
-- 可选：响应仅 `text/*` 硬拒绝二进制（当前为截断文本提示）
-- [本轮已落地] **`fetch_url` 解析后 SSRF / 反 DNS rebinding**：`getaddrinfo` 后对解析 IP 做私网/本机/链路本地等拒绝；内网解析显式 **`[fetch_url].allow_private_resolved_ips`** / **`CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS`**；**`doctor`** 展示对应开关
+- 可选：跟随重定向次数可配置、响应仅 `text/*` 硬拒绝二进制（当前为截断文本提示）
+- 可选：DNS 解析后 SSRF 深度防护（当前：字面 IP 私网段拒绝 + 依赖白名单）
 - MCP 替代路径说明：[MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md)
 
 ### 工具与 Notebook
 
 - Notebook 单元读写工具或 MCP 认证路径
-- [本轮已落地] 与官方工具分类对齐的 **工具注册表文档**：**[`docs/TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)**（13 工具）由 **`scripts/gen_tools_registry_zh.py`** 根据 **`cai_agent/tools_registry_doc.py`** 的 **`BUILTIN_TOOLS_DOC_ROWS`** 生成；**`tools.DISPATCH_TOOL_NAMES`** 与元数据由 **`test_tools_registry_doc_sync.py`** 校验；CI **`gen_tools_registry_zh.py --check`**
+- [本轮已落地] 与官方工具分类对齐的 **工具注册表文档**：静态 **[`docs/TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)**（13 工具）；从 **`tools.py`** **自动生成**仍为 backlog
 
 ### 任务与 UI
 
 - [本轮已落地] `run` / `continue` 等 JSON：**`run_schema_version`=`1.1`**，**`events`** 为 **`run_events_envelope_v1`**（与 `workflow` 事件风格对齐）；**`cai_agent.session_events`**
 - [本轮已落地] `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 为 **`sessions_list_v1`**，**`sessions[]`** 默认附带 **`events_count`** / **`task_id`** 等（**`normalize_session_run_events`**）
-- [本轮已落地] TUI 只读任务看板：**`/tasks`**、**`Ctrl+B`**（**`tui_task_board.py`**）；**`render_task_board_markup`** 与 **`board`** / **`schedule list`** 数据源对齐（**`build_board_payload`** + **`attach_*`**、**`enrich_schedule_tasks_for_display`**）；**`test_tui_task_board_render.py`**
+- [本轮已落地] TUI 只读任务看板：**`/tasks`**、**`Ctrl+B`**（**`tui_task_board.py`**）
 
 ### 计划与子 Agent
 
@@ -40,7 +39,6 @@
 
 ### 状态与观测
 
-- [本轮已落地] **`insights --json --cross-domain`**：**`insights_cross_domain_v1`** 增加 **`recall_hit_rate_metric_kind`/`recall_hit_rate_metric_note`** 与 **`recall_hit_rate_trend[]`** 行级 **`metric_kind`**，避免将索引子串探测与 **`recall`** 查询命中率混淆（S7-03 诚实标注）
 - [本轮已落地] 会话落盘与 **`run_schema_version`**（当前 **`1.1`**）对齐；**`session_events.wrap_run_events`**
 - [本轮已落地] 结构化进度流：**`progress_ring.py`** + **`graph._emit`** 写入 ring；**`run --json`** 含 **`progress_ring`** 摘要
 
@@ -48,7 +46,6 @@
 
 - [本轮已落地] compact 与 **`cost_budget_max_tokens`** 联动（约 **85%** 阈值追加成本提示）
 - [本轮已落地] 模型路由建议：**`models suggest`** → **`models_suggest_v1`**
-- [本轮已落地] **声明式模型路由 TOML 草案**：[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)（**`[models.routing]`** 规则表示例、与现有 **`resolve_role_profile`** 关系、**`models route-test`** 等待实现）；**不含** `config.py` 解析与运行时生效
 
 ### 钩子
 
@@ -57,15 +54,10 @@
 
 ## L3 — 治理与跨 harness
 
-### 云运行与平台化（定案）
-
-- [本轮已落地] **云运行后端（Modal / Daytona 等）OOS 备案**：[`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md)（理由、替代路径、**PARITY_MATRIX** L3 **`OOS`** 行）
-
 ### 记忆
 
-- [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**
-- [本轮已落地] **`append_memory_entry` / `import_memory_entries_bundle` 写入前** 对已有 `entries.jsonl` 做与 validate-entries **同源**的整文件洁净性门禁（脏文件拒绝追加；救急：`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`）；**`memory extract`** 在写条目前同样预检并 JSON 报错退出
-- [本轮已落地] 记忆 TTL/置信度策略与 **`memory prune`/`state`/`health` 对齐说明**：[MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)
+- [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**（写入前全量 schema 校验仍为演进项）
+- 记忆 TTL/置信度策略与 `memory prune` 规则文档化
 - [本轮已落地] `memory nudge` schema 升级到 `1.1`：增加 `threshold_policy`、`risk_score`、`trend`，并保持 `severity/actions` 兼容字段
 - [本轮已落地] `memory extract --structured` 可选 LLM 结构化抽取（mock 回退启发式）
 
@@ -103,9 +95,8 @@
 - [本轮已落地] **§23 RPC 标准 IO + 内置工作流模板**：`RpcStepInput` / `RpcStepOutput` TypedDict（`rpc_step_input_v1` / `rpc_step_output_v1`）；`workflow --templates` 列出内置模板；`workflow --template <name> --goal <text>` 执行内置模板；三套内置模板：`explore-implement-review`、`security-audit`、`parallel-research`；`test_workflow_templates_rpc.py`（14 cases）
 - [本轮已落地] **§24 Discord Bot Polling MVP**：`gateway discord serve-polling [--token TOKEN] [--channel CHANNEL_ID] [--poll-interval N]`；bind/unbind/get/list/allow/deny 映射管理；`gateway_discord.py`；`test_gateway_discord_slack_cli.py`（19 cases）
 - [本轮已落地] **§24 Slack Events API Webhook MVP**：`gateway slack serve-webhook [--signing-secret S] [--bot-token T] [--host H] [--port P]`；HMAC 签名验证；bind/allow 映射管理；`gateway_slack.py`；`gateway platforms list --json` 中 Discord/Slack 状态升级为 `mvp`
-- [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(..., settings=...)` 在具备 **API key** 且非 **mock** 时经 **`chat_completion_by_role`** 生成 Markdown 草稿（**`draft_method`=`llm`**；失败回退 **`template`**）；否则仍为占位模板；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py` 已扩 case
+- [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(task_id, summary, ...)` 任务完成后自动写回 `skills/_evolution_<id>.md`；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py`（8 cases）
 - [本轮已落地] **§26 运营面板 HTML 导出**：`ops dashboard --format html [-o FILE]` 生成自包含单文件 HTML 仪表盘（KPI 卡片、调度 SLA 表、Top 工具表）；`build_ops_dashboard_html(payload)` 函数；`test_ops_dashboard_html.py`（10 cases）
-- [本轮已落地] **§26 后续 · 动态 Web 运营 HTTP 契约草案 + MVP 分阶段**：[`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（建议 **`GET /v1/ops/dashboard`** / **`dashboard.html`**、查询参数与 **`build_ops_dashboard_payload`** 对齐、**`CAI_OPS_API_TOKEN`** 鉴权草案、Phase A–C、明确 OOS）；**不含**仓库内随 CLI 发布的 HTTP 服务实现
 
 ### 导出与生态
 

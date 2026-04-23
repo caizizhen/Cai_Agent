@@ -52,6 +52,18 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(pl.get("cai_agent_version"), str)
             self.assertIn("workspace", pl)
             self.assertTrue(pl.get("mock"))
+            plug = pl.get("plugins")
+            self.assertIsInstance(plug, dict)
+            self.assertEqual(plug.get("schema_version"), "doctor_plugins_bundle_v1")
+            cm = plug.get("compat_matrix") or {}
+            self.assertEqual(cm.get("schema_version"), "plugin_compat_matrix_v1")
+            self.assertEqual(cm.get("detail_doc_en"), "docs/PLUGIN_COMPAT_MATRIX.md")
+            self.assertIn("model_routing_rules_count", pl)
+            self.assertIsInstance(pl.get("model_routing_rules_count"), int)
+            self.assertEqual(
+                (plug.get("surface") or {}).get("schema_version"),
+                "plugins_surface_v1",
+            )
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

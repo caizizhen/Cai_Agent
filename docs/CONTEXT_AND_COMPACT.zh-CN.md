@@ -9,14 +9,18 @@
 
 ## 配置（`cai-agent.toml`）
 
-在 `[context]` 中配置（均为可选，默认关闭）：
+在 `[context]` 中配置：
 
 | 键 | 含义 |
 |----|------|
-| `compact_after_iterations` | 从第几轮 **LLM 调用** 起注入一次压缩提示；`0` 表示关闭 |
-| `compact_min_messages` | 仅当非 system 消息数 ≥ 该值时才注入，避免极短对话误触发 |
+| `compact_after_iterations` | 从第几轮 **LLM 调用** 起注入一次压缩提示；`0` 表示关闭（可选，默认 `0`） |
+| `compact_min_messages` | 仅当非 system 消息数 ≥ 该值时才注入，避免极短对话误触发（可选，默认 `8`） |
+| `compact_on_tool_error` | 工具返回 `工具执行失败` 前缀的结果后，下一轮 LLM 前注入一条收束提示；`false` 关闭（可选，默认 `true`） |
+| `compact_after_tool_calls` | 每累计 **N** 次**成功**工具执行（`dispatch` 未返回失败前缀）后，在下一轮 LLM 前注入一条里程碑提示；`0` 关闭（可选，默认 `0`） |
 
-注入内容为一条 **user** 角色提示，要求模型在适当时机用 `finish` 给出阶段性摘要或结论；仅注入 **一次**（每轮会话）。
+环境变量覆盖（与 TOML 二选一优先级以 `Settings.from_sources` 为准）：`CAI_CONTEXT_COMPACT_ON_TOOL_ERROR`、`CAI_CONTEXT_COMPACT_AFTER_TOOL_CALLS`。
+
+`compact_after_iterations` 类提示仍为 **每会话至多一次**（由图状态 `compact_hint_sent` 记录）。`compact_on_tool_error` 在每次工具失败后由 `tools_node` 置位、`llm_node` 消费并清除（每轮失败至多一条收束提示）。`compact_after_tool_calls` 在 `tool_call_count` 达到 `N, 2N, …` 且尚未对该里程碑注入过时各触发一次（由 `compact_milestone_last_tc` 记录）。
 
 ## 与 observe / cost 的联动建议
 

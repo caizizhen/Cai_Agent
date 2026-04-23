@@ -2,6 +2,8 @@
 
 与 [`PRODUCT_PLAN.zh-CN.md`](../PRODUCT_PLAN.zh-CN.md) **§三 T7** 对齐：主版本或对外发版前逐项勾选；**非全绿不得宣称 GA 完成**（允许单项标注豁免理由与责任人）。
 
+**关于 `[ ]`**：下表中的 **`[ ]` / `[x]` 是发版当次由负责人手工改写的 Markdown 占位**，仓库默认提交形态多为未勾选；**不代表**当前主线未跑过 pytest/回归。客观运行结果请优先看 [`docs/qa/runs/`](runs/)（例如 **`t7-gate-*.md`**、**`regression-*.md`**）中的命令与结论。
+
 ## 1. 自动化门禁
 
 | 项 | 命令 / 条件 | 通过 |
@@ -40,3 +42,12 @@
 ---
 
 *维护：发版负责人随 PR 更新本清单勾选状态或链接到具体 `docs/qa/runs/*` 报告。*
+
+---
+
+## 回填索引（近期）
+
+| 日期 | 报告 |
+|------|------|
+| 2026-04-23 | [t7-gate-20260423-agent.zh-CN.md](runs/t7-gate-20260423-agent.zh-CN.md)（pytest + `smoke_new_features` + `run_regression`） |
+| 2026-04-23 | [regression-20260423-234315.md](runs/regression-20260423-234315.md)（`run_regression.py` 全量步骤 **PASS**） |

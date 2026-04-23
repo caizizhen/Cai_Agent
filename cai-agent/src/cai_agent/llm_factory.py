@@ -9,8 +9,9 @@
 2. :func:`chat_completion` —— 纯派发：按 :func:`resolve_provider` 的返回值，
    交给 ``_openai_adapter.chat_completion`` 或 ``_anthropic_adapter.chat_completion``。
 3. :func:`chat_completion_by_role` —— 组合：按 ``active / subagent / planner``
-   选 profile，再用 :func:`dataclasses.replace` 把 settings 投影到该 profile，
-   最后派发适配器。graph.py / workflow.py 在 Sprint 2 会切到这个入口。
+   选 profile（可选 ``[models.routing]`` 用首条 ``user`` 消息覆盖），再用
+   :func:`dataclasses.replace` 把 settings 投影到该 profile，最后派发适配器。
+   graph.py / workflow.py 使用此入口。
 
 测试通过重绑定 ``_openai_adapter.chat_completion`` / ``_anthropic_adapter.chat_completion``
 来 stub 底层 HTTP，避免实网调用。
@@ -22,6 +23,11 @@ from typing import Any, Callable
 
 from cai_agent import llm as _openai_adapter
 from cai_agent import llm_anthropic as _anthropic_adapter
+from cai_agent.llm import get_usage_counters
+from cai_agent.model_routing import (
+    first_matching_routing_rule,
+    routing_goal_from_messages,
+)
 from cai_agent.profiles import Profile, project_base_url
 
 
@@ -92,6 +98,46 @@ def resolve_role_profile(settings: Any, role: str) -> Profile:
         if getattr(p, "id", None) == target_id:
             return p
     return profiles[0]
+
+
+def resolve_effective_profile_for_llm(
+    settings: Any,
+    role: str,
+    messages: list[dict[str, Any]],
+    *,
+    routing_total_tokens_used_override: int | None = None,
+) -> Profile:
+    """Role-based profile plus optional ``[models.routing]`` overlay from goal text.
+
+    ``routing_total_tokens_used_override`` is used by ``models routing-test`` to
+    simulate cumulative usage without mutating global counters.
+    """
+    base = resolve_role_profile(settings, role)
+    if not bool(getattr(settings, "model_routing_enabled", True)):
+        return base
+    rules = getattr(settings, "model_routing_rules", None) or ()
+    if not rules:
+        return base
+    goal = routing_goal_from_messages(messages) or ""
+    if routing_total_tokens_used_override is not None:
+        used = max(0, int(routing_total_tokens_used_override))
+    else:
+        snap = get_usage_counters()
+        used = int(snap.get("total_tokens") or 0)
+    budget = int(getattr(settings, "cost_budget_max_tokens", 0) or 0)
+    hit = first_matching_routing_rule(
+        rules,
+        role=role,
+        goal=goal,
+        cost_budget_max_tokens=budget,
+        total_tokens_used=used,
+    )
+    if not hit:
+        return base
+    for p in getattr(settings, "profiles", ()) or ():
+        if getattr(p, "id", None) == hit.profile_id:
+            return p
+    return base
 
 
 def _project_settings_for_profile(
@@ -181,7 +227,7 @@ def chat_completion_by_role(
     role: str = "active",
 ) -> str:
     """按 role 选 profile → 投影 settings → 派发到对应适配器。"""
-    profile = resolve_role_profile(settings, role)
+    profile = resolve_effective_profile_for_llm(settings, role, messages)
     projected = _project_settings_for_profile(settings, profile)
     return _adapter_for(resolve_provider(projected))(projected, messages)
 
@@ -191,6 +237,7 @@ __all__ = [
     "activate_profile_in_memory",
     "chat_completion",
     "chat_completion_by_role",
+    "resolve_effective_profile_for_llm",
     "resolve_provider",
     "resolve_role_profile",
 ]

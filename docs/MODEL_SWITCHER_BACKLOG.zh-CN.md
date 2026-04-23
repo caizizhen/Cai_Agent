@@ -5,7 +5,7 @@
 > - [anthropics/claude-code](https://github.com/anthropics/claude-code)：`/model`、`/model opus|sonnet|haiku`、`CLAUDE_CODE_SUBAGENT_MODEL`、`ANTHROPIC_BASE_URL` 等。
 > - [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code)：`/model-route`（按复杂度/预算路由）、Dashboard GUI（desktop）、`ECC_HOOK_PROFILE` 风格的 profile 切换。
 >
-> 关联仓库文档：[`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md)、[`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)、[`REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md`](REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)。**声明式路由 TOML 草案（未实现）**：[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)。
+> 关联仓库文档：[`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md)、[`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)、[`REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md`](REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)。**声明式路由 `[models.routing]`（已实现）**：[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md) / [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md)（**`models routing-test`**、Schema `cai-agent/src/cai_agent/schemas/models_routing_test_v1.schema.json`）。本 backlog 内 **`[ ]` QA 勾选项**仍为历史 Sprint 手检清单，**不会**随代码合入自动消失。
 
 ---
 

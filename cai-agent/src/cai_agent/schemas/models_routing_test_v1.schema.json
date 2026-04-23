@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/models_routing_test_v1.schema.json",
+  "title": "ModelsRoutingTestV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "role",
+    "goal_preview",
+    "model_routing_enabled",
+    "rules_count",
+    "cost_budget_max_tokens",
+    "total_tokens_used",
+    "base_profile_id",
+    "effective_profile_id",
+    "matched_rule"
+  ],
+  "properties": {
+    "schema_version": { "const": "models_routing_test_v1" },
+    "role": { "type": "string", "enum": ["active", "subagent", "planner"] },
+    "goal_preview": { "type": "string" },
+    "model_routing_enabled": { "type": "boolean" },
+    "rules_count": { "type": "integer", "minimum": 0 },
+    "cost_budget_max_tokens": { "type": "integer", "minimum": 0 },
+    "total_tokens_used": { "type": "integer", "minimum": 0 },
+    "cost_budget_remaining": {
+      "type": ["integer", "null"]
+    },
+    "base_profile_id": { "type": "string" },
+    "effective_profile_id": { "type": "string" },
+    "matched_rule": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": true,
+          "required": ["profile", "roles"],
+          "properties": {
+            "profile": { "type": "string" },
+            "roles": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "goal_regex": { "type": ["string", "null"] },
+            "goal_substring": { "type": ["string", "null"] },
+            "cost_budget_remaining_tokens_below": { "type": ["integer", "null"] }
+          }
+        }
+      ]
+    }
+  }
+}

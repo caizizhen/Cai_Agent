@@ -14,13 +14,13 @@
 |---|---|---|---|
 | 核心 REPL/CLI | 官方 CLI + 多端 | 已有 CLI + Textual `ui` | 低 |
 | 工具系统 | 文件/搜索/Shell/Web/MCP/任务等 | 文件、搜索、白名单 `run_command`、只读 Git、可选 **`fetch_url`（HTTPS 白名单 + `max_redirects` + 解析后 IP 校验）**、MCP Bridge；**[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)** 由 **`gen_tools_registry_zh.py`** 自 **`tools_registry_doc`** 生成 | 中 |
-| 插件扩展面 | skills/agents/hooks/MCP 等 | `cai-agent plugins --json` 汇总 rules/skills/commands/agents/hooks | 低 |
+| 插件扩展面 | skills/agents/hooks/MCP 等 | `cai-agent plugins --json` 汇总；**`--with-compat-matrix`** 输出 Cursor/Codex/OpenCode 机读矩阵；**`doctor --json`** 含 **`plugins`** 捆绑；见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md) | 低 |
 | 计划模式 | Plan Mode + 审批 | `plan`（只读规划）、`run --plan-file` | 低 |
 | 任务与并行 | 子 Agent/任务状态/后台输出 | `workflow`（多步 + merge_strategy）+ 返回 `task` 与 `events`；`observe` 聚合会话 | 中 |
 | 质量门禁 | review/CI/自动验证 | `quality-gate`：compileall、pytest、可选 ruff、可选 mypy、可选 `[[quality_gate.extra]]`、可选内嵌 `security-scan`；`fix-build` | 低 |
 | 安全治理 | hooks + 权限 + 秘钥检测 | `security-scan`；`[permissions]`；沙箱与白名单命令 | 低 |
 | 记忆学习 | auto memory / instincts | `memory extract/list/search/prune/...`、instincts 路径 | 中 |
-| 成本治理 | token/cost 与路由策略 | LLM usage 统计、`cost budget --check`、`[cost] budget_max_tokens`；`[context]` 可配置对话压缩提示（见 `docs/CONTEXT_AND_COMPACT.zh-CN.md`）；**`[models.routing]`** 声明式路由 **TOML 草案**见 [`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md)（实现仍待迭代） | 中 |
+| 成本治理 | token/cost 与路由策略 | LLM usage 统计、`cost budget --check`、`[cost] budget_max_tokens`；`[context]` 可配置对话压缩提示（见 `docs/CONTEXT_AND_COMPACT.zh-CN.md`）；**`[models.routing]`** 已含 **`cost_budget_remaining_tokens_below`**（与累计 **`total_tokens`** 比较剩余预算）；**`models routing-test --total-tokens-used`** 干跑；见 [`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md) / [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) | 低 |
 | 跨工具适配 | Cursor/Codex/OpenCode 等 | `export --target cursor|codex|opencode` + manifest `schema` / `manifest_version`（见 `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`） | 中 |
 
 ## 当前仓库已具备的优势
@@ -34,8 +34,8 @@
 ## 关键缺口（按优先级）
 
 1. **P1 - 工具深度**：无内置 WebFetch/WebSearch、Notebook 编辑等；在「完全体」目标下，**每个小版本**须选择：**内置补齐**、**新增认证 MCP 配方 + 文档**、或在 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 标注 `OOS` 并写明理由。
-2. **P1 - 任务运营面**：缺独立「任务看板」UI；当前以 JSON（`workflow` / `observe`）为主，适合 CI 与二次集成；**动态运营 Web** 的 HTTP 契约与 MVP 分阶段见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（尚无内置 HTTP 服务）。
-3. **P1 - 记忆与学习**：`entries.jsonl` **追加前整文件校验**与 **`auto_extract_skill_after_task` LLM 提炼**已落地（见 `memory.py` / `skills.py`、`PARITY_MATRIX` L3）；**`insights --cross-domain`** 已输出 **`recall_hit_rate_metric_kind`/`metric_kind`** 明示索引探测语义（**A3** 诚实标注已落地，**真实 recall 命中率统计**仍为后续项）；**TTL/置信度策略**见 **[`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)**；**Honcho 级用户建模（A1）** 仍为后续项。
+2. **P1 - 任务运营面**：缺独立「任务看板」UI；当前以 JSON（`workflow` / `observe`）为主，适合 CI 与二次集成；**动态运营 Web** 的 HTTP 契约与 MVP 分阶段见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（**Phase B** 已提供 **`cai-agent ops serve`** 只读 HTTP；**Phase A** 为 HTML **`meta refresh`** / **`--html-refresh-seconds`**；**Phase C** 仍为后续）。
+3. **P1 - 记忆与学习**：`entries.jsonl` **追加前整文件校验**与 **`auto_extract_skill_after_task` LLM 提炼**已落地（见 `memory.py` / `skills.py`、`PARITY_MATRIX` L3）；**`memory user-model export`** → **`user_model_bundle_v1`**（RFC 首包归档切片，**非**完整 E1 存储引擎）；**`insights --cross-domain`** 已输出 **`recall_hit_rate_metric_kind`/`metric_kind`** 明示索引探测语义（**A3** 诚实标注已落地，**真实 recall 命中率统计**仍为后续项）；**TTL/置信度策略**见 **[`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)**；**Honcho 级用户建模（A1）** 完整 E1–E4 仍为后续项。
 4. **P2 - 分发与反馈闭环**：对比官方安装器、`/bug` 类反馈通道；Cai_Agent 以 pip/源码为主，需自建支持渠道。
 5. **P2 - 云运行后端**：Modal / Daytona 等按需沙箱 **默认不纳入交付**（**`OOS`**）；备案与替代路径见 [`CLOUD_RUNTIME_OOS.zh-CN.md`](CLOUD_RUNTIME_OOS.zh-CN.md)。
 

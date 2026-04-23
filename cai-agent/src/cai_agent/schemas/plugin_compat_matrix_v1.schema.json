@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/plugin_compat_matrix_v1.schema.json",
+  "title": "PluginCompatMatrixV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "targets", "components_vs_targets"],
+  "properties": {
+    "schema_version": { "const": "plugin_compat_matrix_v1" },
+    "doc_anchor": { "type": "string" },
+    "doc_anchor_en": { "type": "string" },
+    "detail_doc": { "type": "string" },
+    "detail_doc_en": { "type": "string" },
+    "targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "export_command": { "type": "string" }
+        }
+      }
+    },
+    "components_vs_targets": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["component"],
+        "properties": {
+          "component": { "type": "string" },
+          "cursor": { "type": "string" },
+          "codex": { "type": "string" },
+          "opencode": { "type": "string" },
+          "notes": { "type": "string" }
+        }
+      }
+    }
+  }
+}

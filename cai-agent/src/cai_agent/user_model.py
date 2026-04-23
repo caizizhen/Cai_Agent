@@ -138,3 +138,18 @@ def build_memory_user_model_overview(
         "model": getattr(settings, "model", None),
         "behavior": behavior,
     }
+
+
+def build_user_model_bundle_v1(
+    settings: Settings,
+    *,
+    days: int = 14,
+) -> dict[str, Any]:
+    """RFC：可归档的导出包，嵌套当前 ``memory_user_model_v1`` 概览。"""
+    overview = build_memory_user_model_overview(settings, days=days)
+    return {
+        "schema_version": "user_model_bundle_v1",
+        "exported_at": datetime.now(UTC).isoformat(),
+        "bundle_kind": "behavior_overview",
+        "overview": overview,
+    }

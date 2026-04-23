@@ -10,48 +10,6 @@ from pathlib import Path
 from typing import Any, Iterable, List
 
 
-def _skill_extract_should_use_llm(settings: Any) -> bool:
-    if bool(getattr(settings, "mock", False)):
-        return False
-    if not str(getattr(settings, "api_key", "") or "").strip():
-        return False
-    profiles = getattr(settings, "profiles", None) or ()
-    return bool(profiles)
-
-
-def _draft_skill_markdown_via_llm(*, goal: str, answer: str, settings: Any) -> str | None:
-    """调用 LLM 生成技能草稿正文；失败或输出过短则返回 None。"""
-    try:
-        from cai_agent.llm_factory import chat_completion_by_role
-    except Exception:
-        return None
-    g = goal.strip()[:1200]
-    a = (answer or "").strip()[:2400]
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "你是技术文档助手。根据任务目标与答案摘要，输出一份 Markdown 技能草稿。"
-                "第一行必须是标题: # Auto-extracted Skill Draft\n"
-                "随后依次包含小节: ## 任务目标、## 答案摘要、## 可复用步骤建议、## 注意事项 / 坑。\n"
-                "步骤与注意事项用 Markdown 列表编写；不要输出 HTML 注释或 <!-- TODO 占位符。"
-            ),
-        },
-        {"role": "user", "content": f"## 任务目标\n\n{g}\n\n## 答案摘要\n\n{a or '（无）'}\n"},
-    ]
-    try:
-        raw = chat_completion_by_role(settings, messages, role="active").strip()
-    except Exception:
-        return None
-    if len(raw) < 80:
-        return None
-    if "<!-- TODO" in raw or "<!-- todo" in raw.lower():
-        return None
-    if not raw.startswith("#"):
-        raw = "# Auto-extracted Skill Draft\n\n" + raw
-    return raw
-
-
 @dataclass(frozen=True)
 class Skill:
     """从 `skills/` 目录加载的可复用工作流/提示模版描述."""
@@ -144,24 +102,22 @@ def auto_extract_skill_after_task(
     goal: str,
     answer: str = "",
     write: bool = True,
-    settings: Any | None = None,
 ) -> dict[str, Any]:
     """任务完成后自动提炼技能草稿（§25 补齐：任务后自动提炼）。
 
     在 ``skills/_evolution_<slug>.md`` 写入结构化草稿，包含：
     - 任务目标
     - 答案摘要
-    - 可复用步骤建议（无可用 ``settings`` 时为占位模板；有 API 配置时尝试 LLM 生成）
+    - 可复用步骤建议（占位，待人工完善）
 
     Args:
         root: 工作区根目录。
         goal: 本次任务目标字符串。
         answer: 任务最终答案（摘要或完整文本）。
         write: 是否真正写文件（默认 True）。
-        settings: 可选运行时配置；提供有效 ``api_key`` 且非 mock 时走 LLM 提炼。
 
     Returns:
-        ``skills_auto_extract_v1`` 结构（含 ``draft_method``: ``llm`` | ``template``）。
+        ``skills_auto_extract_v1`` 结构。
     """
     base = Path(root).expanduser().resolve()
     slug = _slug_goal(goal)
@@ -169,7 +125,6 @@ def auto_extract_skill_after_task(
     path = base / rel
 
     answer_preview = (answer.strip()[:600] + "…") if len(answer.strip()) > 600 else answer.strip()
-    draft_method = "template"
     body = (
         "# Auto-extracted Skill Draft\n\n"
         f"> 生成时间：{datetime.now(UTC).isoformat()}\n\n"
@@ -187,15 +142,6 @@ def auto_extract_skill_after_task(
         "- [ ] 复核命名与目录约定\n"
         "- [ ] 从 `_evolution_` 前缀迁出并纳入正式 `skills/`\n"
     )
-    if settings is not None and _skill_extract_should_use_llm(settings):
-        drafted = _draft_skill_markdown_via_llm(goal=goal, answer=answer, settings=settings)
-        if drafted:
-            body = drafted + (
-                "\n\n## 后续\n\n"
-                "- [ ] 复核命名与目录约定\n"
-                "- [ ] 从 `_evolution_` 前缀迁出并纳入正式 `skills/`\n"
-            )
-            draft_method = "llm"
     existed_before = path.is_file()
     written = False
     if write and not existed_before:
@@ -211,7 +157,6 @@ def auto_extract_skill_after_task(
         "written": written,
         "file_existed_before": existed_before,
         "goal_preview": goal.strip()[:120],
-        "draft_method": draft_method,
         "preview": body[:800],
     }
 

@@ -25,6 +25,13 @@
 - 若 PR 仅英文机器人提交：合并前由维护者补中文节，或在同一 PR 追加 commit。
 - 若紧急 hotfix 仅中文：须补英文一行 **parity** 说明，避免海外用户只看到中文文件。
 
+## 5. 滚动摘要（非替代 CHANGELOG）
+
+发版叙事仍以 **`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** 为准；若只需一页「最近合了什么 / 还有什么没做」，维护者可同步更新：
+
+- [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)（英文）
+- [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md)（中文）
+
 ---
 
 *维护：本约定变更时同步 [`NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`](NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md) §0 与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) T7 相关表述。*
