@@ -2,6 +2,13 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.1 (2026-04-23)
+
+- **Gateway (dev item 24 MVP)**: `cai-agent gateway platforms list --json` → **`gateway_platforms_v1`** (Telegram `full`, Discord/Slack `stub`, others `planned`).
+- **Skills Hub (dev item 25 MVP)**: `cai-agent skills hub manifest --json` → **`skills_hub_manifest_v1`** (exportable listing from workspace `skills/`). Automatic skill evolution remains out of scope.
+- **Ops dashboard (dev item 26 MVP)**: `cai-agent ops dashboard --json` → **`ops_dashboard_v1`** (nested **`board_v1`**, **`schedule_stats_v1`**, **`cost_aggregate`** + top-level **`summary`**). Web UI still separate.
+- **Tests / smoke**: `cai-agent/tests/test_ops_gateway_skills_cli.py`; `scripts/smoke_new_features.py` exercises the three JSON paths.
+
 ### 0.6.0 (2026-04-23)
 
 - **Workflow (Hermes S5-03)**: JSON root **`on_error`**: **`fail_fast`** (default) or **`continue_on_error`** (alias **`continue-on-error`**). On fail-fast, remaining steps are **`skipped`** with **`skip_reason=fail_fast_prior_batch`** and **`workflow.step.skipped`** events; merge/conflict resolution only considers successfully finished steps when continuing. Summary adds **`on_error`**, **`steps_skipped`**, **`merge_steps_considered`**.

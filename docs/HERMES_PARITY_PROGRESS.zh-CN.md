@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.0`**；进度统计与 **QA 测试移交清单** 同步见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **356 passed**（**3 subtests**）+ **`smoke_new_features`** 见 §三之二；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.1`**；**§二 24–26** CLI **MVP**（**`gateway platforms`/`skills hub manifest`/`ops dashboard`**）已合主线；Hermes **34 Story ✅ 仍为 23/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **359 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >

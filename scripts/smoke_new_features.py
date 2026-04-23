@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Smoke tests for newer CLI JSON envelopes (CHANGELOG 0.5.x).
 
-Covers plan/run/stats/sessions/observe/commands/agents/cost budget, repo-root
+Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
+platforms + ops dashboard + skills hub manifest, repo-root
 ``plugins``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``board --json``, ``memory health`` + ``memory state --json``, plus
@@ -515,6 +516,33 @@ def main() -> int:
                 errs.append(f"gateway list action {go.get('action')!r}")
             if not isinstance(go.get("bindings"), list):
                 errs.append("gateway list bindings not list")
+        pp = _run([*cli, "gateway", "platforms", "list", "--json"], cwd=gw_td)
+        if pp.returncode != 0:
+            errs.append(f"gateway platforms list exit {pp.returncode} stderr={pp.stderr!r}")
+        else:
+            po = json.loads((pp.stdout or "").strip())
+            if po.get("schema_version") != "gateway_platforms_v1":
+                errs.append(f"gateway platforms schema {po.get('schema_version')!r}")
+            if not isinstance(po.get("platforms"), list):
+                errs.append("gateway platforms not list")
+        od = _run([*cli, "ops", "dashboard", "--json"], cwd=gw_td)
+        if od.returncode != 0:
+            errs.append(f"ops dashboard exit {od.returncode} stderr={od.stderr!r}")
+        else:
+            oo = json.loads((od.stdout or "").strip())
+            if oo.get("schema_version") != "ops_dashboard_v1":
+                errs.append(f"ops dashboard schema {oo.get('schema_version')!r}")
+            if not isinstance(oo.get("board"), dict):
+                errs.append("ops dashboard board missing")
+        (Path(gw_td) / "skills").mkdir()
+        (Path(gw_td) / "skills" / "smoke-skill.md").write_text("# s\n", encoding="utf-8")
+        sk = _run([*cli, "skills", "hub", "manifest", "--json"], cwd=gw_td)
+        if sk.returncode != 0:
+            errs.append(f"skills hub manifest exit {sk.returncode} stderr={sk.stderr!r}")
+        else:
+            so = json.loads((sk.stdout or "").strip())
+            if so.get("schema_version") != "skills_hub_manifest_v1":
+                errs.append(f"skills manifest schema {so.get('schema_version')!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-") as rec_td:
         pr = _run(

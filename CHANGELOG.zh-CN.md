@@ -4,6 +4,13 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.1（2026-04-23）
+
+- **Gateway（开发项 24 MVP）**：**`cai-agent gateway platforms list --json`** → **`gateway_platforms_v1`**（Telegram **`full`**，Discord/Slack **`stub`**，其余 **`planned`**）。
+- **Skills Hub（开发项 25 MVP）**：**`cai-agent skills hub manifest --json`** → **`skills_hub_manifest_v1`**（工作区 **`skills/`** 可分发清单）。**技能自进化 / 自动生成** 仍为后续范围。
+- **运营面板（开发项 26 MVP）**：**`cai-agent ops dashboard --json`** → **`ops_dashboard_v1`**（嵌套 **`board_v1`**、**`schedule_stats_v1`**、**`cost_aggregate`** 与顶层 **`summary`**）。**Web 运营 UI** 仍为后续。
+- **测试与冒烟**：**`cai-agent/tests/test_ops_gateway_skills_cli.py`**；**`scripts/smoke_new_features.py`** 覆盖上述三条 JSON 路径。
+
 ### 0.6.0（2026-04-23）
 
 - **Workflow（Hermes S5-03）**：JSON 根级 **`on_error`**：**`fail_fast`**（默认）或 **`continue_on_error`**（别名 **`continue-on-error`**）。`fail_fast` 时后续未跑步骤 **`skipped`**（**`fail_fast_prior_batch`**）并产生 **`workflow.step.skipped`**；`continue_on_error` 时 merge/conflict 仅统计成功完成步骤。`summary` 增加 **`on_error`**、**`steps_skipped`**、**`merge_steps_considered`**。

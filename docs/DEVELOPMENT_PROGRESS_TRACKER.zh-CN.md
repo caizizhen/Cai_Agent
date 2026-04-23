@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 85%**（**22÷26**）；**Hermes 约 68%**（**23÷34**）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **356 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.0`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **356 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 96%**（**25÷26**）；**Hermes 约 68%**（**23÷34**）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **359 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.1`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`gateway platforms`/`ops dashboard`/`skills hub manifest`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **359 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
 
 ## 对照基线
 
@@ -118,6 +118,12 @@
 - 新增 `gateway telegram serve-webhook`：本地 HTTP 入口接收 `/telegram/update`，复用映射解析并写入 JSONL 事件日志
 - `serve-webhook` 新增 `--execute-on-update` 与 `--goal-template`，可在接收 update 后直接触发执行路径并记录 answer 预览
 - `serve-webhook` 新增执行后回发链路：支持 `--reply-on-execution` / `--telegram-bot-token` / `--reply-template`，将执行结果通过 Telegram `sendMessage` 回发（并记录回发状态）
+- **`0.6.1`**：**`gateway platforms list --json`**（**`gateway_platforms_v1`**）：多平台 **实现阶段目录**（Telegram **full**；Discord/Slack **stub** + **`env`** 引导；其余 **planned**）
+
+### J. 运营面板 / Skills Hub（CLI MVP，`0.6.1`）
+
+- **`ops dashboard --json`**（**`ops_dashboard_v1`**）：嵌 **`board_v1`** + **`schedule_stats_v1`** + **`cost_aggregate`**，顶层 **`summary`**（失败率、调度任务数、成本 tokens 等）
+- **`skills hub manifest --json`**（**`skills_hub_manifest_v1`**）：**`skills/`** 下可分发文件清单（**`.md`/`.txt`**，与 **`load_skills`** 一致）；**技能自进化** 仍为后续
 
 ## 目标项状态对照（总体）
 
@@ -131,19 +137,19 @@
 | Observability  | **中高完成度** | hook 结果可见，`observe-report` 报表与告警规则入口已落地                                 |
 | Security Model | **中高完成度** | 扫描、门禁与高危命令阻断策略已落地，细粒度审批链待扩                                              |
 | Release GA     | **高完成度** | `release-ga` 已覆盖质量/安全/成本/doctor/memory-nudge/memory-state 多维门禁，后续以阈值运营优化为主 |
-| Gateway MVP    | **已完成（MVP）** | 已支持 webhook 接入、update 解析、映射自动创建、事件日志、update 触发执行与执行结果回发 Telegram |
+| Gateway MVP    | **已完成（MVP）** | Telegram：**webhook**、update 解析、映射、事件日志、执行与回发；**`0.6.1`**：**`gateway platforms`** 多平台目录 |
 
 
 ## 当前总体进度（估算）
 
 - 总体：**约 100%（当前规划范围）**
 - 已完成偏“核心底座与可执行门禁”
-- 未完成偏“平台化与生态化模块”（Gateway、完整运营面板、全量 DSL/策略）
+- 未完成偏“平台化与生态化模块”（Discord/Slack **真机**、**Web** 运营 UI、技能**自进化**、全量 DSL/策略）；**`0.6.1`** 已交付 **CLI 目录/聚合/清单** MVP
 
 ## 下一阶段建议（按价值）
 
 1. Sprint 5+：Hooks Runtime 深化与其它 Sprint 按计划推进；Sprint 4 可选补 memory 字段定义与迁移向导专题文档
-2. Gateway 后续增强：补回发失败重试与幂等（MVP 已闭环）
+2. Gateway 后续增强：Discord/Slack **运行时** + 回发失败重试与幂等（Telegram **MVP** 已闭环）
 3. Recall 结果缓存与大规模索引压测脚本
 4. Release GA 门禁阈值运营化（按环境分层阈值、告警格式细化）
 

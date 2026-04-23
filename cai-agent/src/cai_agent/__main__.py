@@ -3027,6 +3027,24 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SCORE",
         help="可选：扩展面 health_score < SCORE（0~100）时 exit 2，便于 CI",
     )
+    skills_p = sub.add_parser(
+        "skills",
+        parents=[common],
+        help="Skills Hub 辅助：从工作区 skills/ 导出分发清单等",
+    )
+    skills_sub = skills_p.add_subparsers(dest="skills_action", required=True)
+    skills_hub_p = skills_sub.add_parser("hub", help="Hub 分发相关子命令")
+    skills_hub_sub = skills_hub_p.add_subparsers(dest="skills_hub_action", required=True)
+    skills_hub_manifest_p = skills_hub_sub.add_parser(
+        "manifest",
+        help="导出 skills/ 下可分发技能文件清单（JSON）",
+    )
+    skills_hub_manifest_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_hub_manifest_v1 JSON",
+    )
     cmd_list_p = sub.add_parser(
         "commands",
         parents=[common],
@@ -4096,6 +4114,19 @@ def main(argv: list[str] | None = None) -> int:
     )
     board_p.add_argument("--json", action="store_true", dest="json_output")
 
+    ops_p = sub.add_parser(
+        "ops",
+        parents=[common],
+        help="运营聚合：失败率、调度 SLA、成本一页 JSON",
+    )
+    ops_sub = ops_p.add_subparsers(dest="ops_action", required=True)
+    ops_dash = ops_sub.add_parser("dashboard", help="聚合 board + schedule stats + cost rollup")
+    ops_dash.add_argument("--json", action="store_true", dest="json_output")
+    ops_dash.add_argument("--pattern", default=".cai-session*.json")
+    ops_dash.add_argument("--limit", type=int, default=100)
+    ops_dash.add_argument("--schedule-days", type=int, default=30)
+    ops_dash.add_argument("--audit-file", default=None)
+
     gateway_p = sub.add_parser(
         "gateway",
         help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
@@ -4103,6 +4134,14 @@ def main(argv: list[str] | None = None) -> int:
     gateway_sub = gateway_p.add_subparsers(dest="gateway_action", required=True)
     gw_tg = gateway_sub.add_parser("telegram", help="Telegram 映射管理")
     gw_tg_sub = gw_tg.add_subparsers(dest="gateway_telegram_action", required=True)
+
+    gw_plat = gateway_sub.add_parser(
+        "platforms",
+        help="多平台 Gateway 适配目录（Telegram 与其它 messenger 状态）",
+    )
+    gw_plat_sub = gw_plat.add_subparsers(dest="gateway_platforms_action", required=True)
+    gw_plat_list = gw_plat_sub.add_parser("list", help="列出各平台实现阶段与引导字段")
+    gw_plat_list.add_argument("--json", action="store_true", dest="json_output")
 
     gw_tg_bind = gw_tg_sub.add_parser("bind", help="绑定 chat_id+user_id 到会话文件")
     gw_tg_bind.add_argument("--chat-id", required=True)
@@ -4450,6 +4489,28 @@ def main(argv: list[str] | None = None) -> int:
             hs = int(surface.get("health_score") or 0)
             if hs < int(min_h):
                 return 2
+        return 0
+
+    if args.command == "skills":
+        act = str(getattr(args, "skills_action", "") or "").strip()
+        if act != "hub":
+            print("skills: 仅支持 hub 子命令", file=sys.stderr)
+            return 2
+        hub_act = str(getattr(args, "skills_hub_action", "") or "").strip()
+        if hub_act != "manifest":
+            print("skills hub: 仅支持 manifest", file=sys.stderr)
+            return 2
+        root_sk = Path.cwd().resolve()
+        from cai_agent.skills import build_skills_hub_manifest
+
+        payload_sm = build_skills_hub_manifest(root=str(root_sk))
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload_sm, ensure_ascii=False))
+        else:
+            print(
+                f"skills Hub manifest: count={payload_sm.get('count')} "
+                f"skills_dir_exists={payload_sm.get('skills_dir_exists')}",
+            )
         return 0
 
     if args.command == "commands":
@@ -6625,6 +6686,33 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         return 0
 
+    if args.command == "ops":
+        oa = str(getattr(args, "ops_action", "") or "").strip()
+        if oa != "dashboard":
+            print("ops: 未知子命令", file=sys.stderr)
+            return 2
+        root_ops = Path.cwd().resolve()
+        from cai_agent.ops_dashboard import build_ops_dashboard_payload
+
+        payload_ops = build_ops_dashboard_payload(
+            cwd=str(root_ops),
+            observe_pattern=str(getattr(args, "pattern", ".cai-session*.json")),
+            observe_limit=int(getattr(args, "limit", 100)),
+            schedule_days=int(getattr(args, "schedule_days", 30)),
+            audit_path=getattr(args, "audit_file", None),
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload_ops, ensure_ascii=False))
+        else:
+            sm = payload_ops.get("summary") if isinstance(payload_ops.get("summary"), dict) else {}
+            print(
+                "[ops dashboard] "
+                f"sessions={sm.get('sessions_count')} failure_rate={sm.get('failure_rate')} "
+                f"schedule_tasks={sm.get('schedule_tasks_in_stats')} "
+                f"cost_tokens={sm.get('cost_total_tokens')}",
+            )
+        return 0
+
     if args.command == "board":
         settings_board = Settings.from_env(config_path=None)
         board_json = bool(getattr(args, "json_output", False))
@@ -6787,6 +6875,26 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "gateway":
         root = Path.cwd().resolve()
+        if getattr(args, "gateway_action", None) == "platforms":
+            actp = str(getattr(args, "gateway_platforms_action", "") or "").strip()
+            if actp != "list":
+                print("gateway platforms: 未知子命令", file=sys.stderr)
+                return 2
+            from cai_agent.gateway_platforms import build_gateway_platforms_payload
+
+            payload_pf = build_gateway_platforms_payload(workspace=root)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload_pf, ensure_ascii=False))
+            else:
+                print("[gateway platforms]")
+                for row in payload_pf.get("platforms") or []:
+                    if not isinstance(row, dict):
+                        continue
+                    print(
+                        f"- {row.get('id')}: implementation={row.get('implementation')} "
+                        f"label={row.get('label')}",
+                    )
+            return 0
         map_path = _resolve_gateway_map_path(root, getattr(args, "map_file", None))
         doc = _load_gateway_map(map_path)
         bindings = doc.get("bindings")

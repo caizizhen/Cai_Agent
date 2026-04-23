@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Iterable, List
+from typing import Any, Iterable, List
 
 
 @dataclass(frozen=True)
@@ -46,4 +47,39 @@ def iter_skill_names(skills: Iterable[Skill]) -> list[str]:
     """提取技能名称列表, 便于在 UI 或 system prompt 中展示."""
 
     return sorted({s.name for s in skills})
+
+
+def build_skills_hub_manifest(*, root: str | Path) -> dict[str, Any]:
+    """Skills Hub 分发清单（``skills_hub_manifest_v1``）：扫描工作区 ``skills/`` 下可分发文件。"""
+    base = Path(root).expanduser().resolve()
+    skills = load_skills(base)
+    entries: list[dict[str, Any]] = []
+    for s in skills:
+        try:
+            st = s.path.stat()
+        except OSError:
+            continue
+        try:
+            rel = s.path.resolve().relative_to(base)
+            rel_s = rel.as_posix()
+        except ValueError:
+            rel_s = str(s.path)
+        entries.append(
+            {
+                "name": s.name,
+                "path": rel_s,
+                "size_bytes": int(st.st_size),
+                "mtime_iso": datetime.fromtimestamp(st.st_mtime, tz=UTC).isoformat(),
+            },
+        )
+    skills_dir = base / "skills"
+    return {
+        "schema_version": "skills_hub_manifest_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(base),
+        "skills_dir": str(skills_dir),
+        "skills_dir_exists": skills_dir.is_dir(),
+        "count": len(entries),
+        "entries": entries,
+    }
 

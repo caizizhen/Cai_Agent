@@ -191,6 +191,33 @@
 
 ---
 
+## `gateway platforms list`（`--json`）
+
+- **实现**：`cai_agent.gateway_platforms.build_gateway_platforms_payload`；`cai-agent gateway platforms list --json`。
+- **`schema_version`**：**`gateway_platforms_v1`**；含 **`workspace`**、**`telegram_map_exists`**、**`platforms[]`**（各 **`id`** / **`implementation`**（`full`|`stub`|`planned`）/ **`cli_prefix`** / **`env`** / **`notes`** 等）。
+
+**Exit**：成功 → **`0`**。
+
+---
+
+## `ops dashboard`（`--json`）
+
+- **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
+- **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens` 等）与 **`board`** / **`schedule_stats`** / **`cost_aggregate`**。
+
+**Exit**：成功 → **`0`**。
+
+---
+
+## `skills hub manifest`（`--json`）
+
+- **实现**：`cai_agent.skills.build_skills_hub_manifest`；扫描工作区 **`skills/`** 下 **`.md` / `.markdown` / `.txt`**（与 `load_skills` 一致）。
+- **`schema_version`**：**`skills_hub_manifest_v1`**；含 **`count`**、**`entries[]`**（`name` / `path` / `size_bytes` / `mtime_iso`）、**`skills_dir_exists`**。
+
+**Exit**：成功 → **`0`**。
+
+---
+
 ## `init`
 
 - **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
