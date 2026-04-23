@@ -29,4 +29,4 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
-cai_agent = ["templates/*.toml", "schemas/*.json"]
+cai_agent = ["templates/*.toml", "schemas/*.json", "prompts/*.md"]

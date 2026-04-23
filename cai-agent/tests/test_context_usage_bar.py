@@ -327,7 +327,7 @@ class GraphEmitsUsageTests(unittest.TestCase):
         # reply and prime ``get_last_usage`` ourselves.
         llm_mod.reset_usage_counters()
 
-        def _fake_chat(settings, messages, *, role="active"):
+        def _fake_chat(settings, messages, *, role="active", route_conversation_phase=None):
             llm_mod._record_last_usage(
                 prompt_tokens=1234, completion_tokens=56, total_tokens=1290,
             )

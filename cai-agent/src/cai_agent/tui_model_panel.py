@@ -491,3 +491,31 @@ class ModelPanelScreen(ModalScreen[str | None]):
             self._refresh_after_disk_write()
 
         self.app.push_screen(ConfirmDeleteScreen(prof.id), _after_del)
+
+
+def run_standalone_model_panel(settings: Settings) -> int:
+    """CLI ``cai-agent model``：独立启动 Textual 模型面板（无完整聊天 UI）。"""
+    from textual.app import App
+
+    class _ModelOnlyApp(App[None]):
+        def __init__(self, st: Settings) -> None:
+            super().__init__()
+            self._initial = st
+
+        def on_mount(self) -> None:
+            def reload() -> Settings:
+                return Settings.from_env(
+                    config_path=self._initial.config_loaded_from,
+                    workspace_hint=self._initial.workspace,
+                )
+
+            def _done(_rid: str | None) -> None:
+                self.exit()
+
+            self.push_screen(
+                ModelPanelScreen(self._initial, reload_settings=reload),
+                _done,
+            )
+
+    _ModelOnlyApp(settings).run()
+    return 0

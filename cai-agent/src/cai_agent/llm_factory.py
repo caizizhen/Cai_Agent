@@ -18,13 +18,15 @@
 """
 from __future__ import annotations
 
+import contextvars
 from dataclasses import replace
 from typing import Any, Callable
 
 from cai_agent import llm as _openai_adapter
 from cai_agent import llm_anthropic as _anthropic_adapter
-from cai_agent.llm import get_usage_counters
+from cai_agent.llm import get_last_usage, get_usage_counters
 from cai_agent.model_routing import (
+    first_matching_profile_route,
     first_matching_routing_rule,
     routing_goal_from_messages,
 )
@@ -32,6 +34,20 @@ from cai_agent.profiles import Profile, project_base_url
 
 
 ChatFn = Callable[[Any, list[dict[str, Any]]], str]
+
+_profile_route_decision: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar(
+    "profile_route_decision",
+    default=None,
+)
+
+
+def peek_last_profile_route_decision() -> dict[str, Any] | None:
+    """最近一次 :func:`resolve_effective_profile_for_llm` 的 ``[[models.route]]`` 命中（若有）。"""
+    return _profile_route_decision.get()
+
+
+def _set_profile_route_decision(doc: dict[str, Any] | None) -> None:
+    _profile_route_decision.set(doc)
 
 
 def resolve_provider(settings: Any) -> str:
@@ -106,19 +122,52 @@ def resolve_effective_profile_for_llm(
     messages: list[dict[str, Any]],
     *,
     routing_total_tokens_used_override: int | None = None,
+    route_conversation_phase: str | None = None,
 ) -> Profile:
-    """Role-based profile plus optional ``[models.routing]`` overlay from goal text.
+    """Role profile + ``[[models.route]]`` + ``[models.routing]`` 叠加（按序命中）。"""
+    _set_profile_route_decision(None)
+    profiles = tuple(getattr(settings, "profiles", ()) or ())
+    if not profiles:
+        raise RuntimeError("settings.profiles 为空，无法定位 profile")
 
-    ``routing_total_tokens_used_override`` is used by ``models routing-test`` to
-    simulate cumulative usage without mutating global counters.
-    """
-    base = resolve_role_profile(settings, role)
+    def _by_id(pid: str) -> Profile | None:
+        for p in profiles:
+            if getattr(p, "id", None) == pid:
+                return p
+        return None
+
+    cur = resolve_role_profile(settings, role)
+    goal = routing_goal_from_messages(messages) or ""
+    proutes = tuple(getattr(settings, "models_profile_routes", ()) or ())
+    if proutes:
+        last_pt = int(get_last_usage().get("prompt_tokens") or 0)
+        r_hit = first_matching_profile_route(
+            proutes,
+            goal=goal,
+            last_prompt_tokens=last_pt,
+            conversation_phase=route_conversation_phase,
+        )
+        if r_hit is not None:
+            picked = _by_id(r_hit.use_profile)
+            if picked is not None:
+                cur = picked
+                _set_profile_route_decision(
+                    {
+                        "schema_version": "models_route_v1",
+                        "matched": True,
+                        "use_profile": r_hit.use_profile,
+                        "match_task_kind": r_hit.match_task_kind,
+                        "match_tokens_gt": r_hit.match_tokens_gt,
+                        "match_phase": getattr(r_hit, "match_phase", None),
+                        "conversation_phase": route_conversation_phase,
+                        "last_prompt_tokens": last_pt,
+                    },
+                )
     if not bool(getattr(settings, "model_routing_enabled", True)):
-        return base
+        return cur
     rules = getattr(settings, "model_routing_rules", None) or ()
     if not rules:
-        return base
-    goal = routing_goal_from_messages(messages) or ""
+        return cur
     if routing_total_tokens_used_override is not None:
         used = max(0, int(routing_total_tokens_used_override))
     else:
@@ -133,11 +182,9 @@ def resolve_effective_profile_for_llm(
         total_tokens_used=used,
     )
     if not hit:
-        return base
-    for p in getattr(settings, "profiles", ()) or ():
-        if getattr(p, "id", None) == hit.profile_id:
-            return p
-    return base
+        return cur
+    picked2 = _by_id(hit.profile_id)
+    return picked2 if picked2 is not None else cur
 
 
 def _project_settings_for_profile(
@@ -225,9 +272,15 @@ def chat_completion_by_role(
     messages: list[dict[str, Any]],
     *,
     role: str = "active",
+    route_conversation_phase: str | None = None,
 ) -> str:
     """按 role 选 profile → 投影 settings → 派发到对应适配器。"""
-    profile = resolve_effective_profile_for_llm(settings, role, messages)
+    profile = resolve_effective_profile_for_llm(
+        settings,
+        role,
+        messages,
+        route_conversation_phase=route_conversation_phase,
+    )
     projected = _project_settings_for_profile(settings, profile)
     return _adapter_for(resolve_provider(projected))(projected, messages)
 
@@ -237,6 +290,7 @@ __all__ = [
     "activate_profile_in_memory",
     "chat_completion",
     "chat_completion_by_role",
+    "peek_last_profile_route_decision",
     "resolve_effective_profile_for_llm",
     "resolve_provider",
     "resolve_role_profile",

@@ -4,6 +4,7 @@ import glob
 import ipaddress
 import json
 import os
+import shlex
 import socket
 import subprocess
 import time
@@ -17,6 +18,7 @@ import httpx
 from cai_agent.config import Settings
 from cai_agent.http_trust import effective_http_trust_env
 from cai_agent.permissions import enforce_tool_permission
+from cai_agent.runtime.registry import get_runtime_backend
 from cai_agent.sandbox import SandboxError, resolve_workspace_path
 
 
@@ -250,29 +252,63 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
     cwd_path = resolve_workspace_path(settings.workspace, cwd_arg)
     if not cwd_path.is_dir():
         raise SandboxError(f"run_command 的 cwd 不是目录: {cwd_path}")
-    try:
-        proc = subprocess.run(
-            argv,
-            cwd=str(cwd_path),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=settings.command_timeout_sec,
-            shell=False,
+    rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
+    backend = get_runtime_backend(rb, settings=settings)
+    timeout = float(settings.command_timeout_sec)
+
+    def _format_result(proc: subprocess.CompletedProcess[str]) -> str:
+        out_l: list[str] = []
+        if proc.stdout:
+            out_l.append(proc.stdout)
+        if proc.stderr:
+            out_l.append("--- stderr ---\n" + proc.stderr)
+        tail2 = "\n".join(out_l).strip()
+        if len(tail2) > 80_000:
+            tail2 = tail2[:80_000] + "\n...[已截断]"
+        rel_cwd2 = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
+        status2 = f"exit={proc.returncode} cwd={rel_cwd2} backend=local"
+        return f"{status2}\n{tail2}" if tail2 else status2
+
+    if backend.name == "local":
+        try:
+            proc = subprocess.run(
+                argv,
+                cwd=str(cwd_path),
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                shell=False,
+            )
+        except subprocess.TimeoutExpired:
+            return f"[超时 {timeout}s] {' '.join(argv)} backend=local"
+        return _format_result(proc)
+
+    if not backend.exists():
+        detail = backend.describe()
+        return (
+            f"[运行时 {backend.name} 不可用] exists={detail.get('exists')} "
+            f"detail={detail!r}\nargv={' '.join(argv)} cwd={cwd_path}"
         )
-    except subprocess.TimeoutExpired:
-        return f"[超时 {settings.command_timeout_sec}s] {' '.join(argv)}"
+    try:
+        cmd_line = shlex.join(argv)
+    except (TypeError, ValueError) as e:
+        raise SandboxError(f"run_command argv 无法序列化: {e}") from e
+    res = backend.exec(cmd_line, cwd=str(cwd_path), env=None, timeout_sec=timeout)
+    if res.returncode == 124 or res.error_kind == "timeout":
+        return f"[超时 {timeout}s] {' '.join(argv)} backend={res.backend}"
     out = []
-    if proc.stdout:
-        out.append(proc.stdout)
-    if proc.stderr:
-        out.append("--- stderr ---\n" + proc.stderr)
+    if res.stdout:
+        out.append(res.stdout)
+    if res.stderr:
+        out.append("--- stderr ---\n" + res.stderr)
     tail = "\n".join(out).strip()
     if len(tail) > 80_000:
         tail = tail[:80_000] + "\n...[已截断]"
     rel_cwd = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
-    status = f"exit={proc.returncode} cwd={rel_cwd}"
+    ek = f" err_kind={res.error_kind}" if res.error_kind else ""
+    status = f"exit={res.returncode} cwd={rel_cwd} backend={res.backend}{ek}"
     return f"{status}\n{tail}" if tail else status
 
 

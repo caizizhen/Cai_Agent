@@ -1,0 +1,4 @@
+{
+  "llm_raw": "{\"steps\": [\"Run pytest\", \"Fix lints\"], \"caveats\": [\"Windows paths\"], \"followups\": [\"Add CI\"]}\n",
+  "expected_step_count": 2
+}

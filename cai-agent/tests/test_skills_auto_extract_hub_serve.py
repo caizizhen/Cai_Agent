@@ -114,7 +114,7 @@ def test_skills_hub_serve_manifest(tmp_path: Path) -> None:
     try:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/manifest", timeout=5) as resp:
             data = json.loads(resp.read().decode("utf-8"))
-        assert data["schema_version"] == "skills_hub_manifest_v1"
+        assert data["schema_version"] == "skills_hub_manifest_v2"
         assert data["count"] >= 1
     except OSError:
         pytest.skip("Skills Hub serve 端口冲突或超时，跳过")

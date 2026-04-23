@@ -51,7 +51,7 @@ def test_skills_hub_manifest_json(tmp_path: Path) -> None:
     p = _run_cli(["skills", "hub", "manifest", "--json"], cwd=tmp_path)
     assert p.returncode == 0, p.stderr
     o = json.loads(p.stdout.strip())
-    assert o.get("schema_version") == "skills_hub_manifest_v1"
+    assert o.get("schema_version") == "skills_hub_manifest_v2"
     assert o.get("count") == 1
     ent = (o.get("entries") or [{}])[0]
     assert ent.get("name") == "demo.md"

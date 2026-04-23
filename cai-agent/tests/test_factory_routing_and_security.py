@@ -77,7 +77,13 @@ class GraphRoutingTests(unittest.TestCase):
     def test_graph_uses_factory_by_role_default_active(self) -> None:
         calls: list[dict[str, Any]] = []
 
-        def fake(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             calls.append({"role": role, "provider": getattr(settings, "provider", None)})
             return '{"type":"finish","message":"ok"}'
 
@@ -97,7 +103,13 @@ class GraphRoutingTests(unittest.TestCase):
     def test_graph_build_app_accepts_role_kwarg(self) -> None:
         calls: list[str] = []
 
-        def fake(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             calls.append(role)
             return '{"type":"finish","message":"ok"}'
 
@@ -118,7 +130,13 @@ class AgentsRoutingTests(unittest.TestCase):
     def test_non_default_role_routes_as_subagent(self) -> None:
         calls: list[str] = []
 
-        def fake(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             calls.append(role)
             return '{"type":"finish","message":"ok"}'
 
@@ -132,7 +150,13 @@ class AgentsRoutingTests(unittest.TestCase):
     def test_default_role_routes_as_active(self) -> None:
         calls: list[str] = []
 
-        def fake(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             calls.append(role)
             return '{"type":"finish","message":"ok"}'
 

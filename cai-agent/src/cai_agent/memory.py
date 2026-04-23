@@ -10,10 +10,36 @@ from pathlib import Path
 from typing import Any, Iterable, List
 
 MEMORY_ENTRY_V1_FIELDS = frozenset(
-    {"id", "category", "text", "confidence", "expires_at", "created_at"},
+    {"id", "category", "text", "confidence", "expires_at", "created_at", "source"},
 )
 
 MEMORY_STATES = ("active", "stale", "expired")
+
+
+class MemoryEntryInvalid(ValueError):
+    """memory_entry_v1 行校验失败（写入前拦截）。"""
+
+
+def classify_memory_entry_skip_reason(message: str) -> str:
+    """将校验错误映射为 ``memory_extract_structured_v1.skipped_invalid[].reason`` 枚举。"""
+    m = (message or "").strip().lower()
+    if "confidence" in m and ("0~1" in m or "0-1" in m or "须" in message):
+        return "invalid_confidence"
+    if "不允许的字段" in message or "extra" in m:
+        return "extra_fields"
+    if "text" in m and ("string" in m or "必须为" in message):
+        return "invalid_text"
+    if "category" in m and "必须" in message:
+        return "invalid_category"
+    if "id" in m and "必须" in message:
+        return "invalid_id"
+    if "created_at" in m:
+        return "invalid_created_at"
+    if "expires_at" in m:
+        return "invalid_expires_at"
+    if "source" in m:
+        return "invalid_source"
+    return "schema_validation_failed"
 
 
 def validate_memory_entry_row(row: dict[str, Any]) -> list[str]:
@@ -38,6 +64,10 @@ def validate_memory_entry_row(row: dict[str, Any]) -> list[str]:
     exp = row.get("expires_at")
     if exp is not None and exp != "" and not isinstance(exp, str):
         errs.append("expires_at 须为 string 或 null")
+    if "source" in row:
+        src = row.get("source")
+        if not isinstance(src, str) or not src.strip():
+            errs.append("source 若存在须为非空字符串")
     return errs
 
 
@@ -86,10 +116,11 @@ def append_memory_entry(
     confidence: float = 0.5,
     expires_at: str | None = None,
     entry_id: str | None = None,
+    source: str | None = None,
 ) -> MemoryEntry:
     eid = entry_id or str(uuid.uuid4())
     created = datetime.now(UTC).isoformat()
-    row = {
+    row: dict[str, Any] = {
         "id": eid,
         "category": category,
         "text": text,
@@ -97,10 +128,12 @@ def append_memory_entry(
         "expires_at": expires_at,
         "created_at": created,
     }
+    if source is not None and str(source).strip():
+        row["source"] = str(source).strip()
     bad = validate_memory_entry_row(row)
     if bad:
         msg = "; ".join(bad)
-        raise ValueError(msg)
+        raise MemoryEntryInvalid(msg)
     require_memory_entries_jsonl_clean_before_write(root)
     path = _entries_path(root)
     with path.open("a", encoding="utf-8") as f:
@@ -206,6 +239,80 @@ def build_memory_entries_jsonl_validate_report(root: str | Path) -> dict[str, An
         "lines_scanned": scanned,
         "valid_lines": valid_n,
         "invalid_lines": invalid,
+    }
+
+
+def fix_memory_entries_jsonl(
+    root: str | Path,
+    *,
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """移除无法通过 ``memory_entry_v1`` 校验的行并重写 ``memory/entries.jsonl``（原子替换）。
+
+    空行与非 JSON 行丢弃；仅保留 ``validate_memory_entry_row`` 通过的 object 行。
+    """
+    path = _entries_file_readonly(root)
+    if not path.is_file():
+        return {
+            "schema_version": "memory_entries_fix_v1",
+            "entries_file": str(path),
+            "dry_run": bool(dry_run),
+            "ok": True,
+            "lines_before": 0,
+            "lines_after": 0,
+            "dropped": 0,
+            "rewritten": False,
+            "message": "entries.jsonl 不存在，无需修复",
+        }
+    raw_lines = path.read_text(encoding="utf-8").splitlines()
+    kept: list[dict[str, Any]] = []
+    dropped = 0
+    for raw in raw_lines:
+        line = raw.strip()
+        if not line:
+            dropped += 1
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            dropped += 1
+            continue
+        if not isinstance(obj, dict):
+            dropped += 1
+            continue
+        row_errs = validate_memory_entry_row(obj)
+        if row_errs:
+            dropped += 1
+            continue
+        kept.append(obj)
+    lines_before = sum(1 for x in raw_lines if x.strip())
+    lines_after = len(kept)
+    rewritten = False
+    if not dry_run and (dropped > 0 or lines_after != lines_before):
+        tmp = path.with_suffix(path.suffix + ".tmp")
+        try:
+            with tmp.open("w", encoding="utf-8") as f:
+                for row in kept:
+                    f.write(json.dumps(row, ensure_ascii=False) + "\n")
+            tmp.replace(path)
+            rewritten = True
+        except OSError:
+            if tmp.is_file():
+                try:
+                    tmp.unlink()
+                except OSError:
+                    pass
+            raise
+    return {
+        "schema_version": "memory_entries_fix_v1",
+        "entries_file": str(path),
+        "dry_run": bool(dry_run),
+        "ok": True,
+        "lines_before": lines_before,
+        "lines_after": lines_after,
+        "dropped": dropped,
+        "rewritten": rewritten and not dry_run,
+        "message": "dry_run 未写盘" if dry_run else ("已重写" if rewritten else "无需变更"),
     }
 
 
@@ -952,6 +1059,7 @@ def extract_memory_entries_structured(
             "method": "skipped",
             "entries_written": 0,
             "entries": [],
+            "skipped_invalid": [],
         }
 
     is_mock = (
@@ -977,6 +1085,7 @@ def extract_memory_entries_structured(
             })
         entries_written = 0
         written_entries: list[dict[str, Any]] = []
+        skipped_invalid: list[dict[str, Any]] = []
         for c in candidates[:5]:
             try:
                 e = append_memory_entry(
@@ -984,6 +1093,7 @@ def extract_memory_entries_structured(
                     category=str(c["category"]),
                     text=str(c["text"]),
                     confidence=float(c["confidence"]),
+                    source="structured_extract",
                 )
                 written_entries.append({
                     "id": e.id,
@@ -992,13 +1102,24 @@ def extract_memory_entries_structured(
                     "confidence": e.confidence,
                 })
                 entries_written += 1
-            except Exception:
-                pass
+            except MemoryEntryInvalid as ex:
+                skipped_invalid.append({
+                    "reason": classify_memory_entry_skip_reason(str(ex)),
+                    "detail": str(ex),
+                    "text_preview": str(c.get("text", ""))[:120],
+                })
+            except Exception as ex:
+                skipped_invalid.append({
+                    "reason": "unexpected_error",
+                    "detail": f"{type(ex).__name__}:{ex}",
+                    "text_preview": str(c.get("text", ""))[:120],
+                })
         return {
             "schema_version": "memory_extract_structured_v1",
             "method": "heuristic",
             "entries_written": entries_written,
             "entries": written_entries,
+            "skipped_invalid": skipped_invalid,
         }
 
     # LLM 模式：调用 chat_completion_by_role 返回 JSON 格式的记忆条目
@@ -1022,6 +1143,7 @@ def extract_memory_entries_structured(
         entries_list = parsed if isinstance(parsed, list) else []
         entries_written = 0
         written_entries = []
+        skipped_invalid_llm: list[dict[str, Any]] = []
         for item in entries_list[:8]:
             if not isinstance(item, dict):
                 continue
@@ -1031,7 +1153,13 @@ def extract_memory_entries_structured(
             if not txt or len(txt) < 5:
                 continue
             try:
-                e = append_memory_entry(root, category=cat, text=txt, confidence=conf)
+                e = append_memory_entry(
+                    root,
+                    category=cat,
+                    text=txt,
+                    confidence=conf,
+                    source="structured_extract",
+                )
                 written_entries.append({
                     "id": e.id,
                     "category": e.category,
@@ -1039,13 +1167,28 @@ def extract_memory_entries_structured(
                     "confidence": e.confidence,
                 })
                 entries_written += 1
-            except Exception:
-                pass
+            except MemoryEntryInvalid as ex:
+                skipped_invalid_llm.append(
+                    {
+                        "reason": classify_memory_entry_skip_reason(str(ex)),
+                        "detail": str(ex),
+                        "text_preview": txt[:120],
+                    },
+                )
+            except Exception as ex:
+                skipped_invalid_llm.append(
+                    {
+                        "reason": "unexpected_error",
+                        "detail": f"{type(ex).__name__}:{ex}",
+                        "text_preview": txt[:120],
+                    },
+                )
         return {
             "schema_version": "memory_extract_structured_v1",
             "method": "llm",
             "entries_written": entries_written,
             "entries": written_entries,
+            "skipped_invalid": skipped_invalid_llm,
         }
     except Exception as ex:
         return {
@@ -1054,4 +1197,5 @@ def extract_memory_entries_structured(
             "error": str(ex)[:500],
             "entries_written": 0,
             "entries": [],
+            "skipped_invalid": [],
         }

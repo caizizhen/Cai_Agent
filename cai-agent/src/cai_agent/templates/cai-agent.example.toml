@@ -52,6 +52,22 @@ project_context = true
 # 是否附加 git 分支与简短 status（只读）
 git_context = true
 
+# 任务完成后自动提炼 skills/_evolution_*.md（另可用环境变量 CAI_SKILLS_AUTO_EXTRACT=1 开启）
+[skills.auto_extract]
+# enabled = false
+# mode = "template" # template | llm | auto
+# min_goal_chars = 8
+
+[skills.auto_improve]
+# min_usage_count = 1
+# min_days_since_last_improve = 0
+
+# 记忆治理：doctor / release-ga --with-memory-policy 会透出；recall 零命中时是否写入负样本审计行。
+[memory.policy]
+# max_entries_per_day = 10000
+# default_ttl_days = 90
+# recall_negative_audit = true
+
 # 对话轮次较长时注入一次「建议收尾」提示（0 表示关闭）；见 docs/CONTEXT_AND_COMPACT.zh-CN.md
 [context]
 # compact_after_iterations = 10
@@ -127,6 +143,14 @@ budget_max_tokens = 50000
 # active = "local-lmstudio"
 # subagent = "local-lmstudio"
 # planner = "anthropic-sonnet"
+#
+# 细粒度路由 [[models.route]]（H1-MP-03 / Canvas F1）：按首条 user 目标子串 + 上一轮 prompt_tokens 阈值切换 profile（先于 [models.routing] 评估）。
+# [[models.route]]
+# match_task_kind = "complex_refactor"
+# use_profile = "gpt-5"
+# [[models.route]]
+# match_tokens_gt = 50000
+# use_profile = "kimi-long-ctx"
 #
 # 声明式路由（可选）：按首条 user 目标文本 + role + 可选「剩余 token」条件命中 profile；见 docs/MODEL_ROUTING_RULES.zh-CN.md
 # [models.routing]
@@ -219,3 +243,36 @@ budget_max_tokens = 50000
 # model = "gpt-4o-mini"
 # api_key_env = "OPENAI_API_KEY"
 # temperature = 0.2
+
+# ===========================================================================
+# 运行后端（H1-RT）：`cai-agent runtime list` / `runtime test --backend local`
+# ===========================================================================
+# [runtime]
+# backend = "local"   # local | docker | ssh | modal | daytona | singularity
+# # 覆盖 TOML：CAI_RUNTIME_BACKEND=docker
+#
+# [runtime.docker]
+# container_name = "my-dev-container"
+# # 追加到 `docker exec` 的 OCI 选项（示例：非 root、只读根）
+# exec_options = ["--user", "1000:1000"]
+# cpus = "1.5"
+# memory = "1g"
+#
+# [runtime.ssh]
+# host = "10.0.0.5"
+# user = "ubuntu"
+# key_path = "C:\\Users\\me\\.ssh\\id_rsa"
+# strict_host_key_checking = true
+# known_hosts_path = "C:\\Users\\me\\.ssh\\known_hosts"
+# connect_timeout_sec = 15
+#
+# [runtime.modal]
+# app_name = "my-modal-app"
+# hibernate_idle_seconds = 300
+#
+# [runtime.daytona]
+# workspace = "ws-id-placeholder"
+#
+# [runtime.singularity]
+# sif_path = "/path/to/image.sif"
+# bind_paths = ["/data:/data"]

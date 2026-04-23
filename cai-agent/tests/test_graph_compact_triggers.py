@@ -35,7 +35,13 @@ class GraphCompactToolErrorTests(unittest.TestCase):
     def test_injects_hint_when_tool_error_pending(self) -> None:
         seen: list[list[dict[str, Any]]] = []
 
-        def fake_chat(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake_chat(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             seen.append(list(messages))
             return json.dumps({"type": "finish", "message": "ok"}, ensure_ascii=False)
 
@@ -67,7 +73,13 @@ class GraphCompactToolErrorTests(unittest.TestCase):
     def test_no_hint_when_tool_error_compact_disabled(self) -> None:
         seen: list[list[dict[str, Any]]] = []
 
-        def fake_chat(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake_chat(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             seen.append(list(messages))
             return json.dumps({"type": "finish", "message": "ok"}, ensure_ascii=False)
 
@@ -101,7 +113,13 @@ class GraphCompactMilestoneTests(unittest.TestCase):
     def test_milestone_after_n_successful_tool_rounds(self) -> None:
         seen: list[list[dict[str, Any]]] = []
 
-        def fake_chat(settings: Any, messages: list[dict[str, Any]], *, role: str = "active") -> str:
+        def fake_chat(
+            settings: Any,
+            messages: list[dict[str, Any]],
+            *,
+            role: str = "active",
+            route_conversation_phase: str | None = None,
+        ) -> str:
             seen.append(list(messages))
             return json.dumps({"type": "finish", "message": "done"}, ensure_ascii=False)
 

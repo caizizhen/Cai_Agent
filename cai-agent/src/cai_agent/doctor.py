@@ -11,7 +11,10 @@ from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.models import ping_profile
+from cai_agent.feedback import feedback_stats
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
+from cai_agent.provider_registry import provider_readiness_snapshot
+from cai_agent.runtime.registry import get_runtime_backend
 
 
 def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
@@ -109,6 +112,8 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             instruction_files[name] = (root / name).is_file()
     inside = _git_inside_worktree(root)
     api_present = bool(str(settings.api_key or "").strip())
+    _rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
+    _rt = get_runtime_backend(_rb, settings=settings)
     return {
         "schema_version": "doctor_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -126,12 +131,21 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "planner_profile_id": settings.planner_profile_id or None,
         "model_routing_enabled": bool(getattr(settings, "model_routing_enabled", True)),
         "model_routing_rules_count": len(getattr(settings, "model_routing_rules", ()) or ()),
+        "models_profile_routes_count": len(getattr(settings, "models_profile_routes", ()) or ()),
+        "provider_registry_readiness": provider_readiness_snapshot(),
         "temperature": settings.temperature,
         "llm_timeout_sec": settings.llm_timeout_sec,
         "http_trust_env": settings.http_trust_env,
         "mock": settings.mock,
         "max_iterations": settings.max_iterations,
         "command_timeout_sec": settings.command_timeout_sec,
+        "runtime": {
+            "schema_version": "doctor_runtime_v1",
+            "configured_backend": _rb,
+            "resolved_backend": _rt.name,
+            "reachable": bool(_rt.exists()),
+            "describe": _rt.describe(),
+        },
         "project_context": settings.project_context,
         "git_context": settings.git_context,
         "mcp_enabled": settings.mcp_enabled,
@@ -154,6 +168,25 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             "surface": list_plugin_surface(settings),
             "compat_matrix": build_plugin_compat_matrix(),
         },
+        "memory_policy": {
+            "max_entries_per_day": int(getattr(settings, "memory_policy_max_entries_per_day", 10_000)),
+            "default_ttl_days": getattr(settings, "memory_policy_default_ttl_days", None),
+            "recall_negative_audit": bool(
+                getattr(settings, "memory_policy_recall_negative_audit", True),
+            ),
+        },
+        "skills_auto_extract": {
+            "enabled": bool(getattr(settings, "skills_auto_extract_enabled", False)),
+            "mode": str(getattr(settings, "skills_auto_extract_mode", "template") or "template"),
+            "min_goal_chars": int(getattr(settings, "skills_auto_extract_min_goal_chars", 8) or 8),
+        },
+        "skills_auto_improve": {
+            "min_usage_count": int(getattr(settings, "skills_auto_improve_min_usage_count", 1) or 1),
+            "min_days_since_last_improve": int(
+                getattr(settings, "skills_auto_improve_min_days_since_last_improve", 0) or 0,
+            ),
+        },
+        "feedback": feedback_stats(settings.workspace),
     }
 
 
@@ -197,8 +230,26 @@ def run_doctor(
     print("HTTP 超时:", settings.llm_timeout_sec, "s")
     print("信任代理:", settings.http_trust_env)
     print("Mock:    ", settings.mock)
+    print(
+        "模型路由: [[models.route]]",
+        len(getattr(settings, "models_profile_routes", ()) or ()),
+        "条 | [models.routing.rules]",
+        len(getattr(settings, "model_routing_rules", ()) or ()),
+        "条",
+    )
+    prr = provider_readiness_snapshot()
+    ents = prr.get("entries") or []
+    ready = sum(1 for e in ents if isinstance(e, dict) and e.get("env_present"))
+    print(f"Provider Registry: {len(ents)} 项预设，其中密钥已导出 ≈ {ready} 项（详见 doctor --json）")
     print("最大轮次:", settings.max_iterations)
     print("命令超时:", settings.command_timeout_sec, "s")
+    _rb2 = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
+    _rt2 = get_runtime_backend(_rb2, settings=settings)
+    print(
+        "运行后端:",
+        _rb2,
+        f"(解析为 {_rt2.name}, reachable={_rt2.exists()})",
+    )
     print("项目说明:", settings.project_context)
     print("Git 摘要:", settings.git_context)
     print("MCP 开关:", settings.mcp_enabled)

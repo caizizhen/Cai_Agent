@@ -45,6 +45,7 @@ from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.llm_factory import chat_completion_by_role
 from cai_agent.models import fetch_models, ping_profile
 from cai_agent.profiles import (
+    PRESETS,
     Profile,
     ProfilesError,
     add_profile,
@@ -59,6 +60,7 @@ from cai_agent.exporter import build_export_ecc_dir_diff_report, export_target
 from cai_agent.memory import (
     annotate_memory_states,
     build_memory_entries_jsonl_validate_report,
+    fix_memory_entries_jsonl,
     export_memory_entries_bundle,
     build_memory_health_payload,
     extract_memory_entries_structured,
@@ -103,6 +105,12 @@ from cai_agent.session_events import (
     wrap_run_events,
 )
 from cai_agent.progress_ring import build_progress_ring_summary, global_ring, reset_global_ring
+from cai_agent.skill_evolution import clear_session_skill_touches
+from cai_agent.recall_audit import (
+    append_negative_recall_line,
+    append_recall_audit_line,
+    build_recall_evaluation_payload,
+)
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.task_state import new_task
 from cai_agent.tools import dispatch, tools_spec_markdown
@@ -1136,6 +1144,87 @@ def _build_recall_payload_from_index(
     }
 
 
+def _build_recall_payload_from_fts5(
+    *,
+    cwd: str,
+    query: str,
+    limit: int,
+    days: int,
+    hits_per_session: int,
+    session_limit: int,
+    use_regex: bool,
+    case_sensitive: bool,
+    sort: str | None = None,
+) -> dict[str, Any]:
+    from cai_agent.recall_fts5 import fts5_db_path, search_fts5_recall
+
+    if not fts5_db_path(cwd).is_file():
+        raise FileNotFoundError("fts5_index_missing")
+    if use_regex:
+        raise ValueError("FTS5 模式暂不支持 --regex，请使用默认 recall 或 JSON 索引")
+    sort_mode = _recall_sort_mode(sort)
+    now = datetime.now(UTC)
+    since = now - timedelta(days=max(days, 1))
+    rows = search_fts5_recall(
+        cwd=cwd,
+        query=query,
+        limit=session_limit,
+        days=days,
+        hits_per_session=hits_per_session,
+    )
+    _sort_recall_rows(rows, sort_mode=sort_mode)
+    trimmed = rows[: max(1, session_limit)]
+    hits_sum = sum(int(x.get("hits_count") or 0) for x in trimmed)
+    no_hit: str | None = None
+    if hits_sum <= 0:
+        no_hit = "pattern_no_match"
+    return {
+        "schema_version": "1.3",
+        "generated_at": now.isoformat(),
+        "query": query,
+        "regex": False,
+        "case_sensitive": case_sensitive,
+        "sort": sort_mode,
+        "no_hit_reason": no_hit,
+        "source": "fts5",
+        "window": {
+            "days": max(days, 1),
+            "since": since.isoformat(),
+            "hits_per_session": max(1, hits_per_session),
+            "session_limit": max(1, session_limit),
+            "sort": sort_mode,
+        },
+        "sessions_scanned": len(rows),
+        "sessions_with_hits": len(trimmed),
+        "hits_total": hits_sum,
+        "parse_skipped": 0,
+        "results": trimmed,
+        "ranking": _recall_ranking_for_sort(sort_mode),
+    }
+
+
+def _apply_recall_summarize_heuristic(payload: dict[str, Any], *, top: int) -> dict[str, Any]:
+    out = dict(payload)
+    results = out.get("results")
+    summaries: list[dict[str, Any]] = []
+    if isinstance(results, list):
+        for r in results[: max(1, top)]:
+            if not isinstance(r, dict):
+                continue
+            parts: list[str] = []
+            for h in (r.get("hits") or [])[:5]:
+                if isinstance(h, dict):
+                    sn = h.get("snippet")
+                    if isinstance(sn, str) and sn.strip():
+                        parts.append(sn.strip())
+            blob = " ".join(parts)[:400]
+            summaries.append({"path": r.get("path"), "summary": blob or "(empty)"})
+    out["summaries"] = summaries
+    out["summarize_method"] = "heuristic_snippets"
+    out["summarize_top"] = int(top)
+    return out
+
+
 def _search_recall_index(
     *,
     cwd: str,
@@ -1540,6 +1629,7 @@ def _run_release_ga_gate(
     memory_state_max_expired_rate: float,
     memory_state_stale_days: int,
     memory_state_stale_confidence: float,
+    with_memory_policy: bool = False,
 ) -> dict[str, Any]:
     settings = Settings.from_env(config_path=None, workspace_hint=cwd)
     ag = aggregate_sessions(cwd=cwd, limit=200)
@@ -1679,6 +1769,26 @@ def _run_release_ga_gate(
                     f"stale_rate={stale_rate:.4f}<= {memory_state_max_stale_rate:.4f}, "
                     f"expired_rate={expired_rate:.4f}<= {memory_state_max_expired_rate:.4f}"
                 ),
+            },
+        )
+
+    if with_memory_policy:
+        from cai_agent.memory import build_memory_entries_jsonl_validate_report as _mem_val_rep
+
+        mrep = _mem_val_rep(cwd)
+        m_exists = bool(mrep.get("exists"))
+        m_ok = (not m_exists) or bool(mrep.get("ok"))
+        checks.append(
+            {
+                "name": "memory_policy_entries",
+                "ok": m_ok,
+                "actual": {
+                    "entries_file_exists": m_exists,
+                    "valid_lines": int(mrep.get("valid_lines") or 0),
+                    "invalid_count": len(mrep.get("invalid_lines") or []) if isinstance(mrep.get("invalid_lines"), list) else 0,
+                },
+                "threshold": {"schema": "memory_entry_v1"},
+                "detail": str(mrep.get("entries_file") or ""),
             },
         )
 
@@ -2744,7 +2854,20 @@ def _load_settings_for_models(config_path: str | None) -> Settings | int:
         return 2
 
 
-def _cmd_models_list(settings: Settings, *, json_output: bool) -> int:
+def _cmd_models_list(settings: Settings, *, json_output: bool, list_providers: bool = False) -> int:
+    if list_providers:
+        from cai_agent.provider_registry import providers_json_payload
+
+        payload_pr = providers_json_payload()
+        if json_output:
+            print(json.dumps(payload_pr, ensure_ascii=False))
+        else:
+            print(f"provider_registry: count={payload_pr.get('count')}")
+            for row in payload_pr.get("providers") or []:
+                eid = row.get("id")
+                env = row.get("api_key_env")
+                print(f"  - {eid}  env={env}  url={row.get('base_url')}")
+        return 0
     rows = [profile_to_public_dict(p) for p in settings.profiles]
     active = settings.active_profile_id
     if json_output:
@@ -2811,7 +2934,11 @@ def _cmd_models(args: argparse.Namespace) -> int:
     settings: Settings = loaded
 
     if action == "list":
-        return _cmd_models_list(settings, json_output=bool(getattr(args, "json_output", False)))
+        return _cmd_models_list(
+            settings,
+            json_output=bool(getattr(args, "json_output", False)),
+            list_providers=bool(getattr(args, "models_list_providers", False)),
+        )
 
     if action == "fetch":
         try:
@@ -2835,14 +2962,26 @@ def _cmd_models(args: argparse.Namespace) -> int:
         return 0
 
     if action == "ping":
-        pid = getattr(args, "id", None)
         timeout_sec = float(getattr(args, "timeout_sec", 10.0) or 10.0)
-        targets = (
-            [p for p in settings.profiles if p.id == pid] if pid else list(settings.profiles)
-        )
-        if pid and not targets:
-            print(f"profile 不存在: {pid}", file=sys.stderr)
+        preset = getattr(args, "ping_preset", None)
+        if preset and getattr(args, "id", None):
+            print("不能同时指定 profile id 与 --preset", file=sys.stderr)
             return 2
+        if preset:
+            from cai_agent.profiles import apply_preset, build_profile
+
+            raw = {"id": f"preset:{preset}", "model": "ping-probe"}
+            raw = apply_preset(raw, str(preset))
+            prof = build_profile(raw, hint=f"ping-preset:{preset}")
+            targets = [prof]
+        else:
+            pid = getattr(args, "id", None)
+            targets = (
+                [p for p in settings.profiles if p.id == pid] if pid else list(settings.profiles)
+            )
+            if pid and not targets:
+                print(f"profile 不存在: {pid}", file=sys.stderr)
+                return 2
         results = [
             ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=timeout_sec)
             for p in targets
@@ -2870,6 +3009,24 @@ def _cmd_models(args: argparse.Namespace) -> int:
         _ = bool(getattr(args, "fail_on_ping_error", False))
         # S1-03: align with exit 0/2 — any non-OK ping is exit 2.
         return 2 if fail else 0
+
+    if action == "route-wizard":
+        from cai_agent.model_routing import build_models_route_wizard_v1
+
+        if not getattr(args, "json_output", False):
+            print("models route-wizard 需使用 --json", file=sys.stderr)
+            return 2
+        doc_w = build_models_route_wizard_v1(
+            use_profile=str(getattr(args, "route_wizard_profile", "") or ""),
+            match_phase=getattr(args, "route_wizard_phase", None),
+            match_task_kind=getattr(args, "route_wizard_task_kind", None),
+            match_tokens_gt=getattr(args, "route_wizard_tokens_gt", None),
+        )
+        if bool(getattr(args, "route_wizard_dry_run", False)):
+            doc_w = dict(doc_w)
+            doc_w["dry_run"] = True
+        print(json.dumps(doc_w, ensure_ascii=False))
+        return 0
 
     if action == "suggest":
         task_desc = " ".join(getattr(args, "task_description", []) or []).strip()
@@ -3495,6 +3652,12 @@ def main(argv: list[str] | None = None) -> int:
 
     _ml = models_sub.add_parser("list", help="列出已配置的模型 profile")
     _ml.add_argument("--json", action="store_true", dest="json_output")
+    _ml.add_argument(
+        "--providers",
+        action="store_true",
+        dest="models_list_providers",
+        help="列出内置 Provider Registry（预设 API 面；与 --json 联用输出 provider_registry_v1）",
+    )
 
     _mu = models_sub.add_parser("use", help="切换激活 profile 并写回配置")
     _mu.add_argument("id", help="profile id")
@@ -3502,19 +3665,9 @@ def main(argv: list[str] | None = None) -> int:
     _ma = models_sub.add_parser("add", help="新增一个 profile")
     _ma.add_argument("--id", required=True, dest="pid")
     _ma.add_argument(
-        "--preset", default=None,
-        choices=sorted(
-            [
-                "openai",
-                "anthropic",
-                "openrouter",
-                "lmstudio",
-                "ollama",
-                "vllm",
-                "gateway",
-                "zhipu",
-            ],
-        ),
+        "--preset",
+        default=None,
+        choices=sorted(PRESETS.keys()),
     )
     _ma.add_argument("--provider", default=None)
     _ma.add_argument("--base-url", default=None, dest="base_url")
@@ -3549,6 +3702,13 @@ def main(argv: list[str] | None = None) -> int:
 
     _mp = models_sub.add_parser("ping", help="对 profile 做 /models 健康检查")
     _mp.add_argument("id", nargs="?", default=None, help="profile id（缺省 ping 全部）")
+    _mp.add_argument(
+        "--preset",
+        default=None,
+        dest="ping_preset",
+        choices=sorted(PRESETS.keys()),
+        help="不写盘：用内置 preset 临时构造 profile 做探活（与 positional id 互斥）",
+    )
     _mp.add_argument("--json", action="store_true", dest="json_output")
     _mp.add_argument("--timeout-sec", type=float, default=10.0, dest="timeout_sec")
     _mp.add_argument(
@@ -3635,8 +3795,53 @@ def main(argv: list[str] | None = None) -> int:
         help="清除 planner 路由",
     )
 
+    _mrwiz = models_sub.add_parser(
+        "route-wizard",
+        help="生成可追加的 [[models.route]] TOML 片段（--json；可选 --dry-run 仅预览）",
+    )
+    _mrwiz.add_argument("--use-profile", required=True, dest="route_wizard_profile")
+    _mrwiz.add_argument("--match-phase", default=None, dest="route_wizard_phase")
+    _mrwiz.add_argument("--match-task-kind", default=None, dest="route_wizard_task_kind")
+    _mrwiz.add_argument("--match-tokens-gt", type=int, default=None, dest="route_wizard_tokens_gt")
+    _mrwiz.add_argument("--dry-run", action="store_true", dest="route_wizard_dry_run")
+    _mrwiz.add_argument("--json", action="store_true", dest="json_output")
+
     # 顶层兼容：不带子命令时等价于 list。
     models_p.add_argument("--json", action="store_true", dest="json_output")
+
+    sub.add_parser(
+        "model",
+        parents=[models_parent],
+        help="Hermes 别名：TTY 下打开模型面板；否则输出 models suggest 启发式 JSON",
+    )
+
+    runtime_p = sub.add_parser(
+        "runtime",
+        parents=[common],
+        help="运行后端：列出可用 backend 或对指定 backend 做 echo 自检（H1-RT）",
+    )
+    runtime_sub = runtime_p.add_subparsers(dest="runtime_action", required=True)
+    runtime_list_p = runtime_sub.add_parser("list", help="列出内置运行后端注册表")
+    runtime_list_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 runtime_registry_v1 JSON",
+    )
+    runtime_test_p = runtime_sub.add_parser("test", help="在指定 backend 上执行 echo 自检")
+    runtime_test_p.add_argument(
+        "--backend",
+        default="local",
+        dest="runtime_backend_name",
+        help="backend 名称（默认 local）",
+    )
+    runtime_test_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 runtime_test_v1 JSON",
+    )
+
     plugins_p = sub.add_parser(
         "plugins",
         parents=[common],
@@ -3664,7 +3869,7 @@ def main(argv: list[str] | None = None) -> int:
     skills_p = sub.add_parser(
         "skills",
         parents=[common],
-        help="Skills Hub 辅助：manifest 清单与自进化草稿 suggest（skills hub …）",
+        help="Skills：hub（manifest/suggest/serve/fetch/install）+ improve / usage / lint / promote / revert",
     )
     skills_sub = skills_p.add_subparsers(dest="skills_action", required=True)
     skills_hub_p = skills_sub.add_parser("hub", help="Hub 分发相关子命令")
@@ -3730,15 +3935,59 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="停止后以 JSON 输出结果",
     )
+    skills_hub_fetch_p = skills_hub_sub.add_parser(
+        "fetch",
+        help="从远程 URL 拉取 agentskills 兼容 manifest JSON（stdout 原样或 --json 包装）",
+    )
+    skills_hub_fetch_p.add_argument(
+        "skills_hub_fetch_url",
+        metavar="URL",
+        help="manifest.json 或兼容端点 URL",
+    )
+    skills_hub_fetch_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_hub_fetch_v1 JSON（含 remote 原文）",
+    )
+    skills_hub_list_remote_p = skills_hub_sub.add_parser(
+        "list-remote",
+        help="索引远程 manifest 的 entries[]（skills_hub_list_remote_v1）；可选 --sync-mirror",
+    )
+    skills_hub_list_remote_p.add_argument(
+        "skills_hub_list_remote_url",
+        metavar="URL",
+        help="manifest.json 或兼容端点 URL",
+    )
+    skills_hub_list_remote_p.add_argument(
+        "--sync-mirror",
+        action="store_true",
+        dest="skills_hub_sync_mirror",
+        help="将摘要追加到 .cai/skills-registry-mirror.jsonl",
+    )
+    skills_hub_list_remote_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 输出 skills_hub_list_remote_v1 JSON",
+    )
     skills_hub_install_p = skills_hub_sub.add_parser(
         "install",
-        help="按 skills_hub_manifest_v1 将条目复制到 .cursor/skills（可选 --only 过滤 name）",
+        help="按 skills_hub_manifest_v1/v2 将条目复制到 .cursor/skills（可选 --only 过滤 name）",
     )
     skills_hub_install_p.add_argument(
         "--manifest",
-        required=True,
+        required=False,
+        default=None,
         metavar="PATH",
-        help="skills_hub_manifest_v1 JSON 文件路径",
+        help="skills_hub_manifest_v1 JSON 文件路径（与 --from 二选一）",
+    )
+    skills_hub_install_p.add_argument(
+        "--from",
+        dest="hub_install_from_url",
+        default=None,
+        metavar="URL",
+        help="远程 manifest URL（GET JSON；与 --manifest 二选一）",
     )
     skills_hub_install_p.add_argument(
         "--only",
@@ -3760,6 +4009,126 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="json_output",
         help="stdout 输出 skills_hub_pack_install_v1 JSON",
+    )
+    skills_improve_p = skills_sub.add_parser(
+        "improve",
+        help="技能自改进：在 skills/<SKILL_ID> 追加「历史改进」节（默认预览；--apply 写入）",
+    )
+    skills_improve_p.add_argument(
+        "skills_improve_skill_id",
+        metavar="SKILL_ID",
+        help="相对 skills/ 的路径，如 foo.md 或 sub/bar.md",
+    )
+    skills_improve_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="skills_improve_apply",
+        help="写入文件（默认 dry-run，仅输出 JSON/预览）",
+    )
+    skills_improve_p.add_argument(
+        "--llm",
+        action="store_true",
+        dest="skills_improve_llm",
+        help="结合用量记录调用模型生成摘要（需有效 API 配置）",
+    )
+    skills_improve_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_evolution_runtime_v1 JSON",
+    )
+    skills_usage_p = skills_sub.add_parser(
+        "usage",
+        help="聚合 .cai/skill-usage.jsonl 中的技能加载命中统计",
+    )
+    skills_usage_p.add_argument(
+        "--skill",
+        default="",
+        dest="skills_usage_skill",
+        metavar="ID",
+        help="仅统计某一 skill_id（相对 skills/）",
+    )
+    skills_usage_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_usage_aggregate_v1 JSON",
+    )
+    skills_usage_p.add_argument(
+        "--trend",
+        type=int,
+        default=None,
+        dest="skills_usage_trend_days",
+        metavar="DAYS",
+        help="与 --json 同用：输出 skills_usage_trend_v1（按 UTC 日历日聚合，默认 14 天）",
+    )
+    skills_revert_p = skills_sub.add_parser(
+        "revert",
+        help="按 hist_id 回滚 skills/ 中一次「历史改进」追加块（默认预览；--apply 写盘）",
+    )
+    skills_revert_p.add_argument(
+        "skills_revert_skill_id",
+        metavar="SKILL_ID",
+        help="相对 skills/ 的路径，如 foo.md",
+    )
+    skills_revert_p.add_argument(
+        "--to",
+        required=True,
+        dest="skills_revert_hist_id",
+        metavar="HIST_ID",
+        help="<!-- cai:hist id=... --> 中的 UUID",
+    )
+    skills_revert_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="skills_revert_apply",
+        help="执行回滚写盘",
+    )
+    skills_revert_p.add_argument("--json", action="store_true", dest="json_output")
+    skills_promote_p = skills_sub.add_parser(
+        "promote",
+        help="将 skills/_evolution_*.md 草稿提升为正式 skills/*.md（写盘后 skills lint，失败回滚）",
+    )
+    skills_promote_p.add_argument(
+        "skills_promote_src",
+        metavar="SRC",
+        help="相对 skills/ 的草稿路径，如 _evolution_my-goal.md",
+    )
+    skills_promote_p.add_argument(
+        "--to",
+        required=False,
+        default="",
+        dest="skills_promote_to",
+        help="目标文件名（相对 skills/）；缺省时仅 --auto 模式有意义",
+    )
+    skills_promote_p.add_argument(
+        "--auto",
+        action="store_true",
+        dest="skills_promote_auto",
+        help="按 skill-usage 命中阈值自动 promote（CAI_SKILLS_PROMOTE_THRESHOLD，默认 5）",
+    )
+    skills_promote_p.add_argument(
+        "--threshold",
+        type=int,
+        default=None,
+        dest="skills_promote_threshold",
+        help="覆盖 --auto 的命中阈值",
+    )
+    skills_promote_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_promote_v1 / skills_promote_auto_v1 JSON",
+    )
+    skills_lint_p = skills_sub.add_parser(
+        "lint",
+        help="校验 skills/ 下文件的 agentskills 风格 frontmatter（skills_lint_v1）",
+    )
+    skills_lint_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 skills_lint_v1 JSON",
     )
     cmd_list_p = sub.add_parser(
         "commands",
@@ -3980,6 +4349,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="当使用 --preset 时输出可复制的 MCP 配置模板片段",
     )
+    mcp_serve_p = sub.add_parser(
+        "mcp-serve",
+        parents=[common],
+        help="MCP stdio 服务：initialize + tools/list（内置工具清单 MVP，Hermes H3）",
+    )
     sess_p = sub.add_parser(
         "sessions",
         help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
@@ -4136,6 +4510,44 @@ def main(argv: list[str] | None = None) -> int:
         dest="index_path",
         help="索引文件路径（默认 .cai-recall-index.json）",
     )
+    recall_p.add_argument(
+        "--fts5",
+        action="store_true",
+        default=False,
+        help="使用 SQLite FTS5 索引（需先 `recall-index build --engine fts5`）",
+    )
+    recall_p.add_argument(
+        "--summarize",
+        action="store_true",
+        default=False,
+        help="对 Top 结果生成启发式摘要（拼接 snippet，写入 summaries[]）",
+    )
+    recall_p.add_argument(
+        "--summarize-top",
+        type=int,
+        default=5,
+        metavar="N",
+        help="与 --summarize 同用：最多摘要前 N 条会话（默认 5）",
+    )
+    recall_p.add_argument(
+        "--case-sensitive",
+        action="store_true",
+        default=False,
+        help="子串/正则匹配区分大小写（默认不区分）",
+    )
+    recall_p.add_argument(
+        "--evaluate",
+        action="store_true",
+        default=False,
+        help="不执行检索：输出 recall_evaluation_v1（基于 .cai/recall-audit.jsonl 的窗口统计）",
+    )
+    recall_p.add_argument(
+        "--evaluate-days",
+        type=int,
+        default=14,
+        dest="evaluate_days",
+        help="与 --evaluate 同用：UTC 日历窗口天数（默认 14）",
+    )
     recall_idx_p = sub.add_parser(
         "recall-index",
         help="构建/管理 recall 索引（加速跨会话检索）",
@@ -4146,6 +4558,12 @@ def main(argv: list[str] | None = None) -> int:
     recall_idx_build.add_argument("--pattern", default=".cai-session*.json")
     recall_idx_build.add_argument("--limit", type=int, default=200)
     recall_idx_build.add_argument("--days", type=int, default=30)
+    recall_idx_build.add_argument(
+        "--engine",
+        choices=("legacy", "fts5"),
+        default="legacy",
+        help="索引引擎：legacy=JSON（默认）；fts5=SQLite FTS5（.cai-recall-fts5.sqlite）",
+    )
     recall_idx_build.add_argument("--json", action="store_true", dest="json_output")
     recall_idx_build.add_argument("--index-path", default=None, dest="index_path")
 
@@ -4416,6 +4834,22 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="输出 memory_entries_file_validate_v1 JSON（默认人类可读摘要）",
     )
+    memory_entries_p = memory_sub.add_parser(
+        "entries",
+        help="memory/entries.jsonl 维护子命令",
+    )
+    memory_entries_sub = memory_entries_p.add_subparsers(dest="memory_entries_action", required=True)
+    memory_entries_fix = memory_entries_sub.add_parser(
+        "fix",
+        help="删除无法通过 memory_entry_v1 校验的行并重写 entries.jsonl",
+    )
+    memory_entries_fix.add_argument(
+        "--dry-run",
+        action="store_true",
+        default=False,
+        help="仅统计将丢弃的行数，不写盘",
+    )
+    memory_entries_fix.add_argument("--json", action="store_true", dest="json_output")
     memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
     memory_instincts.add_argument("--limit", type=int, default=20)
     memory_instincts.add_argument(
@@ -4599,6 +5033,12 @@ def main(argv: list[str] | None = None) -> int:
         help="按会话文件 mtime 统计最近 N 天内的数量（默认 14）",
     )
     memory_user_model.add_argument("--json", action="store_true", dest="json_output")
+    memory_user_model.add_argument(
+        "--with-dialectic",
+        action="store_true",
+        default=False,
+        help="输出 memory_user_model_v2（含 dialectic 启发式块）",
+    )
     um_sub = memory_user_model.add_subparsers(dest="user_model_action", required=False)
     um_export = um_sub.add_parser(
         "export",
@@ -4610,6 +5050,32 @@ def main(argv: list[str] | None = None) -> int:
         default=14,
         dest="user_model_days",
         help="统计窗口天数（仅写在 export 子命令后时生效）",
+    )
+    um_query = um_sub.add_parser(
+        "query",
+        help="在 SQLite user_model_store 中按子串检索 beliefs（需先 learn 或运行带 --with-store-v3 的概览以初始化库）",
+    )
+    um_query.add_argument(
+        "--text",
+        required=True,
+        dest="user_model_query_text",
+        help="匹配 belief 文本的子串",
+    )
+    um_query.add_argument("--limit", type=int, default=20)
+    um_query.add_argument("--json", action="store_true", dest="json_output")
+    um_learn = um_sub.add_parser(
+        "learn",
+        help="向 SQLite user_model_store 写入/更新一条 belief，并记录事件",
+    )
+    um_learn.add_argument("--belief", required=True, help="信念文本")
+    um_learn.add_argument("--confidence", type=float, default=0.5, help="0~1，默认 0.5")
+    um_learn.add_argument("--tag", action="append", default=[], help="可重复：标签")
+    um_learn.add_argument("--json", action="store_true", dest="json_output")
+    memory_user_model.add_argument(
+        "--with-store-v3",
+        action="store_true",
+        default=False,
+        help="无子命令时输出 memory_user_model_v3（含 .cai/user_model_store.sqlite3 快照）",
     )
 
     schedule_p = sub.add_parser(
@@ -4777,6 +5243,57 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="覆盖 [cost] budget_max_tokens；未指定时读配置",
     )
+    cost_report = cost_sub.add_parser(
+        "report",
+        help="按 profile / provider 聚合 metrics 与会话 tokens（cost_by_profile_v1）",
+    )
+    cost_report.add_argument(
+        "--by-profile",
+        action="store_true",
+        dest="cost_by_profile",
+        help="输出 profiles[]（默认开启；占位与 --json 同用）",
+    )
+    cost_report.add_argument(
+        "--by-provider",
+        action="store_true",
+        dest="cost_by_provider",
+        help="在 JSON 中附带 by_provider[]",
+    )
+    cost_report.add_argument(
+        "--by-tenant",
+        action="store_true",
+        dest="cost_include_tenant",
+        help="在 JSON 中附带 by_tenant[]（metrics 行需含 tenant_id / tenant）",
+    )
+    cost_report.add_argument(
+        "--per-day",
+        action="store_true",
+        dest="cost_per_day",
+        help="在 JSON 中附带 by_calendar_day（按 metrics.ts 日期聚合 tokens）",
+    )
+    cost_report.add_argument("--json", action="store_true", dest="json_output")
+
+    feedback_p = sub.add_parser("feedback", help="用户反馈：写入 .cai/feedback.jsonl（可选 webhook）")
+    feedback_sub = feedback_p.add_subparsers(dest="feedback_action", required=True)
+    feedback_submit = feedback_sub.add_parser("submit", help="追加一条文本反馈")
+    feedback_submit.add_argument("feedback_text", nargs="+", metavar="TEXT", help="反馈正文")
+    feedback_submit.add_argument("--json", action="store_true", dest="json_output")
+    feedback_list = feedback_sub.add_parser("list", help="列出最近反馈行")
+    feedback_list.add_argument("--limit", type=int, default=30)
+    feedback_list.add_argument("--json", action="store_true", dest="json_output")
+    feedback_export = feedback_sub.add_parser(
+        "export",
+        help="导出 feedback JSONL 到指定路径（feedback_export_v1）",
+    )
+    feedback_export.add_argument(
+        "--dest",
+        required=True,
+        metavar="PATH",
+        help="输出文件路径（如 dist/feedback-export.jsonl）",
+    )
+    feedback_export.add_argument("--limit", type=int, default=None, dest="feedback_export_limit")
+    feedback_export.add_argument("--json", action="store_true", dest="json_output")
+
     release_ga_p = sub.add_parser(
         "release-ga",
         help="发布前 GA 门禁检查（质量+安全+成本+失败率）",
@@ -4828,7 +5345,38 @@ def main(argv: list[str] | None = None) -> int:
         default=0.4,
         help="memory state 判定 stale 的置信度阈值（默认 0.4）",
     )
+    release_ga_p.add_argument(
+        "--with-memory-policy",
+        action="store_true",
+        default=False,
+        help="校验 memory/entries.jsonl 行级 schema（与 validate-entries 同源）；文件不存在视为通过",
+    )
     release_ga_p.add_argument("--json", action="store_true", dest="json_output")
+
+    rel_cl_p = sub.add_parser(
+        "release-changelog",
+        parents=[common],
+        help="检查仓库根 CHANGELOG.md 与 CHANGELOG.zh-CN.md 基本同步（H4-QA）",
+    )
+    rel_cl_p.add_argument("--json", action="store_true", dest="json_output")
+    rel_cl_p.add_argument(
+        "--semantic",
+        action="store_true",
+        dest="release_changelog_semantic",
+        help="附加 changelog_semantic_v1（## 标题数量对齐启发式）",
+    )
+
+    claw_m_p = sub.add_parser(
+        "claw-migrate",
+        parents=[common],
+        help="OpenClaw / Claw 配置迁移占位（H8-MIG）",
+    )
+    claw_m_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="claw_migrate_apply",
+        help="执行迁移（当前仍为占位，将返回 exit 3）",
+    )
 
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
@@ -5652,6 +6200,36 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 0
 
+    if args.command == "model":
+        loaded_ma = _load_settings_for_models(args.config)
+        if isinstance(loaded_ma, int):
+            return loaded_ma
+        settings_ma: Settings = loaded_ma
+        if getattr(args, "model", None):
+            settings_ma = replace(settings_ma, model=str(args.model).strip())
+        if getattr(args, "workspace", None):
+            settings_ma = replace(
+                settings_ma,
+                workspace=os.path.abspath(str(args.workspace)),
+            )
+        if sys.stdin.isatty() and sys.stdout.isatty():
+            try:
+                from cai_agent.tui_model_panel import run_standalone_model_panel
+
+                return int(run_standalone_model_panel(settings_ma))
+            except Exception as e:
+                print(f"model 面板启动失败: {e}", file=sys.stderr)
+                return 2
+        ns_suggest = argparse.Namespace(
+            config=args.config,
+            models_action="suggest",
+            task_description=["(non-interactive: use `cai-agent models suggest <task>` for custom text)"],
+            json_output=True,
+            workspace=getattr(args, "workspace", None),
+            model=getattr(args, "model", None),
+        )
+        return _cmd_models(ns_suggest)
+
     if args.command == "models":
         t_mdl = time.perf_counter()
         rc_mdl = _cmd_models(args)
@@ -5661,6 +6239,7 @@ def main(argv: list[str] | None = None) -> int:
             "fetch": "models.fetch",
             "ping": "models.ping",
             "route": "models.route",
+            "route-wizard": "models.route_wizard",
             "routing-test": "models.routing_test",
             "suggest": "models.suggest",
             "add": "models.add",
@@ -5683,7 +6262,7 @@ def main(argv: list[str] | None = None) -> int:
                     tok_m = 1
                 else:
                     tok_m = len(ld2.profiles)
-        elif act_m in {"add", "use", "rm", "route", "routing-test", "edit", "suggest"} and int(rc_mdl) == 0:
+        elif act_m in {"add", "use", "rm", "route", "route-wizard", "routing-test", "edit", "suggest"} and int(rc_mdl) == 0:
             tok_m = 1
         _maybe_metrics_cli(
             module="models",
@@ -5693,6 +6272,76 @@ def main(argv: list[str] | None = None) -> int:
             success=(int(rc_mdl) == 0),
         )
         return rc_mdl
+
+    if args.command == "runtime":
+        try:
+            settings_rt = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings_rt = replace(settings_rt, model=str(args.model).strip())
+        if args.workspace:
+            settings_rt = replace(
+                settings_rt,
+                workspace=os.path.abspath(args.workspace),
+            )
+        act_rt = str(getattr(args, "runtime_action", "") or "").strip()
+        t_rt = time.perf_counter()
+        if act_rt == "list":
+            from cai_agent.runtime.registry import list_runtimes_payload
+
+            doc_rt = list_runtimes_payload()
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(doc_rt, ensure_ascii=False))
+            else:
+                print("runtime backends:", ", ".join(doc_rt.get("backends") or []))
+            _maybe_metrics_cli(
+                module="runtime",
+                event="runtime.list",
+                latency_ms=(time.perf_counter() - t_rt) * 1000.0,
+                tokens=len(doc_rt.get("backends") or []),
+                success=True,
+            )
+            return 0
+        if act_rt == "test":
+            from cai_agent.runtime.registry import get_runtime_backend
+
+            bname = str(getattr(args, "runtime_backend_name", "local") or "local").strip()
+            be = get_runtime_backend(bname, settings=settings_rt)
+            cwd = str(Path(settings_rt.workspace).resolve())
+            res = be.exec(["echo", "hello"], cwd=cwd, timeout_sec=15.0)
+            out_doc = {
+                "schema_version": "runtime_test_v1",
+                "backend": bname,
+                "returncode": res.returncode,
+                "stdout": (res.stdout or "").strip(),
+                "stderr": (res.stderr or "").strip(),
+                "error_kind": res.error_kind,
+                "exists": be.exists(),
+            }
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_doc, ensure_ascii=False))
+            else:
+                print(
+                    f"runtime test: backend={bname} rc={res.returncode} "
+                    f"exists={be.exists()} err={res.error_kind!r}",
+                )
+                if res.stdout.strip():
+                    print(res.stdout.strip())
+            _maybe_metrics_cli(
+                module="runtime",
+                event="runtime.test",
+                latency_ms=(time.perf_counter() - t_rt) * 1000.0,
+                tokens=1,
+                success=(res.returncode == 0),
+            )
+            return 0 if res.returncode == 0 else 2
+        print("runtime: 未知子命令", file=sys.stderr)
+        return 2
 
     if args.command == "plugins":
         try:
@@ -5752,12 +6401,218 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "skills":
         act = str(getattr(args, "skills_action", "") or "").strip()
+        if act == "usage":
+            from cai_agent.skill_evolution import aggregate_skill_usage, build_skills_usage_trend_v1
+
+            root_us = Path.cwd().resolve()
+            filt = str(getattr(args, "skills_usage_skill", "") or "").strip() or None
+            t_us = time.perf_counter()
+            trend_days = getattr(args, "skills_usage_trend_days", None)
+            if trend_days is not None:
+                if not bool(getattr(args, "json_output", False)):
+                    print("skills usage --trend 需与 --json 同用", file=sys.stderr)
+                    return 2
+                payload_us = build_skills_usage_trend_v1(
+                    root_us,
+                    days=int(trend_days) if int(trend_days) > 0 else 14,
+                    skill_id=filt,
+                )
+            else:
+                payload_us = aggregate_skill_usage(root_us, skill_id=filt)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload_us, ensure_ascii=False))
+            else:
+                bys = payload_us.get("by_skill_id") or {}
+                print(
+                    f"skills usage: events={payload_us.get('total_events')} "
+                    f"distinct_skills={len(bys)}",
+                )
+                for sid, cnt in sorted(bys.items(), key=lambda x: (-x[1], x[0]))[:40]:
+                    print(f"  {cnt:4d}  {sid}")
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.usage",
+                latency_ms=(time.perf_counter() - t_us) * 1000.0,
+                tokens=int(payload_us.get("total_events") or 0),
+                success=True,
+            )
+            return 0
+        if act == "revert":
+            from cai_agent.skill_evolution import revert_skill_append_by_hist_id
+
+            root_rv = Path.cwd().resolve()
+            sid = str(getattr(args, "skills_revert_skill_id", "") or "").strip()
+            hid = str(getattr(args, "skills_revert_hist_id", "") or "").strip()
+            apply_rv = bool(getattr(args, "skills_revert_apply", False))
+            t_rv = time.perf_counter()
+            try:
+                out_rv = revert_skill_append_by_hist_id(
+                    root=root_rv,
+                    skill_id=sid,
+                    hist_id=hid,
+                    apply=apply_rv,
+                )
+            except ValueError as e:
+                print(f"skills revert: {e}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_rv, ensure_ascii=False))
+            else:
+                print(
+                    f"skills revert: skill={out_rv.get('skill_id')} hist={out_rv.get('hist_id')} "
+                    f"written={out_rv.get('written')}",
+                )
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.revert",
+                latency_ms=(time.perf_counter() - t_rv) * 1000.0,
+                tokens=1,
+                success=True,
+            )
+            return 0
+        if act == "promote":
+            from cai_agent.skills import auto_promote_evolution_skills, promote_evolution_skill
+
+            root_pr = Path.cwd().resolve()
+            t_pr = time.perf_counter()
+            try:
+                if bool(getattr(args, "skills_promote_auto", False)):
+                    out_pr = auto_promote_evolution_skills(
+                        root=root_pr,
+                        threshold=getattr(args, "skills_promote_threshold", None),
+                    )
+                else:
+                    to_nm = str(getattr(args, "skills_promote_to", "") or "").strip()
+                    if not to_nm:
+                        print("skills promote: 需要 --to <name>（非 --auto 时）", file=sys.stderr)
+                        return 2
+                    out_pr = promote_evolution_skill(
+                        root=root_pr,
+                        src_rel=str(getattr(args, "skills_promote_src", "") or "").strip(),
+                        dest_name=to_nm,
+                    )
+            except ValueError as e:
+                print(f"skills promote: {e}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_pr, ensure_ascii=False))
+            else:
+                if bool(getattr(args, "skills_promote_auto", False)):
+                    print(
+                        f"skills promote --auto: promoted={len(out_pr.get('promoted') or [])} "
+                        f"skipped={len(out_pr.get('skipped') or [])}",
+                    )
+                else:
+                    print(
+                        f"skills promote: ok={out_pr.get('ok')} from={out_pr.get('from')} to={out_pr.get('to')}",
+                    )
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.promote",
+                latency_ms=(time.perf_counter() - t_pr) * 1000.0,
+                tokens=1,
+                success=bool(out_pr.get("ok")) if not bool(getattr(args, "skills_promote_auto", False)) else True,
+            )
+            if bool(getattr(args, "skills_promote_auto", False)):
+                return 0
+            return 0 if out_pr.get("ok") else 2
+        if act == "lint":
+            from cai_agent.skills import lint_skills_workspace
+
+            root_l = Path.cwd().resolve()
+            t_l = time.perf_counter()
+            payload_l = lint_skills_workspace(root=root_l)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload_l, ensure_ascii=False))
+            else:
+                n = int(payload_l.get("violation_count") or 0)
+                print(f"skills lint: violations={n} ok={payload_l.get('ok')}")
+                for v in (payload_l.get("violations") or [])[:30]:
+                    if isinstance(v, dict):
+                        print(f"  - {v.get('name')}: {','.join(v.get('reasons') or [])}")
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.lint",
+                latency_ms=(time.perf_counter() - t_l) * 1000.0,
+                tokens=int(payload_l.get("violation_count") or 0),
+                success=bool(payload_l.get("ok")),
+            )
+            return 0 if payload_l.get("ok") else 2
+        if act == "improve":
+            from cai_agent.skill_evolution import (
+                build_default_improve_note,
+                improve_skill_append_note,
+                improve_skill_with_llm_summary,
+            )
+
+            root_im = Path.cwd().resolve()
+            sid = str(getattr(args, "skills_improve_skill_id", "") or "").strip()
+            if not sid:
+                print("SKILL_ID 不能为空", file=sys.stderr)
+                return 2
+            apply_im = bool(getattr(args, "skills_improve_apply", False))
+            use_llm = bool(getattr(args, "skills_improve_llm", False))
+            t_im = time.perf_counter()
+            try:
+                if use_llm:
+                    try:
+                        settings_im = Settings.from_env(
+                            config_path=args.config,
+                            workspace_hint=_settings_workspace_hint(args),
+                        )
+                    except FileNotFoundError as e:
+                        print(str(e), file=sys.stderr)
+                        return 2
+                    if args.model:
+                        settings_im = replace(settings_im, model=str(args.model).strip())
+                    if args.workspace:
+                        settings_im = replace(
+                            settings_im,
+                            workspace=os.path.abspath(args.workspace),
+                        )
+                    out_im = improve_skill_with_llm_summary(
+                        root=root_im,
+                        skill_id=sid,
+                        settings=settings_im,
+                        apply=apply_im,
+                    )
+                else:
+                    note = build_default_improve_note(root_im, sid)
+                    out_im = improve_skill_append_note(
+                        root=root_im,
+                        skill_id=sid,
+                        note_md=note,
+                        apply=apply_im,
+                    )
+            except ValueError as e:
+                print(f"skills improve: {e}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_im, ensure_ascii=False))
+            else:
+                print(
+                    f"skills improve: skill_id={out_im.get('skill_id')} "
+                    f"written={out_im.get('written')} apply={apply_im} llm={use_llm}",
+                )
+                if not apply_im and out_im.get("preview_append"):
+                    print(str(out_im.get("preview_append"))[:900], file=sys.stderr)
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.improve",
+                latency_ms=(time.perf_counter() - t_im) * 1000.0,
+                tokens=1,
+                success=True,
+            )
+            return 0
         if act != "hub":
-            print("skills: 仅支持 hub 子命令", file=sys.stderr)
+            print("skills: 未知子命令（支持 hub / improve / usage / lint / promote / revert）", file=sys.stderr)
             return 2
         hub_act = str(getattr(args, "skills_hub_action", "") or "").strip()
-        if hub_act not in ("manifest", "suggest", "serve", "install"):
-            print("skills hub: 仅支持 manifest / suggest / serve / install", file=sys.stderr)
+        if hub_act not in ("manifest", "suggest", "serve", "fetch", "install", "list-remote"):
+            print(
+                "skills hub: 仅支持 manifest / suggest / serve / fetch / install / list-remote",
+                file=sys.stderr,
+            )
             return 2
         root_sk = Path.cwd().resolve()
         if hub_act == "manifest":
@@ -5781,20 +6636,34 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if hub_act == "install":
-            from cai_agent.skills import apply_skills_hub_manifest_selection
+            from cai_agent.skills import apply_skills_hub_manifest_selection, fetch_remote_skills_manifest
 
-            mp = Path(str(getattr(args, "manifest", "") or "")).expanduser().resolve()
-            if not mp.is_file():
-                print(f"manifest 不存在: {mp}", file=sys.stderr)
-                return 2
-            try:
-                doc = json.loads(mp.read_text(encoding="utf-8"))
-            except json.JSONDecodeError as e:
-                print(f"manifest JSON 无效: {e}", file=sys.stderr)
-                return 2
-            if not isinstance(doc, dict):
-                print("manifest 根须为 object", file=sys.stderr)
-                return 2
+            from_url = str(getattr(args, "hub_install_from_url", "") or "").strip()
+            doc: dict[str, Any]
+            if from_url:
+                try:
+                    fetched = fetch_remote_skills_manifest(from_url)
+                except Exception as e:
+                    print(f"拉取远程 manifest 失败: {e}", file=sys.stderr)
+                    return 2
+                if not isinstance(fetched, dict):
+                    print("远程 manifest 根须为 object", file=sys.stderr)
+                    return 2
+                doc = dict(fetched)
+                doc["manifest_origin_url"] = from_url
+            else:
+                mp = Path(str(getattr(args, "manifest", "") or "")).expanduser().resolve()
+                if not str(getattr(args, "manifest", "") or "").strip() or not mp.is_file():
+                    print("需要 --manifest PATH 或 --from URL", file=sys.stderr)
+                    return 2
+                try:
+                    doc = json.loads(mp.read_text(encoding="utf-8"))
+                except json.JSONDecodeError as e:
+                    print(f"manifest JSON 无效: {e}", file=sys.stderr)
+                    return 2
+                if not isinstance(doc, dict):
+                    print("manifest 根须为 object", file=sys.stderr)
+                    return 2
             only_raw = str(getattr(args, "only", "") or "").strip()
             only_set: frozenset[str] | None = None
             if only_raw:
@@ -5849,6 +6718,68 @@ def main(argv: list[str] | None = None) -> int:
                 print(json.dumps(srv_result, ensure_ascii=False))
             else:
                 print(f"Skills Hub 服务已停止 ok={srv_result.get('ok')}")
+            return 0
+        if hub_act == "fetch":
+            from cai_agent.skills import fetch_remote_skills_manifest
+
+            url = str(getattr(args, "skills_hub_fetch_url", "") or "").strip()
+            if not url:
+                print("URL 不能为空", file=sys.stderr)
+                return 2
+            t_ft = time.perf_counter()
+            try:
+                doc = fetch_remote_skills_manifest(url)
+            except Exception as e:
+                print(f"skills hub fetch 失败: {e}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(
+                    json.dumps(
+                        {"schema_version": "skills_hub_fetch_v1", "url": url, "manifest": doc},
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print(json.dumps(doc, ensure_ascii=False))
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.hub_fetch",
+                latency_ms=(time.perf_counter() - t_ft) * 1000.0,
+                tokens=1,
+                success=True,
+            )
+            return 0
+        if hub_act == "list-remote":
+            from cai_agent.skills import list_remote_skills_registry_index
+
+            url_lr = str(getattr(args, "skills_hub_list_remote_url", "") or "").strip()
+            if not url_lr:
+                print("URL 不能为空", file=sys.stderr)
+                return 2
+            t_lr = time.perf_counter()
+            try:
+                doc_lr = list_remote_skills_registry_index(
+                    url_lr,
+                    sync_mirror=bool(getattr(args, "skills_hub_sync_mirror", False)),
+                    mirror_cwd=str(root_sk),
+                )
+            except Exception as e:
+                print(f"skills hub list-remote 失败: {e}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(doc_lr, ensure_ascii=False))
+            else:
+                print(
+                    f"remote manifest: count={doc_lr.get('count')} "
+                    f"schema={doc_lr.get('manifest_schema')!r}",
+                )
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.hub_list_remote",
+                latency_ms=(time.perf_counter() - t_lr) * 1000.0,
+                tokens=int(doc_lr.get("count") or 0),
+                success=True,
+            )
             return 0
         from cai_agent.skills import build_skill_evolution_suggest
 
@@ -6104,6 +7035,11 @@ def main(argv: list[str] | None = None) -> int:
             success=bool(ok),
         )
         return 0 if ok else 2
+
+    if args.command == "mcp-serve":
+        from cai_agent.mcp_serve import run_stdio_mcp_server
+
+        return int(run_stdio_mcp_server())
 
     if args.command == "sessions":
         t_sess = time.perf_counter()
@@ -6385,6 +7321,26 @@ def main(argv: list[str] | None = None) -> int:
         return rc_ins
 
     if args.command == "recall":
+        if bool(getattr(args, "evaluate", False)):
+            ev = build_recall_evaluation_payload(
+                os.getcwd(),
+                days=int(getattr(args, "evaluate_days", 14) or 14),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(ev, ensure_ascii=False))
+            else:
+                print(
+                    f"[recall --evaluate] hit_rate={ev.get('recall_hit_rate')} "
+                    f"queries={ev.get('recall_queries_total')} "
+                    f"neg_events={ev.get('negative_events_total')}",
+                )
+                ntop = ev.get("negative_queries_top") or []
+                if isinstance(ntop, list) and ntop:
+                    print("top_negative_queries:")
+                    for row in ntop[:8]:
+                        if isinstance(row, dict):
+                            print(f"  {row.get('count')}x  {row.get('query')!s}")
+            return 0
         idx_arg = getattr(args, "index_path", None)
         idx_path = (
             str(idx_arg).strip()
@@ -6392,7 +7348,51 @@ def main(argv: list[str] | None = None) -> int:
             else None
         )
         t_rec = time.perf_counter()
-        if bool(getattr(args, "use_index", False)):
+        if bool(getattr(args, "fts5", False)):
+            try:
+                payload = _build_recall_payload_from_fts5(
+                    cwd=os.getcwd(),
+                    query=str(args.query),
+                    limit=int(args.limit),
+                    days=int(args.days),
+                    hits_per_session=int(
+                        args.max_matches if args.max_matches is not None else args.max_hits
+                    ),
+                    session_limit=int(args.limit),
+                    use_regex=bool(args.regex),
+                    case_sensitive=bool(getattr(args, "case_sensitive", False)),
+                    sort=str(getattr(args, "sort", "recent") or "recent"),
+                )
+            except FileNotFoundError:
+                if bool(args.json_output):
+                    print(
+                        json.dumps(
+                            {
+                                "ok": False,
+                                "error": "fts5_index_missing",
+                                "message": "FTS5 索引不存在，请先运行 cai-agent recall-index build --engine fts5",
+                            },
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(
+                        "FTS5 索引不存在，请先运行 cai-agent recall-index build --engine fts5",
+                        file=sys.stderr,
+                    )
+                return 2
+            except ValueError as e:
+                if bool(args.json_output):
+                    print(
+                        json.dumps(
+                            {"ok": False, "error": "fts5_unsupported", "message": str(e)},
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(str(e), file=sys.stderr)
+                return 2
+        elif bool(getattr(args, "use_index", False)):
             try:
                 payload = _build_recall_payload_from_index(
                     index_file=str(_resolve_recall_index_path(cwd=os.getcwd(), index_path=idx_path)),
@@ -6443,6 +7443,34 @@ def main(argv: list[str] | None = None) -> int:
                 session_limit=int(args.limit),
                 sort=str(getattr(args, "sort", "recent") or "recent"),
             )
+        if bool(getattr(args, "summarize", False)):
+            payload = _apply_recall_summarize_heuristic(
+                payload,
+                top=int(getattr(args, "summarize_top", 5) or 5),
+            )
+        _tid: str | None = None
+        for _r in (payload.get("results") or [])[:8]:
+            if isinstance(_r, dict) and _r.get("task_id"):
+                _tid = str(_r["task_id"])
+                break
+        append_recall_audit_line(
+            os.getcwd(),
+            query=str(args.query),
+            hits_total=int(payload.get("hits_total") or 0),
+            sessions_scanned=int(payload.get("sessions_scanned") or 0),
+            sessions_with_hits=int(payload.get("sessions_with_hits") or 0),
+            task_id=_tid,
+            use_index=bool(getattr(args, "use_index", False)) or bool(getattr(args, "fts5", False)),
+        )
+        if int(payload.get("hits_total") or 0) <= 0:
+            try:
+                st_neg = Settings.from_env(config_path=None, workspace_hint=os.getcwd())
+                if bool(getattr(st_neg, "memory_policy_recall_negative_audit", True)):
+                    nhr = payload.get("no_hit_reason")
+                    rn = str(nhr).strip() if isinstance(nhr, str) else None
+                    append_negative_recall_line(os.getcwd(), query=str(args.query), reason=rn)
+            except Exception:
+                pass
         rec_ms = (time.perf_counter() - t_rec) * 1000.0
         _maybe_metrics_cli(
             module="recall",
@@ -6484,13 +7512,24 @@ def main(argv: list[str] | None = None) -> int:
         index_path_arg = getattr(args, "index_path", None)
         if action == "build":
             t_rix = time.perf_counter()
-            payload = _build_recall_index(
-                cwd=cwd,
-                pattern=str(args.pattern),
-                limit=int(args.limit),
-                days=int(args.days),
-                index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
-            )
+            eng = str(getattr(args, "engine", "legacy") or "legacy").strip().lower()
+            if eng == "fts5":
+                from cai_agent.recall_fts5 import build_fts5_recall_index
+
+                payload = build_fts5_recall_index(
+                    cwd=cwd,
+                    pattern=str(args.pattern),
+                    limit=int(args.limit),
+                    days=int(args.days),
+                )
+            else:
+                payload = _build_recall_index(
+                    cwd=cwd,
+                    pattern=str(args.pattern),
+                    limit=int(args.limit),
+                    days=int(args.days),
+                    index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+                )
             _maybe_metrics_cli(
                 module="recall_index",
                 event="recall_index.build",
@@ -7272,6 +8311,31 @@ def main(argv: list[str] | None = None) -> int:
                     success=ok_v,
                 )
                 return 0 if ok_v else 2
+            if args.memory_action == "entries":
+                if str(getattr(args, "memory_entries_action", "") or "").strip().lower() != "fix":
+                    print("memory entries: 需要子命令 fix", file=sys.stderr)
+                    return 2
+                t_mfix = time.perf_counter()
+                fx = fix_memory_entries_jsonl(
+                    root,
+                    dry_run=bool(getattr(args, "dry_run", False)),
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(fx, ensure_ascii=False))
+                else:
+                    print(
+                        f"[memory entries fix] {fx.get('message')} "
+                        f"before={fx.get('lines_before')} after={fx.get('lines_after')} "
+                        f"dropped={fx.get('dropped')} dry_run={fx.get('dry_run')}",
+                    )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.entries_fix",
+                    latency_ms=(time.perf_counter() - t_mfix) * 1000.0,
+                    tokens=int(fx.get("dropped") or 0),
+                    success=True,
+                )
+                return 0
             if args.memory_action == "instincts":
                 t_mi = time.perf_counter()
                 files = sorted(
@@ -7719,11 +8783,54 @@ def main(argv: list[str] | None = None) -> int:
                 t_mum = time.perf_counter()
                 from cai_agent.user_model import (
                     build_memory_user_model_overview,
+                    build_memory_user_model_overview_v2,
+                    build_memory_user_model_overview_v3,
                     build_user_model_bundle_v1,
                 )
+                from cai_agent.user_model_store import append_event, query_beliefs_by_text, upsert_belief
 
                 uact = str(getattr(args, "user_model_action", "") or "").strip().lower()
                 days_um = int(getattr(args, "user_model_days", 14) or 14)
+                if uact == "query":
+                    hits = query_beliefs_by_text(
+                        root,
+                        needle=str(getattr(args, "user_model_query_text", "") or ""),
+                        limit=int(getattr(args, "limit", 20) or 20),
+                    )
+                    out_q = {"schema_version": "memory_user_model_query_v1", "hits": hits}
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_q, ensure_ascii=False))
+                    else:
+                        print(f"[memory user-model query] hits={len(hits)}")
+                        for h in hits[:20]:
+                            print(f"  {h.get('confidence')}\t{h.get('text', '')[:120]}")
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.user_model.query",
+                        latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                        tokens=len(hits),
+                        success=True,
+                    )
+                    return 0
+                if uact == "learn":
+                    belief = str(getattr(args, "belief", "") or "").strip()
+                    conf = float(getattr(args, "confidence", 0.5) or 0.5)
+                    tags = [str(x) for x in (getattr(args, "tag", None) or []) if str(x).strip()]
+                    row = upsert_belief(root, text=belief, confidence=conf, tags=tags or None)
+                    append_event(root, kind="learn", payload={"belief_id": row.get("id"), "text": belief[:200]})
+                    out_l = {"schema_version": "memory_user_model_learn_v1", "ok": True, "belief": row}
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_l, ensure_ascii=False))
+                    else:
+                        print(f"[memory user-model learn] id={row.get('id')} confidence={row.get('confidence')}")
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.user_model.learn",
+                        latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                        tokens=1,
+                        success=True,
+                    )
+                    return 0
                 if uact == "export":
                     bundle = build_user_model_bundle_v1(settings_mem, days=days_um)
                     ov = bundle.get("overview") if isinstance(bundle.get("overview"), dict) else {}
@@ -7738,7 +8845,20 @@ def main(argv: list[str] | None = None) -> int:
                     print(json.dumps(bundle, ensure_ascii=False))
                     return 0
 
-                payload_um = build_memory_user_model_overview(settings_mem, days=days_um)
+                if bool(getattr(args, "with_store_v3", False)):
+                    payload_um = build_memory_user_model_overview_v3(
+                        settings_mem,
+                        days=days_um,
+                        with_dialectic=bool(getattr(args, "with_dialectic", False)),
+                    )
+                elif bool(getattr(args, "with_dialectic", False)):
+                    payload_um = build_memory_user_model_overview_v2(
+                        settings_mem,
+                        days=days_um,
+                        with_dialectic=True,
+                    )
+                else:
+                    payload_um = build_memory_user_model_overview(settings_mem, days=days_um)
                 tok_um = int(payload_um.get("sessions_recent_in_window") or 0)
                 _maybe_metrics_cli(
                     module="memory",
@@ -8492,6 +9612,27 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
     if args.command == "cost":
+        if args.cost_action == "report":
+            from cai_agent.cost_aggregate import build_cost_by_profile_v1
+
+            t_cr = time.perf_counter()
+            doc_cr = build_cost_by_profile_v1(
+                os.getcwd(),
+                include_by_tenant=bool(getattr(args, "cost_include_tenant", False)),
+                include_by_calendar_day=bool(getattr(args, "cost_per_day", False)),
+            )
+            if not bool(getattr(args, "json_output", False)):
+                print("cost report 需使用 --json", file=sys.stderr)
+                return 2
+            print(json.dumps(doc_cr, ensure_ascii=False))
+            _maybe_metrics_cli(
+                module="cost",
+                event="cost.report",
+                latency_ms=(time.perf_counter() - t_cr) * 1000.0,
+                tokens=len(doc_cr.get("profiles") or []),
+                success=True,
+            )
+            return 0
         if args.cost_action == "budget":
             settings_cost = Settings.from_env(config_path=None)
             t_cost = time.perf_counter()
@@ -8537,6 +9678,121 @@ def main(argv: list[str] | None = None) -> int:
                 success=(rc_cost == 0),
             )
             return rc_cost
+
+    if args.command == "feedback":
+        from cai_agent.feedback import append_feedback, export_feedback_jsonl, list_feedback
+
+        root_fb = Path.cwd().resolve()
+        act_fb = str(getattr(args, "feedback_action", "") or "").strip().lower()
+        t_fb = time.perf_counter()
+        if act_fb == "submit":
+            txt = " ".join(str(x) for x in (getattr(args, "feedback_text", []) or [])).strip()
+            if not txt:
+                print("反馈文本不能为空", file=sys.stderr)
+                return 2
+            row = append_feedback(root_fb, text=txt)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(row, ensure_ascii=False))
+            else:
+                print("[feedback] 已记录", row.get("ts"))
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.submit",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=len(txt),
+                success=True,
+            )
+            return 0
+        if act_fb == "list":
+            rows = list_feedback(root_fb, limit=int(getattr(args, "limit", 30) or 30))
+            out = {"schema_version": "feedback_list_v1", "rows": rows}
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out, ensure_ascii=False))
+            else:
+                for r in rows[-20:]:
+                    if isinstance(r, dict):
+                        print(f"{r.get('ts')}\t{r.get('text', '')[:120]}")
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.list",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=len(rows),
+                success=True,
+            )
+            return 0
+        if act_fb == "export":
+            dest_ex = str(getattr(args, "dest", "") or "").strip()
+            if not dest_ex:
+                print("需要 --dest PATH", file=sys.stderr)
+                return 2
+            lim_ex = getattr(args, "feedback_export_limit", None)
+            out_ex = export_feedback_jsonl(
+                root_fb,
+                dest=dest_ex,
+                limit=int(lim_ex) if isinstance(lim_ex, int) and not isinstance(lim_ex, bool) else None,
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_ex, ensure_ascii=False))
+            else:
+                print(f"[feedback] export rows={out_ex.get('rows')} -> {out_ex.get('dest')}")
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.export",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=int(out_ex.get("rows") or 0),
+                success=True,
+            )
+            return 0
+        print("feedback: 未知子命令", file=sys.stderr)
+        return 2
+
+    if args.command == "release-changelog":
+        anchor = Path.cwd().resolve()
+        if getattr(args, "workspace", None):
+            anchor = Path(os.path.abspath(str(args.workspace))).resolve()
+        root_scan = anchor
+        for _ in range(10):
+            if (root_scan / "CHANGELOG.md").is_file():
+                break
+            if root_scan.parent == root_scan:
+                break
+            root_scan = root_scan.parent
+        from cai_agent.changelog_sync import check_changelog_bilingual
+
+        doc_cl = check_changelog_bilingual(repo_root=root_scan)
+        sem = None
+        if bool(getattr(args, "release_changelog_semantic", False)):
+            from cai_agent.changelog_semantic import build_changelog_semantic_compare
+
+            sem = build_changelog_semantic_compare(repo_root=root_scan)
+        if bool(getattr(args, "json_output", False)):
+            if sem is None:
+                print(json.dumps(doc_cl, ensure_ascii=False))
+            else:
+                print(
+                    json.dumps({"bilingual": doc_cl, "semantic": sem}, ensure_ascii=False),
+                )
+        else:
+            print(
+                f"changelog bilingual: ok={doc_cl.get('ok')} "
+                f"lines_en={doc_cl.get('lines_en')} lines_zh={doc_cl.get('lines_zh')} "
+                f"ratio={doc_cl.get('line_ratio')}",
+            )
+            if sem is not None:
+                print(
+                    f"changelog semantic: ok={sem.get('ok')} "
+                    f"h2_en={sem.get('h2_count_en')} h2_zh={sem.get('h2_count_zh')}",
+                )
+        ok_cl = bool(doc_cl.get("ok"))
+        if sem is not None:
+            ok_cl = ok_cl and bool(sem.get("ok"))
+        return 0 if ok_cl else 2
+
+    if args.command == "claw-migrate":
+        from cai_agent.claw_migrate import run_claw_migrate
+
+        apply_m = bool(getattr(args, "claw_migrate_apply", False))
+        return int(run_claw_migrate(dry_run=not apply_m))
 
     if args.command == "export":
         try:
@@ -9863,16 +11119,17 @@ def main(argv: list[str] | None = None) -> int:
             max_tokens=(int(args.max_tokens) if getattr(args, "max_tokens", None) is not None else None),
             run_quality_gate_check=not bool(getattr(args, "no_quality_gate", False)),
             run_security_scan_check=bool(getattr(args, "with_security_scan", False)),
+            include_lint=False,
+            include_typecheck=False,
             with_doctor=bool(getattr(args, "with_doctor", False)),
             with_memory_nudge=bool(getattr(args, "with_memory_nudge", False)),
+            memory_nudge_fail_on=str(getattr(args, "memory_max_severity", "high") or "high"),
             with_memory_state=bool(getattr(args, "with_memory_state", False)),
             memory_state_max_stale_rate=float(getattr(args, "memory_max_stale_ratio", 0.50)),
             memory_state_max_expired_rate=float(getattr(args, "memory_max_expired_ratio", 0.10)),
             memory_state_stale_days=int(getattr(args, "memory_state_stale_days", 30)),
             memory_state_stale_confidence=float(getattr(args, "memory_state_stale_confidence", 0.4)),
-            memory_nudge_fail_on=str(getattr(args, "memory_max_severity", "high") or "high"),
-            include_lint=False,
-            include_typecheck=False,
+            with_memory_policy=bool(getattr(args, "with_memory_policy", False)),
         )
         if bool(getattr(args, "json_output", False)):
             print(json.dumps(payload, ensure_ascii=False))
@@ -9983,7 +11240,7 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
                 return 2
-            skill_texts = load_related_skill_texts(settings, cmd_name)
+            skill_texts = load_related_skill_texts(settings, cmd_name, goal_hint=goal[:500])
             skill_block = ""
             if skill_texts:
                 skill_block = (
@@ -10020,7 +11277,7 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(f"子代理模板不存在: {agent_name}", file=sys.stderr)
                 return 2
-            skill_texts = load_related_skill_texts(settings, agent_name)
+            skill_texts = load_related_skill_texts(settings, agent_name, goal_hint=goal[:500])
             skill_block = ""
             if skill_texts:
                 skill_block = (
@@ -10067,6 +11324,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             reset_usage_counters()
             reset_global_ring()
+            clear_session_skill_touches()
             task = new_task(args.command)
             task.status = "running"
             _print_hook_status(
@@ -10357,6 +11615,54 @@ def main(argv: list[str] | None = None) -> int:
                             )
                     except Exception:
                         pass
+            # 任务后自动提炼技能草稿（[skills.auto_extract] 或 CAI_SKILLS_AUTO_EXTRACT）
+            if str(task.status) == "completed":
+                _cg = goal if isinstance(goal, str) else ""
+                if _cg.strip():
+                    try:
+                        from cai_agent.skills import (
+                            auto_extract_skill_after_task as _aext,
+                            resolve_auto_extract_for_runner as _arx,
+                        )
+
+                        _run_ax, _use_llm_ax = _arx(settings, goal=_cg)
+                        if _run_ax:
+                            _ev_lines = [f"- tool: {nm}" for nm in (used_tools or [])[:48]]
+                            _ext = _aext(
+                                root=str(Path.cwd().resolve()),
+                                goal=_cg[:2000],
+                                answer=str(final.get("answer") or "")[:12000],
+                                write=True,
+                                settings=settings,
+                                use_llm=_use_llm_ax,
+                                events_summary="\n".join(_ev_lines),
+                            )
+                            if not bool(args.json_output) and bool(_ext.get("written")):
+                                print(
+                                    f"[skills auto-extract] 已落盘: {_ext.get('suggested_path')} "
+                                    f"schema={_ext.get('schema_version')}",
+                                    file=sys.stderr,
+                                )
+                    except Exception:
+                        pass
+            # 本会话曾加载的技能：可选追加「历史改进」（CAI_SKILLS_AUTO_IMPROVE_APPLY 才真正写盘）
+            if str(task.status) == "completed":
+                try:
+                    from cai_agent.skill_evolution import maybe_run_session_auto_improve_after_task as _mimp
+
+                    _imp = _mimp(root=str(Path.cwd().resolve()))
+                    if (
+                        _imp
+                        and not bool(args.json_output)
+                        and (_imp.get("touched_skills") or [])
+                    ):
+                        print(
+                            f"[skills auto-improve] skills={_imp.get('touched_skills')} "
+                            f"apply={_imp.get('apply')}",
+                            file=sys.stderr,
+                        )
+                except Exception:
+                    pass
             return 0
         finally:
             if auto_on:

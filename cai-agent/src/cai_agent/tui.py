@@ -1032,7 +1032,11 @@ class CaiAgentApp(App[None]):
             if not cmd_text:
                 log.write(f"\n[red]命令模板不存在:[/] /{cmd_name}\n")
                 return
-            skill_texts = load_related_skill_texts(self._settings, cmd_name)
+            skill_texts = load_related_skill_texts(
+                self._settings,
+                cmd_name,
+                goal_hint=f"/{cmd_name}",
+            )
             skill_block = ""
             if skill_texts:
                 skill_block = (
@@ -1268,6 +1272,51 @@ class CaiAgentApp(App[None]):
 
         if raw == "/stop":
             self.action_stop_run()
+            return
+
+        if raw == "/usage":
+            from cai_agent.llm import get_last_usage, get_usage_counters
+
+            c = get_usage_counters()
+            lu = get_last_usage()
+            self.query_one("#chat", RichLog).write(
+                f"\n[bold]/usage[/]\n累计: {c!r}\n最近一轮: {lu!r}\n",
+            )
+            return
+
+        if raw == "/compress":
+            self.notify(
+                "已提示：请在下一轮直接让模型「总结当前对话关键结论」；"
+                "完整自动压缩将结合 graph compact 策略演进。",
+                severity="information",
+                timeout=4.0,
+            )
+            return
+
+        if raw == "/retry":
+            self.notify(
+                "请再次发送同一任务描述，或使用 CLI `cai-agent continue …` 继续会话。",
+                severity="information",
+                timeout=4.0,
+            )
+            return
+
+        if raw == "/undo":
+            self.notify(
+                "撤销尚未全自动接入；可用 /clear 清空本轮或手动编辑会话 JSON。",
+                severity="warning",
+                timeout=4.5,
+            )
+            return
+
+        if raw == "/personality":
+            import os
+
+            p = (os.environ.get("CAI_PERSONALITY") or "").strip()
+            self.query_one("#chat", RichLog).write(
+                f"\n[bold]/personality[/]\n"
+                f"{p or '(未设置 CAI_PERSONALITY；export CAI_PERSONALITY=\"…\" 后 /reload)'}\n",
+            )
             return
 
         if raw.startswith("/"):

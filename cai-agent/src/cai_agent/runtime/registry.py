@@ -1,0 +1,103 @@
+from __future__ import annotations
+
+from typing import Any
+
+from cai_agent.runtime.base import RuntimeBackend
+from cai_agent.runtime.daytona_stub import DaytonaRuntime
+from cai_agent.runtime.docker import DockerRuntime
+from cai_agent.runtime.local import LocalRuntime
+from cai_agent.runtime.modal_stub import ModalRuntime
+from cai_agent.runtime.singularity_stub import SingularityRuntime
+from cai_agent.runtime.ssh import SSHRuntime
+
+RUNTIME_REGISTRY: dict[str, type[RuntimeBackend] | Any] = {
+    "local": LocalRuntime,
+    "docker": DockerRuntime,
+    "ssh": SSHRuntime,
+    "modal": ModalRuntime,
+    "daytona": DaytonaRuntime,
+    "singularity": SingularityRuntime,
+}
+
+
+def get_runtime_backend(
+    name: str,
+    *,
+    settings: Any | None = None,
+) -> RuntimeBackend:
+    """Instantiate a backend; reads ``[runtime]`` / ``[runtime.<name>]`` from ``settings`` when given."""
+    key = (name or "local").strip().lower() or "local"
+    cls = RUNTIME_REGISTRY.get(key)
+    if cls is None:
+        return LocalRuntime()
+    if key == "local":
+        return LocalRuntime()
+    if key == "docker":
+        container = ""
+        exec_opts: tuple[str, ...] = ()
+        cpus = mem = None
+        if settings is not None:
+            container = str(getattr(settings, "runtime_docker_container", "") or "").strip()
+            eo = getattr(settings, "runtime_docker_exec_options", ()) or ()
+            exec_opts = tuple(str(x) for x in eo if str(x).strip())
+            cpus = getattr(settings, "runtime_docker_cpus", None)
+            mem = getattr(settings, "runtime_docker_memory", None)
+            cpus = str(cpus).strip() if cpus else None
+            mem = str(mem).strip() if mem else None
+        return DockerRuntime(
+            container=container,
+            exec_options=exec_opts,
+            cpus=cpus,
+            memory=mem,
+        )
+    if key == "ssh":
+        host = user = ""
+        key_path = None
+        strict = True
+        khosts = None
+        ct = 15.0
+        if settings is not None:
+            host = str(getattr(settings, "runtime_ssh_host", "") or "")
+            user = str(getattr(settings, "runtime_ssh_user", "") or "")
+            kp = getattr(settings, "runtime_ssh_key_path", None)
+            key_path = str(kp).strip() if kp else None
+            strict = bool(getattr(settings, "runtime_ssh_strict_host_key", True))
+            kh = getattr(settings, "runtime_ssh_known_hosts_path", None)
+            khosts = str(kh).strip() if kh else None
+            ct = float(getattr(settings, "runtime_ssh_connect_timeout_sec", 15.0) or 15.0)
+        return SSHRuntime(
+            host=host,
+            user=user,
+            key_path=key_path,
+            strict_host_key=strict,
+            known_hosts_path=khosts,
+            connect_timeout_sec=ct,
+        )
+    if key == "modal":
+        app = ""
+        hib: int | None = None
+        if settings is not None:
+            app = str(getattr(settings, "runtime_modal_app_name", "") or "")
+            hib = getattr(settings, "runtime_modal_hibernate_idle_seconds", None)
+        return ModalRuntime(app_name=app, hibernate_idle_seconds=hib)
+    if key == "daytona":
+        ws = ""
+        if settings is not None:
+            ws = str(getattr(settings, "runtime_daytona_workspace", "") or "").strip()
+        return DaytonaRuntime(workspace=ws)
+    if key == "singularity":
+        sif = ""
+        binds: tuple[str, ...] = ()
+        if settings is not None:
+            sif = str(getattr(settings, "runtime_singularity_sif_path", "") or "").strip()
+            bp = getattr(settings, "runtime_singularity_bind_paths", ()) or ()
+            binds = tuple(str(x).strip() for x in bp if str(x).strip())
+        return SingularityRuntime(sif_path=sif, bind_paths=binds)
+    return LocalRuntime()
+
+
+def list_runtimes_payload() -> dict[str, Any]:
+    return {
+        "schema_version": "runtime_registry_v1",
+        "backends": sorted(RUNTIME_REGISTRY.keys()),
+    }

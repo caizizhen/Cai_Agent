@@ -9,7 +9,7 @@ from langgraph.graph import END, START, StateGraph
 from cai_agent.config import Settings
 from cai_agent.context import augment_system_prompt
 from cai_agent.llm import extract_json_object, get_last_usage
-from cai_agent.llm_factory import chat_completion_by_role
+from cai_agent.llm_factory import chat_completion_by_role, peek_last_profile_route_decision
 from cai_agent.progress_ring import global_ring
 from cai_agent.tools import dispatch, tools_spec_markdown
 
@@ -52,6 +52,9 @@ class AgentState(TypedDict, total=False):
     compact_milestone_last_tc: NotRequired[int]
     # tools_node 在工具失败时置 True；llm_node 注入一次性收束提示后清 False。
     tool_error_compact_pending: NotRequired[bool]
+    # F2 · 仅触发一次的收束提示（与 milestone / iteration 提示互补）。
+    compact_pre_retry_sent: NotRequired[bool]
+    compact_research_done_sent: NotRequired[bool]
 
 
 def _core_system_prompt(workspace: str) -> str:
@@ -192,6 +195,38 @@ def build_app(
                             },
                         )
 
+        max_it = max(1, int(settings.max_iterations))
+        tc_route = int(state.get("tool_call_count") or 0)
+        if tc_route == 0:
+            route_phase = "explore"
+        elif iteration >= max_it - 1:
+            route_phase = "review"
+        else:
+            route_phase = "implement"
+
+        if route_phase == "implement" and tc_route == 1 and not state.get("compact_research_done_sent"):
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "[compact:research_done] 已完成首轮有效工具调用；请把结论与下一步写清，"
+                        '若信息足够可 {"type":"finish","message":"..."} 收束，避免无增量探索。'
+                    ),
+                },
+            )
+            extra_state["compact_research_done_sent"] = True
+        if iteration == max_it and not state.get("compact_pre_retry_sent"):
+            messages.append(
+                {
+                    "role": "user",
+                    "content": (
+                        "[compact:pre_retry] 已达本轮最后一次模型迭代预算；"
+                        "请只保留最高价值的一次工具调用或直接 finish。"
+                    ),
+                },
+            )
+            extra_state["compact_pre_retry_sent"] = True
+
         _emit(
             progress,
             {
@@ -201,7 +236,21 @@ def build_app(
             },
         )
         try:
-            text = chat_completion_by_role(settings, messages, role=role_name)
+            text = chat_completion_by_role(
+                settings,
+                messages,
+                role=role_name,
+                route_conversation_phase=route_phase,
+            )
+            prd = peek_last_profile_route_decision()
+            if prd:
+                _emit(
+                    progress,
+                    {
+                        "phase": "profile_route",
+                        "profile_route_decision": prd,
+                    },
+                )
         except Exception as llm_exc:
             err_msg = f"LLM 请求失败: {llm_exc}"
             messages.append(
@@ -341,14 +390,17 @@ def build_app(
         messages = list(state["messages"])
         name = str(pending.get("name", ""))
         args = pending.get("args") if isinstance(pending.get("args"), dict) else {}
-        _emit(
-            progress,
-            {
-                "phase": "tool",
-                "name": name,
-                "summary": _args_summary(args),
-            },
-        )
+        tool_evt: dict[str, Any] = {
+            "phase": "tool",
+            "name": name,
+            "summary": _args_summary(args),
+        }
+        if name == "run_command":
+            from cai_agent.runtime.registry import get_runtime_backend
+
+            _rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
+            tool_evt["runtime_backend"] = get_runtime_backend(_rb, settings=settings).name
+        _emit(progress, tool_evt)
         try:
             out = dispatch(settings, name, args)
         except Exception as e:
@@ -405,4 +457,6 @@ def initial_state(settings: Settings, user_goal: str) -> AgentState:
         "tool_call_count": 0,
         "compact_milestone_last_tc": 0,
         "tool_error_compact_pending": False,
+        "compact_pre_retry_sent": False,
+        "compact_research_done_sent": False,
     }

@@ -43,6 +43,7 @@ class InsightsCrossDomainTests(unittest.TestCase):
             doc = json.loads(buf.getvalue().strip())
             self.assertEqual(doc.get("schema_version"), "insights_cross_domain_v1")
             self.assertEqual(doc.get("recall_hit_rate_metric_kind"), "index_probe")
+            self.assertIsInstance(doc.get("negative_queries_top"), list)
             self.assertIsInstance(doc.get("recall_hit_rate_metric_note"), str)
             self.assertEqual(doc.get("insights", {}).get("schema_version"), "1.1")
             self.assertEqual(len(doc.get("recall_hit_rate_trend") or []), 4)

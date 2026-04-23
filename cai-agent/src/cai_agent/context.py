@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -86,6 +87,9 @@ def git_workspace_summary(workspace: str, *, timeout_sec: float = 4.0) -> str:
 def augment_system_prompt(settings: Settings, base: str) -> str:
     """在基础 system prompt 后附加可选上下文。"""
     parts = [base.rstrip()]
+    pers = (os.environ.get("CAI_PERSONALITY") or "").strip()
+    if pers:
+        parts.append(f"\n---\n## Personality（CAI_PERSONALITY）\n{pers}\n")
     if settings.project_context:
         inst = workspace_instructions(
             settings.workspace,

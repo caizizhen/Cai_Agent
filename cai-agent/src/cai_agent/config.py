@@ -8,8 +8,10 @@ from typing import Any
 
 from cai_agent.model_routing import (
     ModelRoutingRule,
+    ModelsProfileRoute,
     model_routing_enabled as _model_routing_enabled_from_toml,
     parse_model_routing_section,
+    parse_models_profile_routes,
 )
 from cai_agent.profiles import (
     KNOWN_PROVIDERS,
@@ -262,6 +264,8 @@ class Settings:
     # [models.routing]：按 goal 与 role 覆盖 profile（见 model_routing.py）。
     model_routing_enabled: bool
     model_routing_rules: tuple[ModelRoutingRule, ...]
+    # [[models.route]]：按任务子串 / prompt token 阈值切换 profile（H1-MP-03）。
+    models_profile_routes: tuple[ModelsProfileRoute, ...]
     active_api_key_env: str | None
     anthropic_version: str
     anthropic_max_tokens: int
@@ -272,6 +276,33 @@ class Settings:
     context_window_source: str
     # 若由 TOML 解析则为该文件绝对路径，否则为 None
     config_loaded_from: str | None
+    # [runtime]：命令执行后端（H1-RT）；工具层可读取并派发 run_command。
+    runtime_backend: str
+    runtime_docker_container: str
+    runtime_docker_exec_options: tuple[str, ...]
+    runtime_docker_cpus: str | None
+    runtime_docker_memory: str | None
+    runtime_ssh_host: str
+    runtime_ssh_user: str
+    runtime_ssh_key_path: str | None
+    runtime_ssh_strict_host_key: bool
+    runtime_ssh_known_hosts_path: str | None
+    runtime_ssh_connect_timeout_sec: float
+    runtime_modal_app_name: str
+    runtime_modal_hibernate_idle_seconds: int | None
+    runtime_singularity_sif_path: str
+    runtime_singularity_bind_paths: tuple[str, ...]
+    runtime_daytona_workspace: str
+    # [memory.policy]：记忆治理与 recall 负样本审计（P0-MEM）
+    memory_policy_max_entries_per_day: int
+    memory_policy_default_ttl_days: int | None
+    memory_policy_recall_negative_audit: bool
+    # [skills.auto_extract]：任务后自动提炼（P0-SKEXT）
+    skills_auto_extract_enabled: bool
+    skills_auto_extract_mode: str
+    skills_auto_extract_min_goal_chars: int
+    skills_auto_improve_min_usage_count: int
+    skills_auto_improve_min_days_since_last_improve: int
 
     @classmethod
     def from_env(
@@ -690,6 +721,135 @@ class Settings:
             hooks_timeout_sec = float(command_timeout_sec)
         hooks_timeout_sec = max(1.0, min(600.0, hooks_timeout_sec))
 
+        runtime_sec = _section(file_data, "runtime")
+        runtime_docker = _section(runtime_sec, "docker")
+        runtime_ssh = _section(runtime_sec, "ssh")
+        runtime_modal = _section(runtime_sec, "modal")
+        runtime_singularity = _section(runtime_sec, "singularity")
+        runtime_daytona = _section(runtime_sec, "daytona")
+        runtime_backend = str(runtime_sec.get("backend") or "local").strip().lower() or "local"
+        if os.getenv("CAI_RUNTIME_BACKEND") is not None and str(os.getenv("CAI_RUNTIME_BACKEND") or "").strip():
+            runtime_backend = str(os.environ["CAI_RUNTIME_BACKEND"]).strip().lower() or "local"
+        runtime_docker_container = str(
+            runtime_docker.get("container_name") or runtime_docker.get("container") or "",
+        ).strip()
+        raw_deo = runtime_docker.get("exec_options")
+        if isinstance(raw_deo, list):
+            runtime_docker_exec_options = tuple(
+                str(x).strip() for x in raw_deo if isinstance(x, str | int | float) and str(x).strip()
+            )
+        else:
+            runtime_docker_exec_options = ()
+        _cpus = runtime_docker.get("cpus")
+        runtime_docker_cpus = str(_cpus).strip() if _cpus is not None and str(_cpus).strip() else None
+        _mem = runtime_docker.get("memory")
+        runtime_docker_memory = str(_mem).strip() if _mem is not None and str(_mem).strip() else None
+        runtime_ssh_host = str(runtime_ssh.get("host") or "").strip()
+        runtime_ssh_user = str(runtime_ssh.get("user") or "").strip()
+        _kp = runtime_ssh.get("key_path")
+        runtime_ssh_key_path = (
+            str(_kp).strip() if isinstance(_kp, str) and str(_kp).strip() else None
+        )
+        raw_shk = runtime_ssh.get("strict_host_key_checking")
+        if isinstance(raw_shk, bool):
+            runtime_ssh_strict_host_key = raw_shk
+        else:
+            runtime_ssh_strict_host_key = True
+        _khp = runtime_ssh.get("known_hosts_path")
+        runtime_ssh_known_hosts_path = (
+            str(_khp).strip() if isinstance(_khp, str) and str(_khp).strip() else None
+        )
+        raw_ct = runtime_ssh.get("connect_timeout_sec")
+        if isinstance(raw_ct, int | float) and not isinstance(raw_ct, bool):
+            runtime_ssh_connect_timeout_sec = float(max(1.0, min(120.0, float(raw_ct))))
+        else:
+            runtime_ssh_connect_timeout_sec = 15.0
+        runtime_modal_app_name = str(runtime_modal.get("app_name") or "").strip()
+        raw_hib = runtime_modal.get("hibernate_idle_seconds")
+        if isinstance(raw_hib, int) and not isinstance(raw_hib, bool) and raw_hib > 0:
+            runtime_modal_hibernate_idle_seconds = int(raw_hib)
+        elif isinstance(raw_hib, float) and raw_hib > 0:
+            runtime_modal_hibernate_idle_seconds = int(raw_hib)
+        else:
+            runtime_modal_hibernate_idle_seconds = None
+        runtime_singularity_sif_path = str(
+            runtime_singularity.get("sif_path") or runtime_singularity.get("image") or "",
+        ).strip()
+        raw_binds = runtime_singularity.get("bind_paths")
+        if isinstance(raw_binds, list):
+            runtime_singularity_bind_paths = tuple(
+                str(x).strip() for x in raw_binds if isinstance(x, str) and str(x).strip()
+            )
+        else:
+            runtime_singularity_bind_paths = ()
+        runtime_daytona_workspace = str(
+            runtime_daytona.get("workspace") or runtime_daytona.get("workspace_id") or "",
+        ).strip()
+
+        memory_sec = _section(file_data, "memory")
+        policy_sec = _section(memory_sec, "policy")
+        raw_mepd = policy_sec.get("max_entries_per_day")
+        if isinstance(raw_mepd, int) and not isinstance(raw_mepd, bool) and raw_mepd > 0:
+            memory_policy_max_entries_per_day = min(1_000_000, int(raw_mepd))
+        else:
+            memory_policy_max_entries_per_day = 10_000
+        raw_ttl = policy_sec.get("default_ttl_days")
+        if isinstance(raw_ttl, int) and not isinstance(raw_ttl, bool) and raw_ttl > 0:
+            memory_policy_default_ttl_days = int(raw_ttl)
+        elif isinstance(raw_ttl, float) and raw_ttl > 0:
+            memory_policy_default_ttl_days = int(raw_ttl)
+        else:
+            memory_policy_default_ttl_days = None
+        raw_rna = policy_sec.get("recall_negative_audit")
+        if isinstance(raw_rna, bool):
+            memory_policy_recall_negative_audit = raw_rna
+        else:
+            memory_policy_recall_negative_audit = True
+
+        skills_sec = _section(file_data, "skills")
+        ae_sec = _section(skills_sec, "auto_extract")
+        if os.getenv("CAI_SKILLS_AUTO_EXTRACT_ENABLED") is not None:
+            skills_auto_extract_enabled = _env_bool("CAI_SKILLS_AUTO_EXTRACT_ENABLED", False)
+        else:
+            raw_en = ae_sec.get("enabled")
+            if isinstance(raw_en, bool):
+                skills_auto_extract_enabled = raw_en
+            else:
+                skills_auto_extract_enabled = False
+        mode_env = os.getenv("CAI_SKILLS_AUTO_EXTRACT_MODE")
+        if mode_env is not None and str(mode_env).strip():
+            skills_auto_extract_mode = str(mode_env).strip().lower()
+        else:
+            raw_mode = ae_sec.get("mode")
+            skills_auto_extract_mode = str(raw_mode or "template").strip().lower()
+        if skills_auto_extract_mode not in ("template", "llm", "auto"):
+            skills_auto_extract_mode = "template"
+        if os.getenv("CAI_SKILLS_AUTO_EXTRACT_MIN_GOAL_CHARS") is not None:
+            skills_auto_extract_min_goal_chars = max(
+                1,
+                int(os.environ["CAI_SKILLS_AUTO_EXTRACT_MIN_GOAL_CHARS"]),
+            )
+        else:
+            raw_mgc = ae_sec.get("min_goal_chars")
+            if isinstance(raw_mgc, int) and not isinstance(raw_mgc, bool):
+                skills_auto_extract_min_goal_chars = max(1, int(raw_mgc))
+            elif isinstance(raw_mgc, float):
+                skills_auto_extract_min_goal_chars = max(1, int(raw_mgc))
+            else:
+                skills_auto_extract_min_goal_chars = 8
+
+        aim_sec = _section(skills_sec, "auto_improve")
+        raw_muc = aim_sec.get("min_usage_count")
+        if isinstance(raw_muc, int) and not isinstance(raw_muc, bool):
+            skills_auto_improve_min_usage_count = max(1, int(raw_muc))
+        else:
+            skills_auto_improve_min_usage_count = 1
+        raw_mdays = aim_sec.get("min_days_since_last_improve")
+        if isinstance(raw_mdays, int) and not isinstance(raw_mdays, bool):
+            skills_auto_improve_min_days_since_last_improve = max(0, int(raw_mdays))
+        else:
+            skills_auto_improve_min_days_since_last_improve = 0
+
         config_loaded_from = str(resolved) if resolved is not None else None
 
         # ---- Model Profiles（M1/M2） -------------------------------------------------
@@ -789,6 +949,7 @@ class Settings:
 
         model_routing_rules = parse_model_routing_section(file_data)
         routing_on = _model_routing_enabled_from_toml(file_data)
+        models_profile_routes = parse_models_profile_routes(file_data)
 
         return cls(
             provider=provider,
@@ -848,10 +1009,35 @@ class Settings:
             planner_profile_id=planner_profile_id,
             model_routing_enabled=routing_on,
             model_routing_rules=model_routing_rules,
+            models_profile_routes=models_profile_routes,
             active_api_key_env=active_api_key_env,
             anthropic_version=anthropic_version,
             anthropic_max_tokens=anthropic_max_tokens,
             context_window=context_window,
             context_window_source=context_window_source,
             config_loaded_from=config_loaded_from,
+            runtime_backend=runtime_backend,
+            runtime_docker_container=runtime_docker_container,
+            runtime_docker_exec_options=runtime_docker_exec_options,
+            runtime_docker_cpus=runtime_docker_cpus,
+            runtime_docker_memory=runtime_docker_memory,
+            runtime_ssh_host=runtime_ssh_host,
+            runtime_ssh_user=runtime_ssh_user,
+            runtime_ssh_key_path=runtime_ssh_key_path,
+            runtime_ssh_strict_host_key=runtime_ssh_strict_host_key,
+            runtime_ssh_known_hosts_path=runtime_ssh_known_hosts_path,
+            runtime_ssh_connect_timeout_sec=runtime_ssh_connect_timeout_sec,
+            runtime_modal_app_name=runtime_modal_app_name,
+            runtime_modal_hibernate_idle_seconds=runtime_modal_hibernate_idle_seconds,
+            runtime_singularity_sif_path=runtime_singularity_sif_path,
+            runtime_singularity_bind_paths=runtime_singularity_bind_paths,
+            runtime_daytona_workspace=runtime_daytona_workspace,
+            memory_policy_max_entries_per_day=memory_policy_max_entries_per_day,
+            memory_policy_default_ttl_days=memory_policy_default_ttl_days,
+            memory_policy_recall_negative_audit=memory_policy_recall_negative_audit,
+            skills_auto_extract_enabled=skills_auto_extract_enabled,
+            skills_auto_extract_mode=skills_auto_extract_mode,
+            skills_auto_extract_min_goal_chars=skills_auto_extract_min_goal_chars,
+            skills_auto_improve_min_usage_count=skills_auto_improve_min_usage_count,
+            skills_auto_improve_min_days_since_last_improve=skills_auto_improve_min_days_since_last_improve,
         )

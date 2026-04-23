@@ -13,6 +13,16 @@ from typing import Any
 
 
 @dataclass(frozen=True)
+class ModelsProfileRoute:
+    """``[[models.route]]`` — Hermes H1-MP-03 / Canvas F1 细粒度路由。"""
+
+    use_profile: str
+    match_task_kind: str | None
+    match_tokens_gt: int | None
+    match_phase: str | None = None
+
+
+@dataclass(frozen=True)
 class ModelRoutingRule:
     """One ``[[models.routing.rules]]`` row after validation."""
 
@@ -35,6 +45,102 @@ def _parse_cost_below(raw: object) -> int | None:
     if isinstance(raw, str) and raw.strip().isdigit():
         return max(0, int(raw.strip()))
     return None
+
+
+def parse_models_profile_routes(file_data: dict[str, Any]) -> tuple[ModelsProfileRoute, ...]:
+    """Parse ``[[models.route]]`` tables (``models.route`` list in TOML)."""
+    models = file_data.get("models")
+    if not isinstance(models, dict):
+        return ()
+    raw_list = models.get("route")
+    if not isinstance(raw_list, list):
+        return ()
+    out: list[ModelsProfileRoute] = []
+    for item in raw_list:
+        if not isinstance(item, dict):
+            continue
+        pid = str(item.get("use_profile") or item.get("profile") or "").strip()
+        if not pid:
+            continue
+        mtk = item.get("match_task_kind")
+        task_kind = str(mtk).strip() if isinstance(mtk, str) and mtk.strip() else None
+        mtg = item.get("match_tokens_gt")
+        tokens_gt: int | None = None
+        if isinstance(mtg, bool):
+            tokens_gt = None
+        elif isinstance(mtg, int | float):
+            tokens_gt = max(0, int(mtg))
+        elif isinstance(mtg, str) and mtg.strip().isdigit():
+            tokens_gt = int(mtg.strip())
+        mphase = item.get("match_phase")
+        phase_s = str(mphase).strip() if isinstance(mphase, str) and mphase.strip() else None
+        if task_kind is None and tokens_gt is None and phase_s is None:
+            continue
+        out.append(
+            ModelsProfileRoute(
+                use_profile=pid,
+                match_task_kind=task_kind,
+                match_tokens_gt=tokens_gt,
+                match_phase=phase_s,
+            ),
+        )
+    return tuple(out)
+
+
+def first_matching_profile_route(
+    routes: tuple[ModelsProfileRoute, ...],
+    *,
+    goal: str,
+    last_prompt_tokens: int,
+    conversation_phase: str | None = None,
+) -> ModelsProfileRoute | None:
+    g = (goal or "").strip().lower()
+    pt = max(0, int(last_prompt_tokens))
+    cp = (conversation_phase or "").strip().lower()
+    for r in routes:
+        if r.match_phase:
+            if not cp:
+                continue
+            allowed = {x.strip().lower() for x in str(r.match_phase).split("|") if x.strip()}
+            if cp not in allowed:
+                continue
+        if r.match_task_kind:
+            if str(r.match_task_kind).lower() not in g:
+                continue
+        if r.match_tokens_gt is not None:
+            if not (pt > int(r.match_tokens_gt)):
+                continue
+        return r
+    return None
+
+
+def build_models_route_wizard_v1(
+    *,
+    use_profile: str,
+    match_phase: str | None = None,
+    match_task_kind: str | None = None,
+    match_tokens_gt: int | None = None,
+) -> dict[str, Any]:
+    """生成可追加到 TOML 的 ``[[models.route]]`` 片段（``models_route_wizard_v1``）。"""
+    pid = str(use_profile or "").strip()
+    lines = ['[[models.route]]', f'use_profile = "{pid}"']
+    if match_phase:
+        lines.append(f'match_phase = "{str(match_phase).strip()}"')
+    if match_task_kind:
+        lines.append(f'match_task_kind = "{str(match_task_kind).strip()}"')
+    if match_tokens_gt is not None and int(match_tokens_gt) >= 0:
+        lines.append(f"match_tokens_gt = {int(match_tokens_gt)}")
+    blob = "\n".join(lines) + "\n"
+    return {
+        "schema_version": "models_route_wizard_v1",
+        "toml_append": blob,
+        "preview": {
+            "use_profile": pid,
+            "match_phase": match_phase,
+            "match_task_kind": match_task_kind,
+            "match_tokens_gt": match_tokens_gt,
+        },
+    }
 
 
 def parse_model_routing_section(file_data: dict[str, Any]) -> tuple[ModelRoutingRule, ...]:

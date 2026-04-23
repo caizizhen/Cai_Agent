@@ -26,7 +26,7 @@ from types import SimpleNamespace
 from typing import Any
 
 from cai_agent import llm_factory
-from cai_agent.model_routing import parse_model_routing_section
+from cai_agent.model_routing import ModelsProfileRoute, parse_model_routing_section
 from cai_agent.profiles import Profile
 
 
@@ -55,6 +55,7 @@ class _MockSettings:
     llm_max_http_retries: int = 50
     model_routing_enabled: bool = True
     model_routing_rules: tuple = ()
+    models_profile_routes: tuple = ()
     cost_budget_max_tokens: int = 0
 
 
@@ -487,6 +488,51 @@ class ChatCompletionByRoleTests(_AdapterStubMixin, unittest.TestCase):
             llm_factory.chat_completion_by_role(settings, [], role="active")
         projected, _ = self._openai_calls[-1]
         self.assertEqual(projected.active_profile_id, "local")
+
+    def test_models_profile_route_tokens_gt(self) -> None:
+        routes = (
+            ModelsProfileRoute(
+                use_profile="local",
+                match_task_kind=None,
+                match_tokens_gt=100,
+            ),
+        )
+        settings = dc_replace(
+            _make_settings((_OPENAI_P, _LOCAL_P), active="oai"),
+            models_profile_routes=routes,
+            model_routing_enabled=False,
+        )
+        from unittest.mock import patch
+
+        with patch(
+            "cai_agent.llm_factory.get_last_usage",
+            return_value={"prompt_tokens": 5000},
+        ):
+            prof = llm_factory.resolve_effective_profile_for_llm(settings, "active", [])
+        self.assertEqual(prof.id, "local")
+
+    def test_models_profile_route_task_kind_in_goal(self) -> None:
+        routes = (
+            ModelsProfileRoute(
+                use_profile="local",
+                match_task_kind="complex_refactor",
+                match_tokens_gt=None,
+            ),
+        )
+        settings = dc_replace(
+            _make_settings((_OPENAI_P, _LOCAL_P), active="oai"),
+            models_profile_routes=routes,
+            model_routing_enabled=False,
+        )
+        msgs = [{"role": "user", "content": "please complex_refactor the module"}]
+        from unittest.mock import patch
+
+        with patch(
+            "cai_agent.llm_factory.get_last_usage",
+            return_value={"prompt_tokens": 0},
+        ):
+            prof = llm_factory.resolve_effective_profile_for_llm(settings, "active", msgs)
+        self.assertEqual(prof.id, "local")
 
     def test_models_routing_overrides_planner_profile_from_goal(self) -> None:
         rules = parse_model_routing_section(

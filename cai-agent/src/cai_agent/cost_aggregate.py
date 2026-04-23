@@ -1,0 +1,144 @@
+"""P0-MP：按 profile / provider 聚合成本相关 tokens（metrics + 会话快照）。"""
+
+from __future__ import annotations
+
+import json
+import os
+from collections import defaultdict
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any
+
+
+def _default_metrics_path(cwd: str | Path) -> Path:
+    env = str(os.environ.get("CAI_METRICS_JSONL", "") or "").strip()
+    if env:
+        return Path(env).expanduser().resolve()
+    return Path(cwd).expanduser().resolve() / ".cai" / "metrics.jsonl"
+
+
+def _read_jsonl(path: Path, *, max_lines: int = 20_000) -> list[dict[str, Any]]:
+    if not path.is_file():
+        return []
+    out: list[dict[str, Any]] = []
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return []
+    for raw in lines[-max_lines:]:
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            obj = json.loads(raw)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+def build_cost_by_profile_v1(
+    cwd: str | Path,
+    *,
+    metrics_path: str | Path | None = None,
+    session_pattern: str = ".cai-session*.json",
+    session_limit: int = 200,
+    include_by_tenant: bool = False,
+    include_by_calendar_day: bool = False,
+) -> dict[str, Any]:
+    """``cost_by_profile_v1``：聚合 metrics 行与会话 JSON 中的 tokens / profile 线索。"""
+    base = Path(cwd).expanduser().resolve()
+    mp = Path(metrics_path).expanduser().resolve() if metrics_path else _default_metrics_path(base)
+    metrics_rows = _read_jsonl(mp)
+    by_profile: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"id": "", "total_tokens": 0, "cost_estimate_usd": 0.0, "route_hits": 0, "events": 0},
+    )
+    by_provider: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"provider": "", "total_tokens": 0, "events": 0},
+    )
+    by_route_rule: dict[str, int] = defaultdict(int)
+    by_tenant: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"tenant_id": "", "total_tokens": 0, "events": 0},
+    )
+    by_calendar_day: dict[str, int] = defaultdict(int)
+
+    for row in metrics_rows:
+        mod = str(row.get("module") or "")
+        ev = str(row.get("event") or "")
+        tok = int(row.get("tokens") or 0)
+        pid = str(row.get("active_profile_id") or row.get("profile_id") or "").strip()
+        prov = str(row.get("provider") or "").strip()
+        if not pid and mod == "llm":
+            pid = "_unknown_profile"
+        if pid:
+            slot = by_profile[pid]
+            slot["id"] = pid
+            slot["total_tokens"] += tok
+            slot["events"] = int(slot.get("events") or 0) + 1
+            cu = row.get("cost_usd")
+            if isinstance(cu, int | float):
+                slot["cost_estimate_usd"] = float(slot.get("cost_estimate_usd") or 0.0) + float(cu)
+        if prov:
+            ps = by_provider[prov]
+            ps["provider"] = prov
+            ps["total_tokens"] += tok
+            ps["events"] = int(ps.get("events") or 0) + 1
+        if include_by_tenant or include_by_calendar_day:
+            tenant = str(row.get("tenant_id") or row.get("tenant") or "").strip() or "_default"
+            if include_by_tenant:
+                bt = by_tenant[tenant]
+                bt["tenant_id"] = tenant
+                bt["total_tokens"] += tok
+                bt["events"] = int(bt.get("events") or 0) + 1
+            if include_by_calendar_day:
+                ts = str(row.get("ts") or "")
+                day = ts[:10] if len(ts) >= 10 else ""
+                if len(day) == 10 and day[4] == "-" and day[7] == "-":
+                    by_calendar_day[day] += tok
+        if "route" in ev.lower() or "profile_route" in json.dumps(row, ensure_ascii=False):
+            key = f"{mod}:{ev}"
+            by_route_rule[key] += 1
+
+    # 会话文件：累计 total_tokens 与 active_profile_id
+    try:
+        from cai_agent.session import list_session_files, load_session
+
+        paths = list_session_files(cwd=str(base), pattern=session_pattern, limit=session_limit)
+        for p in paths:
+            try:
+                sess = load_session(str(p))
+            except Exception:
+                continue
+            tt = int(sess.get("total_tokens") or 0)
+            ap = str(sess.get("active_profile_id") or sess.get("profile") or "").strip()
+            if ap and tt > 0:
+                slot = by_profile[ap]
+                slot["id"] = ap
+                slot["total_tokens"] += tt
+                slot["events"] = int(slot.get("events") or 0) + 1
+    except Exception:
+        pass
+
+    profiles_list = sorted(by_profile.values(), key=lambda x: -int(x.get("total_tokens") or 0))
+    providers_list = sorted(by_provider.values(), key=lambda x: -int(x.get("total_tokens") or 0))
+    empty = not metrics_rows and not profiles_list and not providers_list
+
+    out: dict[str, Any] = {
+        "schema_version": "cost_by_profile_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(base),
+        "metrics_file": str(mp),
+        "empty": bool(empty),
+        "profiles": profiles_list,
+        "by_provider": providers_list,
+        "by_route_rule": dict(sorted(by_route_rule.items(), key=lambda kv: -kv[1])[:40]),
+    }
+    if include_by_tenant:
+        out["by_tenant"] = sorted(
+            by_tenant.values(),
+            key=lambda x: -int(x.get("total_tokens") or 0),
+        )
+    if include_by_calendar_day:
+        out["by_calendar_day"] = dict(sorted(by_calendar_day.items()))
+    return out

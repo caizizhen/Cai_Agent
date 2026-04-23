@@ -1,0 +1,20 @@
+# I1 · Example workflow: scan docs for open Markdown checkboxes (optional gate).
+# Copy/adjust thresholds for your repo; disabled by default in upstream Cai_Agent.
+name: t7-checklist-example
+
+on:
+  workflow_dispatch:
+  # pull_request:
+  #   paths:
+  #     - "docs/**"
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: T7 checklist JSON
+        run: python scripts/t7_checklist_backfill.py --root docs --fail-over 99999

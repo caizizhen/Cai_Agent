@@ -130,6 +130,10 @@ PRESETS: dict[str, dict[str, Any]] = {
     },
 }
 
+from cai_agent.provider_registry import EXTRA_PRESETS as _EXTRA_PRESETS
+
+PRESETS.update(_EXTRA_PRESETS)
+
 
 def apply_preset(raw: dict[str, Any], preset_name: str) -> dict[str, Any]:
     """以预设为底 + 用户输入覆盖，返回可交给 `build_profile` 的 dict。"""
