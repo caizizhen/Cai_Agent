@@ -31,7 +31,7 @@
 
 **Exit**：默认 `0`。`--fail-on-max-failure-rate RATE`（0~1）：当 `aggregates.failure_rate >= RATE` 时 `2`（与 `insights --fail-on-max-failure-rate` 语义一致）。
 
-**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 事件，见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)。
+**指标（S7-01）**：若设置 **`CAI_METRICS_JSONL`**，成功执行后追加 **`observe.summary`** 等事件；**`memory.health` / `recall.query` / `schedule.stats` / `gateway.status`** 等同见 [METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md) **触发路径**。
 
 ---
 

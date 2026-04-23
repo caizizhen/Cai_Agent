@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.11（2026-04-23）
+
+- **可观测性（Hermes S7-01 AC2 扩展）**：设置 **`CAI_METRICS_JSONL`** 时，**`_maybe_metrics_cli`** 追加 **`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**（**`latency_ms`** + **`tokens`** 粗提示）。**`docs/schema/METRICS_JSON.zh-CN.md`** 与契约索引已同步。
+- **测试**：**`test_metrics_jsonl.py`** 覆盖上述四条路径。
+
 ### 0.6.10（2026-04-23）
 
 - **GA 压测门禁（Hermes S8-02）**：**[`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py)** 复用 **`perf_recall_bench`** 逻辑校验 **200** 会话 **scan/index_search** 阈值；可选 **`--pytest-daemon`**。**`tests/test_perf_ga_s8_02.py`**（**PERF-GA-001/002/003**）。**AC3**（gateway **500** 条）仍为 **真机/专项**。

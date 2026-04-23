@@ -335,7 +335,7 @@
 - **测试用例 ID**：OBS-METRICS-001 ~ OBS-METRICS-008
 - **依赖**：S4-04
 - **估算**：M
-- **主线交付注（`0.6.6`）**：**AC1/3** 已合（**`cai_agent.metrics`**、**`METRICS_SCHEMA_VERSION`**、**`docs/schema/METRICS_JSON.zh-CN.md`**）。**AC2**：当前仅 **`observe`** 路径写 **`CAI_METRICS_JSONL`**（**`observe.summary`** / **`observe.report`**）；**memory / recall / schedule / gateway** 等模块级打点为 **后续增量**（与 **OBS-METRICS** 扩展一致）。
+- **主线交付注（`0.6.6`）**：**AC1/3** 已合（**`cai_agent.metrics`**、**`METRICS_SCHEMA_VERSION`**、**`docs/schema/METRICS_JSON.zh-CN.md`**）。**AC2（增量）**：**`0.6.6`** 起 **`observe.summary` / `observe.report` / `observe.export`**；**`0.6.11`** 起增加 **`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**（均经 **`_maybe_metrics_cli`**，见 **`__main__.py`**）。**`run`/`continue`**、**`schedule` 其它子命令**、**`recall-index`**、**`gateway telegram` 子命令** 等仍为 **后续增量**。
 
 ### S7-02 observe report（周报/日报导出）
 - **Story**：作为运营，我希望用一条命令生成过去 7 天的运营摘要报告（会话量/成功率/成本/工具错误率），导出 Markdown 或 JSON。

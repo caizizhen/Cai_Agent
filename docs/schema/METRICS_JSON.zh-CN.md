@@ -23,6 +23,13 @@
 
 - **`cai-agent observe`**（默认摘要或 **`--json`**）：成功生成 payload 后写入 **`observe.summary`**。
 - **`cai-agent observe report`**：成功生成报告后写入 **`observe.report`**。
+- **`cai-agent observe export`**：成功生成导出后写入 **`observe.export`**。
+- **`cai-agent memory health`**（文本或 **`--json`**）：成功生成健康负载后写入 **`memory.health`**（**`tokens`** ≈ **`counts.memory_entries`**）。
+- **`cai-agent recall`**（扫描或 **`--use-index`**，成功路径）：写入 **`recall.query`**（**`tokens`** ≈ **`sessions_scanned`**）。
+- **`cai-agent schedule stats`**：写入 **`schedule.stats`**（**`tokens`** = 任务行数 **`len(tasks)`**）。
+- **`cai-agent gateway status`**：写入 **`gateway.status`**（**`tokens`**=`0`）。
+
+> 其它 **memory / recall / schedule / gateway** 子命令、**`run`/`continue`** 等仍为 **后续增量**（与 **S7-01 AC2** 扩展一致）。
 
 ## 示例行
 

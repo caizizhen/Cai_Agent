@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.11 (2026-04-23)
+
+- **Observability (Hermes S7-01 AC2 extension)**: When **`CAI_METRICS_JSONL`** is set, **`_maybe_metrics_cli`** appends **`memory.health`**, **`recall.query`**, **`schedule.stats`**, and **`gateway.status`** events (latency + coarse **`tokens`** hint). **`docs/schema/METRICS_JSON.zh-CN.md`** and schema index updated.
+- **Tests**: **`test_metrics_jsonl.py`** covers the four new paths.
+
 ### 0.6.10 (2026-04-23)
 
 - **GA perf gate (Hermes S8-02)**: **[`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py)** runs the recall **200**-session benchmark thresholds (same logic as **`perf_recall_bench.py`**); optional **`--pytest-daemon`** runs the daemon stability test. **`tests/test_perf_ga_s8_02.py`**: **PERF-GA-001/002** (recall scan + index search) and **PERF-GA-003** (`schedule daemon` **100** cycles with mocked execute + sleep). **AC3** (gateway **500** messages) remains manual / harness-specific per sprint plan.

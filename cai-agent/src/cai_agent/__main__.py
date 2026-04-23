@@ -1747,6 +1747,28 @@ def _execute_scheduled_goal(
     return True, answer
 
 
+def _maybe_metrics_cli(
+    *,
+    module: str,
+    event: str,
+    latency_ms: float,
+    tokens: int = 0,
+    success: bool = True,
+) -> None:
+    """Append one ``metrics_schema_v1`` line when ``CAI_METRICS_JSONL`` is set."""
+    from cai_agent.metrics import maybe_append_metrics_from_env, metrics_event_v1
+
+    maybe_append_metrics_from_env(
+        metrics_event_v1(
+            module=str(module).strip(),
+            event=str(event).strip(),
+            latency_ms=float(latency_ms),
+            tokens=int(tokens),
+            success=bool(success),
+        ),
+    )
+
+
 def _schedule_task_row_snapshot(cwd: str, task_id: str) -> dict[str, Any]:
     tid = str(task_id or "").strip()
     if not tid:
@@ -5564,6 +5586,7 @@ def main(argv: list[str] | None = None) -> int:
             if isinstance(idx_arg, str) and str(idx_arg).strip()
             else None
         )
+        t_rec = time.perf_counter()
         if bool(getattr(args, "use_index", False)):
             try:
                 payload = _build_recall_payload_from_index(
@@ -5615,6 +5638,14 @@ def main(argv: list[str] | None = None) -> int:
                 session_limit=int(args.limit),
                 sort=str(getattr(args, "sort", "recent") or "recent"),
             )
+        rec_ms = (time.perf_counter() - t_rec) * 1000.0
+        _maybe_metrics_cli(
+            module="recall",
+            event="recall.query",
+            latency_ms=rec_ms,
+            tokens=int(payload.get("sessions_scanned") or 0),
+            success=True,
+        )
         if bool(args.json_output):
             print(json.dumps(payload, ensure_ascii=False))
         else:
@@ -6375,6 +6406,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 return 0
             if args.memory_action == "health":
+                t_mh = time.perf_counter()
                 payload = build_memory_health_payload(
                     root,
                     days=int(getattr(args, "days", 30)),
@@ -6385,6 +6417,15 @@ def main(argv: list[str] | None = None) -> int:
                     max_conflict_compare_entries=int(
                         getattr(args, "max_conflict_compare_entries", 400) or 400,
                     ),
+                )
+                mh_ms = (time.perf_counter() - t_mh) * 1000.0
+                counts_mh = payload.get("counts") if isinstance(payload.get("counts"), dict) else {}
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.health",
+                    latency_ms=mh_ms,
+                    tokens=int(counts_mh.get("memory_entries") or 0),
+                    success=True,
                 )
                 for w in payload.get("memory_warnings") or []:
                     if isinstance(w, str) and w.strip():
@@ -7106,10 +7147,20 @@ def main(argv: list[str] | None = None) -> int:
         if args.schedule_action == "stats":
             audit_raw = getattr(args, "audit_file", None)
             audit_arg = str(audit_raw).strip() if isinstance(audit_raw, str) and str(audit_raw).strip() else None
+            t_ss = time.perf_counter()
             payload = compute_schedule_stats_from_audit(
                 cwd=str(root),
                 days=int(getattr(args, "days", 30) or 30),
                 audit_path=audit_arg,
+            )
+            ss_ms = (time.perf_counter() - t_ss) * 1000.0
+            tasks_ss = payload.get("tasks") if isinstance(payload.get("tasks"), list) else []
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.stats",
+                latency_ms=ss_ms,
+                tokens=len(tasks_ss),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -7685,7 +7736,16 @@ def main(argv: list[str] | None = None) -> int:
                         print(f"[gateway start] failed: {out_st.get('error')}", file=sys.stderr)
                 return 0 if out_st.get("ok") else 2
             if ga == "status":
+                t_gs = time.perf_counter()
                 out_st = gateway_lifecycle.build_status_payload(root)
+                gs_ms = (time.perf_counter() - t_gs) * 1000.0
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.status",
+                    latency_ms=gs_ms,
+                    tokens=0,
+                    success=True,
+                )
                 json_st = bool(getattr(args, "json_output", False))
                 if json_st:
                     print(json.dumps(out_st, ensure_ascii=False))
