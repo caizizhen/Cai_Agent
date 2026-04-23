@@ -54,6 +54,7 @@ exclude_globs = [
 [fetch_url]
 enabled = true
 unrestricted = true
+# max_redirects = 20   # 可选：1–50，控制 fetch_url GET 跟随重定向次数
 
 [permissions]
 write_file = "allow"

@@ -558,6 +558,7 @@ def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
         timeout=timeout,
         trust_env=settings.http_trust_env,
         follow_redirects=True,
+        max_redirects=int(settings.fetch_url_max_redirects),
     ) as client:
         try:
             r = client.get(url_raw, headers=headers)
@@ -712,7 +713,7 @@ def tools_spec_markdown() -> str:
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
-- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；受 permissions.fetch_url 约束
+- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；受 permissions.fetch_url 约束
 - write_file: {"path": "相对路径", "content": "文件全文"}
 - make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
 - run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符

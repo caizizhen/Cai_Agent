@@ -87,7 +87,7 @@ exclude_globs = [
 # openai_like_key = false
 
 # 默认开启且无主机白名单（unrestricted），便于查文档/天气 API 等；收紧时设 unrestricted=false 并配置 allow_hosts。
-# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC
+# 环境变量：CAI_FETCH_URL_ENABLED、CAI_FETCH_URL_UNRESTRICTED、CAI_FETCH_URL_ALLOW_HOSTS（逗号分隔）、CAI_FETCH_URL_MAX_BYTES、CAI_FETCH_URL_TIMEOUT_SEC、CAI_FETCH_URL_MAX_REDIRECTS
 [fetch_url]
 enabled = true
 unrestricted = true
@@ -95,6 +95,7 @@ unrestricted = true
 # allow_hosts = ["github.com", "*.example.com"]
 # max_bytes = 500000
 # timeout_sec = 30
+# max_redirects = 20   # GET 跟随重定向上限（1–50，默认 20，与 httpx 默认一致）
 
 [permissions]
 # write_file 与 make_dir 共用同一策略；run_command、fetch_url 各自一行

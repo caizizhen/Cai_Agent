@@ -14,7 +14,8 @@
 ### 网络与只读 HTTP
 
 - 内置 `**fetch_url`**：HTTPS GET、主机白名单、响应体大小上限、超时；默认关闭 + 权限默认 `deny`；配置见 `cai-agent.toml` `[fetch_url]`、`[permissions].fetch_url`
-- 可选：跟随重定向次数可配置、响应仅 `text/*` 硬拒绝二进制（当前为截断文本提示）
+- [本轮已落地] **`fetch_url` 跟随重定向次数**：**`[fetch_url].max_redirects`**（**1–50**，默认 **20**）或 **`CAI_FETCH_URL_MAX_REDIRECTS`**；`httpx.Client(max_redirects=…)`；**`doctor`** JSON/文本展示 **`fetch_url_max_redirects`**
+- 可选：响应仅 `text/*` 硬拒绝二进制（当前为截断文本提示）
 - 可选：DNS 解析后 SSRF 深度防护（当前：字面 IP 私网段拒绝 + 依赖白名单）
 - MCP 替代路径说明：[MCP_WEB_RECIPE.zh-CN.md](MCP_WEB_RECIPE.zh-CN.md)
 

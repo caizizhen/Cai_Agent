@@ -13,7 +13,7 @@
 | 维度 | 参考基线 | Cai_Agent 当前状态 | 缺口等级 |
 |---|---|---|---|
 | 核心 REPL/CLI | 官方 CLI + 多端 | 已有 CLI + Textual `ui` | 低 |
-| 工具系统 | 文件/搜索/Shell/Web/MCP/任务等 | 文件、搜索、白名单 `run_command`、只读 Git、可选 **`fetch_url`（HTTPS 白名单）**、MCP Bridge | 中 |
+| 工具系统 | 文件/搜索/Shell/Web/MCP/任务等 | 文件、搜索、白名单 `run_command`、只读 Git、可选 **`fetch_url`（HTTPS 白名单 + 可配置 `max_redirects`）**、MCP Bridge | 中 |
 | 插件扩展面 | skills/agents/hooks/MCP 等 | `cai-agent plugins --json` 汇总 rules/skills/commands/agents/hooks | 低 |
 | 计划模式 | Plan Mode + 审批 | `plan`（只读规划）、`run --plan-file` | 低 |
 | 任务与并行 | 子 Agent/任务状态/后台输出 | `workflow`（多步 + merge_strategy）+ 返回 `task` 与 `events`；`observe` 聚合会话 | 中 |

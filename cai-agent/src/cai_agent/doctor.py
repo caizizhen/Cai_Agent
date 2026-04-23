@@ -137,6 +137,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "fetch_url_enabled": settings.fetch_url_enabled,
         "fetch_url_unrestricted": settings.fetch_url_unrestricted,
         "fetch_url_allowed_hosts_count": len(settings.fetch_url_allowed_hosts),
+        "fetch_url_max_redirects": settings.fetch_url_max_redirects,
         "permission_fetch_url": settings.permission_fetch_url,
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
@@ -201,7 +202,10 @@ def run_doctor(
             if settings.fetch_url_unrestricted
             else f"白名单 {len(settings.fetch_url_allowed_hosts)} 项"
         )
-        print(f" | {mode} | 权限={settings.permission_fetch_url}")
+        print(
+            f" | {mode} | 权限={settings.permission_fetch_url} "
+            f"| max_redirects={settings.fetch_url_max_redirects}",
+        )
     else:
         print()
     print()

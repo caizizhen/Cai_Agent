@@ -237,6 +237,7 @@ class Settings:
     fetch_url_allowed_hosts: tuple[str, ...]
     fetch_url_max_bytes: int
     fetch_url_timeout_sec: float
+    fetch_url_max_redirects: int
     cost_budget_max_tokens: int
     hooks_profile: str
     hooks_disabled_ids: tuple[str, ...]
@@ -596,6 +597,18 @@ class Settings:
                 fetch_url_timeout_sec = 30.0
         fetch_url_timeout_sec = max(3.0, min(120.0, fetch_url_timeout_sec))
 
+        if os.getenv("CAI_FETCH_URL_MAX_REDIRECTS") is not None:
+            fetch_url_max_redirects = int(os.environ["CAI_FETCH_URL_MAX_REDIRECTS"])
+        else:
+            raw_mr = fu.get("max_redirects")
+            if isinstance(raw_mr, int) and not isinstance(raw_mr, bool):
+                fetch_url_max_redirects = int(raw_mr)
+            elif isinstance(raw_mr, float) and not isinstance(raw_mr, bool):
+                fetch_url_max_redirects = int(raw_mr)
+            else:
+                fetch_url_max_redirects = 20
+        fetch_url_max_redirects = max(1, min(50, int(fetch_url_max_redirects)))
+
         cost_sec = _section(file_data, "cost")
         raw_max = cost_sec.get("budget_max_tokens")
         if isinstance(raw_max, int) and not isinstance(raw_max, bool):
@@ -772,6 +785,7 @@ class Settings:
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,
             fetch_url_max_bytes=fetch_url_max_bytes,
             fetch_url_timeout_sec=fetch_url_timeout_sec,
+            fetch_url_max_redirects=fetch_url_max_redirects,
             cost_budget_max_tokens=cost_budget_max_tokens,
             hooks_profile=hooks_profile,
             hooks_disabled_ids=tuple(disabled_ids),

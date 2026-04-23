@@ -54,6 +54,8 @@ class FetchUrlToolTests(unittest.TestCase):
         out = tool_fetch_url(s, {"url": "https://api.weather.example/1"})
         self.assertIn("HTTP 200", out)
         self.assertIn("sunny", out)
+        client_cls.assert_called_once()
+        self.assertEqual(client_cls.call_args.kwargs.get("max_redirects"), 20)
 
     def test_dispatch_permission_deny(self) -> None:
         s = _settings_from_toml(
@@ -209,6 +211,71 @@ class FetchUrlToolTests(unittest.TestCase):
         self.assertIn("HTTP 200", out)
         self.assertIn("hello", out)
         inst.get.assert_called_once()
+        self.assertEqual(client_cls.call_args.kwargs.get("max_redirects"), 20)
+
+    @patch("cai_agent.tools.httpx.Client")
+    def test_max_redirects_from_toml(self, client_cls: MagicMock) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [fetch_url]
+                enabled = true
+                unrestricted = false
+                allow_hosts = ["example.com"]
+                max_redirects = 7
+                [permissions]
+                fetch_url = "allow"
+                """,
+            ),
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://api.example.com/"
+        mock_resp.headers = {"content-type": "text/plain"}
+        mock_resp.content = b"x"
+        inst = MagicMock()
+        inst.get.return_value = mock_resp
+        inst.__enter__.return_value = inst
+        inst.__exit__.return_value = None
+        client_cls.return_value = inst
+        tool_fetch_url(s, {"url": "https://api.example.com/"})
+        self.assertEqual(client_cls.call_args.kwargs.get("max_redirects"), 7)
+
+    @patch("cai_agent.tools.httpx.Client")
+    def test_max_redirects_env_clamps_and_overrides_toml(self, client_cls: MagicMock) -> None:
+        toml = textwrap.dedent(
+            """
+            [llm]
+            base_url = "http://localhost:1/v1"
+            model = "m"
+            api_key = "k"
+            [fetch_url]
+            enabled = true
+            unrestricted = false
+            allow_hosts = ["example.com"]
+            max_redirects = 3
+            [permissions]
+            fetch_url = "allow"
+            """,
+        )
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.url = "https://api.example.com/"
+        mock_resp.headers = {"content-type": "text/plain"}
+        mock_resp.content = b"x"
+        inst = MagicMock()
+        inst.get.return_value = mock_resp
+        inst.__enter__.return_value = inst
+        inst.__exit__.return_value = None
+        client_cls.return_value = inst
+        with patch.dict(os.environ, {"CAI_FETCH_URL_MAX_REDIRECTS": "99"}):
+            s = _settings_from_toml(toml)
+            tool_fetch_url(s, {"url": "https://api.example.com/"})
+        self.assertEqual(client_cls.call_args.kwargs.get("max_redirects"), 50)
 
     @patch("cai_agent.tools.httpx.Client")
     def test_unrestricted_skips_allow_hosts(self, client_cls: MagicMock) -> None:
