@@ -3,6 +3,7 @@ from __future__ import annotations
 import fnmatch
 import re
 from pathlib import Path
+from typing import Any
 
 from cai_agent.config import Settings
 
@@ -271,4 +272,152 @@ def run_security_scan(
         "rule_flags": flags,
         "findings_count": len(findings),
         "findings": findings[:500],
+    }
+
+
+# ---------------------------------------------------------------------------
+# PII / 敏感信息专项扫描（§22 补齐：面向 session/prompt 文件）
+# ---------------------------------------------------------------------------
+
+_PII_RULES: list[tuple[str, re.Pattern[str], str]] = [
+    (
+        "credit_card",
+        re.compile(
+            r"\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}"
+            r"|3(?:0[0-5]|[68][0-9])[0-9]{11}|6(?:011|5[0-9]{2})[0-9]{12})\b"
+        ),
+        "high",
+    ),
+    (
+        "cn_id_card",
+        re.compile(r"\b[1-9]\d{5}(?:18|19|20)\d{2}(?:0[1-9]|1[0-2])(?:0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b"),
+        "high",
+    ),
+    (
+        "cn_phone",
+        re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)"),
+        "medium",
+    ),
+    (
+        "us_ssn",
+        re.compile(r"\b(?!000|666|9\d{2})\d{3}-(?!00)\d{2}-(?!0000)\d{4}\b"),
+        "high",
+    ),
+    (
+        "email_address",
+        re.compile(r"\b[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}\b"),
+        "low",
+    ),
+    (
+        "ipv4_private",
+        re.compile(r"\b(?:10\.\d{1,3}\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.\d{1,3}\.\d{1,3})\b"),
+        "low",
+    ),
+    (
+        "jwt_token",
+        re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b"),
+        "high",
+    ),
+]
+
+_DEFAULT_PII_RULE_FLAGS: dict[str, bool] = {
+    "credit_card": True,
+    "cn_id_card": True,
+    "cn_phone": True,
+    "us_ssn": True,
+    "email_address": False,   # 邮箱信息量大，默认关闭，由调用方显式开启
+    "ipv4_private": False,
+    "jwt_token": True,
+}
+
+# 仅扫描这些扩展名的文件（session/prompt/日志类文件）
+_PII_TARGET_EXTS: frozenset[str] = frozenset(
+    {".json", ".jsonl", ".txt", ".log", ".md", ".csv", ".yaml", ".yml"}
+)
+
+
+def run_pii_scan(
+    target: str | Path,
+    *,
+    rule_flags: dict[str, bool] | None = None,
+    exclude_globs: list[str] | None = None,
+    recursive: bool = True,
+) -> dict[str, Any]:
+    """对 prompt / session / 日志等文件执行 PII 敏感信息专项扫描。
+
+    Args:
+        target: 扫描目录或单个文件。
+        rule_flags: 覆盖默认规则开关（key 为规则 ID，value 为 True/False）。
+        exclude_globs: 额外排除 glob 模式。
+        recursive: 是否递归扫描子目录（默认 True）。
+
+    Returns:
+        ``pii_scan_result_v1`` 结构。
+    """
+    base = Path(target).expanduser().resolve()
+    flags = dict(_DEFAULT_PII_RULE_FLAGS)
+    if rule_flags:
+        flags.update(rule_flags)
+    merged_excludes: list[str] = list(exclude_globs or [])
+    ignore_names = {".git", ".venv", "__pycache__", "node_modules"}
+
+    def _iter_files() -> list[Path]:
+        if base.is_file():
+            return [base]
+        pattern = "**/*" if recursive else "*"
+        return [p for p in base.glob(pattern) if p.is_file()]
+
+    findings: list[dict[str, Any]] = []
+    scanned_files = 0
+
+    for p in _iter_files():
+        if any(part in ignore_names for part in p.parts):
+            continue
+        try:
+            rel = p.relative_to(base).as_posix() if not base.is_file() else p.name
+        except ValueError:
+            rel = p.name
+        if _should_skip(rel, merged_excludes):
+            continue
+        if p.suffix.lower() not in _PII_TARGET_EXTS:
+            continue
+        if not _is_text_file(p, 1_048_576):  # 1 MB 上限
+            continue
+        scanned_files += 1
+        try:
+            text = p.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        lines = text.splitlines()
+        for i, line in enumerate(lines, start=1):
+            for rule_id, pattern, sev in _PII_RULES:
+                if not flags.get(rule_id, False):
+                    continue
+                m = pattern.search(line)
+                if not m:
+                    continue
+                snippet = line.strip()[:200]
+                findings.append(
+                    {
+                        "severity": sev,
+                        "rule": rule_id,
+                        "file": rel,
+                        "line": i,
+                        "match": m.group(0)[:60],
+                        "snippet": snippet,
+                    }
+                )
+
+    high_count = sum(1 for f in findings if f.get("severity") == "high")
+    return {
+        "schema_version": "pii_scan_result_v1",
+        "target": str(base),
+        "recursive": recursive,
+        "rule_flags": flags,
+        "excluded_globs": merged_excludes,
+        "scanned_files": scanned_files,
+        "findings_count": len(findings),
+        "high_count": high_count,
+        "ok": high_count == 0,
+        "findings": findings[:1000],
     }

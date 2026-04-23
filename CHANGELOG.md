@@ -2,6 +2,30 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.7.0 (2026-04-23)
+
+- **Session events envelope (`run_schema_version=1.1`)**: `run`/`continue`/`command`/`agent`/`fix-build` JSON output now wraps `events` in a stable `run_events_envelope_v1` object (`schema_version` + `items[]`) instead of a bare list. `observe` / `sessions` consume both formats via `normalize_session_run_events`. All failure paths (`goal_empty`, `load_session_failed`, `interrupted`, etc.) also emit the structured envelope.
+- **TUI task board** (`/tasks` + `Ctrl+B`): new read-only panel showing `.cai-schedule.json` tasks and `.cai/last-workflow.json` workflow snapshot — `tui_task_board.py`.
+- **Hooks `script` auto-execution**: `hook_runtime.py` now resolves a `script` field (`.py` / `.sh` / `.ps1` / `.cmd` / `.bat`) in addition to `command[]`, with path-escape guard and platform normalization. `hooks/README.md` updated.
+- **`memory validate-entries`**: new subcommand → `memory_entries_file_validate_v1` JSON; exit 0 if clean, exit 2 if invalid lines; backed by `build_memory_entries_jsonl_validate_report`.
+- **`memory extract --structured`**: optional LLM-structured extraction; degrades to heuristic rules in mock/no-key mode via `extract_memory_entries_structured`.
+- **Subagent IO schema v1.1**: `workflow` output bumps `subagent_io_schema_version` to `1.1`; each step now includes `agent_template_id` (matched against `agents/` catalog) and optional `rpc_step_input`/`rpc_step_output` from `protocol`.
+- **`plan --json` stable schema**: `goal_empty` error now includes `"task": null`; all error branches include `plan_schema_version`.
+- **`hooks.json` auto-execution (non-dry-run)**: `hooks run-event` without `--dry-run` now actually executes matching scripts/commands (was always possible but now also wired to `script` field).
+- **Quality-gate frontend monorepo**: `CAI_QG_FRONTEND_MONOREPO=1` + `package.json` present → auto-appends `npm run -ws --if-present lint` to quality-gate checks.
+- **`export --ecc-diff`**: `export_ecc_dir_diff_v1` JSON comparing repo source dirs vs `.cursor/cai-agent-export`; no file writes.
+- **`skills hub install`**: new subcommand to copy selected entries from a `skills_hub_manifest_v1` JSON into a target directory (`--only`, `--dry-run`).
+- **Progress ring buffer** (`progress_ring.py`): all `graph.py` `_emit` calls now also push to a global `ProgressRing`; `run --json` output includes `progress_ring` field with `phase_distribution` summary; ring is reset per invocation.
+- **Compact + cost budget linkage**: when `compact_hint` fires, if accumulated tokens exceed 85% of `cost_budget_max_tokens`, an additional cost hint message is injected into the conversation.
+- **`models suggest`**: heuristic task-description–to–profile recommendation (`models_suggest_v1` JSON), matching `安全/review/plan/fast/analysis` keyword groups.
+- **`security-scan --badge`**: appends `security_badge_v1` (shields.io-compatible) JSON line; `message` and `color` reflect finding count and severity.
+- **`memory user-model` upgraded** from stub to behavior extraction: parses tool frequencies, error rates, and recent goal previews from sessions → `honcho_parity: behavior_extract`.
+- **`doctor` `.cai/` health**: `build_doctor_cai_dir_health` adds gateway map existence + hooks.json validity checks to both JSON and text doctor output.
+- **Skills auto-suggest hook**: set `CAI_SKILLS_AUTO_SUGGEST=1` to auto-run `build_skill_evolution_suggest` on `session_end` and drop a draft under `skills/_evolution_*.md`.
+- **`ONBOARDING.zh-CN.md`**: new step-by-step onboarding path doc (vision → fetch_url/MCP → doctor → run).
+- **Tools registry doc**: `docs/TOOLS_REGISTRY.zh-CN.md` catalogues all 13 tools with permission keys.
+- **Tests**: `test_memory_validate_entries_cli.py`, `test_hook_runtime.py` (script hook), updates to `test_plan_sessions_cli.py` / `test_cli_workflow.py` / `test_gateway_telegram_execute_goal.py` / `test_session_observe.py` / `test_stats_json.py` / `test_cli_board_and_workflow_snapshot.py` for schema version bumps.
+
 ### 0.6.18 (2026-04-23)
 
 - **Multi-platform gateway / skills evolution / memory (MVP slice)**: **`gateway platforms list --json`** now includes **`telegram_webhook_pid_exists`**, **`telegram_bot_token_env_present`**, and per-stub-platform **`env_present`** (boolean only, no secret values). New **`skills hub suggest`** → **`skills_evolution_suggest_v1`** (optional **`--write`** to create a non-destructive draft under **`skills/_evolution_*.md`**). New **`memory user-model --json`** → **`memory_user_model_v1`** (session mtime window + optional **`.cai/user-model.json`** overlay; **`honcho_parity: stub`**). **`CAI_METRICS_JSONL`**: **`skills.evolution_suggest`**, **`memory.user_model`**. **`smoke_new_features`** extended.

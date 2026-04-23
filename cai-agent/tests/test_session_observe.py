@@ -20,7 +20,7 @@ class SessionObserveAggregationTests(unittest.TestCase):
                 str(root / ".cai-session-a.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "goal": "one",
                     "workspace": td,
                     "elapsed_ms": 10,
@@ -51,7 +51,7 @@ class SessionObserveAggregationTests(unittest.TestCase):
             sess = (obs.get("sessions") or [])[0]
             self.assertEqual(sess.get("events_count"), 2)
             self.assertEqual(sess.get("task_id"), "run-aaaaaaaaaa")
-            self.assertEqual(sess.get("run_schema_version"), "1.0")
+            self.assertEqual(sess.get("run_schema_version"), "1.1")
 
     def test_observe_normalizes_blank_task_id_to_none(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -60,7 +60,7 @@ class SessionObserveAggregationTests(unittest.TestCase):
                 str(root / ".cai-session-blank-task.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "goal": "blank task id",
                     "workspace": td,
                     "elapsed_ms": 1,

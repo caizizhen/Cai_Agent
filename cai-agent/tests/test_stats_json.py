@@ -20,7 +20,7 @@ class StatsJsonTests(unittest.TestCase):
                 str(root / ".cai-session-stats.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "goal": "g",
                     "workspace": td,
                     "elapsed_ms": 5,
@@ -72,7 +72,7 @@ class StatsJsonTests(unittest.TestCase):
                 str(root / ".cai-session-stats-blank-task.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "goal": "g",
                     "workspace": td,
                     "elapsed_ms": 5,

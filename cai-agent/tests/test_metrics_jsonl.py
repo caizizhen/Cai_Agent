@@ -971,7 +971,7 @@ class MetricsJsonlTests(unittest.TestCase):
                 "type": "workflow",
                 "status": "completed",
             },
-            "subagent_io_schema_version": "1.0",
+            "subagent_io_schema_version": "1.1",
             "subagent_io": {"inputs": {}, "merge": {"conflicts": []}, "outputs": []},
             "steps": [],
             "summary": {
@@ -1125,7 +1125,7 @@ class MetricsJsonlTests(unittest.TestCase):
                 "type": "workflow",
                 "status": "completed",
             },
-            "subagent_io_schema_version": "1.0",
+            "subagent_io_schema_version": "1.1",
             "subagent_io": {"inputs": {}, "merge": {"conflicts": []}, "outputs": []},
             "steps": [{"name": "s1", "index": 1, "error_count": 1}],
             "summary": {

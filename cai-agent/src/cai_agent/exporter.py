@@ -124,3 +124,58 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
         "copied": copied,
         "mode": "copy",
     }
+
+
+def _gather_rel_files(base: Path) -> frozenset[str]:
+    if not base.is_dir():
+        return frozenset()
+    out: set[str] = set()
+    for p in base.rglob("*"):
+        if p.is_file():
+            try:
+                rel = p.relative_to(base).as_posix()
+            except ValueError:
+                continue
+            out.add(rel)
+    return frozenset(out)
+
+
+def build_export_ecc_dir_diff_report(settings: Settings, *, target: str) -> dict[str, object]:
+    """对比仓库根 ``rules|skills|agents|commands`` 与 Cursor ECC 导出目录（``.cursor/cai-agent-export``）文件集合差分。"""
+    root = _project_root(settings)
+    t = str(target).strip().lower()
+    if t != "cursor":
+        return {
+            "schema_version": "export_ecc_dir_diff_v1",
+            "target": t,
+            "error": "unsupported_target",
+            "hint": "当前仅实现 --target cursor 与 .cursor/cai-agent-export 目录对比",
+        }
+    ecc = root / ".cursor" / "cai-agent-export"
+    dirs = ("rules", "skills", "agents", "commands")
+    rows: list[dict[str, object]] = []
+    for name in dirs:
+        src = root / name
+        dst = ecc / name
+        src_files = _gather_rel_files(src) if src.is_dir() else frozenset()
+        dst_files = _gather_rel_files(dst) if dst.is_dir() else frozenset()
+        only_src = sorted(src_files - dst_files)
+        only_dst = sorted(dst_files - src_files)
+        rows.append(
+            {
+                "name": name,
+                "source_file_count": len(src_files),
+                "export_file_count": len(dst_files),
+                "only_in_source": only_src[:300],
+                "only_in_export": only_dst[:300],
+                "only_in_source_truncated": max(0, len(only_src) - 300),
+                "only_in_export_truncated": max(0, len(only_dst) - 300),
+            },
+        )
+    return {
+        "schema_version": "export_ecc_dir_diff_v1",
+        "target": t,
+        "workspace": str(root),
+        "ecc_export_root": str(ecc),
+        "directories": rows,
+    }

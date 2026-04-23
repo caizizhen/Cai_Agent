@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from cai_agent.session_events import normalize_session_run_events
 from cai_agent.task_state import new_task
 
 
@@ -164,7 +165,7 @@ def build_observe_payload(
         total_elapsed += em
         model = s.get("model")
         ev = s.get("events")
-        events_count = len(ev) if isinstance(ev, list) else 0
+        events_count = len(normalize_session_run_events(ev))
         td = s.get("task")
         task_id: str | None = None
         task_status: str | None = None

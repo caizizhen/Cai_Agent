@@ -55,11 +55,13 @@ from cai_agent.profiles import (
     remove_profile,
     write_models_to_toml,
 )
-from cai_agent.exporter import export_target
+from cai_agent.exporter import build_export_ecc_dir_diff_report, export_target
 from cai_agent.memory import (
     annotate_memory_states,
+    build_memory_entries_jsonl_validate_report,
     export_memory_entries_bundle,
     build_memory_health_payload,
+    extract_memory_entries_structured,
     evaluate_memory_entry_states,
     extract_basic_instincts_from_session,
     extract_memory_entries_from_session,
@@ -75,7 +77,7 @@ from cai_agent.memory import (
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
 from cai_agent.rules import load_rule_text
-from cai_agent.security_scan import run_security_scan
+from cai_agent.security_scan import run_pii_scan, run_security_scan
 from cai_agent.schedule import (
     add_schedule_task,
     append_schedule_audit_event,
@@ -95,16 +97,72 @@ from cai_agent.session import (
     load_session,
     save_session,
 )
+from cai_agent.session_events import (
+    RUN_SCHEMA_VERSION,
+    normalize_session_run_events,
+    wrap_run_events,
+)
+from cai_agent.progress_ring import build_progress_ring_summary, global_ring, reset_global_ring
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.task_state import new_task
 from cai_agent.tools import dispatch, tools_spec_markdown
-from cai_agent.workflow import run_workflow
+from cai_agent.workflow import get_workflow_template, list_workflow_templates, run_workflow
+
+
+def _run_continue_json_fail_payload(
+    *,
+    command: str,
+    error: str,
+    message: str,
+    task: Any,
+    settings: Settings | None = None,
+    extras: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """run/continue --json 失败路径的稳定外壳（含 events 信封）。"""
+    tid = str(getattr(task, "task_id", "") or "").strip() or None
+    ev_items: list[dict[str, Any]] = [
+        {
+            "event": "run.failed",
+            "command": command,
+            "error": error,
+            "task_id": tid,
+        },
+    ]
+    out: dict[str, Any] = {
+        "run_schema_version": RUN_SCHEMA_VERSION,
+        "ok": False,
+        "error": error,
+        "message": message,
+        "task_id": tid,
+        "task": task.to_dict(),
+        "events": wrap_run_events(ev_items),
+        "answer": "",
+        "iteration": None,
+        "finished": False,
+        "config": settings.config_loaded_from if settings else None,
+        "workspace": settings.workspace if settings else None,
+        "provider": settings.provider if settings else None,
+        "model": settings.model if settings else None,
+        "mcp_enabled": settings.mcp_enabled if settings else False,
+        "elapsed_ms": int(getattr(task, "elapsed_ms", 0) or 0),
+        "prompt_tokens": 0,
+        "completion_tokens": 0,
+        "total_tokens": 0,
+        "tool_calls_count": 0,
+        "used_tools": [],
+        "last_tool": None,
+        "error_count": 0,
+        "post_gate": None,
+    }
+    if extras:
+        out.update(extras)
+    return out
 
 
 def _session_file_json_extra(sess: dict[str, Any]) -> dict[str, Any]:
     """从已解析的会话 JSON 提取稳定字段（供 `sessions --json` 等使用）。"""
     ev = sess.get("events")
-    events_count = len(ev) if isinstance(ev, list) else 0
+    events_count = len(normalize_session_run_events(ev))
     td = sess.get("task")
     task_id: str | None = None
     if isinstance(td, dict):
@@ -2570,7 +2628,7 @@ def _execute_gateway_telegram_goal(
     if sp is not None:
         payload = {
             "version": 2,
-            "run_schema_version": "1.0",
+            "run_schema_version": RUN_SCHEMA_VERSION,
             "goal": goal,
             "workspace": settings.workspace,
             "config": settings.config_loaded_from,
@@ -2592,7 +2650,7 @@ def _execute_gateway_telegram_goal(
             "messages": msgs,
             "answer": final.get("answer"),
             "task": task.to_dict(),
-            "events": run_events,
+            "events": wrap_run_events(list(run_events)),
             "post_gate": None,
         }
         try:
@@ -2812,6 +2870,75 @@ def _cmd_models(args: argparse.Namespace) -> int:
         _ = bool(getattr(args, "fail_on_ping_error", False))
         # S1-03: align with exit 0/2 — any non-OK ping is exit 2.
         return 2 if fail else 0
+
+    if action == "suggest":
+        task_desc = " ".join(getattr(args, "task_description", []) or []).strip()
+        if not task_desc:
+            print("task_description 不能为空", file=sys.stderr)
+            return 2
+        td_lower = task_desc.lower()
+        _TASK_HINTS: list[tuple[str, list[str], str]] = [
+            ("security", ["安全", "audit", "漏洞", "security", "扫描", "secret", "exploit"], "安全审查类任务"),
+            ("fast", ["快速", "草稿", "初稿", "draft", "fast", "quick", "simple"], "轻量/草稿任务"),
+            ("code_review", ["review", "代码审查", "pr", "diff", "重构", "refactor"], "代码审查类任务"),
+            ("planning", ["规划", "plan", "架构", "design", "方案", "策略"], "规划/架构任务"),
+            ("analysis", ["分析", "analyze", "统计", "data", "趋势", "insight"], "数据/分析任务"),
+        ]
+        matched_role = "default"
+        matched_reason = "无特征匹配，建议使用 active profile"
+        for role_key, keywords, reason in _TASK_HINTS:
+            if any(kw in td_lower for kw in keywords):
+                matched_role = role_key
+                matched_reason = reason
+                break
+        _ROLE_PROFILE_MAP = {
+            "security": "security",
+            "code_review": "reviewer",
+            "planning": "planner",
+            "fast": None,
+            "analysis": None,
+        }
+        suggested_profile_ids: list[str] = []
+        role_hint = _ROLE_PROFILE_MAP.get(matched_role)
+        for p in settings.profiles:
+            pid = p.id.lower()
+            notes = (p.notes or "").lower()
+            if role_hint and (role_hint in pid or role_hint in notes):
+                suggested_profile_ids.append(p.id)
+        if not suggested_profile_ids and matched_role != "default":
+            for p in settings.profiles:
+                provider = (p.provider or "").lower()
+                if matched_role in ("security", "planning", "code_review"):
+                    if "anthropic" in provider or "claude" in (p.model or "").lower():
+                        suggested_profile_ids.append(p.id)
+                        break
+        if not suggested_profile_ids:
+            if settings.active_profile_id:
+                suggested_profile_ids = [settings.active_profile_id]
+        suggest_result = {
+            "schema_version": "models_suggest_v1",
+            "task_description": task_desc,
+            "matched_role": matched_role,
+            "reason": matched_reason,
+            "suggested_profiles": suggested_profile_ids[:3],
+            "active_profile_id": settings.active_profile_id,
+            "subagent_profile_id": settings.subagent_profile_id,
+            "planner_profile_id": settings.planner_profile_id,
+            "available_profiles": [p.id for p in settings.profiles],
+            "hint": (
+                f"建议使用 `cai-agent models use {suggested_profile_ids[0]}`"
+                if suggested_profile_ids
+                else "保持当前 active profile"
+            ),
+        }
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(suggest_result, ensure_ascii=False))
+        else:
+            print(f"task: {task_desc!r}")
+            print(f"matched_role: {matched_role} — {matched_reason}")
+            print(f"suggested_profiles: {suggest_result['suggested_profiles'] or ['(使用 active)']}")
+            print(f"hint: {suggest_result['hint']}")
+        return 0
 
     if action == "route":
         if not settings.profiles_explicit:
@@ -3386,6 +3513,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     _mf.add_argument("--json", action="store_true", dest="json_output")
 
+    _mrs = models_sub.add_parser(
+        "suggest",
+        help="根据任务描述关键词启发式推荐适合的 profile（基于 provider / notes 字段）",
+    )
+    _mrs.add_argument(
+        "task_description",
+        nargs="+",
+        help="任务描述文本（例如：'安全审查 Python 代码' / '快速草稿'）",
+    )
+    _mrs.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 models_suggest_v1 JSON",
+    )
+
     _mrt = models_sub.add_parser(
         "route",
         help="写回 [models] 的 subagent / planner 路由（不改 active、不改 profile 表体）",
@@ -3473,6 +3616,67 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="json_output",
         help="输出 skills_evolution_suggest_v1 JSON",
+    )
+    # §25 补齐：skills hub serve
+    skills_hub_serve_p = skills_hub_sub.add_parser(
+        "serve",
+        help="启动 Skills Hub HTTP 分发服务（GET /manifest、GET /skill/<name>）",
+    )
+    skills_hub_serve_p.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="监听主机（默认 127.0.0.1）",
+    )
+    skills_hub_serve_p.add_argument(
+        "--port",
+        type=int,
+        default=7891,
+        help="监听端口（默认 7891）",
+    )
+    skills_hub_serve_p.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        dest="serve_timeout",
+        metavar="SECONDS",
+        help="服务超时秒数（默认：永久运行直到 Ctrl+C）",
+    )
+    skills_hub_serve_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="停止后以 JSON 输出结果",
+    )
+    skills_hub_install_p = skills_hub_sub.add_parser(
+        "install",
+        help="按 skills_hub_manifest_v1 将条目复制到 .cursor/skills（可选 --only 过滤 name）",
+    )
+    skills_hub_install_p.add_argument(
+        "--manifest",
+        required=True,
+        metavar="PATH",
+        help="skills_hub_manifest_v1 JSON 文件路径",
+    )
+    skills_hub_install_p.add_argument(
+        "--only",
+        default="",
+        help="逗号分隔的 name 列表；空表示安装 manifest 中全部条目",
+    )
+    skills_hub_install_p.add_argument(
+        "--dest",
+        default=".cursor/skills",
+        help="相对工作区根的目标目录（默认 .cursor/skills）",
+    )
+    skills_hub_install_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="仅输出计划，不写入文件",
+    )
+    skills_hub_install_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 输出 skills_hub_pack_install_v1 JSON",
     )
     cmd_list_p = sub.add_parser(
         "commands",
@@ -4005,6 +4209,56 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="禁用 models.profile / [llm] 段 api_key 明文告警规则",
     )
+    sec_p.add_argument(
+        "--badge",
+        action="store_true",
+        dest="security_badge",
+        help="追加输出 security_badge_v1 JSON（shields.io 兼容）到 stdout；与 --json 同用时追加在 JSON 行后",
+    )
+
+    pii_p = sub.add_parser(
+        "pii-scan",
+        parents=[common],
+        help="PII/敏感信息专项扫描（信用卡、身份证、手机号、JWT 等）—— 面向 session/prompt/日志文件",
+    )
+    pii_p.add_argument(
+        "target",
+        nargs="?",
+        default=None,
+        help="扫描目标目录或文件（默认：当前工作区 .cai/ 目录，若不存在则为当前目录）",
+    )
+    pii_p.add_argument("--json", action="store_true", dest="json_output", help="以 JSON 输出结果")
+    pii_p.add_argument(
+        "--no-recursive",
+        action="store_true",
+        dest="no_recursive",
+        help="不递归扫描子目录",
+    )
+    pii_p.add_argument(
+        "--enable-email",
+        action="store_true",
+        dest="enable_email",
+        help="启用邮箱地址规则（默认关闭，因低信噪比）",
+    )
+    pii_p.add_argument(
+        "--enable-ipv4",
+        action="store_true",
+        dest="enable_ipv4",
+        help="启用内网 IPv4 规则（默认关闭）",
+    )
+    pii_p.add_argument(
+        "--fail-on-high",
+        action="store_true",
+        dest="fail_on_high",
+        help="存在 high 级别发现时 exit 2",
+    )
+    pii_p.add_argument(
+        "--exclude-glob",
+        action="append",
+        default=[],
+        dest="exclude_globs",
+        help="附加排除 glob（可多次指定）",
+    )
 
     hooks_p = sub.add_parser(
         "hooks",
@@ -4047,6 +4301,12 @@ def main(argv: list[str] | None = None) -> int:
     memory_extract = memory_sub.add_parser("extract", help="从会话提取记忆")
     memory_extract.add_argument("--pattern", default=".cai-session*.json")
     memory_extract.add_argument("--limit", type=int, default=10)
+    memory_extract.add_argument(
+        "--structured",
+        action="store_true",
+        dest="extract_structured",
+        help="可选 LLM 结构化抽取（mock 模式退化为启发式规则；需要 api_key 才触发真实 LLM）",
+    )
     memory_list = memory_sub.add_parser("list", help="列出结构化记忆条目（entries.jsonl）")
     memory_list.add_argument("--limit", type=int, default=50)
     memory_list.add_argument(
@@ -4063,6 +4323,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     memory_list.add_argument("--state-stale-after-days", type=int, default=30, help="状态评估：超过 N 天视为 stale（默认 30）")
     memory_list.add_argument("--state-min-active-confidence", type=float, default=0.4, help="状态评估：低于该置信度视为 stale（默认 0.4）")
+    memory_validate_entries = memory_sub.add_parser(
+        "validate-entries",
+        help="校验 memory/entries.jsonl 行级 memory_entry_v1（与 schemas/memory_entry_v1.schema.json 对齐）",
+    )
+    memory_validate_entries.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 memory_entries_file_validate_v1 JSON（默认人类可读摘要）",
+    )
     memory_instincts = memory_sub.add_parser("instincts", help="列出 instinct Markdown 快照路径")
     memory_instincts.add_argument("--limit", type=int, default=20)
     memory_instincts.add_argument(
@@ -4468,6 +4738,12 @@ def main(argv: list[str] | None = None) -> int:
     export_p = sub.add_parser("export", parents=[common], help="导出到跨工具目录")
     export_p.add_argument("--target", required=True, choices=["cursor", "codex", "opencode"])
     export_p.add_argument(
+        "--ecc-diff",
+        action="store_true",
+        dest="export_ecc_diff",
+        help="仅输出 export_ecc_dir_diff_v1 JSON（对比仓库与 .cursor/cai-agent-export；不写文件）",
+    )
+    export_p.add_argument(
         "-w",
         "--workspace",
         default=None,
@@ -4620,6 +4896,21 @@ def main(argv: list[str] | None = None) -> int:
     ops_sub = ops_p.add_subparsers(dest="ops_action", required=True)
     ops_dash = ops_sub.add_parser("dashboard", help="聚合 board + schedule stats + cost rollup")
     ops_dash.add_argument("--json", action="store_true", dest="json_output")
+    ops_dash.add_argument(
+        "--format",
+        choices=["json", "text", "html"],
+        default="text",
+        dest="ops_format",
+        help="输出格式：text（默认）/ json / html（生成单文件 HTML 仪表盘）",
+    )
+    ops_dash.add_argument(
+        "-o",
+        "--output",
+        default=None,
+        dest="ops_output",
+        metavar="FILE",
+        help="将结果写入文件（html 格式常与 -o dashboard.html 配合）",
+    )
     ops_dash.add_argument("--pattern", default=".cai-session*.json")
     ops_dash.add_argument("--limit", type=int, default=100)
     ops_dash.add_argument("--schedule-days", type=int, default=30)
@@ -4866,14 +5157,109 @@ def main(argv: list[str] | None = None) -> int:
     )
     gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
 
+    # ---- Discord Gateway MVP（§24 补齐）----
+    gw_dc = gateway_sub.add_parser("discord", help="Discord Gateway MVP — Bot Polling 接入")
+    gw_dc.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_dc_sub = gw_dc.add_subparsers(dest="gateway_discord_action", required=True)
+
+    gw_dc_bind = gw_dc_sub.add_parser("bind", help="绑定 channel_id → session_file")
+    gw_dc_bind.add_argument("channel_id")
+    gw_dc_bind.add_argument("session_file")
+    gw_dc_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_unbind = gw_dc_sub.add_parser("unbind", help="解绑 channel_id")
+    gw_dc_unbind.add_argument("channel_id")
+    gw_dc_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_get = gw_dc_sub.add_parser("get", help="查询 channel_id 绑定")
+    gw_dc_get.add_argument("channel_id")
+    gw_dc_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_list = gw_dc_sub.add_parser("list", help="列出所有绑定与白名单")
+    gw_dc_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_allow = gw_dc_sub.add_parser("allow", help="白名单管理")
+    gw_dc_allow_sub = gw_dc_allow.add_subparsers(dest="dc_allow_action", required=True)
+    gw_dc_allow_add = gw_dc_allow_sub.add_parser("add"); gw_dc_allow_add.add_argument("channel_id"); gw_dc_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_dc_allow_rm = gw_dc_allow_sub.add_parser("rm"); gw_dc_allow_rm.add_argument("channel_id"); gw_dc_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_dc_allow_list = gw_dc_allow_sub.add_parser("list"); gw_dc_allow_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_poll = gw_dc_sub.add_parser("serve-polling", help="启动 Discord Bot Polling 服务")
+    gw_dc_poll.add_argument("--bot-token", default=None, dest="discord_bot_token", help="Discord Bot Token（或 CAI_DISCORD_BOT_TOKEN）")
+    gw_dc_poll.add_argument("--poll-interval", type=float, default=2.0)
+    gw_dc_poll.add_argument("--max-events", type=int, default=0)
+    gw_dc_poll.add_argument("--execute-on-message", action="store_true", default=False)
+    gw_dc_poll.add_argument("--reply-on-execution", action="store_true", default=False)
+    gw_dc_poll.add_argument("--log-file", default=None)
+    gw_dc_poll.add_argument("--json", action="store_true", dest="json_output")
+
+    # ---- Slack Gateway MVP（§24 补齐）----
+    gw_sl = gateway_sub.add_parser("slack", help="Slack Gateway MVP — Events API Webhook 接入")
+    gw_sl.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_sl_sub = gw_sl.add_subparsers(dest="gateway_slack_action", required=True)
+
+    gw_sl_bind = gw_sl_sub.add_parser("bind", help="绑定 channel_id → session_file")
+    gw_sl_bind.add_argument("channel_id")
+    gw_sl_bind.add_argument("session_file")
+    gw_sl_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sl_unbind = gw_sl_sub.add_parser("unbind", help="解绑 channel_id")
+    gw_sl_unbind.add_argument("channel_id")
+    gw_sl_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sl_get = gw_sl_sub.add_parser("get", help="查询 channel_id 绑定")
+    gw_sl_get.add_argument("channel_id")
+    gw_sl_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sl_list = gw_sl_sub.add_parser("list", help="列出所有绑定与白名单")
+    gw_sl_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sl_allow = gw_sl_sub.add_parser("allow", help="白名单管理")
+    gw_sl_allow_sub = gw_sl_allow.add_subparsers(dest="sl_allow_action", required=True)
+    gw_sl_allow_add = gw_sl_allow_sub.add_parser("add"); gw_sl_allow_add.add_argument("channel_id"); gw_sl_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_sl_allow_rm = gw_sl_allow_sub.add_parser("rm"); gw_sl_allow_rm.add_argument("channel_id"); gw_sl_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_sl_allow_list = gw_sl_allow_sub.add_parser("list"); gw_sl_allow_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sl_serve = gw_sl_sub.add_parser("serve-webhook", help="启动 Slack Events API Webhook 服务")
+    gw_sl_serve.add_argument("--bot-token", default=None, dest="slack_bot_token", help="Slack Bot Token（或 CAI_SLACK_BOT_TOKEN）")
+    gw_sl_serve.add_argument("--signing-secret", default=None, dest="slack_signing_secret", help="Slack Signing Secret（或 CAI_SLACK_SIGNING_SECRET）")
+    gw_sl_serve.add_argument("--host", default="0.0.0.0")
+    gw_sl_serve.add_argument("--port", type=int, default=7892)
+    gw_sl_serve.add_argument("--max-events", type=int, default=0)
+    gw_sl_serve.add_argument("--execute-on-event", action="store_true", default=False)
+    gw_sl_serve.add_argument("--reply-on-execution", action="store_true", default=False)
+    gw_sl_serve.add_argument("--log-file", default=None)
+    gw_sl_serve.add_argument("--json", action="store_true", dest="json_output")
+
     wf_p = sub.add_parser(
         "workflow",
         parents=[common],
-        help="根据 JSON workflow 文件依次运行多个步骤任务",
+        help="根据 JSON workflow 文件依次运行多个步骤任务；或用 templates 列出/导出内置模板",
     )
     wf_p.add_argument(
         "file",
+        nargs="?",
+        default=None,
         help="workflow JSON 文件路径（包含 steps 数组）",
+    )
+    wf_p.add_argument(
+        "--templates",
+        action="store_true",
+        dest="list_templates",
+        help="列出所有内置 workflow 模板（与 --template 配合可导出完整 JSON）",
+    )
+    wf_p.add_argument(
+        "--template",
+        default=None,
+        dest="template_id",
+        metavar="TEMPLATE_ID",
+        help="与 --templates 配合：输出指定模板完整 JSON（可用 --goal 填充 {{GOAL}}）",
+    )
+    wf_p.add_argument(
+        "--goal",
+        default="",
+        dest="goal",
+        help="与 --template 配合：替换模板中的 {{GOAL}} 占位符",
     )
     wf_p.add_argument(
         "-w",
@@ -5006,6 +5392,7 @@ def main(argv: list[str] | None = None) -> int:
                             "error": "goal_empty",
                             "message": "goal 不能为空",
                             "generated_at": datetime.now(UTC).isoformat(),
+                            "task": None,
                         },
                         ensure_ascii=False,
                     ),
@@ -5172,6 +5559,7 @@ def main(argv: list[str] | None = None) -> int:
             "fetch": "models.fetch",
             "ping": "models.ping",
             "route": "models.route",
+            "suggest": "models.suggest",
             "add": "models.add",
             "use": "models.use",
             "rm": "models.rm",
@@ -5192,7 +5580,7 @@ def main(argv: list[str] | None = None) -> int:
                     tok_m = 1
                 else:
                     tok_m = len(ld2.profiles)
-        elif act_m in {"add", "use", "rm", "route", "edit"} and int(rc_mdl) == 0:
+        elif act_m in {"add", "use", "rm", "route", "edit", "suggest"} and int(rc_mdl) == 0:
             tok_m = 1
         _maybe_metrics_cli(
             module="models",
@@ -5261,8 +5649,8 @@ def main(argv: list[str] | None = None) -> int:
             print("skills: 仅支持 hub 子命令", file=sys.stderr)
             return 2
         hub_act = str(getattr(args, "skills_hub_action", "") or "").strip()
-        if hub_act not in ("manifest", "suggest"):
-            print("skills hub: 仅支持 manifest / suggest", file=sys.stderr)
+        if hub_act not in ("manifest", "suggest", "serve", "install"):
+            print("skills hub: 仅支持 manifest / suggest / serve / install", file=sys.stderr)
             return 2
         root_sk = Path.cwd().resolve()
         if hub_act == "manifest":
@@ -5284,6 +5672,76 @@ def main(argv: list[str] | None = None) -> int:
                 tokens=int(payload_sm.get("count") or 0),
                 success=True,
             )
+            return 0
+        if hub_act == "install":
+            from cai_agent.skills import apply_skills_hub_manifest_selection
+
+            mp = Path(str(getattr(args, "manifest", "") or "")).expanduser().resolve()
+            if not mp.is_file():
+                print(f"manifest 不存在: {mp}", file=sys.stderr)
+                return 2
+            try:
+                doc = json.loads(mp.read_text(encoding="utf-8"))
+            except json.JSONDecodeError as e:
+                print(f"manifest JSON 无效: {e}", file=sys.stderr)
+                return 2
+            if not isinstance(doc, dict):
+                print("manifest 根须为 object", file=sys.stderr)
+                return 2
+            only_raw = str(getattr(args, "only", "") or "").strip()
+            only_set: frozenset[str] | None = None
+            if only_raw:
+                only_set = frozenset(x.strip() for x in only_raw.split(",") if x.strip())
+            t_ins = time.perf_counter()
+            try:
+                out_ins = apply_skills_hub_manifest_selection(
+                    root=str(root_sk),
+                    manifest=doc,
+                    only=only_set,
+                    dest_rel=str(getattr(args, "dest", ".cursor/skills") or ".cursor/skills"),
+                    dry_run=bool(getattr(args, "dry_run", False)),
+                )
+            except ValueError as e:
+                print(str(e), file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_ins, ensure_ascii=False))
+            else:
+                print(
+                    f"skills install: dry_run={out_ins.get('dry_run')} "
+                    f"copied={len(out_ins.get('copied') or [])} skipped={len(out_ins.get('skipped') or [])}",
+                )
+            _maybe_metrics_cli(
+                module="skills",
+                event="skills.hub_install",
+                latency_ms=(time.perf_counter() - t_ins) * 1000.0,
+                tokens=len(out_ins.get("copied") or []),
+                success=True,
+            )
+            return 0
+        if hub_act == "serve":
+            from cai_agent.skills import serve_skills_hub
+
+            srv_host = str(getattr(args, "host", "127.0.0.1") or "127.0.0.1")
+            srv_port = int(getattr(args, "port", 7891) or 7891)
+            srv_timeout = getattr(args, "serve_timeout", None)
+            json_out_srv = bool(getattr(args, "json_output", False))
+            if not json_out_srv:
+                print(f"Skills Hub 服务启动中 http://{srv_host}:{srv_port}/manifest — Ctrl+C 停止")
+            try:
+                srv_result = serve_skills_hub(
+                    root=str(root_sk),
+                    host=srv_host,
+                    port=srv_port,
+                    timeout_seconds=srv_timeout,
+                )
+            except OSError as e:
+                print(f"无法启动 Skills Hub 服务: {e}", file=sys.stderr)
+                return 2
+            if json_out_srv:
+                print(json.dumps(srv_result, ensure_ascii=False))
+            else:
+                print(f"Skills Hub 服务已停止 ok={srv_result.get('ok')}")
             return 0
         from cai_agent.skills import build_skill_evolution_suggest
 
@@ -6260,6 +6718,28 @@ def main(argv: list[str] | None = None) -> int:
             tokens=int(result.get("findings_count") or result.get("scanned_files") or 0),
             success=bool(result.get("ok")),
         )
+        scan_ok = bool(result.get("ok"))
+        fc = int(result.get("findings_count") or 0)
+        hs = next(
+            (
+                True
+                for f in (result.get("findings") or [])
+                if isinstance(f, dict) and str(f.get("severity") or "").lower() == "high"
+            ),
+            False,
+        )
+        badge_color = "brightgreen" if scan_ok else ("red" if hs else "yellow")
+        badge_msg = f"pass ({fc} findings)" if scan_ok else f"{'high risk' if hs else 'findings'} ({fc})"
+        badge_payload: dict[str, Any] = {
+            "schema_version": "security_badge_v1",
+            "schemaVersion": 1,
+            "label": "security-scan",
+            "message": badge_msg,
+            "color": badge_color,
+            "namedLogo": "shieldsdotio",
+            "findings_count": fc,
+            "ok": scan_ok,
+        }
         if args.json_output:
             print(json.dumps(result, ensure_ascii=False))
         else:
@@ -6275,7 +6755,67 @@ def main(argv: list[str] | None = None) -> int:
                         f"- [{item.get('severity')}] {item.get('rule')} "
                         f"{item.get('file')}:{item.get('line')}",
                     )
-        return 0 if bool(result.get("ok")) else 2
+        if bool(getattr(args, "security_badge", False)):
+            print(json.dumps(badge_payload, ensure_ascii=False))
+        return 0 if scan_ok else 2
+
+    if args.command == "pii-scan":
+        try:
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        raw_target = getattr(args, "target", None)
+        if raw_target:
+            scan_target = Path(raw_target).expanduser()
+        else:
+            cai_dir = Path(settings.workspace) / ".cai"
+            scan_target = cai_dir if cai_dir.is_dir() else Path(settings.workspace)
+        pii_rule_flags: dict[str, bool] = {}
+        if bool(getattr(args, "enable_email", False)):
+            pii_rule_flags["email_address"] = True
+        if bool(getattr(args, "enable_ipv4", False)):
+            pii_rule_flags["ipv4_private"] = True
+        t_pii = time.perf_counter()
+        try:
+            pii_result = run_pii_scan(
+                scan_target,
+                rule_flags=pii_rule_flags if pii_rule_flags else None,
+                exclude_globs=list(getattr(args, "exclude_globs", []) or []),
+                recursive=not bool(getattr(args, "no_recursive", False)),
+            )
+        except Exception as e:
+            print(f"pii-scan 执行失败: {e}", file=sys.stderr)
+            return 2
+        _maybe_metrics_cli(
+            module="security_scan",
+            event="pii_scan.run",
+            latency_ms=(time.perf_counter() - t_pii) * 1000.0,
+            tokens=int(pii_result.get("scanned_files") or 0),
+            success=bool(pii_result.get("ok")),
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(pii_result, ensure_ascii=False))
+        else:
+            print(f"ok={pii_result.get('ok')}")
+            print(f"target={pii_result.get('target')}")
+            print(f"scanned_files={pii_result.get('scanned_files')}")
+            print(f"findings_count={pii_result.get('findings_count')} (high={pii_result.get('high_count')})")
+            findings = pii_result.get("findings")
+            if isinstance(findings, list):
+                for item in findings[:20]:
+                    if not isinstance(item, dict):
+                        continue
+                    print(
+                        f"- [{item.get('severity')}] {item.get('rule')} "
+                        f"{item.get('file')}:{item.get('line')}  {item.get('match', '')[:40]}"
+                    )
+        if bool(getattr(args, "fail_on_high", False)) and int(pii_result.get("high_count", 0)) > 0:
+            return 2
+        return 0
 
     if args.command == "hooks":
         try:
@@ -6488,8 +7028,16 @@ def main(argv: list[str] | None = None) -> int:
                     pattern=str(args.pattern),
                     limit=int(args.limit),
                 )
+                use_structured = bool(getattr(args, "extract_structured", False))
+                settings_ex: Any = None
+                if use_structured:
+                    try:
+                        settings_ex = Settings.from_env(config_path=None, workspace_hint=str(root))
+                    except Exception:
+                        settings_ex = None
                 written: list[str] = []
                 entries_appended = 0
+                structured_results: list[dict[str, Any]] = []
                 for p in files:
                     try:
                         sess = load_session(str(p))
@@ -6499,18 +7047,21 @@ def main(argv: list[str] | None = None) -> int:
                     out = save_instincts(root, instincts)
                     if out:
                         written.append(str(out))
-                    if extract_memory_entries_from_session(root, sess) is not None:
+                    if use_structured:
+                        sr = extract_memory_entries_structured(root, sess, settings=settings_ex)
+                        entries_appended += int(sr.get("entries_written") or 0)
+                        structured_results.append(sr)
+                    elif extract_memory_entries_from_session(root, sess) is not None:
                         entries_appended += 1
-                print(
-                    json.dumps(
-                        {
-                            "schema_version": "memory_extract_v1",
-                            "written": written,
-                            "entries_appended": entries_appended,
-                        },
-                        ensure_ascii=False,
-                    ),
-                )
+                payload_ex: dict[str, Any] = {
+                    "schema_version": "memory_extract_v1",
+                    "written": written,
+                    "entries_appended": entries_appended,
+                }
+                if use_structured:
+                    payload_ex["structured"] = structured_results
+                    payload_ex["structured_mode"] = True
+                print(json.dumps(payload_ex, ensure_ascii=False))
                 _maybe_metrics_cli(
                     module="memory",
                     event="memory.extract",
@@ -6558,6 +7109,32 @@ def main(argv: list[str] | None = None) -> int:
                     success=True,
                 )
                 return 0
+            if args.memory_action == "validate-entries":
+                t_mv = time.perf_counter()
+                rep = build_memory_entries_jsonl_validate_report(root)
+                ok_v = bool(rep.get("ok"))
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(rep, ensure_ascii=False))
+                else:
+                    print(
+                        f"[memory validate-entries] file={rep.get('entries_file')} "
+                        f"ok={ok_v} scanned={rep.get('lines_scanned')} valid={rep.get('valid_lines')}",
+                    )
+                    inv = rep.get("invalid_lines") or []
+                    if isinstance(inv, list) and inv:
+                        for row in inv[:20]:
+                            if isinstance(row, dict):
+                                print(f"  line {row.get('line')}: {row.get('errors')}", file=sys.stderr)
+                        if len(inv) > 20:
+                            print(f"  ... +{len(inv) - 20} more", file=sys.stderr)
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.validate_entries",
+                    latency_ms=(time.perf_counter() - t_mv) * 1000.0,
+                    tokens=int(rep.get("lines_scanned") or 0),
+                    success=ok_v,
+                )
+                return 0 if ok_v else 2
             if args.memory_action == "instincts":
                 t_mi = time.perf_counter()
                 files = sorted(
@@ -7820,7 +8397,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         t_exp = time.perf_counter()
         try:
-            result = export_target(settings, str(args.target))
+            if bool(getattr(args, "export_ecc_diff", False)):
+                result = build_export_ecc_dir_diff_report(settings, target=str(args.target))
+            else:
+                result = export_target(settings, str(args.target))
         finally:
             _print_hook_status(
                 settings,
@@ -8082,16 +8662,28 @@ def main(argv: list[str] | None = None) -> int:
             schedule_days=int(getattr(args, "schedule_days", 30)),
             audit_path=getattr(args, "audit_file", None),
         )
+        ops_fmt = str(getattr(args, "ops_format", "text") or "text").strip().lower()
         if bool(getattr(args, "json_output", False)):
-            print(json.dumps(payload_ops, ensure_ascii=False))
+            ops_fmt = "json"
+        ops_out_path = getattr(args, "ops_output", None)
+        if ops_fmt == "json":
+            output_str = json.dumps(payload_ops, ensure_ascii=False)
+        elif ops_fmt == "html":
+            from cai_agent.ops_dashboard import build_ops_dashboard_html
+            output_str = build_ops_dashboard_html(payload_ops)
         else:
             sm = payload_ops.get("summary") if isinstance(payload_ops.get("summary"), dict) else {}
-            print(
+            output_str = (
                 "[ops dashboard] "
                 f"sessions={sm.get('sessions_count')} failure_rate={sm.get('failure_rate')} "
                 f"schedule_tasks={sm.get('schedule_tasks_in_stats')} "
-                f"cost_tokens={sm.get('cost_total_tokens')}",
+                f"cost_tokens={sm.get('cost_total_tokens')}"
             )
+        if ops_out_path:
+            Path(ops_out_path).write_text(output_str, encoding="utf-8")
+            print(f"ops dashboard 已写入 {ops_out_path}")
+        else:
+            print(output_str)
         sm_m = payload_ops.get("summary") if isinstance(payload_ops.get("summary"), dict) else {}
         _maybe_metrics_cli(
             module="ops",
@@ -8834,9 +9426,148 @@ def main(argv: list[str] | None = None) -> int:
                         f"handled={out.get('events_handled')} log={out.get('log_file')}",
                     )
                 return 0
+        # ---- Discord Gateway（§24 补齐）----
+        _gw_act = str(getattr(args, "gateway_action", "") or "").strip()
+        if _gw_act == "discord":
+            from cai_agent.gateway_discord import (
+                discord_allow_add, discord_allow_list, discord_allow_rm,
+                discord_bind, discord_get_binding, discord_list_bindings,
+                discord_unbind, serve_discord_polling,
+            )
+            dc_ws_raw = getattr(args, "workspace", None)
+            dc_root = Path(os.path.abspath(dc_ws_raw)).resolve() if dc_ws_raw else Path.cwd().resolve()
+            dc_act = str(getattr(args, "gateway_discord_action", "") or "").strip()
+            json_out_dc = bool(getattr(args, "json_output", False))
+            if dc_act == "bind":
+                r = discord_bind(dc_root, args.channel_id, args.session_file)
+            elif dc_act == "unbind":
+                r = discord_unbind(dc_root, args.channel_id)
+            elif dc_act == "get":
+                r = discord_get_binding(dc_root, args.channel_id)
+            elif dc_act == "list":
+                r = discord_list_bindings(dc_root)
+            elif dc_act == "allow":
+                al_act = str(getattr(args, "dc_allow_action", "") or "")
+                if al_act == "add":
+                    r = discord_allow_add(dc_root, args.channel_id)
+                elif al_act == "rm":
+                    r = discord_allow_rm(dc_root, args.channel_id)
+                else:
+                    r = discord_allow_list(dc_root)
+            elif dc_act == "serve-polling":
+                bot_tok = str(getattr(args, "discord_bot_token", None) or os.environ.get("CAI_DISCORD_BOT_TOKEN", "") or "")
+                if not bot_tok:
+                    print("Discord Bot Token 必须通过 --bot-token 或 CAI_DISCORD_BOT_TOKEN 提供", file=sys.stderr)
+                    return 2
+                if not json_out_dc:
+                    print(f"Discord Bot Polling 服务启动中（间隔 {getattr(args,'poll_interval',2.0)}s）— Ctrl+C 停止")
+                r = serve_discord_polling(
+                    root=dc_root,
+                    bot_token=bot_tok,
+                    poll_interval=float(getattr(args, "poll_interval", 2.0)),
+                    max_events=int(getattr(args, "max_events", 0)),
+                    execute_on_message=bool(getattr(args, "execute_on_message", False)),
+                    reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
+                    log_file=getattr(args, "log_file", None),
+                )
+            else:
+                print(f"unknown discord action: {dc_act}", file=sys.stderr)
+                return 2
+            if json_out_dc:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
+        # ---- Slack Gateway（§24 补齐）----
+        if _gw_act == "slack":
+            from cai_agent.gateway_slack import (
+                slack_allow_add, slack_allow_list, slack_allow_rm,
+                slack_bind, slack_get_binding, slack_list_bindings,
+                slack_unbind, serve_slack_webhook,
+            )
+            sl_ws_raw = getattr(args, "workspace", None)
+            sl_root = Path(os.path.abspath(sl_ws_raw)).resolve() if sl_ws_raw else Path.cwd().resolve()
+            sl_act = str(getattr(args, "gateway_slack_action", "") or "").strip()
+            json_out_sl = bool(getattr(args, "json_output", False))
+            if sl_act == "bind":
+                r = slack_bind(sl_root, args.channel_id, args.session_file)
+            elif sl_act == "unbind":
+                r = slack_unbind(sl_root, args.channel_id)
+            elif sl_act == "get":
+                r = slack_get_binding(sl_root, args.channel_id)
+            elif sl_act == "list":
+                r = slack_list_bindings(sl_root)
+            elif sl_act == "allow":
+                al_act = str(getattr(args, "sl_allow_action", "") or "")
+                if al_act == "add":
+                    r = slack_allow_add(sl_root, args.channel_id)
+                elif al_act == "rm":
+                    r = slack_allow_rm(sl_root, args.channel_id)
+                else:
+                    r = slack_allow_list(sl_root)
+            elif sl_act == "serve-webhook":
+                bot_tok_sl = str(getattr(args, "slack_bot_token", None) or os.environ.get("CAI_SLACK_BOT_TOKEN", "") or "")
+                signing_sec = str(getattr(args, "slack_signing_secret", None) or os.environ.get("CAI_SLACK_SIGNING_SECRET", "") or "")
+                if not bot_tok_sl:
+                    print("Slack Bot Token 必须通过 --bot-token 或 CAI_SLACK_BOT_TOKEN 提供", file=sys.stderr)
+                    return 2
+                sl_host = str(getattr(args, "host", "0.0.0.0") or "0.0.0.0")
+                sl_port = int(getattr(args, "port", 7892))
+                if not json_out_sl:
+                    print(f"Slack Webhook 服务启动中 http://{sl_host}:{sl_port} — Ctrl+C 停止")
+                r = serve_slack_webhook(
+                    root=sl_root,
+                    bot_token=bot_tok_sl,
+                    signing_secret=signing_sec,
+                    host=sl_host,
+                    port=sl_port,
+                    execute_on_event=bool(getattr(args, "execute_on_event", False)),
+                    reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
+                    log_file=getattr(args, "log_file", None),
+                    max_events=int(getattr(args, "max_events", 0)),
+                )
+            else:
+                print(f"unknown slack action: {sl_act}", file=sys.stderr)
+                return 2
+            if json_out_sl:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
         return 2
 
     if args.command == "workflow":
+        # --- workflow --templates（§23 补齐）---
+        if bool(getattr(args, "list_templates", False)) or bool(getattr(args, "template_id", None)):
+            json_out = bool(getattr(args, "json_output", False))
+            tpl_id = getattr(args, "template_id", None)
+            goal_str = str(getattr(args, "goal", "") or "")
+            if tpl_id:
+                try:
+                    tpl = get_workflow_template(tpl_id, goal=goal_str)
+                except KeyError as e:
+                    print(str(e), file=sys.stderr)
+                    return 2
+                if json_out:
+                    print(json.dumps(tpl, ensure_ascii=False, indent=2))
+                else:
+                    print(f"template={tpl_id}")
+                    for i, s in enumerate(tpl.get("steps") or [], 1):
+                        print(f"  step {i}: [{s.get('role','default')}] {s.get('name')} — {s.get('goal','')[:80]}")
+            else:
+                templates = list_workflow_templates()
+                if json_out:
+                    print(json.dumps({"schema_version": "workflow_templates_v1", "templates": templates}, ensure_ascii=False))
+                else:
+                    for t in templates:
+                        print(f"  {t['id']}: {t['description']}")
+            return 0
+        # --- 正常 workflow run ---
+        if not getattr(args, "file", None):
+            print("用法: cai-agent workflow <file.json> 或 cai-agent workflow templates", file=sys.stderr)
+            return 2
         try:
             settings = Settings.from_env(
                 config_path=args.config,
@@ -8995,7 +9726,25 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_hint=_settings_workspace_hint(args),
             )
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            if bool(getattr(args, "json_output", False)):
+                t0 = new_task(str(args.command))
+                t0.status = "failed"
+                t0.error = "config_not_found"
+                t0.ended_at = time.time()
+                print(
+                    json.dumps(
+                        _run_continue_json_fail_payload(
+                            command=str(args.command),
+                            error="config_not_found",
+                            message=str(e),
+                            task=t0,
+                            settings=None,
+                        ),
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print(str(e), file=sys.stderr)
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -9006,7 +9755,25 @@ def main(argv: list[str] | None = None) -> int:
             )
         goal = " ".join(args.goal).strip()
         if not goal:
-            print("goal 不能为空", file=sys.stderr)
+            if bool(getattr(args, "json_output", False)):
+                tg = new_task(str(args.command))
+                tg.status = "failed"
+                tg.error = "goal_empty"
+                tg.ended_at = time.time()
+                print(
+                    json.dumps(
+                        _run_continue_json_fail_payload(
+                            command=str(args.command),
+                            error="goal_empty",
+                            message="goal 不能为空",
+                            task=tg,
+                            settings=settings,
+                        ),
+                        ensure_ascii=False,
+                    ),
+                )
+            else:
+                print("goal 不能为空", file=sys.stderr)
             return 2
         if args.command in ("command", "fix-build"):
             if args.command == "fix-build":
@@ -9015,7 +9782,25 @@ def main(argv: list[str] | None = None) -> int:
                 cmd_name = str(args.name).strip().lstrip("/")
             cmd_text = load_command_text(settings, cmd_name)
             if not cmd_text:
-                print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
+                if bool(getattr(args, "json_output", False)):
+                    tc = new_task(str(args.command))
+                    tc.status = "failed"
+                    tc.error = "command_not_found"
+                    tc.ended_at = time.time()
+                    print(
+                        json.dumps(
+                            _run_continue_json_fail_payload(
+                                command=str(args.command),
+                                error="command_not_found",
+                                message=f"命令模板不存在: /{cmd_name}",
+                                task=tc,
+                                settings=settings,
+                            ),
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
                 return 2
             skill_texts = load_related_skill_texts(settings, cmd_name)
             skill_block = ""
@@ -9034,7 +9819,25 @@ def main(argv: list[str] | None = None) -> int:
             agent_name = str(args.name).strip()
             agent_text = load_agent_text(settings, agent_name)
             if not agent_text:
-                print(f"子代理模板不存在: {agent_name}", file=sys.stderr)
+                if bool(getattr(args, "json_output", False)):
+                    ta = new_task(str(args.command))
+                    ta.status = "failed"
+                    ta.error = "agent_not_found"
+                    ta.ended_at = time.time()
+                    print(
+                        json.dumps(
+                            _run_continue_json_fail_payload(
+                                command=str(args.command),
+                                error="agent_not_found",
+                                message=f"子代理模板不存在: {agent_name}",
+                                task=ta,
+                                settings=settings,
+                            ),
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(f"子代理模板不存在: {agent_name}", file=sys.stderr)
                 return 2
             skill_texts = load_related_skill_texts(settings, agent_name)
             skill_block = ""
@@ -9055,7 +9858,25 @@ def main(argv: list[str] | None = None) -> int:
             try:
                 goal = _inject_plan_file(goal, str(pf))
             except OSError as e:
-                print(f"读取计划文件失败: {e}", file=sys.stderr)
+                if bool(getattr(args, "json_output", False)):
+                    tp = new_task(str(args.command))
+                    tp.status = "failed"
+                    tp.error = "plan_file_error"
+                    tp.ended_at = time.time()
+                    print(
+                        json.dumps(
+                            _run_continue_json_fail_payload(
+                                command=str(args.command),
+                                error="plan_file_error",
+                                message=f"读取计划文件失败: {e}",
+                                task=tp,
+                                settings=settings,
+                            ),
+                            ensure_ascii=False,
+                        ),
+                    )
+                else:
+                    print(f"读取计划文件失败: {e}", file=sys.stderr)
                 return 2
 
         auto_on = bool(getattr(args, "auto_approve", False))
@@ -9064,6 +9885,7 @@ def main(argv: list[str] | None = None) -> int:
             os.environ["CAI_AUTO_APPROVE"] = "1"
         try:
             reset_usage_counters()
+            reset_global_ring()
             task = new_task(args.command)
             task.status = "running"
             _print_hook_status(
@@ -9105,11 +9927,39 @@ def main(argv: list[str] | None = None) -> int:
                 try:
                     sess = load_session(load_session_path)
                 except Exception as e:
-                    print(f"读取会话失败: {e}", file=sys.stderr)
+                    if bool(getattr(args, "json_output", False)):
+                        print(
+                            json.dumps(
+                                _run_continue_json_fail_payload(
+                                    command=str(args.command),
+                                    error="load_session_failed",
+                                    message=f"读取会话失败: {e}",
+                                    task=task,
+                                    settings=settings,
+                                ),
+                                ensure_ascii=False,
+                            ),
+                        )
+                    else:
+                        print(f"读取会话失败: {e}", file=sys.stderr)
                     return 2
                 messages = sess.get("messages")
                 if not isinstance(messages, list) or not messages:
-                    print("会话文件不合法：messages 必须是非空数组", file=sys.stderr)
+                    if bool(getattr(args, "json_output", False)):
+                        print(
+                            json.dumps(
+                                _run_continue_json_fail_payload(
+                                    command=str(args.command),
+                                    error="invalid_session",
+                                    message="会话文件不合法：messages 必须是非空数组",
+                                    task=task,
+                                    settings=settings,
+                                ),
+                                ensure_ascii=False,
+                            ),
+                        )
+                    else:
+                        print("会话文件不合法：messages 必须是非空数组", file=sys.stderr)
                     return 2
                 state = {
                     "messages": list(messages) + [{"role": "user", "content": goal}],
@@ -9129,8 +9979,23 @@ def main(argv: list[str] | None = None) -> int:
                 task.status = "failed"
                 task.error = "interrupted"
                 if args.json_output:
+                    intr_ev: list[dict[str, Any]] = [
+                        {
+                            "event": "run.started",
+                            "command": str(getattr(args, "command", "run")),
+                            "task_id": task.task_id,
+                        },
+                        {
+                            "event": "run.interrupted",
+                            "command": str(getattr(args, "command", "run")),
+                            "task_id": task.task_id,
+                        },
+                    ]
                     payload = {
-                        "run_schema_version": "1.0",
+                        "run_schema_version": RUN_SCHEMA_VERSION,
+                        "ok": False,
+                        "error": "interrupted",
+                        "message": "用户已手动停止",
                         "task_id": task.task_id,
                         "answer": "",
                         "iteration": None,
@@ -9150,20 +10015,7 @@ def main(argv: list[str] | None = None) -> int:
                         "error_count": 0,
                         "task": task.to_dict(),
                         "post_gate": None,
-                        "events": [
-                            {
-                                "event": "run.started",
-                                "command": str(getattr(args, "command", "run")),
-                                "task_id": task.task_id,
-                            },
-                            {
-                                "event": "run.interrupted",
-                                "command": str(getattr(args, "command", "run")),
-                                "task_id": task.task_id,
-                            },
-                        ],
-                        "error": "interrupted",
-                        "message": "用户已手动停止",
+                        "events": wrap_run_events(intr_ev),
                     }
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -9219,7 +10071,8 @@ def main(argv: list[str] | None = None) -> int:
             ]
             if args.json_output:
                 payload = {
-                    "run_schema_version": "1.0",
+                    "run_schema_version": RUN_SCHEMA_VERSION,
+                    "ok": str(task.status) == "completed",
                     "task_id": task.task_id,
                     "answer": (final.get("answer") or "").strip(),
                     "iteration": final.get("iteration"),
@@ -9239,7 +10092,10 @@ def main(argv: list[str] | None = None) -> int:
                     "error_count": error_count,
                     "task": task.to_dict(),
                     "post_gate": gate_result,
-                    "events": run_events,
+                    "events": wrap_run_events(
+                        [cast(dict[str, Any], x) for x in run_events],
+                    ),
+                    "progress_ring": build_progress_ring_summary(),
                 }
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -9254,7 +10110,7 @@ def main(argv: list[str] | None = None) -> int:
             if save_session_path:
                 payload = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": RUN_SCHEMA_VERSION,
                     "goal": goal,
                     "workspace": settings.workspace,
                     "config": settings.config_loaded_from,
@@ -9276,7 +10132,9 @@ def main(argv: list[str] | None = None) -> int:
                     "messages": final.get("messages") or [],
                     "answer": final.get("answer"),
                     "task": task.to_dict(),
-                    "events": run_events,
+                    "events": wrap_run_events(
+                        [cast(dict[str, Any], x) for x in run_events],
+                    ),
                     "post_gate": gate_result,
                 }
                 try:
@@ -9297,6 +10155,27 @@ def main(argv: list[str] | None = None) -> int:
                 event="session_end",
                 json_output=bool(args.json_output),
             )
+            # 技能自进化钩子：若 CAI_SKILLS_AUTO_SUGGEST=1 且任务已完成，dry-run 落盘草稿
+            if (
+                str(task.status) == "completed"
+                and os.environ.get("CAI_SKILLS_AUTO_SUGGEST", "").strip() in ("1", "true", "yes")
+            ):
+                _completed_goal = goal if isinstance(goal, str) else ""
+                if _completed_goal.strip():
+                    try:
+                        from cai_agent.skills import build_skill_evolution_suggest as _bsev
+                        _auto_sug = _bsev(
+                            root=str(Path.cwd().resolve()),
+                            goal=_completed_goal[:300],
+                            write=True,
+                        )
+                        if not bool(args.json_output) and _auto_sug.get("written"):
+                            print(
+                                f"[skills auto] 已落盘进化草稿: {_auto_sug.get('suggested_path')}",
+                                file=sys.stderr,
+                            )
+                    except Exception:
+                        pass
             return 0
         finally:
             if auto_on:

@@ -35,11 +35,11 @@
 |--------|------|------|------|
 | Query 式主循环 | claude-code-analysis | `Done` | `graph.py` |
 | 工具注册与权限 | claude-code-analysis | `Done` | `tools.py` + `[permissions]` |
-| 会话与历史 | claude-code-analysis | `Done` / `Next` | 已落地：`workflow` 事件流、`run`/`continue` 的 `run_schema_version` + `events`、`observe` 汇总 `run_events_total`、`sessions_with_events`、逐文件 `events_count`；新增 `hooks` 执行结果状态摘要（stderr）与 release-ga 聚合门禁。TUI/全量 Dashboard 深化仍待办 |
+| 会话与历史 | claude-code-analysis | `Done` | 已落地：`workflow` 事件流、`run`/`continue` 的 `run_schema_version=1.1` + `events` 信封（`run_events_envelope_v1`）；`observe` 汇总 `run_events_total`、`sessions_with_events`、逐文件 `events_count`；`progress_ring` 阶段分布（`phase_distribution`）；`hooks` 执行结果状态摘要；TUI task board（`/tasks` + `Ctrl+B`）|
 | 跨会话 recall | claude-code / Hermes | `Done` / `Next` | `recall` / `recall-index`；JSON `schema_version=1.3`，`--sort recent|density|combined`；0 命中时 `no_hit_reason`。`recall-index doctor [--fix]`（`recall_index_doctor_v1`，exit 0/2）。性能基准：`scripts/perf_recall_bench.py`（Markdown → `docs/qa/runs/`） |
-| 上下文压缩策略 | claude-code-analysis | `Next` | 与 `[context]`、`observe` 联动深化 |
-| 成本 / token 策略 | claude-code-analysis | `Next` | 由统计升级为可配置策略 |
-| 钩子扩展 | claude-code-analysis | `Done` / `Next` | 已落地：`hooks.json` 外部 command 钩子（`[hooks]` profile `minimal|standard|strict`、禁用列表、危险命令阻断）；`hooks/hooks.json` 与 `.cai/hooks/hooks.json` 双路径；CLI `cai-agent hooks list` / `hooks run-event`（含 `--dry-run`）；运行期 `_print_hook_status` 与执行器分类一致（`enabled_hook_ids` 仅含将实际执行的条目）；Windows 上对 argv 路径片段做规范化。事件注册表/更多内置钩子类型仍待办 |
+| 上下文压缩策略 | claude-code-analysis | `Done` | compact 触发时若 tokens > 85% `cost_budget_max_tokens` 自动追加成本提示；`[context]` 配置 `compact_after_iterations` / `compact_min_messages` |
+| 成本 / token 策略 | claude-code-analysis | `Done` / `Next` | `cost budget --check`；`compact + cost budget` 联动；`models suggest`（启发式任务-profile 推荐）；更细粒度路由规则仍待迭代 |
+| 钩子扩展 | claude-code-analysis | `Done` | 已落地：`hooks.json` 外部 `command` + `script`（`.py`/`.sh`/`.ps1`/`.cmd`/`.bat`）钩子；profile `minimal|standard|strict`、禁用列表、危险命令阻断；`hooks/hooks.json` 与 `.cai/hooks/hooks.json` 双路径；`hooks list` / `hooks run-event`（`--dry-run`）；`CAI_SKILLS_AUTO_SUGGEST=1` 在 `session_end` 触发 skills 自进化草稿落盘 |
 | 定时任务 / 跨轮次失败重试 | Hermes Scheduler 2.0 | `Done` | **S4-01**：`.cai-schedule.json` 任务含 `max_retries`（CLI `--max-retries`）、`retry_count`、`next_retry_at`；失败后 `last_status=retrying`，退避 `60*2^(retry_count-1)` 秒再入队，用尽为 `failed_exhausted`；`retry_max_attempts`/`retry_backoff_sec` 仍为单次执行内连跑重试。**S4-02**：`schedule daemon --max-concurrent`（默认 1），超限任务本跳过并记 `skipped_due_to_concurrency`。**S4-03**：`depends_on` 有向环写入前拒绝；`schedule list` 展示 `depends_on_chain` / `dependency_blocked` / `dependents`（JSON 仅展示字段，不落盘）。**S4-04**：`.cai-schedule-audit.jsonl` 与 `daemon --jsonl-log` 统一 `schema_version=1.0` 与 `task.*`/`daemon.*` 事件名；见 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`。**S4-05**：`schedule stats --json` 聚合 `success_rate` / `avg_elapsed_ms` / `p95_elapsed_ms` 等；见 `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md` |
 
 ## L3 — ECC 式治理与跨 harness
@@ -48,9 +48,9 @@
 |--------|------|------|------|
 | 质量门禁 | ECC / 官方 CI 习惯 | `Done` | `quality-gate` |
 | 安全扫描 | ECC | `Done` | `security-scan` |
-| 记忆 / 本能 | ECC | `Done` / `Next` | 已落地：`entries.jsonl` 写入前 **v1 schema** 校验；`memory import-entries --dry-run` 结构化校验；`memory import-entries --error-report` 坏数据隔离报告导出（`memory_entries_import_errors_v1`）与人类可读失败摘要；`memory prune --json` 输出 `memory_prune_result_v1`（`removed_by_reason` 分桶、`invalid_json_lines`）；`memory nudge` schema 升级到 `1.1`（`threshold_policy` / `risk_score` / `trend`）+ `nudge-report` 趋势汇总；**`memory health --json`**（`schema_version`=`1.0`，`health_score`/`grade`/`freshness`/`coverage`/`conflict_rate` 及冲突/覆盖可观测子字段，`--fail-on-grade` / `--max-conflict-compare-entries`）；**`memory nudge-report --json`** 含同源 `freshness` 与 `health_score`（`schema_version`=`1.2`）。TTL/自动化提炼仍待办 |
+| 记忆 / 本能 | ECC | `Done` | 已落地：`entries.jsonl` 写入前 **v1 schema** 校验；`memory validate-entries`（`memory_entries_file_validate_v1`）；`memory extract --structured` LLM/启发式双模结构化抽取；`memory import-entries`（dry-run + error-report）；`memory prune`（TTL/置信度/overflow/non-active）；`memory nudge` schema `1.1`；`memory health`（评分/grade/freshness/conflict/coverage）；`memory user-model`（行为偏好抽取：工具频率、错误率、goal 摘要）；`memory state` 状态机 |
 | 成本预算 | ECC | `Done` / `Next` | `cost budget`；新增 `release-ga` 汇总 budget 与会话失败率门禁；策略深化见 L2 |
-| 跨工具导出 | ECC | `Done` / `Next` | `export`；manifest 维度持续对齐 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
+| 跨工具导出 | ECC | `Done` | `export --target cursor|codex|opencode`；`export --ecc-diff`（`export_ecc_dir_diff_v1` 对比 vs `.cursor/cai-agent-export`）；`skills hub install`（按 manifest 选择性拷贝技能包）；见 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
 | 可视化运营面板 | ECC | `Next` | P2+，见路线图 |
 | 大规模社区技能库本体 | ECC | `MCP` / `Next` | 以导出格式与外部包渐进吸收，不阻塞核心发版 |
 

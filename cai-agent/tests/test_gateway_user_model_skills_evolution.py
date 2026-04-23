@@ -52,7 +52,7 @@ class GatewayUserModelSkillsEvolutionTests(unittest.TestCase):
             s = replace(s0, workspace=str(root.resolve()))
             payload = build_memory_user_model_overview(s, days=14)
         self.assertEqual(payload.get("schema_version"), "memory_user_model_v1")
-        self.assertEqual(payload.get("honcho_parity"), "stub")
+        self.assertIn(payload.get("honcho_parity"), ("stub", "behavior_extract"))
         self.assertGreaterEqual(int(payload.get("sessions_total") or 0), 1)
         ud = payload.get("user_declared")
         self.assertIsInstance(ud, dict)
@@ -133,7 +133,7 @@ class GatewayUserModelSkillsEvolutionTests(unittest.TestCase):
             self.assertEqual(p.returncode, 0, p.stderr)
             o = json.loads((p.stdout or "").strip())
             self.assertEqual(o.get("schema_version"), "memory_user_model_v1")
-            self.assertEqual(o.get("honcho_parity"), "stub")
+            self.assertIn(o.get("honcho_parity"), ("stub", "behavior_extract"))
 
 
 if __name__ == "__main__":

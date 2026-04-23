@@ -27,6 +27,7 @@ from cai_agent.profiles import Profile
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.tui_model_panel import ModelPanelScreen
+from cai_agent.tui_task_board import TaskBoardScreen
 from cai_agent.tui_path_complete import suggest_path_after_command
 
 # 斜杠命令补全：顺序决定前缀冲突时的优先级（短命令在前，同前缀的长命令紧跟其后）。
@@ -42,6 +43,7 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/save",
     "/save ",
     "/sessions",
+    "/tasks",
     "/load",
     "/load ",
     "/load latest",
@@ -73,6 +75,7 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/load",
     "/load latest",
     "/sessions",
+    "/tasks",
     "/use-model",
     "/reload",
     "/fix-build",
@@ -390,6 +393,7 @@ class CaiAgentApp(App[None]):
         Binding("ctrl+q", "quit", "退出", show=True),
         Binding("ctrl+c", "stop_run", "停止任务", show=True),
         Binding("ctrl+m", "open_model_panel", "聊天模型", show=True),
+        Binding("ctrl+b", "open_task_board", "任务看板", show=True),
         Binding(
             "ctrl+shift+c",
             "copy_selected_text",
@@ -496,6 +500,9 @@ class CaiAgentApp(App[None]):
             should_stop=lambda: self._stop_requested,
         )
         self._sync_slash_completion_sources()
+
+    def action_open_task_board(self) -> None:
+        self.push_screen(TaskBoardScreen(self._settings))
 
     def action_open_model_panel(self) -> None:
         if self._agent_busy:
@@ -938,7 +945,7 @@ class CaiAgentApp(App[None]):
         raw = event.value.strip()
         if not raw:
             return
-        if self._agent_busy:
+        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/stop"):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
                 severity="warning",
@@ -964,13 +971,14 @@ class CaiAgentApp(App[None]):
                 "/save <path> — 保存当前会话为 JSON（不传 path 则自动命名；/save 后可补全已有会话文件）\n"
                 "/load <path|latest> — 从 JSON 加载会话（若文件含 active_profile_id 等字段且与当前配置一致则恢复运行时 profile）\n"
                 "/sessions — 列出最近会话文件\n"
+                "/tasks — 只读任务看板：调度任务 + 最近 workflow 快照（Ctrl+B）\n"
                 "/use-model <profile_id|model_id> — 临时切换模型（补全优先 profile id）\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
                 "其他以 / 开头会提示未知命令。\n"
                 "\n[bold]快捷键[/]\n"
-                "[dim]Ctrl+M 聊天模型 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
+                "[dim]Ctrl+M 聊天模型 · Ctrl+B 任务看板 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
                 "[dim]复制：鼠标拖选聊天区 → Ctrl+Shift+C；Ctrl+Shift+A 全选当前聊天区。[/]\n"
                 "[dim]Windows Terminal：按住 Shift + 鼠标拖选可走系统原生选择并 Ctrl+C 复制。[/]\n",
             )
@@ -1238,6 +1246,10 @@ class CaiAgentApp(App[None]):
             self.query_one("#chat", RichLog).write(
                 "\n[bold]最近会话文件[/]\n" + "\n".join(lines) + "\n",
             )
+            return
+
+        if raw == "/tasks":
+            self.action_open_task_board()
             return
 
         if raw == "/clear":

@@ -65,7 +65,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 os.chdir(root)
                 good = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-ok", "type": "run", "status": "completed"},
                     "events": [{"event": "run.started"}],
                     "error_count": 0,
@@ -76,7 +76,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 bad = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-bad", "type": "run", "status": "failed"},
                     "events": [{"event": "run.started"}],
                     "error_count": 1,
@@ -102,7 +102,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 os.chdir(root)
                 good = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-ok-123", "type": "run", "status": "completed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 0,
@@ -113,7 +113,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 bad = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-bad-999", "type": "run", "status": "failed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 1,
@@ -154,7 +154,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 os.chdir(root)
                 older = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-fail-old", "type": "run", "status": "failed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 1,
@@ -165,7 +165,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 newer = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-fail-new", "type": "run", "status": "failed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 1,
@@ -201,7 +201,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 os.chdir(root)
                 running = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-running-1", "type": "run", "status": "running"},
                     "events": [{"event": "run.started"}],
                     "error_count": 0,
@@ -212,7 +212,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 completed = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-completed-1", "type": "run", "status": "completed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 0,
@@ -223,7 +223,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 failed = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "task": {"task_id": "run-failed-1", "type": "run", "status": "failed"},
                     "events": [{"event": "run.started"}, {"event": "run.finished"}],
                     "error_count": 1,
@@ -234,7 +234,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 }
                 unknown = {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": "1.1",
                     "events": [{"event": "run.started"}],
                     "error_count": 0,
                     "total_tokens": 1,
@@ -292,7 +292,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 for r in rows:
                     payload = {
                         "version": 2,
-                        "run_schema_version": "1.0",
+                        "run_schema_version": "1.1",
                         "task": {
                             "task_id": r["task_id"],
                             "type": "run",
@@ -351,7 +351,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 for r in rows:
                     payload = {
                         "version": 2,
-                        "run_schema_version": "1.0",
+                        "run_schema_version": "1.1",
                         "task": r["task"],
                         "events": [{"event": "run.started"}, {"event": "run.finished"}],
                         "error_count": r["error_count"],
@@ -418,7 +418,7 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 for r in rows:
                     payload = {
                         "version": 2,
-                        "run_schema_version": "1.0",
+                        "run_schema_version": "1.1",
                         "task": r["task"],
                         "events": [{"event": "run.started"}, {"event": "run.finished"}],
                         "error_count": r["error_count"],

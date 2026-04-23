@@ -72,6 +72,11 @@ def _entries_path(root: str | Path) -> Path:
     return d / "entries.jsonl"
 
 
+def _entries_file_readonly(root: str | Path) -> Path:
+    """``memory/entries.jsonl`` 路径（不自动创建目录）。"""
+    return Path(root).expanduser().resolve() / "memory" / "entries.jsonl"
+
+
 def append_memory_entry(
     root: str | Path,
     *,
@@ -153,6 +158,53 @@ def load_memory_entries_validated(
             continue
         valid.append(obj)
     return valid, warnings
+
+
+def build_memory_entries_jsonl_validate_report(root: str | Path) -> dict[str, Any]:
+    """对 ``memory/entries.jsonl`` 做行级 memory_entry_v1 校验（与 ``schemas/memory_entry_v1.schema.json`` 一致）。"""
+    path = _entries_file_readonly(root)
+    if not path.is_file():
+        return {
+            "schema_version": "memory_entries_file_validate_v1",
+            "memory_entry_schema_version": "1.0",
+            "entries_file": str(path),
+            "exists": False,
+            "ok": True,
+            "lines_scanned": 0,
+            "valid_lines": 0,
+            "invalid_lines": [],
+        }
+    invalid: list[dict[str, Any]] = []
+    valid_n = 0
+    scanned = 0
+    for lineno, raw in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        line = raw.strip()
+        if not line:
+            continue
+        scanned += 1
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
+            invalid.append({"line": lineno, "errors": [f"JSON 解析失败: {e}"]})
+            continue
+        if not isinstance(obj, dict):
+            invalid.append({"line": lineno, "errors": ["根类型须为 object"]})
+            continue
+        row_errs = validate_memory_entry_row(obj)
+        if row_errs:
+            invalid.append({"line": lineno, "errors": list(row_errs)})
+            continue
+        valid_n += 1
+    return {
+        "schema_version": "memory_entries_file_validate_v1",
+        "memory_entry_schema_version": "1.0",
+        "entries_file": str(path),
+        "exists": True,
+        "ok": len(invalid) == 0,
+        "lines_scanned": scanned,
+        "valid_lines": valid_n,
+        "invalid_lines": invalid,
+    }
 
 
 def export_memory_entries_bundle(root: str | Path) -> dict[str, Any]:
@@ -845,3 +897,130 @@ def extract_memory_entries_from_session(
         confidence=0.5,
         expires_at=None,
     )
+
+
+def extract_memory_entries_structured(
+    root: str | Path,
+    session: dict[str, Any],
+    *,
+    settings: Any | None = None,
+) -> dict[str, Any]:
+    """可选 LLM 结构化抽取：从会话 goal+answer 中提取结构化记忆条目。
+
+    当 ``settings`` 为 None 或 ``settings.mock=True`` 时退化为基于规则的启发式抽取
+    （避免在 mock 模式下触发真实 LLM 调用）。
+
+    返回 ``memory_extract_structured_v1`` 格式。
+    """
+    goal = str(session.get("goal") or "").strip()
+    answer = str(session.get("answer") or "").strip()
+    text = f"{goal}\n\n{answer}".strip()
+    if not text:
+        return {
+            "schema_version": "memory_extract_structured_v1",
+            "method": "skipped",
+            "entries_written": 0,
+            "entries": [],
+        }
+
+    is_mock = (
+        settings is None
+        or bool(getattr(settings, "mock", False))
+        or not bool(getattr(settings, "api_key", ""))
+    )
+
+    if is_mock:
+        # 启发式规则：按句子切分，保留含动词/名词的有意义片段
+        import re as _re
+        candidates: list[dict[str, Any]] = []
+        for line in _re.split(r"[。\n]", text):
+            ln = line.strip()
+            if len(ln) < 12 or len(ln) > 300:
+                continue
+            if not any(kw in ln for kw in ["是", "了", "的", "为", "有", "能", "可", "应", "需"]):
+                continue
+            candidates.append({
+                "category": "insight",
+                "text": ln,
+                "confidence": 0.45,
+            })
+        entries_written = 0
+        written_entries: list[dict[str, Any]] = []
+        for c in candidates[:5]:
+            try:
+                e = append_memory_entry(
+                    root,
+                    category=str(c["category"]),
+                    text=str(c["text"]),
+                    confidence=float(c["confidence"]),
+                )
+                written_entries.append({
+                    "id": e.id,
+                    "category": e.category,
+                    "text": e.text[:120],
+                    "confidence": e.confidence,
+                })
+                entries_written += 1
+            except Exception:
+                pass
+        return {
+            "schema_version": "memory_extract_structured_v1",
+            "method": "heuristic",
+            "entries_written": entries_written,
+            "entries": written_entries,
+        }
+
+    # LLM 模式：调用 chat_completion_by_role 返回 JSON 格式的记忆条目
+    try:
+        from cai_agent.llm_factory import chat_completion_by_role as _chat
+        from cai_agent.llm import extract_json_object as _exj
+
+        prompt = (
+            "下面是一条 AI 会话（goal + answer），请从中提取 3-5 条结构化记忆条目，"
+            "以 JSON 数组返回：\n"
+            "[{\"category\":\"...\",\"text\":\"...\",\"confidence\":0.7},...]\n"
+            "category 取 insight/fact/pattern/warning 之一。\n\n"
+            f"---会话内容---\n{text[:2000]}\n---"
+        )
+        messages = [
+            {"role": "system", "content": "你是记忆治理助手，只输出 JSON 数组，不加任何说明。"},
+            {"role": "user", "content": prompt},
+        ]
+        raw_response = _chat(settings, messages, role="active")
+        parsed = _exj(raw_response)
+        entries_list = parsed if isinstance(parsed, list) else []
+        entries_written = 0
+        written_entries = []
+        for item in entries_list[:8]:
+            if not isinstance(item, dict):
+                continue
+            cat = str(item.get("category") or "insight").strip()
+            txt = str(item.get("text") or "").strip()
+            conf = float(item.get("confidence") or 0.5)
+            if not txt or len(txt) < 5:
+                continue
+            try:
+                e = append_memory_entry(root, category=cat, text=txt, confidence=conf)
+                written_entries.append({
+                    "id": e.id,
+                    "category": e.category,
+                    "text": e.text[:120],
+                    "confidence": e.confidence,
+                })
+                entries_written += 1
+            except Exception:
+                pass
+        return {
+            "schema_version": "memory_extract_structured_v1",
+            "method": "llm",
+            "entries_written": entries_written,
+            "entries": written_entries,
+        }
+    except Exception as ex:
+        return {
+            "schema_version": "memory_extract_structured_v1",
+            "method": "llm_failed",
+            "error": str(ex)[:500],
+            "entries_written": 0,
+            "entries": [],
+        }

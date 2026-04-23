@@ -6,8 +6,8 @@
 
 - [本轮已落地] 愿景与分层验收：[PRODUCT_VISION_FUSION.zh-CN.md](PRODUCT_VISION_FUSION.zh-CN.md)
 - [本轮已落地] Parity 矩阵与发版约定：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)
-- 每个版本更新 CHANGELOG（中英）与矩阵同步
-- ONBOARDING 增加「读愿景 → 配 fetch_url / MCP → doctor → run」路径图
+- [本轮已落地] 每个版本更新 CHANGELOG（中英）与矩阵同步（**`CHANGELOG.md` / `CHANGELOG.zh-CN.md` §0.7.0** 已记本轮条目）
+- [本轮已落地] ONBOARDING：**[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)**「读愿景 → 配 fetch_url / MCP → doctor → run」路径
 
 ## L1 — 官方能力环（体验）
 
@@ -21,50 +21,50 @@
 ### 工具与 Notebook
 
 - Notebook 单元读写工具或 MCP 认证路径
-- 与官方工具分类对齐的 **工具注册表文档**（自动生成自 `tools.py`）
+- [本轮已落地] 与官方工具分类对齐的 **工具注册表文档**：静态 **[`docs/TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)**（13 工具）；从 **`tools.py`** **自动生成**仍为 backlog
 
 ### 任务与 UI
 
-- `run` / `continue` 等 JSON 输出增加 `**run_schema_version`** 与 `**events**` 信封（与 `workflow` 的 `events` 风格对齐）
-- `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 为 **`sessions_list_v1`** 信封，**`sessions[]`** 默认附带 `events_count` / `task_id` 等摘要（无需 `--details`）
-- 任务看板或 TUI 只读面板（P1）
+- [本轮已落地] `run` / `continue` 等 JSON：**`run_schema_version`=`1.1`**，**`events`** 为 **`run_events_envelope_v1`**（与 `workflow` 事件风格对齐）；**`cai_agent.session_events`**
+- [本轮已落地] `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 为 **`sessions_list_v1`**，**`sessions[]`** 默认附带 **`events_count`** / **`task_id`** 等（**`normalize_session_run_events`**）
+- [本轮已落地] TUI 只读任务看板：**`/tasks`**、**`Ctrl+B`**（**`tui_task_board.py`**）
 
 ### 计划与子 Agent
 
-- `plan --json` 稳定 schema（含成功 `ok: true` 与失败 `goal_empty` / `llm_error`）
-- `stats --json` 与 `observe` 对齐的 `run_events_total` 及 `session_summaries`
-- 子 Agent 标准 IO schema（与 `agents/` 模板字段对齐）
+- [本轮已落地] `plan --json` 稳定 schema（失败 **`goal_empty`** 含 **`task:null`**；各分支含 **`plan_schema_version`**）
+- [本轮已落地] `stats --json` 与 `observe` 对齐的 **`run_events_total`** 及 **`session_summaries`**
+- [本轮已落地] 子 Agent 标准 IO：**`subagent_io_schema_version`=`1.1`**，**`agent_template_id`** + 可选 **`rpc_step_*`**（与 **`agents/`** 对齐）
 
 ## L2 — 架构完备度
 
 ### 状态与观测
 
-- 会话文件 `version` 字段与 `run_schema_version` 对齐策略
-- 结构化进度流：`graph` 中 `progress` 回调写入 ring buffer 供 `observe` 聚合
+- [本轮已落地] 会话落盘与 **`run_schema_version`**（当前 **`1.1`**）对齐；**`session_events.wrap_run_events`**
+- [本轮已落地] 结构化进度流：**`progress_ring.py`** + **`graph._emit`** 写入 ring；**`run --json`** 含 **`progress_ring`** 摘要
 
 ### 上下文与成本
 
-- compact 触发与 `cost budget` 联动自动化（规则表）
-- 模型路由建议（配置或启发式）
+- [本轮已落地] compact 与 **`cost_budget_max_tokens`** 联动（约 **85%** 阈值追加成本提示）
+- [本轮已落地] 模型路由建议：**`models suggest`** → **`models_suggest_v1`**
 
 ### 钩子
 
-- `hooks.json` 的 `event` 与 CLI 对齐：`session_*`、`workflow_*`、`quality_gate_*`、`security_scan_*`、`memory_*`、`export_*`、`observe_*`、`cost_budget_*`（见 [hooks/README.md](../hooks/README.md)）；自动执行 hook 脚本仍待办
+- [本轮已落地] `hooks.json` 的 **`event`** 与 CLI 对齐（见 [hooks/README.md](../hooks/README.md)）；**`script`** + **`command`** 实跑 **`hooks run-event`**（非 **`--dry-run`**）
 - [本轮已落地] hook 执行结果可观测增强：CLI 非 JSON 输出会显示每个 hook 的 `ok/blocked/error/skipped` 摘要（不再仅打印 hook id）
 
 ## L3 — 治理与跨 harness
 
 ### 记忆
 
-- `memory/entries.jsonl` 行级 **schema v1** 校验（`cai_agent/schemas/memory_entry_v1.schema.json` + 写入前 Python 校验）
+- [本轮已落地] `memory/entries.jsonl` 行级校验 CLI：**`memory validate-entries`** → **`memory_entries_file_validate_v1`**（写入前全量 schema 校验仍为演进项）
 - 记忆 TTL/置信度策略与 `memory prune` 规则文档化
 - [本轮已落地] `memory nudge` schema 升级到 `1.1`：增加 `threshold_policy`、`risk_score`、`trend`，并保持 `severity/actions` 兼容字段
-- `memory extract` 可选 LLM 结构化抽取
+- [本轮已落地] `memory extract --structured` 可选 LLM 结构化抽取（mock 回退启发式）
 
 ### 质量与安全
 
-- `quality-gate` 多语言栈模板（前端 monorepo）
-- `security-scan` 规则与 CI 徽章示例
+- [本轮已落地] `quality-gate` 前端 monorepo：**`CAI_QG_FRONTEND_MONOREPO=1`** → **`npm run -ws --if-present lint`**
+- [本轮已落地] `security-scan --badge`：**`security_badge_v1`**（shields.io 兼容）
 - [本轮已落地] `release-ga --json` 门禁聚合：统一汇总 quality-gate / security-scan / token 预算 / 会话失败率，并给出 `state=pass|warn|fail` 与门禁明细
 - [本轮已落地] `release-ga` 扩展门禁：支持 `--with-doctor` 与 `--with-memory-nudge --memory-max-severity`，可把 doctor 健康检查与记忆严重度纳入 GA 判定
 - [本轮已落地] `run_command` 高危命令审批策略：`[permissions].run_command_approval_mode=block_high_risk|allow_all` 与 `run_command_high_risk_patterns`
@@ -78,7 +78,7 @@
 - [本轮已落地] Recall 指标基准入口：`recall-index benchmark`（索引检索 vs 直扫检索耗时、加速比）
 - [本轮已落地] Memory Loop 治理策略增强：`memory prune` 支持 `--min-confidence` / `--max-entries`，输出按原因统计（`expired`/`low_confidence`/`overflow`）
 - [本轮已落地] Workflow 子代理编排增强：step 级 `parallel_group` 并发、`workflow.parallel_group.completed` 事件、`merge_confidence` 汇总
-- [本轮已落地] Subagents 标准 IO 输出增强：`workflow` 结果新增 `subagent_io_schema_version=1.0`、`merge` 结构体（strategy/decision/confidence/conflicts/parallel_groups_count），并在每步 `protocol` 中补充 `schema_version=1.0`
+- [本轮已落地] Subagents 标准 IO 输出增强：`workflow` 结果 **`subagent_io_schema_version`=`1.1`**（每步 **`agent_template_id`** + 可选 **`rpc_step_*`**）、`merge` 结构体（strategy/decision/confidence/conflicts/parallel_groups_count）；历史 **`1.0`** 负载仍可能被旧会话引用
 - [本轮已落地] 发布门禁增强：`release-ga` 支持 `doctor` 健康检查与 `memory nudge` 严重度阈值（`--with-doctor`、`--with-memory-nudge`、`--max-memory-severity`）
 - [本轮已落地] Observability 报表增强：新增 `observe-report`，基于 `observe` 聚合输出标准报表并按阈值生成 alerts（`state=pass|warn|fail`）
 - [本轮已落地] Gateway MVP（Telegram）会话映射：新增 `gateway telegram bind|get|list|unbind`，支持 `chat_id+user_id -> session_file` 的持久化映射（默认 `.cai/gateway/telegram-session-map.json`）
@@ -89,10 +89,23 @@
 - [本轮已落地] Memory Loop 状态机固化：新增 `memory state`（`active/stale/expired` 分布评估）、`memory list --with-state` 状态视图、`memory prune --drop-non-active` 基于状态机的清理路径
 - [本轮已落地] Release GA 门禁矩阵增强：`release-ga` 新增 `--with-memory-state`，支持基于 memory 状态机的 `stale/expired` 占比门禁（`--memory-max-stale-ratio` / `--memory-max-expired-ratio`），并可配置状态判定阈值（`--memory-state-stale-days` / `--memory-state-stale-confidence`）
 
+## A 部分补齐（2026-04-23，§22–§26）
+
+- [本轮已落地] **§22 PII 专项扫描**：`pii-scan [--dir PATH] [--json]` 检测信用卡/CN 身份证/手机号/邮箱/JWT/SSN 等 PII 信息；`pii_scan_result_v1` schema；`test_pii_scan.py`（11 cases）
+- [本轮已落地] **§23 RPC 标准 IO + 内置工作流模板**：`RpcStepInput` / `RpcStepOutput` TypedDict（`rpc_step_input_v1` / `rpc_step_output_v1`）；`workflow --templates` 列出内置模板；`workflow --template <name> --goal <text>` 执行内置模板；三套内置模板：`explore-implement-review`、`security-audit`、`parallel-research`；`test_workflow_templates_rpc.py`（14 cases）
+- [本轮已落地] **§24 Discord Bot Polling MVP**：`gateway discord serve-polling [--token TOKEN] [--channel CHANNEL_ID] [--poll-interval N]`；bind/unbind/get/list/allow/deny 映射管理；`gateway_discord.py`；`test_gateway_discord_slack_cli.py`（19 cases）
+- [本轮已落地] **§24 Slack Events API Webhook MVP**：`gateway slack serve-webhook [--signing-secret S] [--bot-token T] [--host H] [--port P]`；HMAC 签名验证；bind/allow 映射管理；`gateway_slack.py`；`gateway platforms list --json` 中 Discord/Slack 状态升级为 `mvp`
+- [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(task_id, summary, ...)` 任务完成后自动写回 `skills/_evolution_<id>.md`；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py`（8 cases）
+- [本轮已落地] **§26 运营面板 HTML 导出**：`ops dashboard --format html [-o FILE]` 生成自包含单文件 HTML 仪表盘（KPI 卡片、调度 SLA 表、Top 工具表）；`build_ops_dashboard_html(payload)` 函数；`test_ops_dashboard_html.py`（10 cases）
+
 ### 导出与生态
 
-- `export` 维度与 ECC 目录结构 diff 报告
-- 选择性安装或「技能包」manifest（参考 ECC install-plan 思路）
+- [本轮已落地] `export --ecc-diff`：**`export_ecc_dir_diff_v1`**（源 vs **`.cursor/cai-agent-export`**）
+- [本轮已落地] 选择性安装：**`skills hub install`**（manifest + **`--only`** / **`--dry-run`**）
+
+## B 部分补齐（0.7.0，2026-04-23）
+
+与 **`CHANGELOG.md` / `CHANGELOG.zh-CN.md` §0.7.0** 及 **`PRODUCT_PLAN.zh-CN.md` §〇** 对齐的增量：**`session_events`**（**`run_events_envelope_v1`**）、TUI **`/tasks`**、**`hooks` `script`**、**`memory validate-entries` / `extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康**、**`CAI_SKILLS_AUTO_SUGGEST`**、**`CAI_QG_FRONTEND_MONOREPO`** 等；单测 **`pytest cai-agent/tests`** 当前 **505 passed** 量级。
 
 ## 验收习惯（与发布门禁一致）
 

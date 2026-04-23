@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -68,6 +69,59 @@ def _hook_command_argv(hook: dict[str, Any]) -> list[str] | None:
     if isinstance(raw, list) and raw and all(isinstance(x, str) for x in raw):
         return [str(x) for x in raw]
     return None
+
+
+def _hook_script_argv(
+    hook: dict[str, Any],
+    *,
+    hooks_file: Path,
+    project_root: Path,
+) -> tuple[list[str] | None, str | None]:
+    """将 ``script`` 解析为可执行 argv；路径相对 ``hooks.json`` 所在目录且必须在项目根下。"""
+    raw = hook.get("script")
+    if not isinstance(raw, str) or not raw.strip():
+        return None, None
+    rel = raw.strip().replace("\\", "/")
+    candidate = (hooks_file.parent / rel).resolve()
+    try:
+        candidate.relative_to(project_root.resolve())
+    except ValueError:
+        return None, "script_outside_workspace"
+    if not candidate.is_file():
+        return None, "script_missing"
+    ext = candidate.suffix.lower()
+    if ext == ".py":
+        return [sys.executable, str(candidate)], None
+    if ext == ".sh":
+        if sys.platform == "win32":
+            sh = shutil.which("bash") or shutil.which("sh")
+            if not sh:
+                return None, "script_runner_missing"
+            return [sh, str(candidate)], None
+        return ["/bin/sh", str(candidate)], None
+    if ext == ".ps1" and sys.platform == "win32":
+        pw = shutil.which("powershell.exe") or shutil.which("pwsh")
+        if not pw:
+            return None, "script_runner_missing"
+        return [str(pw), "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", str(candidate)], None
+    if sys.platform == "win32" and ext in (".cmd", ".bat"):
+        return ["cmd.exe", "/c", str(candidate)], None
+    return [str(candidate)], None
+
+
+def _hook_argv_for_hook(
+    hook: dict[str, Any],
+    *,
+    hooks_file: Path | None,
+    project_root: Path,
+) -> tuple[list[str] | None, str | None]:
+    """优先 ``command``；否则尝试 ``script``（需能解析 ``hooks.json`` 路径）。"""
+    cmd = _hook_command_argv(hook)
+    if cmd is not None:
+        return cmd, None
+    if hooks_file is None:
+        return None, "no_command"
+    return _hook_script_argv(hook, hooks_file=hooks_file, project_root=project_root)
 
 
 def _normalize_hook_argv_for_platform(argv: list[str]) -> list[str]:
@@ -144,11 +198,20 @@ def enabled_hook_ids(
     hooks = doc.get("hooks")
     if not isinstance(hooks, list):
         return []
+    hf = hooks_path or resolve_hooks_json_path(settings)
+    root = _project_root(settings)
     out: list[str] = []
     for h in hooks:
         if not isinstance(h, dict):
             continue
-        row = _classify_hook_for_event(settings, event, h, dry_run=False)
+        row = _classify_hook_for_event(
+            settings,
+            event,
+            h,
+            dry_run=False,
+            hooks_file=hf,
+            project_root=root,
+        )
         if row is None:
             continue
         if row.get("status") != "_run":
@@ -165,6 +228,8 @@ def _classify_hook_for_event(
     h: dict[str, Any],
     *,
     dry_run: bool,
+    hooks_file: Path | None = None,
+    project_root: Path | None = None,
 ) -> dict[str, Any] | None:
     """单条 hook 在指定 event 下的分类；不匹配 event 返回 None。"""
     if str(h.get("event", "")).strip() != event:
@@ -181,9 +246,11 @@ def _classify_hook_for_event(
         return {"id": hid, "status": "skipped", "reason": "disabled_by_config"}
     if not bool(h.get("enabled", True)):
         return {"id": hid, "status": "skipped", "reason": "hook_disabled"}
-    argv = _hook_command_argv(h)
+    root = project_root or _project_root(settings)
+    argv, scr_reason = _hook_argv_for_hook(h, hooks_file=hooks_file, project_root=root)
     if argv is None:
-        return {"id": hid, "status": "skipped", "reason": "no_command"}
+        reason = scr_reason or "no_command"
+        return {"id": hid, "status": "skipped", "reason": reason}
     profile = settings.hooks_profile.strip().lower()
     if profile not in ("minimal", "standard", "strict"):
         profile = "standard"
@@ -210,11 +277,20 @@ def preview_project_hooks(
     hooks = doc.get("hooks")
     if not isinstance(hooks, list):
         return []
+    hf = hooks_path or resolve_hooks_json_path(settings)
+    root = _project_root(settings)
     out: list[dict[str, Any]] = []
     for h in hooks:
         if not isinstance(h, dict):
             continue
-        row = _classify_hook_for_event(settings, event, h, dry_run=True)
+        row = _classify_hook_for_event(
+            settings,
+            event,
+            h,
+            dry_run=True,
+            hooks_file=hf,
+            project_root=root,
+        )
         if row is None:
             continue
         out.append(row)
@@ -250,6 +326,7 @@ def describe_hooks_catalog(
     profile = settings.hooks_profile.strip().lower()
     if profile not in ("minimal", "standard", "strict"):
         profile = "standard"
+    root = _project_root(settings)
     rows: list[dict[str, Any]] = []
     for h in hooks:
         if not isinstance(h, dict):
@@ -257,7 +334,7 @@ def describe_hooks_catalog(
         hid = str(h.get("id", "")).strip()
         ev = str(h.get("event", "")).strip()
         en = bool(h.get("enabled", True))
-        argv = _hook_command_argv(h)
+        argv, _sr = _hook_argv_for_hook(h, hooks_file=p, project_root=root)
         has_cmd = argv is not None
         dis = bool(hid and hid.lower() in disabled)
         skip_reason: str | None = None
@@ -268,7 +345,7 @@ def describe_hooks_catalog(
         elif not en:
             skip_reason = "hook_disabled"
         elif not has_cmd:
-            skip_reason = "no_command"
+            skip_reason = _sr or "no_command"
         elif profile == "minimal":
             skip_reason = "hooks.profile=minimal"
         elif has_cmd and argv is not None:
@@ -281,6 +358,7 @@ def describe_hooks_catalog(
                 "event": ev or None,
                 "enabled": en,
                 "has_command": has_cmd,
+                "has_script": bool(isinstance(h.get("script"), str) and str(h.get("script")).strip()),
                 "disabled_by_config": dis,
                 "skip_or_block_reason": skip_reason,
             },
@@ -300,13 +378,14 @@ def run_project_hooks(
     *,
     hooks_path: Path | None = None,
 ) -> list[dict[str, Any]]:
-    """执行 hooks.json 中匹配 event 且含 command 数组的外部钩子（受 profile / 禁用 / 安全规则约束）。"""
+    """执行 hooks.json 中匹配 event 且含 ``command`` 或可解析 ``script`` 的外部钩子（受 profile / 禁用 / 安全规则约束）。"""
     doc = _load_hooks_doc(settings, hooks_path=hooks_path)
     if doc is None:
         return []
     hooks = doc.get("hooks")
     if not isinstance(hooks, list):
         return []
+    hooks_file = hooks_path or resolve_hooks_json_path(settings)
     profile = settings.hooks_profile.strip().lower()
     if profile not in ("minimal", "standard", "strict"):
         profile = "standard"
@@ -325,14 +404,21 @@ def run_project_hooks(
     for h in hooks:
         if not isinstance(h, dict):
             continue
-        row = _classify_hook_for_event(settings, event, h, dry_run=False)
+        row = _classify_hook_for_event(
+            settings,
+            event,
+            h,
+            dry_run=False,
+            hooks_file=hooks_file,
+            project_root=root,
+        )
         if row is None:
             continue
         if row.get("status") != "_run":
             results.append(row)
             continue
         hid = str(row.get("id", "")).strip()
-        argv = _hook_command_argv(h)
+        argv, _ = _hook_argv_for_hook(h, hooks_file=hooks_file, project_root=root)
         if argv is None:
             continue
         argv = _normalize_hook_argv_for_platform(argv)

@@ -177,6 +177,37 @@ class HookRuntimeTests(unittest.TestCase):
             out = run_project_hooks(s, "observe_start", {})
             self.assertEqual(out[0].get("status"), "blocked")
 
+    def test_script_hook_runs_python(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            hdir = root / "hooks"
+            hdir.mkdir(parents=True, exist_ok=True)
+            script = hdir / "ping.py"
+            script.write_text("print('pong')\n", encoding="utf-8")
+            (hdir / "hooks.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "hooks": [
+                            {
+                                "id": "py-hook",
+                                "event": "observe_start",
+                                "enabled": True,
+                                "script": "ping.py",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+            s = _settings_for_root(root, hooks_profile="standard", hooks_timeout_sec=15.0)
+            out = run_project_hooks(s, "observe_start", {})
+            self.assertEqual(len(out), 1)
+            self.assertEqual(out[0].get("status"), "ok")
+            self.assertIn("pong", str(out[0].get("stdout") or ""))
+
 
 if __name__ == "__main__":
     unittest.main()

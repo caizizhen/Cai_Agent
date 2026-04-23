@@ -19,6 +19,11 @@
 - `observe_start` / `observe_end`：包裹 `cai-agent observe`；人类可读一行摘要末尾会带 `run_events_total=…`（与 JSON 中 `aggregates` 对齐）。
 - `cost_budget_start` / `cost_budget_end`：包裹 `cai-agent cost budget`（stdout 恒为一行 JSON）。
 
+## `hooks.json` 条目字段
+
+- `command`：字符串数组，非空时作为子进程 argv 执行（与历史行为一致）。
+- `script`：可选，相对 `hooks.json` 所在目录的路径；须落在项目根内。支持 `.py`（用当前解释器）、`.sh`（POSIX 或 Windows 上 `bash`/`sh`）、Windows 下 `.ps1` / `.cmd` / `.bat`。与 `command` 二选一即可触发执行。
+
 ## 设计原则
 
 - 可控：所有 hook 支持开关或按环境禁用。

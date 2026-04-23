@@ -10,6 +10,7 @@ from cai_agent.config import Settings
 from cai_agent.context import augment_system_prompt
 from cai_agent.llm import extract_json_object, get_last_usage
 from cai_agent.llm_factory import chat_completion_by_role
+from cai_agent.progress_ring import global_ring
 from cai_agent.tools import dispatch, tools_spec_markdown
 
 
@@ -17,6 +18,11 @@ def _emit(
     progress: Callable[[dict[str, Any]], None] | None,
     payload: dict[str, Any],
 ) -> None:
+    # 始终写入 global ring（低开销；ring 全局生命周期内自动轮转）
+    try:
+        global_ring().push(payload)
+    except Exception:
+        pass
     if not progress:
         return
     try:
@@ -134,6 +140,20 @@ def build_app(
                     },
                 )
                 compact_hint_sent = True
+                budget = int(getattr(settings, "cost_budget_max_tokens", 0) or 0)
+                if budget > 0:
+                    snap = get_last_usage()
+                    total_u = int(snap.get("total_tokens") or 0)
+                    if total_u > int(budget * 0.85):
+                        messages.append(
+                            {
+                                "role": "user",
+                                "content": (
+                                    f"[成本提示] 累计 tokens≈{total_u}，已接近配置预算 {budget}；"
+                                    "请压缩输出或结束本轮。"
+                                ),
+                            },
+                        )
 
         _emit(
             progress,

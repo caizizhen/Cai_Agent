@@ -15,32 +15,30 @@
 
 | 领域 | 已具备能力（摘要） |
 |------|---------------------|
-| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；`workflow` JSON（含 `task_id`、`parallel_group`、`subagent_io`、`on_error`、预算字段等）；`init`、`doctor`、`release-ga` |
-| **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单、`fetch_url`（白名单 + 权限） |
-| **质量与 CI** | `fix-build`、`security-scan --json`、`quality-gate` |
+| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
+| **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
+| **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
-| **模型与 UI** | `[[models.profile]]`、`cai-agent models`、TUI `/models`；会话落盘含 `profile` |
-| **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --json`**（聚合 board + 调度 SLA + 成本 rollup） |
-| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略、**`memory user-model`**（占位）；S2  freshness / conflict / coverage / nudge-report 与 health 联动等 |
+| **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板，见 **`tui_task_board.py`**）；会话落盘含 `profile` |
+| **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘） |
+| **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
 | **跨会话** | `insights`、`recall`（含 sort、`no_hit_reason`、schema 演进）、`recall-index`（build/refresh/doctor/info/benchmark 等） |
 | **调度** | `schedule` CRUD、`daemon`、`run-due`、依赖与环检测、审计 JSONL（S4-04 七种事件）、跨轮次重试退避、并发上限、`schedule stats`（SLA） |
-| **Hooks** | `hooks` CLI、`hooks list`、`hooks run-event`（dry-run JSON）、与 runner 对齐 |
-| **LLM 健壮性** | HTTP 重试、`max_http_retries`、Transport / 畸形 JSON 等重试路径 |
-| **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway platforms list --json`**（多平台目录：Telegram 等 **full**，Discord/Slack 等 **stub/planned**）；**`gateway status --json`** |
-| **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest） |
-| **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
+| **Hooks** | `hooks` CLI、`hooks list`、`hooks run-event`（**`--dry-run`** / 实跑 JSON **`hooks_run_event_result_v1`**）；**`hooks.json`** 支持 **`script`**（`.py`/`.sh`/`.ps1`/…）与 **`command[]`**，路径逃逸防护；与 runner 对齐 |
+| **LLM 健壮性** | HTTP 重试、`max_http_retries`、Transport / 畸形 JSON 等重试路径；**`compact_hint`** 与 **`cost_budget_max_tokens`** 联动（约 **85%** 预算时追加成本提示） |
+| **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway discord`** Bot Polling MVP（`serve-polling` + bind/allow）；**`gateway slack`** Events API Webhook MVP（`serve-webhook` + bind/allow）；**`gateway platforms list --json`**（Discord/Slack 状态升级为 `mvp`）；**`gateway status --json`** |
+| **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest）；**`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**，源目录 vs **`.cursor/cai-agent-export`** 差异报告，不写盘） |
+| **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
 | **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)） |
-| **技能 Hub（MVP）** | **`skills hub manifest --json`**；**`skills hub suggest`**（可选落盘演进建议稿） |
+| **技能 Hub** | **`skills hub manifest --json`**；**`skills hub suggest`**；**`skills hub install`**（manifest 选择性安装，`--only`/`--dry-run`）；**`skills hub serve`**；**`auto_extract_skill_after_task`**；**`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 后 dry-run 落盘演进草稿 |
+| **子代理 / RPC** | `parallel_group`、**`subagent_io`**（**`subagent_io_schema_version`=`1.1`**，每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、`on_error`、预算控制；**RPC 标准 IO TypedDict**；**`agent_templates`** 与 **`workflow --templates`**（三套内置模板） |
 
-### 〇.2 未完成或仅部分交付（与 Hermes 全量 / 理想形态仍有差距）
+### 〇.2 仍有差距或待演进（P2 方向）
 
-| 领域 | 缺口说明 | 对应 §二 |
-|------|----------|----------|
-| **安全交互** | `security-scan` 已可用；**高危命令可配置的二次确认**、面向 prompt/文件的**敏感信息专项扫描**仍属增量 | **22** |
-| **子代理 / RPC** | 已有 `parallel_group`、`subagent_io`、`on_error`、**workflow 内预算**；**RPC 级标准 IO**、更完整的「探索-实现-评审」模板仍待加强 | **23** |
-| **多平台 Gateway** | **`gateway platforms`** 为目录 + 运行时信号 + **stub**；Discord/Slack 等 **真机 Bot 运行时**未等同 Hermes | **24** |
-| **技能自进化** | 已有 **manifest / suggest**；**任务后自动提炼并写回 skills**、Skills Hub **运行时分发**未闭环 | **25** |
-| **运营形态** | **`ops dashboard` 为 JSON**；**Web 可视化运营 UI**、队列拖拽类体验未做 | **26** |
+| 领域 | 说明 | 对应 §二 |
+|------|------|----------|
+| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；**动态 Web 可视化**（队列拖拽、实时刷新等）仍为 P2 | **26（后续）** |
+| **Gateway 全量** | Discord/Slack 已有 MVP；Slash Commands、频道监控、多工作区等**生产级特性**仍为后续 Sprint | **24（后续）** |
 | **运行后端（P2）** | Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
 
@@ -50,12 +48,13 @@
 
 | 维度 | Hermes（上游） | 本仓 | 本表状态 |
 |------|----------------|------|----------|
-| 多平台网关 | 全渠道统一 gateway | Telegram **full** + `gateway platforms` **目录 + stub** | **部分完成** → **§二 24** |
-| 技能自进化 | 自动生成 / 改进 skills、Hub | manifest + suggest；**无**自动闭环 | **部分完成** → **§二 25** |
+| 多平台网关 | 全渠道统一 gateway | Telegram **full** + Discord/Slack **mvp** + `gateway platforms` 目录 | **完成（MVP）** → **§二 24** |
+| 技能自进化 | 自动生成 / 改进 skills、Hub | manifest + suggest + **auto_extract** + **hub serve** | **完成** → **§二 25** |
 | 定时与投递 | cron + 多平台投递 | `schedule` 系 **已对齐 MVP** | **完成** |
 | 跨会话检索 | FTS5 + LLM 摘要等 | `recall` / `recall-index` / `insights` | **完成** |
-| 记忆治理 | nudge、健康度、用户建模 | health / nudge / **`memory user-model`** 占位 | **部分完成** → **§二 9–10** |
-| 子代理 / 并行 | 隔离子 agent、RPC | `workflow` 并行组 + **`subagent_io` + 错误策略 + 预算** | **部分完成** → **§二 23** |
+| 记忆治理 | nudge、健康度、用户建模 | health / nudge / **`memory user-model`** 行为偏好抽取（**`behavior_extract`**，非完整 Honcho 引擎） | **部分完成** → **§二 9–10** |
+| 子代理 / 并行 | 隔离子 agent、RPC | `workflow` 并行组 + `subagent_io` + 错误策略 + 预算 + **RPC IO TypedDict** + **内置模板** | **完成** → **§二 23** |
+| 安全 / PII | secret 扫描 + PII 防泄漏 | `security-scan` + **`pii-scan`**（PII 专项） | **完成** → **§二 22** |
 | 运行后端 | Modal / Daytona 等 | 本机 + 配置为主 | **未开始（P2）** |
 | 语音 / Bridge | 产品化 | **OOS / MCP** | **定案** |
 
@@ -67,30 +66,30 @@
 |------|--------|------|-------------|
 | 1 | 核心 CLI：`plan` / `run` / `continue` / `command` / `workflow` | **完成** | README；`workflow_run_v1`、根级 `task_id` |
 | 2 | 工作区工具 + 沙箱 + Shell 白名单 | **完成** | `sandbox.py`、`tools.py` |
-| 3 | `fix-build`、`security-scan`、`quality-gate` | **完成** | 回归与 pytest |
+| 3 | `fix-build`、`security-scan`（**`--json`** / **`--badge`**）、`quality-gate` | **完成** | 回归与 pytest；**`security_badge_v1`** |
 | 4 | 插件发现 `plugins --json` | **完成** | |
-| 5 | 多模型 profile、`models` CLI、TUI `/models`、`session` 含 `profile` | **完成** | |
+| 5 | 多模型 profile、`models` CLI、**`models suggest`**、TUI `/models`/`/tasks`、`session` 含 `profile` | **完成** | **`models_suggest_v1`**；**`tui_task_board`** |
 | 6 | `board --json` 与 `observe` 同源、`observe_schema_version` | **完成** | |
 | 7 | `fetch_url` + MCP Web 配方 | **完成** | [`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md) |
 | 8 | WebSearch/Notebook | **定案 MCP 优先** | [`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md) |
-| 9 | 记忆 CLI 全家桶 + **`memory user-model`**（占位） | **完成（持续演进）** | `memory.py`、`__main__.py`、`test_memory_*` |
+| 9 | 记忆 CLI 全家桶 + **`memory user-model`**（**`behavior_extract`**）+ **`validate-entries`** / **`extract --structured`** | **完成（持续演进）** | `memory.py`、`user_model.py`、`test_memory_*`、`test_memory_validate_entries_cli.py` |
 | 10 | **S2-01** `memory health` | **完成** | `build_memory_health_payload`、`test_memory_health_cli.py`；PR #12 见 **§四** |
 | 11 | `insights`、`recall`、`recall-index` | **完成** | |
 | 12 | `schedule` / `daemon` / 依赖与审计 / stats / 重试 / 并发 | **完成** | S4-01～S4-05；见 PROGRESS |
-| 13 | Hooks CLI + runtime | **完成** | `hook_runtime.py`、`test_hooks_cli.py` |
+| 13 | Hooks CLI + runtime（**`script`** + **`command`**、实跑 **`run-event`**） | **完成** | `hook_runtime.py`、`test_hooks_cli.py`、`test_hook_runtime.py` |
 | 14 | LLM 传输重试、`max_http_retries` | **完成** | `test_llm_transport_error_retry.py` |
-| 15 | `gateway telegram` + **`gateway platforms`** + **`gateway status`** + continue-hint 等 | **完成** | `test_gateway_telegram_cli.py` 等；平台矩阵见 **§〇.2** |
-| 16 | `export` 多 harness | **完成（基础）** | |
+| 15 | `gateway telegram` + **`gateway platforms`** + **`gateway status`** + continue-hint 等 | **完成** | `test_gateway_telegram_cli.py` 等；平台矩阵见 **§〇.1** |
+| 16 | `export` 多 harness + **`export --ecc-diff`** | **完成（基础）** | **`export_ecc_dir_diff_v1`** |
 | 17 | Hermes **S2-02～S2-05** | **完成** | 与 PROGRESS ✅ 表一致 |
 | 18 | **S1-02** JSON schema 契约 | **完成** | 索引：[`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02**；调度/审计长文见 `docs/schema/SCHEDULE_*.zh-CN.md`；冒烟见 `scripts/smoke_new_features.py` |
 | 19 | **S1-03** exit 0/2/130 | **完成** | 同上 **§ S1-03** |
 | 20 | **S4-04** 审计 JSONL 七种事件 | **完成** | [`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) |
-| 21 | **`task_id` 贯通** + **`ops dashboard` JSON** | **完成** | `run`/`continue`/`workflow`/`sessions`/`observe`；**Web Dashboard** 仍为后续 |
-| 22 | 敏感扫描、高危命令二次确认 | **部分完成** | **`security-scan --json`** 已合冒烟；**二次确认策略**见 [`NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`](NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md) |
-| 23 | 子 Agent IO、编排模板 | **部分完成** | **`parallel_group` + `subagent_io` + `on_error` + 预算**（S5-01～S5-04）；**RPC 标准 IO** 仍增量 |
-| 24 | 多平台 Gateway 对齐 Hermes | **部分完成（MVP）** | **`gateway_platforms_v1`**；真机 Discord/Slack 等仍待 Sprint |
-| 25 | 技能自进化 / Hub | **部分完成（MVP）** | **`skills_hub_manifest_v1` + `skills_evolution_suggest_v1`**；**自动写 skills** 仍待 Sprint |
-| 26 | 运营面板 | **部分完成（MVP）** | **`ops_dashboard_v1`**（JSON）；**Web 运营 UI** 为 P2 |
+| 21 | **`task_id` 贯通** + **`ops dashboard` JSON** | **完成** | `run`/`continue`/`workflow`/`sessions`/`observe` |
+| 22 | 敏感扫描、高危命令二次确认 | **完成** | `security-scan --json`（密钥扫描）+ **`pii-scan`**（`pii_scan_result_v1`，覆盖信用卡/身份证/手机号/JWT/SSN）+ `run_command_approval_mode` 高危二次确认；`test_pii_scan.py`（11 cases） |
+| 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
+| 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack 升级 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；bind/unbind/get/list/allow 完整映射管理；`test_gateway_discord_slack_cli.py`（19 cases） |
+| 25 | 技能自进化 / Hub | **完成** | `skills_hub_manifest_v1` + `skills_evolution_suggest_v1` + **`skills hub install`**；**`auto_extract_skill_after_task`**；**`skills hub serve`**；**`CAI_SKILLS_AUTO_SUGGEST`**；`test_skills_auto_extract_hub_serve.py`（8 cases） |
+| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘（KPI 卡片 + 调度 SLA 表 + Top 工具表）；**`-o FILE`** 落盘；`test_ops_dashboard_html.py`（10 cases） |
 
 ---
 
@@ -98,7 +97,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 以本机/CI 最近一次全绿为准（例：**442 passed**、**3 subtests**；版本号以 `cai-agent --version` 为准） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 最近全绿（**505 passed** 量级；含 **0.7.0** 增量：`session_events` 信封、`test_memory_validate_entries_cli` / `test_hook_runtime` / 上述 A 部分 cases 等） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | `PYTHONPATH=cai-agent/src` + `python -m cai_agent`；`docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测计划 | 文档 | **已写** | [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
@@ -118,27 +117,26 @@
 
 | 口径 | 计算方式 | 当前值（与 §二一致时更新） |
 |------|----------|---------------------------|
-| **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 94%**（20+1+1+5×0.5 = **24.5** → **24.5/26≈94.2%**） |
-| **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准（若与 §二口径冲突，**以 PROGRESS 的 Story 定义为准**） |
-| **T1** | pytest 全绿 | 同 §三 T1 |
+| **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 100%**（22完成 + 1定案 + 1持续演进 + 2MVP完成 = **26** → **26/26=100%**） |
+| **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
+| **T1** | pytest 全绿 | 同 §三 T1（含 A 部分新增 59 cases） |
 
 ### 3.1 §二 状态计数
 
 | 状态 | 数量 | 编号 |
 |------|------|------|
-| **完成** | **20** | 1–7、10–21 |
+| **完成** | **24** | 1–7、10–26（其中 24/26 为 MVP 完成） |
 | **定案** | **1** | 8 |
 | **持续演进** | **1** | 9 |
-| **部分完成** | **5** | 22–26 |
+| **部分完成** | **0** | — |
 | **未开始** | **0** | — |
 
-### 3.2 后续大颗粒（与 §〇.2 对应）
+### 3.2 后续演进方向（P2，非阻断发布）
 
 | 项 | 说明 |
 |----|------|
-| **24** | Discord/Slack 等 **真机** gateway 与 Hermes 对齐 |
-| **25** | 任务后 **自动** 生成/改进 skills、Hub **运行时** |
-| **26** | **Web** 运营 UI、队列可视化 |
+| **24 后续** | Discord/Slack Slash Commands、频道监控、多工作区等生产级特性 |
+| **26 后续** | 动态 Web 运营 UI（实时刷新、队列可视化） |
 | **§一 P2** | Modal/Daytona 类后端（若立项） |
 
 ### 3.3 QA 移交顺序
@@ -171,4 +169,4 @@
 
 ---
 
-*文档版本：2026-04-23 — 重组 **§〇**「已完成 / 未完成」总览；精简 §二～§三之二与页脚。*
+*文档版本：2026-04-23 — 在 A 部分（§22–§26）已合入基础上，同步 **0.7.0** 能力：`run_schema_version`/`run_events_envelope_v1`、TUI `/tasks`、`hooks` **`script`**、**`memory validate-entries`/`extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康** 等；**`CHANGELOG.md` §0.7.0** 为英文权威条目，本表与 **`PARITY_MATRIX`** / **`NEXT_IMPLEMENTATION_BUNDLE`** 对齐；**发行 tarball 版本号** 以 **`cai-agent/pyproject.toml`** / **`cai_agent.__version__`** 为准（若尚未 bump 至 0.7.0，以仓库实际为准）。*

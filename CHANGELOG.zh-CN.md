@@ -4,6 +4,29 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.7.0（2026-04-23）
+
+- **会话 `events` 信封（`run_schema_version=1.1`）**：`run`/`continue`/`command`/`agent`/`fix-build` 的 **`--json`** 将 **`events`** 包在稳定的 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）内，不再输出裸数组。`observe` / `sessions` 经 **`normalize_session_run_events`** 兼容旧列表与新信封。各失败路径（`goal_empty`、`load_session_failed`、`interrupted` 等）同样输出结构化信封。
+- **TUI 任务看板**：**`/tasks`** 与 **`Ctrl+B`** 只读面板（**`.cai-schedule.json`** 与 **`.cai/last-workflow.json`**），实现见 **`tui_task_board.py`**。
+- **Hooks `script` 自动执行**：**`hook_runtime.py`** 除 **`command[]`** 外解析 **`script`**（`.py`/`.sh`/`.ps1`/`.cmd`/`.bat`），含路径逃逸防护与平台规范化；**`hooks/README.md`** 已更新。
+- **`memory validate-entries`**：新子命令 → **`memory_entries_file_validate_v1`**；无脏行 exit **`0`**，有无效行 exit **`2`**；底层为 **`build_memory_entries_jsonl_validate_report`**。
+- **`memory extract --structured`**：可选 LLM 结构化抽取；mock/无 key 时回退启发式（**`extract_memory_entries_structured`**）。
+- **子 Agent IO schema v1.1**：`workflow` JSON 提升 **`subagent_io_schema_version`** 至 **`1.1`**；每步含 **`agent_template_id`**（与 **`agents/`** 目录匹配）及来自 **`protocol`** 的 **`rpc_step_input`/`rpc_step_output`**。
+- **`plan --json` 稳定 schema**：**`goal_empty`** 错误含 **`"task": null`**；各失败分支含 **`plan_schema_version`**。
+- **`hooks run-event` 实跑**：非 **`--dry-run`** 时执行匹配脚本/命令（与 **`script`** 字段贯通）。
+- **前端 monorepo 质量门禁**：**`CAI_QG_FRONTEND_MONOREPO=1`** 且存在 **`package.json`** 时，自动在 quality-gate 中追加 **`npm run -ws --if-present lint`**。
+- **`export --ecc-diff`**：**`export_ecc_dir_diff_v1`**，对比仓库源目录与 **`.cursor/cai-agent-export`**，不写文件。
+- **`skills hub install`**：从 **`skills_hub_manifest_v1`** JSON 选择性拷贝技能到目标目录（**`--only`**、**`--dry-run`**）。
+- **进度环形缓冲（`progress_ring.py`）**：**`graph.py`** 的 **`_emit`** 同步写入全局 **`ProgressRing`**；**`run --json`** 含 **`progress_ring`**（如 **`phase_distribution`**）；每次调用前 **`reset_global_ring()`**。
+- **compact 与成本预算联动**：**`compact_hint`** 触发且累计 token 超过 **`cost_budget_max_tokens`** 约 **85%** 时，向对话注入额外成本提示。
+- **`models suggest`**：按任务描述启发式推荐 profile → **`models_suggest_v1`**。
+- **`security-scan --badge`**：追加 **`security_badge_v1`**（shields.io 兼容）JSON 行；**`message`/`color`** 反映命中数与严重度。
+- **`memory user-model` 升级**：由 stub 升级为行为抽取（工具频次、错误率、近期 goal 预览）→ **`honcho_parity: behavior_extract`**。
+- **`doctor` `.cai/` 健康**：**`build_doctor_cai_dir_health`** 将网关映射存在性与 **`hooks.json`** 合法性并入 JSON 与文本 **`doctor`** 输出。
+- **技能自动建议钩子**：设置 **`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 自动 **`build_skill_evolution_suggest`** 并 dry-run 落盘 **`skills/_evolution_*.md`**。
+- **文档**：新增 **`docs/ONBOARDING.zh-CN.md`**；**`docs/TOOLS_REGISTRY.zh-CN.md`** 汇总 13 个工具与权限键。
+- **测试**：**`test_memory_validate_entries_cli.py`**、**`test_hook_runtime.py`**（script hook）；**`test_plan_sessions_cli.py`** / **`test_cli_workflow.py`** / **`test_gateway_telegram_execute_goal.py`** / **`test_session_observe.py`** / **`test_stats_json.py`** / **`test_cli_board_and_workflow_snapshot.py`** 等随 schema 版本升级同步。
+
 ### 0.6.18（2026-04-23）
 
 - **多平台网关 / 技能自进化 / 记忆（MVP 切片）**：**`gateway platforms list --json`** 增补 **`telegram_webhook_pid_exists`**、**`telegram_bot_token_env_present`** 及各 stub 平台 **`env_present`**（仅布尔，不落密钥）。新增 **`skills hub suggest`** → **`skills_evolution_suggest_v1`**（可选 **`--write`** 写入 **`skills/_evolution_*.md`** 草稿，已存在则跳过）。新增 **`memory user-model --json`** → **`memory_user_model_v1`**（会话 mtime 窗口 + 可选 **`.cai/user-model.json`**；**`honcho_parity: stub`**）。**`CAI_METRICS_JSONL`**：**`skills.evolution_suggest`**、**`memory.user_model`**。**`smoke_new_features`** 已抽样。

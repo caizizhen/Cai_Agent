@@ -6,8 +6,9 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, TypedDict
 
+from cai_agent.agent_registry import list_agent_names
 from cai_agent.config import Settings
 from cai_agent.agents import create_agent
 from cai_agent.graph import build_app, initial_state
@@ -19,6 +20,211 @@ from cai_agent.memory import (
 from cai_agent.task_state import new_task
 
 ROLE_RANK = {"default": 1, "explorer": 2, "reviewer": 3, "security": 4}
+
+# ---------------------------------------------------------------------------
+# RPC 标准 IO schema（§23 补齐）
+# 子代理之间的标准化请求/响应结构，供编排器与子代理通信时引用。
+# ---------------------------------------------------------------------------
+
+class RpcStepInput(TypedDict, total=False):
+    """子代理 RPC 输入载荷（schema_version=rpc_step_input_v1）。"""
+    schema_version: str         # 固定 "rpc_step_input_v1"
+    task_id: str                # 父任务 ID（由编排器注入）
+    workflow_task_id: str       # workflow 级 task_id
+    step_index: int             # 本步骤在 workflow 中的序号（1-based）
+    name: str                   # 步骤名称
+    goal: str                   # 执行目标
+    role: str                   # agent 角色：default / explorer / reviewer / security
+    parallel_group: Optional[str]  # 并行组名称（无并行时为 None）
+    workspace: str              # 执行工作区绝对路径
+    model: Optional[str]        # 覆盖模型（None 表示使用全局配置）
+    context: dict               # 上游步骤输出摘要，key=step_name, value=answer[:500]
+    budget_remaining_tokens: Optional[int]  # 剩余预算（None 表示无限制）
+
+
+class RpcStepOutput(TypedDict, total=False):
+    """子代理 RPC 输出载荷（schema_version=rpc_step_output_v1）。"""
+    schema_version: str         # 固定 "rpc_step_output_v1"
+    task_id: str
+    step_index: int
+    name: str
+    ok: bool                    # 步骤是否成功完成
+    answer: str                 # 步骤产出的最终答案
+    error: Optional[str]        # 错误描述（ok=False 时填写）
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    elapsed_ms: int
+    tool_calls_count: int
+    used_tools: list            # 实际调用的工具名列表
+    protocol: dict              # 原始 protocol 字段（input/output/error）
+
+
+def build_rpc_step_input(
+    *,
+    task_id: str,
+    workflow_task_id: str,
+    step_index: int,
+    name: str,
+    goal: str,
+    role: str = "default",
+    parallel_group: Optional[str] = None,
+    workspace: str,
+    model: Optional[str] = None,
+    upstream_results: Optional[List[Dict[str, Any]]] = None,
+    budget_remaining_tokens: Optional[int] = None,
+) -> RpcStepInput:
+    """构造标准化 RPC 输入载荷，供编排器传给子代理。"""
+    context: dict[str, str] = {}
+    if upstream_results:
+        for r in upstream_results:
+            n = str(r.get("name") or "")
+            a = str(r.get("answer") or "")
+            if n:
+                context[n] = a[:500]
+    return RpcStepInput(
+        schema_version="rpc_step_input_v1",
+        task_id=task_id,
+        workflow_task_id=workflow_task_id,
+        step_index=step_index,
+        name=name,
+        goal=goal,
+        role=role,
+        parallel_group=parallel_group,
+        workspace=workspace,
+        model=model,
+        context=context,
+        budget_remaining_tokens=budget_remaining_tokens,
+    )
+
+
+def build_rpc_step_output(step_result: Dict[str, Any]) -> RpcStepOutput:
+    """从 `_run_single_step` 的结果构造标准化 RPC 输出载荷。"""
+    ok = bool(step_result.get("finished")) and int(step_result.get("error_count") or 0) == 0
+    return RpcStepOutput(
+        schema_version="rpc_step_output_v1",
+        task_id=str(step_result.get("task_id") or ""),
+        step_index=int(step_result.get("index") or 0),
+        name=str(step_result.get("name") or ""),
+        ok=ok,
+        answer=str(step_result.get("answer") or ""),
+        error=(
+            None if ok
+            else str((step_result.get("protocol") or {}).get("error") or "unknown_error")
+        ),
+        prompt_tokens=int(step_result.get("prompt_tokens") or 0),
+        completion_tokens=int(step_result.get("completion_tokens") or 0),
+        total_tokens=int(step_result.get("total_tokens") or 0),
+        elapsed_ms=int(step_result.get("elapsed_ms") or 0),
+        tool_calls_count=int(step_result.get("tool_calls_count") or 0),
+        used_tools=list(step_result.get("used_tools") or []),
+        protocol=dict(step_result.get("protocol") or {}),
+    )
+
+
+# ---------------------------------------------------------------------------
+# 内置 Workflow 模板（§23 补齐：探索-实现-评审 等预设模板）
+# ---------------------------------------------------------------------------
+
+_BUILTIN_TEMPLATES: dict[str, dict[str, Any]] = {
+    "explore-implement-review": {
+        "description": "三阶段经典流程：探索（Explorer）→ 实现（Default）→ 评审（Reviewer）",
+        "on_error": "fail_fast",
+        "merge_strategy": "role_priority",
+        "steps": [
+            {
+                "name": "explore",
+                "role": "explorer",
+                "goal": "{{GOAL}} —— 阶段：代码库/需求探索，输出结构摘要与关键文件清单",
+            },
+            {
+                "name": "implement",
+                "role": "default",
+                "goal": "{{GOAL}} —— 阶段：根据探索结果实现功能，输出完整可运行代码",
+            },
+            {
+                "name": "review",
+                "role": "reviewer",
+                "goal": "{{GOAL}} —— 阶段：对 implement 步骤的输出进行代码评审，给出 LGTM 或改进建议",
+            },
+        ],
+    },
+    "security-audit": {
+        "description": "安全专项：探索攻击面 → 扫描漏洞 → 给出修复建议",
+        "on_error": "continue_on_error",
+        "merge_strategy": "last_wins",
+        "steps": [
+            {
+                "name": "attack-surface",
+                "role": "security",
+                "goal": "{{GOAL}} —— 阶段：梳理攻击面，列出高风险入口",
+            },
+            {
+                "name": "scan",
+                "role": "security",
+                "goal": "{{GOAL}} —— 阶段：扫描已知漏洞模式（XSS/SQLi/SSRF/secret 泄漏等）",
+            },
+            {
+                "name": "remediation",
+                "role": "reviewer",
+                "goal": "{{GOAL}} —— 阶段：针对扫描结果给出具体修复方案与优先级建议",
+            },
+        ],
+    },
+    "parallel-research": {
+        "description": "并行研究：多个探索子代理同时工作，汇总为统一报告",
+        "on_error": "continue_on_error",
+        "merge_strategy": "role_priority",
+        "steps": [
+            {
+                "name": "research-a",
+                "role": "explorer",
+                "parallel_group": "research",
+                "goal": "{{GOAL}} —— 方向 A：调研现有解决方案与最佳实践",
+            },
+            {
+                "name": "research-b",
+                "role": "explorer",
+                "parallel_group": "research",
+                "goal": "{{GOAL}} —— 方向 B：分析当前代码库的相关实现",
+            },
+            {
+                "name": "synthesize",
+                "role": "reviewer",
+                "goal": "{{GOAL}} —— 汇总：将 research-a 与 research-b 的输出整合为统一方案",
+            },
+        ],
+    },
+}
+
+
+def list_workflow_templates() -> list[dict[str, Any]]:
+    """列出所有内置 workflow 模板的元信息（不含 steps 详情）。"""
+    return [
+        {"id": tid, "description": tpl["description"]}
+        for tid, tpl in _BUILTIN_TEMPLATES.items()
+    ]
+
+
+def get_workflow_template(template_id: str, *, goal: str = "") -> dict[str, Any]:
+    """获取指定内置模板并将 ``{{GOAL}}`` 替换为实际目标字符串。
+
+    Returns:
+        完整 workflow JSON 字典（可直接序列化后传给 `run_workflow`）。
+
+    Raises:
+        KeyError: template_id 不存在时抛出。
+    """
+    if template_id not in _BUILTIN_TEMPLATES:
+        available = ", ".join(_BUILTIN_TEMPLATES.keys())
+        raise KeyError(f"未知模板 '{template_id}'，可用：{available}")
+    import copy
+    tpl = copy.deepcopy(_BUILTIN_TEMPLATES[template_id])
+    if goal:
+        raw = json.dumps(tpl, ensure_ascii=False)
+        raw = raw.replace("{{GOAL}}", goal.replace('"', '\\"'))
+        tpl = json.loads(raw)
+    return tpl
 
 
 def _normalize_on_error(data: Dict[str, Any]) -> str:
@@ -279,6 +485,7 @@ def _merge_confidence(
 
 def _build_subagent_io_summary(
     *,
+    settings: Settings,
     steps: list[dict[str, Any]],
     merge_strategy: str,
     merge_decision: str,
@@ -286,13 +493,33 @@ def _build_subagent_io_summary(
     conflicts: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """标准化 workflow 输出为可被子代理编排消费的稳定 I/O schema。"""
+    catalog = [str(x).strip() for x in list_agent_names(settings) if str(x).strip()]
+    catalog_set = frozenset(catalog)
     outputs: list[dict[str, Any]] = []
     for step in steps:
+        nm = str(step.get("name") or "").strip()
+        agent_key = str(step.get("agent") or "").strip() or None
+        tpl_id = agent_key if agent_key and agent_key in catalog_set else (
+            nm if nm in catalog_set else None
+        )
+        rpc_in: dict[str, Any] | None = None
+        rpc_out: dict[str, Any] | None = None
+        prot = step.get("protocol")
+        if isinstance(prot, dict):
+            maybe_in = prot.get("rpc_input")
+            maybe_out = prot.get("rpc_output")
+            if isinstance(maybe_in, dict):
+                rpc_in = maybe_in
+            if isinstance(maybe_out, dict):
+                rpc_out = maybe_out
         outputs.append(
             {
                 "id": str(step.get("index") or ""),
-                "name": str(step.get("name") or ""),
+                "name": nm,
                 "role": str(step.get("role") or "default"),
+                "agent_template_id": tpl_id,
+                "rpc_step_input": rpc_in,
+                "rpc_step_output": rpc_out,
                 "ok": (not step.get("skipped"))
                 and bool(step.get("finished"))
                 and int(step.get("error_count") or 0) == 0,
@@ -307,10 +534,11 @@ def _build_subagent_io_summary(
             },
         )
     return {
-        "subagent_io_schema_version": "1.0",
+        "subagent_io_schema_version": "1.1",
         "inputs": {
             "steps_count": len(steps),
             "merge_strategy": merge_strategy,
+            "agent_templates": [{"id": x} for x in catalog],
         },
         "merge": {
             "strategy": merge_strategy,
@@ -587,6 +815,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "budget_exceeded": budget_exceeded,
     }
     subagent_io = _build_subagent_io_summary(
+        settings=settings,
         steps=results,
         merge_strategy=merge_strategy,
         merge_decision=merge_decision,
@@ -645,7 +874,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "schema_version": "workflow_run_v1",
         "task_id": wf_task.task_id,
         "task": wf_task.to_dict(),
-        "subagent_io_schema_version": "1.0",
+        "subagent_io_schema_version": "1.1",
         "subagent_io": subagent_io,
         "steps": results,
         "summary": summary,

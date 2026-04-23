@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -206,6 +207,17 @@ def run_quality_gate(
             continue
         label = " ".join(extra)
         results.append(_run(list(extra), root, timeout_sec))
+
+    if os.environ.get("CAI_QG_FRONTEND_MONOREPO", "").strip().lower() in ("1", "true", "yes"):
+        pj = root / "package.json"
+        if pj.is_file():
+            npm = shutil.which("npm")
+            if npm:
+                results.append(
+                    _run([npm, "run", "-ws", "--if-present", "lint"], root, timeout_sec),
+                )
+            else:
+                results.append(_skipped("npm run -ws --if-present lint", "npm_not_installed"))
 
     if enable_security_scan:
         sec = run_security_scan(settings)

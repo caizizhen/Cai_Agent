@@ -13,6 +13,49 @@ from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.models import ping_profile
 
 
+def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
+    """`.cai/` 目录健康检查：gateway map、hooks.json 存在性与快速可读性。"""
+    cai = root / ".cai"
+    gw_dir = cai / "gateway"
+    tg_map = gw_dir / "telegram-session-map.json"
+    dc_map = gw_dir / "discord-session-map.json"
+    sl_map = gw_dir / "slack-session-map.json"
+    hooks_candidates = [
+        root / "hooks" / "hooks.json",
+        cai / "hooks" / "hooks.json",
+    ]
+    hooks_found = next((str(p) for p in hooks_candidates if p.is_file()), None)
+    hooks_valid: bool | None = None
+    if hooks_found:
+        try:
+            raw = json.loads(Path(hooks_found).read_text(encoding="utf-8"))
+            hooks_valid = isinstance(raw, dict) and isinstance(raw.get("hooks"), list)
+        except Exception:
+            hooks_valid = False
+
+    def _map_readable(p: Path) -> bool | None:
+        if not p.is_file():
+            return None
+        try:
+            obj = json.loads(p.read_text(encoding="utf-8"))
+            return isinstance(obj, dict)
+        except Exception:
+            return False
+
+    return {
+        "cai_dir_exists": cai.is_dir(),
+        "gateway_dir_exists": gw_dir.is_dir(),
+        "telegram_map_exists": tg_map.is_file(),
+        "telegram_map_readable": _map_readable(tg_map),
+        "discord_map_exists": dc_map.is_file(),
+        "discord_map_readable": _map_readable(dc_map),
+        "slack_map_exists": sl_map.is_file(),
+        "slack_map_readable": _map_readable(sl_map),
+        "hooks_file": hooks_found,
+        "hooks_file_valid": hooks_valid,
+    }
+
+
 def _mask_api_key(key: str) -> str:
     if not key:
         return "(空)"
@@ -100,6 +143,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "instruction_files": instruction_files,
         "workspace_is_dir": root.is_dir(),
         "git_inside_work_tree": inside,
+        "cai_dir_health": build_doctor_cai_dir_health(root),
     }
 
 
@@ -196,6 +240,20 @@ def run_doctor(
     inside = _git_inside_worktree(root)
 
     print("Git:     ", "在工作树内" if inside else "非 Git 目录或未安装 git")
+    print()
+    cai_health = build_doctor_cai_dir_health(root)
+    print(".cai/ 状态:")
+    print(f"  cai_dir={cai_health['cai_dir_exists']} "
+          f"gateway_dir={cai_health['gateway_dir_exists']} "
+          f"tg_map={cai_health['telegram_map_exists']} "
+          f"dc_map={cai_health['discord_map_exists']} "
+          f"sl_map={cai_health['slack_map_exists']}")
+    hf = cai_health["hooks_file"]
+    hv = cai_health["hooks_file_valid"]
+    if hf:
+        print(f"  hooks.json={hf} valid={hv}")
+    else:
+        print("  hooks.json=（未找到，可选）")
     print()
     print("建议下一步:")
     print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")

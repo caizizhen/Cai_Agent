@@ -10,7 +10,7 @@
 
 ### S1-02 / S1-03 收口口径（本仓）
 
-- **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**、**`workflow --json` → `workflow_run_v1`** 与根级 **`task_id`**）。
+- **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**、可选 **`security-scan --badge` → `security_badge_v1`**、**`workflow --json` → `workflow_run_v1`** 与根级 **`task_id`**、**`run`/`continue` 族 `--json`** 的 **`run_schema_version`=`1.1`** 与 **`run_events_envelope_v1`**）。
 - **S1-03**：**`0`** 成功；**`2`** 配置/参数/阈值/逻辑失败及未知子命令、**`argparse` 用法错误**；**`run`/`continue`/… 族** 用户 **Ctrl+C** 中断 → **exit `130`**（与 shell 约定一致）；**不将 `1` 作为稳定 CLI 契约**。
 
 ---
@@ -223,10 +223,10 @@
 
 ## `run` / `continue` / `command` / `agent` / `fix-build`（`--json`）
 
-- **实现**：`__main__.py` 共享 `invoke` 路径
-- **版本键**：**`run_schema_version`**：`1.0`（与 `--save-session` 落盘 JSON 对齐；**不设**第二个顶层 `schema_version`，避免与 `run_schema_version` 重复）
+- **实现**：`__main__.py` 共享 `invoke` 路径；**`cai_agent.session_events`**（**`wrap_run_events`** / **`normalize_session_run_events`**）
+- **版本键**：**`run_schema_version`**：**`1.1`**（当前 CLI 输出；**`events`** 为 **`run_events_envelope_v1`**：`schema_version` + **`items[]`**，不再使用裸数组）。**`observe` / `sessions`** 经 **`normalize_session_run_events`** 同时兼容历史 **`1.0`** 会话中的 **`events` 列表**。**不设**第二个顶层 `schema_version`（与 **`run_schema_version`** 分工）。
 - **根级 `task_id`（开发项 21 MVP）**：与 **`task.task_id`** 同源字符串，便于与 `sessions`/`observe` 行内 `task_id` 及调度审计 **`task_id`** 对齐消费。
-- **成功结束**：`answer`、`iteration`、`finished`、`config`、`workspace`、`provider`、`model`、`mcp_enabled`、`elapsed_ms`、`prompt_tokens` / `completion_tokens` / `total_tokens`、`tool_calls_count`、`used_tools`、`last_tool`、`error_count`、`task`、`events`（`run.started` / `run.finished`）、`post_gate`（仅 **`fix-build`** 且未 `--no-gate` 时有对象；内含 **`schema_version`：`quality_gate_result_v1`**）
+- **成功结束**：`answer`、`iteration`、`finished`、`config`、`workspace`、`provider`、`model`、`mcp_enabled`、`elapsed_ms`、`prompt_tokens` / `completion_tokens` / `total_tokens`、`tool_calls_count`、`used_tools`、`last_tool`、`error_count`、`task`、**`events`（信封）**、**`progress_ring`**（**`progress_ring_summary_v1`** 摘要，如 **`phase_distribution`**）、`post_gate`（仅 **`fix-build`** 且未 `--no-gate` 时有对象；内含 **`schema_version`：`quality_gate_result_v1`**）
 - **Ctrl+C 中断**：仍打印一行 JSON；含 **`task_id`**；`finished: false`、`error: interrupted`、`message`；**exit `130`**（与 shell 约定一致）
 
 **Exit**：会话读取/校验失败、模板缺失等 → `2`；正常完成 → `0`（未 `finished` 时 `task.status` 可为 `failed`，exit 仍为 `0`，由负载字段判断）。
@@ -239,6 +239,15 @@
 - **`schema_version`**：`export_cli_v1`；另含 `target`、`output_dir`、`manifest`（`cursor` / `codex` 有路径；**`opencode`** 分支当前无 `manifest` 键）、`copied`、`mode`（`structured` / `manifest` / `copy`）。磁盘上的 `cai-export-manifest.json` 使用 **`manifest_version`** 与内嵌 **`schema`: `export-v2`**（与 CLI 负载的 `schema_version` 不同层）。
 
 **Exit**：配置不可读 → `2`；不支持 `--target` → 异常前由 argparse 约束；成功 → `0`。
+
+---
+
+## `export --ecc-diff`（单行 JSON）
+
+- **实现**：`cai_agent.exporter.build_export_ecc_dir_diff_report`；**`cai-agent export --ecc-diff`**（不写盘，仅 stdout 一行）。
+- **`schema_version`**：**`export_ecc_dir_diff_v1`**；对比仓库源目录与 **`.cursor/cai-agent-export`** 下对应路径的差异摘要（字段以实现为准）。
+
+**Exit**：成功 → **`0`**；参数/工作区错误 → **`2`**。
 
 ---
 
@@ -307,6 +316,15 @@
 
 ---
 
+## `skills hub install`（`--json` / `--dry-run`）
+
+- **实现**：`cai_agent.skills.apply_skills_hub_manifest_selection`；从 **`skills_hub_manifest_v1`** 输入文件选择性拷贝 **`entries[]`** 至目标目录（**`--dest`**、**`--only`** 名称列表、**`--dry-run`**）。
+- **`schema_version`**：**`skills_hub_pack_install_v1`**（字段以实现为准：`planned[]` / `copied[]` / `skipped[]` 等）。
+
+**Exit**：成功 → **`0`**；参数或 manifest 无效 → **`2`**。
+
+---
+
 ## `init`
 
 - **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
@@ -318,7 +336,7 @@
 ## `workflow` / `workflow <file> --json`
 
 - **实现**：`cai_agent.workflow.run_workflow`
-- **`schema_version`**：`workflow_run_v1`；根级 **`task_id`** 与 **`task.task_id`** 同源（与 `run --json` 对齐）；另有 **`subagent_io_schema_version`**：`1.0` 与 `subagent_io`（`inputs` / `merge` / `outputs`）、`steps`、`summary`、`events`、`task`。
+- **`schema_version`**：`workflow_run_v1`；根级 **`task_id`** 与 **`task.task_id`** 同源（与 `run --json` 对齐）；另有 **`subagent_io_schema_version`**：**`1.1`** 与 `subagent_io`（`inputs` / `merge` / `outputs`；每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、根级可选 **`agent_templates`**、`steps`、`summary`、`events`、`task`。
 - **并行**：步骤可设 **`parallel_group`**（同名字符串同批并发）；`summary` 含 **`parallel_groups_count`** / **`parallel_steps_count`** 等；**S5-01 / S5-02** 能力见 `tests/test_cli_workflow.py`。
 - **S5-03**：workflow JSON 根级可选 **`on_error`**：`fail_fast`（默认）或 `continue_on_error`（亦接受 `continue-on-error`）。`fail_fast` 下后续未跑步骤以 **`skipped: true`** 占位并产生 **`workflow.step.skipped`** 事件；`continue_on_error` 跑满全步骤，**merge / conflict** 仅统计 **`finished` 且无 `error_count`** 的步骤。`summary` 增补 **`on_error`**、**`steps_skipped`**、**`merge_steps_considered`**；`workflow.finished` 事件含 **`on_error`** / **`steps_skipped`**。
 - **S5-04**：根级可选 **`budget_max_tokens`**（非负整数）。已执行步骤的 **`total_tokens`** 累计在下一批开始前 **≥** 限额时，本批及之后未启动步骤 **`skipped`**（**`budget_exceeded`**）；已提交的并行批仍跑完。`summary` 与 **`workflow.finished`** 含 **`budget_limit`** / **`budget_used`** / **`budget_exceeded`**。
@@ -334,7 +352,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 
@@ -347,7 +365,7 @@
 - **实现**：`__main__.py` 内 `plan` 分支 + `chat_completion_by_role`
 - **`plan_schema_version`**：`1.0`
 
-成功时：`ok: true`，`plan` 为规划正文，`task`、`usage`、`elapsed_ms` 等。失败时：`ok: false`，`error` 如 `config_not_found` / `goal_empty` / `llm_error` / `interrupted`；**Ctrl+C 中断** exit **`130`**（与常见 shell 约定一致）。
+成功时：`ok: true`，`plan` 为规划正文，`task`、`usage`、`elapsed_ms` 等。失败时：`ok: false`，`error` 如 `config_not_found` / `goal_empty` / `llm_error` / `interrupted`；各分支含 **`plan_schema_version`**；**`goal_empty`** 含 **`"task": null`**；**Ctrl+C 中断** exit **`130`**（与常见 shell 约定一致）。
 
 **Exit**：配置/goal/LLM 错误 → `2`；成功 → `0`。
 
@@ -360,8 +378,9 @@
 | `models list` | 对象：`active`、`subagent`、`planner`、`profiles[]` | **`models_list_v1`**（`profile_to_public_dict` 行） |
 | `models fetch` | 对象：`schema_version`=`models_fetch_v1`、`models[]`（排序去重后的模型 id 字符串） | **`models_fetch_v1`** |
 | `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等） | **`models_ping_v1`** |
+| `models suggest` | 单行对象 **`models_suggest_v1`**：`task_description`、`matched_role`、`reason`、`suggested_profiles[]`、`active_profile_id`、`hint` 等 | **`cai-agent models suggest <任务描述…> --json`** |
 
-**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。
+**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。**`suggest`**：成功 → **`0`**；空描述等 → **`2`**。
 
 ---
 
@@ -382,6 +401,7 @@
 
 - **`quality-gate --json`**：`cai_agent.quality_gate.run_quality_gate` 返回对象含 **`schema_version`：`quality_gate_result_v1`**，以及 `task`、`workspace`、`config`（各阶段开关）、`checks[]`（`name` / `exit_code` / `elapsed_ms` / `skipped` 等）、`ok`、`failed_count`。
 - **`security-scan --json`**：`run_security_scan` 返回 **`schema_version`：`security_scan_result_v1`**，以及 `workspace`、`ok`、`scanned_files`、`findings_count`、`findings[]`、`rule_flags` 等。
+- **`security-scan --badge`**：在 **`--json`** 负载**之外**另打印**一行** **`security_badge_v1`**（shields.io 兼容字段：`schema_version`、`label`、`message`、`color` 等），便于 CI 徽章生成。
 
 **冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`、`-w` 指向空临时目录** 执行 **`security-scan --json`**，断言 **`security_scan_result_v1`** 与 **`scanned_files`** 为 int（**exit `0`/`2`** 均接受）。
 
@@ -393,7 +413,7 @@
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |
 |--------|----------------|-------------------------|
-| `memory extract` | 单行对象 **`memory_extract_v1`**：`written`、`entries_appended` | 始终 JSON stdout（无 `--json` 开关） |
+| `memory extract` | 单行对象 **`memory_extract_v1`**：`written`、`entries_appended`；**`--structured`** 走 **`extract_memory_entries_structured`**（mock/无 key 时启发式回退） | 始终 JSON stdout（无 `--json` 开关） |
 | `memory list` | 对象 **`memory_list_v1`**：`entries`（条目数组）、`limit`、`sort` | 行内字段见 `memory.py` |
 | `memory search` | 对象 **`memory_search_v1`**：`hits`、`query`、`limit`、`sort` | |
 | `memory instincts` | 对象 **`memory_instincts_list_v1`**：`paths`（字符串数组）、`limit` | |
@@ -404,7 +424,8 @@
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
-| `memory user-model` | 占位摘要 **`memory_user_model_v1`**：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`**=`stub` | `--days` 控制会话 mtime 窗口（默认 14） |
+| `memory user-model` | **`memory_user_model_v1`**：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`** 为 **`stub`** 或 **`behavior_extract`**（由会话统计推导工具偏好、错误率与近期 goal 摘要） | `--days` 控制会话 mtime 窗口（默认 14） |
+| `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
 
 **冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）与 **`memory user-model --json`**（**`memory_user_model_v1`**）。
 

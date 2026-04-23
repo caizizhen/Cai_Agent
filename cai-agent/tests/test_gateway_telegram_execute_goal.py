@@ -47,7 +47,10 @@ class GatewayTelegramExecuteGoalTests(unittest.TestCase):
             self.assertIn("DONE", out)
             data = json.loads(sess.read_text(encoding="utf-8"))
             self.assertEqual(data.get("answer"), "DONE")
-            self.assertEqual(data.get("run_schema_version"), "1.0")
+            self.assertEqual(data.get("run_schema_version"), "1.1")
+            ev = data.get("events")
+            self.assertIsInstance(ev, dict)
+            self.assertEqual(ev.get("schema_version"), "run_events_envelope_v1")
 
     def test_execute_creates_session_when_path_missing(self) -> None:
         with TemporaryDirectory() as td:

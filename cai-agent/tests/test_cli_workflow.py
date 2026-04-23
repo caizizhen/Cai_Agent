@@ -50,7 +50,7 @@ class WorkflowCliTests(unittest.TestCase):
                 self.assertEqual(payload["task"].get("type"), "workflow")
                 for ev in payload.get("events") or []:
                     self.assertEqual(ev.get("task_id"), payload["task"].get("task_id"))
-                self.assertEqual(payload.get("subagent_io_schema_version"), "1.0")
+                self.assertEqual(payload.get("subagent_io_schema_version"), "1.1")
                 self.assertIn("subagent_io", payload)
                 self.assertIn("merge", payload.get("subagent_io") or {})
                 self.assertTrue(isinstance((payload.get("subagent_io") or {}).get("merge"), dict))
@@ -114,8 +114,12 @@ class WorkflowCliTests(unittest.TestCase):
                     "type": "workflow",
                     "status": "completed",
                 },
-                "subagent_io_schema_version": "1.0",
-                "subagent_io": {"inputs": {}, "merge": {"conflicts": []}, "outputs": []},
+                "subagent_io_schema_version": "1.1",
+                "subagent_io": {
+                    "inputs": {"steps_count": 1, "merge_strategy": "last_wins", "agent_templates": []},
+                    "merge": {"conflicts": []},
+                    "outputs": [],
+                },
                 "steps": [{"name": "s1", "index": 1, "error_count": 2}],
                 "summary": {
                     "steps_count": 1,

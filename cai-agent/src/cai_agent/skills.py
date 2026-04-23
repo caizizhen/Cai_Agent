@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 import re
+import shutil
+import threading
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Any, Iterable, List
 
@@ -93,6 +96,71 @@ def build_skill_evolution_suggest(
     }
 
 
+def auto_extract_skill_after_task(
+    *,
+    root: str | Path,
+    goal: str,
+    answer: str = "",
+    write: bool = True,
+) -> dict[str, Any]:
+    """任务完成后自动提炼技能草稿（§25 补齐：任务后自动提炼）。
+
+    在 ``skills/_evolution_<slug>.md`` 写入结构化草稿，包含：
+    - 任务目标
+    - 答案摘要
+    - 可复用步骤建议（占位，待人工完善）
+
+    Args:
+        root: 工作区根目录。
+        goal: 本次任务目标字符串。
+        answer: 任务最终答案（摘要或完整文本）。
+        write: 是否真正写文件（默认 True）。
+
+    Returns:
+        ``skills_auto_extract_v1`` 结构。
+    """
+    base = Path(root).expanduser().resolve()
+    slug = _slug_goal(goal)
+    rel = f"skills/_evolution_{slug}.md"
+    path = base / rel
+
+    answer_preview = (answer.strip()[:600] + "…") if len(answer.strip()) > 600 else answer.strip()
+    body = (
+        "# Auto-extracted Skill Draft\n\n"
+        f"> 生成时间：{datetime.now(UTC).isoformat()}\n\n"
+        "## 任务目标\n\n"
+        f"{goal.strip()}\n\n"
+        "## 答案摘要\n\n"
+        f"{answer_preview or '（无答案摘要）'}\n\n"
+        "## 可复用步骤建议\n\n"
+        "<!-- TODO: 将本次执行中可复用的操作步骤整理到此处 -->\n"
+        "- [ ] 步骤 1\n"
+        "- [ ] 步骤 2\n\n"
+        "## 注意事项 / 坑\n\n"
+        "<!-- TODO: 记录踩过的坑或特殊注意事项 -->\n\n"
+        "## 后续\n\n"
+        "- [ ] 复核命名与目录约定\n"
+        "- [ ] 从 `_evolution_` 前缀迁出并纳入正式 `skills/`\n"
+    )
+    existed_before = path.is_file()
+    written = False
+    if write and not existed_before:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(body, encoding="utf-8")
+        written = True
+    return {
+        "schema_version": "skills_auto_extract_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(base),
+        "suggested_path": rel.replace("\\", "/"),
+        "write_requested": bool(write),
+        "written": written,
+        "file_existed_before": existed_before,
+        "goal_preview": goal.strip()[:120],
+        "preview": body[:800],
+    }
+
+
 def build_skills_hub_manifest(*, root: str | Path) -> dict[str, Any]:
     """Skills Hub 分发清单（``skills_hub_manifest_v1``）：扫描工作区 ``skills/`` 下可分发文件。"""
     base = Path(root).expanduser().resolve()
@@ -125,5 +193,179 @@ def build_skills_hub_manifest(*, root: str | Path) -> dict[str, Any]:
         "skills_dir_exists": skills_dir.is_dir(),
         "count": len(entries),
         "entries": entries,
+    }
+
+
+def apply_skills_hub_manifest_selection(
+    *,
+    root: str | Path,
+    manifest: dict[str, Any],
+    only: frozenset[str] | None,
+    dest_rel: str = ".cursor/skills",
+    dry_run: bool = False,
+) -> dict[str, Any]:
+    """按 manifest ``entries[]`` 将技能文件复制到 ``dest_rel``（可选 ``only`` 过滤 ``name``）。"""
+    base = Path(root).expanduser().resolve()
+    dest = (base / dest_rel.strip().replace("\\", "/").lstrip("/")).resolve()
+    try:
+        dest.relative_to(base)
+    except ValueError as e:
+        msg = "dest 必须位于 workspace 根之下"
+        raise ValueError(msg) from e
+    entries = manifest.get("entries")
+    if not isinstance(entries, list):
+        msg = "manifest.entries 须为数组"
+        raise ValueError(msg)
+    copied: list[dict[str, str]] = []
+    skipped: list[dict[str, str]] = []
+    for e in entries:
+        if not isinstance(e, dict):
+            continue
+        name = str(e.get("name") or "").strip()
+        rel = str(e.get("path") or "").strip().replace("\\", "/")
+        if only is not None and name not in only:
+            continue
+        src = (base / rel).resolve()
+        try:
+            src.relative_to(base)
+        except ValueError:
+            skipped.append({"name": name, "reason": "path_escape"})
+            continue
+        if not src.is_file():
+            skipped.append({"name": name, "reason": "missing_source"})
+            continue
+        out = dest / src.name
+        if not dry_run:
+            out.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(src, out)
+        copied.append({"from": str(src), "to": str(out)})
+    return {
+        "schema_version": "skills_hub_pack_install_v1",
+        "dry_run": dry_run,
+        "dest": str(dest),
+        "copied": copied,
+        "skipped": skipped,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Skills Hub 运行时分发（§25 补齐）：轻量 HTTP 服务，提供 manifest + 文件内容
+# ---------------------------------------------------------------------------
+
+class _SkillsHubHandler(BaseHTTPRequestHandler):
+    """内嵌 HTTP 处理器，只处理 GET 请求。"""
+
+    hub_root: Path = Path(".")
+
+    def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
+        pass  # 静默日志，避免干扰 CLI 输出
+
+    def do_GET(self) -> None:  # noqa: N802
+        from urllib.parse import unquote, urlparse
+        import json as _json
+
+        parsed = urlparse(self.path)
+        path = unquote(parsed.path).lstrip("/")
+
+        if path in ("", "manifest", "manifest.json"):
+            manifest = build_skills_hub_manifest(root=self.hub_root)
+            body = _json.dumps(manifest, ensure_ascii=False).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        if path.startswith("skill/"):
+            skill_rel = path[len("skill/"):]
+            skill_path = (self.hub_root / "skills" / skill_rel).resolve()
+            try:
+                skill_path.relative_to((self.hub_root / "skills").resolve())
+            except ValueError:
+                self._send_error(403, "path traversal denied")
+                return
+            if not skill_path.is_file():
+                self._send_error(404, f"skill not found: {skill_rel}")
+                return
+            try:
+                content = skill_path.read_bytes()
+            except OSError as e:
+                self._send_error(500, str(e))
+                return
+            mime = "text/markdown; charset=utf-8" if skill_path.suffix.lower() in {".md", ".markdown"} else "text/plain; charset=utf-8"
+            self.send_response(200)
+            self.send_header("Content-Type", mime)
+            self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            self.wfile.write(content)
+            return
+
+        self._send_error(404, "not found")
+
+    def _send_error(self, code: int, msg: str) -> None:
+        import json as _json
+        body = _json.dumps({"error": msg}).encode("utf-8")
+        self.send_response(code)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+
+def serve_skills_hub(
+    *,
+    root: str | Path,
+    host: str = "127.0.0.1",
+    port: int = 7891,
+    timeout_seconds: float | None = None,
+) -> dict[str, Any]:
+    """启动 Skills Hub HTTP 服务（§25 补齐：Hub 运行时分发）。
+
+    提供两个端点：
+    - ``GET /manifest`` → skills_hub_manifest_v1 JSON
+    - ``GET /skill/<name>`` → 技能文件内容
+
+    Args:
+        root: 工作区根目录。
+        host: 监听主机（默认 127.0.0.1）。
+        port: 监听端口（默认 7891）。
+        timeout_seconds: 服务超时秒数（None = 永久运行直到 KeyboardInterrupt）。
+
+    Returns:
+        ``skills_hub_serve_v1`` 结构，记录服务结束状态。
+    """
+    base = Path(root).expanduser().resolve()
+
+    class _Handler(_SkillsHubHandler):
+        hub_root = base
+
+    server = HTTPServer((host, port), _Handler)
+    started_at = datetime.now(UTC).isoformat()
+    requests_handled = 0
+
+    if timeout_seconds is not None:
+        timer = threading.Timer(timeout_seconds, server.shutdown)
+        timer.start()
+    else:
+        timer = None
+
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        if timer is not None:
+            timer.cancel()
+        server.server_close()
+
+    return {
+        "schema_version": "skills_hub_serve_v1",
+        "started_at": started_at,
+        "stopped_at": datetime.now(UTC).isoformat(),
+        "host": host,
+        "port": port,
+        "workspace": str(base),
+        "ok": True,
     }
 

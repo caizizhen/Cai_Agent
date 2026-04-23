@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from cai_agent.__main__ import main
 from cai_agent.session import save_session
+from cai_agent.session_events import RUN_SCHEMA_VERSION
 
 
 class PlanJsonSchemaTests(unittest.TestCase):
@@ -137,6 +138,15 @@ class PlanJsonSchemaTests(unittest.TestCase):
         self.assertEqual(payload.get("error"), "config_not_found")
         self.assertIs(payload.get("ok"), False)
 
+    def test_plan_json_goal_empty_includes_task_none(self) -> None:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["plan", "--json", " "])
+        self.assertEqual(rc, 2)
+        payload = json.loads(buf.getvalue().strip())
+        self.assertEqual(payload.get("error"), "goal_empty")
+        self.assertIsNone(payload.get("task"))
+
     def test_run_json_top_level_task_id_matches_task_object(self) -> None:
         prev_mock = os.environ.get("CAI_MOCK")
         prev_cfg = os.environ.get("CAI_CONFIG")
@@ -181,7 +191,12 @@ class PlanJsonSchemaTests(unittest.TestCase):
 
         self.assertEqual(rc, 0)
         payload = json.loads(buf.getvalue().strip())
-        self.assertEqual(payload.get("run_schema_version"), "1.0")
+        self.assertEqual(payload.get("run_schema_version"), RUN_SCHEMA_VERSION)
+        ev = payload.get("events")
+        self.assertIsInstance(ev, dict)
+        self.assertEqual(ev.get("schema_version"), "run_events_envelope_v1")
+        self.assertIsInstance(ev.get("items"), list)
+        self.assertEqual(len(ev.get("items") or []), 2)
         tid = str(payload.get("task_id") or "").strip()
         self.assertTrue(tid.startswith("run-"))
         td = payload.get("task")
@@ -197,7 +212,7 @@ class SessionsJsonExtraTests(unittest.TestCase):
                 str(root / ".cai-session-z.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": RUN_SCHEMA_VERSION,
                     "goal": "g",
                     "workspace": td,
                     "elapsed_ms": 1,
@@ -228,7 +243,7 @@ class SessionsJsonExtraTests(unittest.TestCase):
             self.assertEqual(len(arr), 1)
             row = arr[0]
             self.assertEqual(row.get("events_count"), 2)
-            self.assertEqual(row.get("run_schema_version"), "1.0")
+            self.assertEqual(row.get("run_schema_version"), RUN_SCHEMA_VERSION)
             self.assertEqual(row.get("task_id"), "run-zzzzzzzzzz")
 
     def test_sessions_json_normalizes_blank_task_id_to_null(self) -> None:
@@ -238,7 +253,7 @@ class SessionsJsonExtraTests(unittest.TestCase):
                 str(root / ".cai-session-blank-task.json"),
                 {
                     "version": 2,
-                    "run_schema_version": "1.0",
+                    "run_schema_version": RUN_SCHEMA_VERSION,
                     "goal": "g",
                     "workspace": td,
                     "elapsed_ms": 1,
