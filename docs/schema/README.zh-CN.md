@@ -186,7 +186,7 @@
   - **list**：`ok`、`bindings`（数组）、`bindings_count`、**`allowed_chat_ids`**（数组）、**`allowlist_enabled`**（bool）
   - **unbind**：`ok`、`removed`、`binding`、`bindings_count`
   - **resolve-update**：失败时 `ok:false` 与 **`error`**（`invalid_args` / `read_update_failed` / `invalid_update` / **`not_allowed`**）及 `message`；成功时 `created`、`chat_id`、`user_id`、`binding`
-  - **serve-webhook**：服务结束后的单行摘要含 `ok`、`host`、`port`、`path`、`events_handled`、`log_file`、`create_missing` 等（与运行态一致）
+  - **serve-webhook**：服务结束后的单行摘要含 `ok`、`host`、`port`、`path`、`events_handled`、`log_file`、`create_missing` 等（与运行态一致）。**`--execute-on-update`**（**S6-02**）：非 slash 文本走 **`_execute_gateway_telegram_goal`**，对绑定 **`session_file`** 与 CLI **`run`/`continue`** 同源（读会话、追加用户消息、**`invoke`**、写回 **`run_schema_version`=`1.0`** 负载）；**`reply-on-execution`** 下 **`{answer}`** 为完整文本（发送仍分块）。JSONL **`execution`** 可含 **`persisted_session`**。slash **`/stop`**：默认仅文案引导 **`gateway stop`**；若 **`CAI_TELEGRAM_STOP_WEBHOOK=1`** 且发令 **`user_id`** ∈ **`CAI_TELEGRAM_ADMIN_USER_IDS`**（逗号分隔），则调用 **`gateway_lifecycle.stop_webhook_subprocess`**。
 
 **Exit**：缺参、读 update 失败、`resolve-update` 无映射且未创建等 → **`2`**；**`get`/`unbind`/`resolve-update`** 在「未找到绑定 / 无移除 / 无映射且未 `--create-missing`」等业务失败时 → **`2`**；**`serve-webhook`** 正常结束 → **`0`**；未知 `telegram` 子命令 → **`2`**。
 - **工作区根**：**`gateway telegram -w DIR …`**（或各子命令等价的 **`--workspace`**）将 **DIR** 作为 Gateway 上下文根（默认映射路径等）；与 **`gateway setup|start|status|stop`** 上的 **`-w`** 语义一致。

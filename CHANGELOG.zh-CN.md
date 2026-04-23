@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.4（2026-04-23）
+
+- **Gateway（Hermes S6-02）**：**`serve-webhook --execute-on-update`** 改为 **`_execute_gateway_telegram_goal`**：对绑定 **`session_file`** 与 CLI **`run`/`continue`** 同源（加载历史、追加用户 goal、**`invoke`** 后写回同一路径；文件不存在则首次执行后创建）。**`reply_template`** 的 **`{answer}`** 为完整答案（发送层仍 **`_telegram_send_text_chunked`**）。Slash **`/stop`**：默认提示本机执行 **`cai-agent gateway stop`**；仅当 **`CAI_TELEGRAM_STOP_WEBHOOK=1`** 且发令用户的 Telegram **`user_id`** 属于 **`CAI_TELEGRAM_ADMIN_USER_IDS`**（逗号分隔）时，才调用 **`gateway_lifecycle.stop_webhook_subprocess`**。**`/help`** 同步说明。
+- **测试**：**`tests/test_gateway_telegram_execute_goal.py`**。
+
 ### 0.6.3（2026-04-23）
 
 - **Gateway 生命周期（Hermes S6-01）**：**`cai-agent gateway setup|start|status|stop`**，实现于 **`cai_agent.gateway_lifecycle`**（**`gateway_telegram_config_v1`** 写入 **`.cai/gateway/telegram-config.json`**，PID **`.cai/gateway/telegram-webhook.pid`**）。**`setup`** 与 **`serve-webhook`** 开关/模板对齐，**`--allow-chat-id`** 可重复合并 **`allowed_chat_ids`**。**`start`** 后台拉起 **`gateway telegram serve-webhook`**（日志在 **`.cai/gateway/`**）。**`telegram`**、**`platforms`** 与生命周期子命令支持 **`-w`/`--workspace`** 指定工作区根。

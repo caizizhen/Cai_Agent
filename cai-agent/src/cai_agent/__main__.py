@@ -2040,21 +2040,26 @@ def _run_gateway_telegram_webhook_server(
                 chat_id = str(payload.get("chat_id") or "").strip()
                 user_id = str(payload.get("user_id") or "").strip()
                 binding = payload.get("binding") if isinstance(payload.get("binding"), dict) else {}
-                workspace_override = str(binding.get("session_file") or "").strip()
+                bound_session_file = str(binding.get("session_file") or "").strip()
                 text_hint = ""
                 msg = obj.get("message")
                 if isinstance(msg, dict):
                     text_hint = str(msg.get("text") or "").strip()
                 first_tok = text_hint.strip().split(None, 1)[0] if text_hint.strip() else ""
                 if first_tok.startswith("/"):
-                    ans_slash = _telegram_slash_reply_text(first_tok, map_path=map_path)
+                    ans_slash = _telegram_slash_reply_text(
+                        first_tok,
+                        map_path=map_path,
+                        root=root,
+                        user_id=user_id,
+                    )
                     execution = {
                         "triggered": True,
                         "slash": True,
                         "ok": True,
                         "command": first_tok,
                         "answer_preview": ans_slash[:500],
-                        "session_file": workspace_override or None,
+                        "session_file": bound_session_file or None,
                     }
                     if reply_on_execution:
                         if telegram_bot_token:
@@ -2075,10 +2080,10 @@ def _run_gateway_telegram_webhook_server(
                         user_id=user_id,
                         text=text_hint,
                     ).strip()
-                    ok_exec, out_exec = _execute_scheduled_goal(
+                    ok_exec, out_exec = _execute_gateway_telegram_goal(
                         config_path=None,
-                        workspace_hint=str(root),
-                        workspace_override=str(root),
+                        workspace_root=str(root),
+                        session_file=bound_session_file or None,
                         model_override=None,
                         goal=goal,
                     )
@@ -2087,14 +2092,15 @@ def _run_gateway_telegram_webhook_server(
                         "ok": bool(ok_exec),
                         "goal": goal,
                         "answer_preview": out_exec[:240],
-                        "session_file": workspace_override or None,
+                        "session_file": bound_session_file or None,
+                        "persisted_session": bool(bound_session_file),
                     }
                     if reply_on_execution:
                         reply_text = reply_template.format(
                             chat_id=chat_id,
                             user_id=user_id,
                             text=text_hint,
-                            answer=out_exec[:1000],
+                            answer=out_exec,
                             ok=str(bool(ok_exec)).lower(),
                         ).strip()
                         if telegram_bot_token:
@@ -2249,14 +2255,46 @@ def _telegram_send_text_chunked(
     return {"ok": True, "chunks": len(chunks), "last": chunks[-1] if chunks else {}}
 
 
-def _telegram_slash_reply_text(slash_first_token: str, *, map_path: Path) -> str:
+def _telegram_admin_user_ids_from_env() -> set[str]:
+    raw = str(os.environ.get("CAI_TELEGRAM_ADMIN_USER_IDS", "") or "")
+    return {x.strip() for x in raw.split(",") if x.strip()}
+
+
+def _telegram_slash_reply_text(
+    slash_first_token: str,
+    *,
+    map_path: Path,
+    root: Path,
+    user_id: str,
+) -> str:
     sl = slash_first_token.strip().lower()
     if sl in ("/ping",):
         return "pong — CAI Agent Telegram webhook"
     if sl in ("/status",):
         return f"ok — map={map_path.name}；完整 JSON 请在本机运行: cai-agent gateway status --json"
+    if sl in ("/stop",):
+        uid = str(user_id or "").strip()
+        if (
+            os.environ.get("CAI_TELEGRAM_STOP_WEBHOOK", "").strip() == "1"
+            and uid
+            and uid in _telegram_admin_user_ids_from_env()
+        ):
+            from cai_agent import gateway_lifecycle
+
+            out = gateway_lifecycle.stop_webhook_subprocess(root)
+            return (
+                f"已执行 gateway stop：ok={out.get('ok')} stopped={out.get('stopped')} "
+                f"error={out.get('error') or ''}"
+            )
+        return (
+            "要停止本机 webhook 请在服务器执行：cai-agent gateway stop\n"
+            "（运维可将您的 Telegram user_id 列入环境变量 CAI_TELEGRAM_ADMIN_USER_IDS，"
+            "并设置 CAI_TELEGRAM_STOP_WEBHOOK=1 后，/stop 才会在本聊天触发停止。）"
+        )
     if sl in ("/help", "/start"):
-        return "命令: /ping /status /help；其它文本将按 workflow 配置执行（若开启 execute-on-update）。"
+        return (
+            "命令: /ping /status /help /stop /new；普通文本在开启 execute-on-update 时写入绑定会话并执行（与 CLI run/continue 同源）。"
+        )
     if sl.startswith("/new"):
         return "请在工作区用 CLI `cai-agent continue <会话文件>` 续聊（跨端文档见产品计划 S6-04）。"
     return f"未知命令 {slash_first_token!r}；发送 /help"
@@ -2343,6 +2381,130 @@ def _collect_tool_stats(messages: list[dict[str, object]]) -> tuple[int, list[st
                     errors += 1
     uniq = sorted(set(names))
     return len(names), uniq, last_tool, errors
+
+
+def _resolve_gateway_session_file_path(workspace_root: str, session_file: str | None) -> Path | None:
+    s = str(session_file or "").strip()
+    if not s:
+        return None
+    p = Path(s).expanduser()
+    if not p.is_absolute():
+        p = (Path(workspace_root).expanduser().resolve() / p).resolve()
+    else:
+        p = p.resolve()
+    return p
+
+
+def _execute_gateway_telegram_goal(
+    *,
+    config_path: str | None,
+    workspace_root: str,
+    session_file: str | None,
+    model_override: str | None,
+    goal: str,
+) -> tuple[bool, str]:
+    """与 ``run`` / ``continue`` 一致：有绑定 ``session_file`` 时加载历史、invoke 后写回同一路径（S6-02）。"""
+    try:
+        settings = Settings.from_env(
+            config_path=config_path,
+            workspace_hint=workspace_root,
+        )
+    except Exception as e:
+        return False, f"load_settings_failed: {e}"
+
+    if isinstance(model_override, str) and model_override.strip():
+        settings = replace(settings, model=model_override.strip())
+
+    sp = _resolve_gateway_session_file_path(workspace_root, session_file)
+    reset_usage_counters()
+    task = new_task("run")
+    task.status = "running"
+
+    if sp is not None and sp.is_file():
+        try:
+            sess = load_session(str(sp))
+        except Exception as e:
+            return False, f"load_session_failed: {e}"
+        messages = sess.get("messages")
+        if not isinstance(messages, list) or not messages:
+            return False, "会话文件不合法：messages 必须是非空数组"
+        state: dict[str, Any] = {
+            "messages": list(messages) + [{"role": "user", "content": goal}],
+            "iteration": 0,
+            "pending": None,
+            "finished": False,
+        }
+    else:
+        state = initial_state(settings, goal)
+
+    app = build_app(settings)
+    started = time.perf_counter()
+    try:
+        final = app.invoke(state)
+    except Exception as e:
+        task.status = "failed"
+        task.ended_at = time.time()
+        task.error = str(e)[:800]
+        return False, f"invoke_failed: {e}"
+
+    elapsed_ms = int((time.perf_counter() - started) * 1000)
+    task.ended_at = time.time()
+    task.elapsed_ms = elapsed_ms
+    answer = str((final.get("answer") or "")).strip()
+    ok_run = bool(final.get("finished"))
+    task.status = "completed" if ok_run else "failed"
+    task.error = None if ok_run else "unfinished"
+
+    usage = get_usage_counters()
+    msgs = final.get("messages") if isinstance(final.get("messages"), list) else []
+    tool_calls_count, used_tools, last_tool, error_count = _collect_tool_stats(cast(list[dict[str, object]], msgs))
+
+    cmd = "run"
+    run_events: list[dict[str, object]] = [
+        {"event": "run.started", "command": cmd, "task_id": task.task_id},
+        {
+            "event": "run.finished",
+            "command": cmd,
+            "task_id": task.task_id,
+            "finished": ok_run,
+            "status": task.status,
+        },
+    ]
+
+    if sp is not None:
+        payload = {
+            "version": 2,
+            "run_schema_version": "1.0",
+            "goal": goal,
+            "workspace": settings.workspace,
+            "config": settings.config_loaded_from,
+            "provider": settings.provider,
+            "model": settings.model,
+            "profile": settings.active_profile_id,
+            "active_profile_id": settings.active_profile_id,
+            "subagent_profile_id": settings.subagent_profile_id,
+            "planner_profile_id": settings.planner_profile_id,
+            "mcp_enabled": settings.mcp_enabled,
+            "elapsed_ms": elapsed_ms,
+            "total_tokens": usage.get("total_tokens", 0),
+            "prompt_tokens": usage.get("prompt_tokens", 0),
+            "completion_tokens": usage.get("completion_tokens", 0),
+            "tool_calls_count": tool_calls_count,
+            "used_tools": used_tools,
+            "last_tool": last_tool,
+            "error_count": error_count,
+            "messages": msgs,
+            "answer": final.get("answer"),
+            "task": task.to_dict(),
+            "events": run_events,
+            "post_gate": None,
+        }
+        try:
+            save_session(str(sp), payload)
+        except Exception as e:
+            return False, f"save_session_failed: {e}"
+
+    return ok_run, answer or ("unfinished" if not ok_run else "")
 
 
 def _print_hook_status(
@@ -4469,7 +4631,7 @@ def main(argv: list[str] | None = None) -> int:
         "--execute-on-update",
         action="store_true",
         default=False,
-        help="收到 update 后触发一次会话执行（MVP：仅本地执行，不回发 Telegram）",
+        help="收到 update 后按绑定 session_file 执行（与 CLI run/continue 同源写回 JSON；不回发需省略 --reply-on-execution）",
     )
     gw_tg_serve.add_argument(
         "--goal-template",

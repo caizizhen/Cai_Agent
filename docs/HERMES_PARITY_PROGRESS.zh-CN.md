@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.3`**；**Hermes S6-01** **`gateway setup|start|status|stop`** + **S6-02 部分**（长回复分块、slash 占位）；**S6-03**（**`allowed_chat_ids`** + **`gateway telegram allow`**）已合主线；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 25/34**、**⚠️ 1/34**（**S6-02** 未完）；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **364 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.4`**；**S6-02** **`serve-webhook`** 与 CLI **`run`/`continue`** 同源写回绑定 **`session_file`**；slash **`/stop`**（默认提示 + 可选 **`CAI_TELEGRAM_STOP_WEBHOOK`** / **`CAI_TELEGRAM_ADMIN_USER_IDS`**）；**S6-01** / **S6-03** 仍有效；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 26/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **369 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 25     | 74%      |
-| ⚠️ 部分完成（需补齐） | 1      | 3%       |
+| ✅ 已完成        | 26     | 76%      |
+| ⚠️ 部分完成（需补齐） | 0      | 0%       |
 | ❌ 未开发        | 8      | 24%      |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **25/34 ≈ 73.5%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **26/34 ≈ 76.5%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
 
 ---
 
@@ -51,6 +51,7 @@
 | **S5-03**   | fail-fast / continue-on-error | 根级 **`on_error`**（`fail_fast` 默认 / `continue-on-error` 别名 → `continue_on_error`）；`summary.on_error`、`steps_skipped`、`merge_steps_considered`；事件 **`workflow.step.skipped`**；`tests/test_cli_workflow.py` |
 | **S5-04**   | 预算与 token 门禁 | 根级 **`budget_max_tokens`**；批间 **`total_tokens`** 累计 ≥ 预算则 **`skipped`/`budget_exceeded`**；`summary` 与 **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` **`workflow_budget_exceeded`**；`tests/test_cli_workflow.py` |
 | **S6-01**   | **`gateway setup|start|status|stop` 生命周期** | **`cai_agent.gateway_lifecycle`**；**`telegram-config.json`**（**`gateway_telegram_config_v1`**）+ **PID**；**`start`** 拉起 **`serve-webhook`**；**`-w/--workspace`**；`tests/test_gateway_lifecycle_cli.py`；**`smoke_new_features`** **`gateway status --json`** |
+| **S6-02**   | Telegram **`serve-webhook` 执行与回发** | **`_execute_gateway_telegram_goal`**：绑定 **`session_file`** 与 **`run`/`continue`** 同源加载/写回；**`_telegram_send_text_chunked`**；slash **`/ping`** / **`/status`** / **`/help`** / **`/start`** / **`/new`** / **`/stop`**（默认 **`gateway stop`** 提示，可选 env 远程 **`stop_webhook`**）；**`test_gateway_telegram_execute_goal.py`**。**真机**媒体/附件等仍为 **GTW-TG** 扩展 |
 | **S6-03**   | Telegram **`allowed_chat_ids` 白名单** | 映射 JSON 根级 **`allowed_chat_ids`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`** / **`serve-webhook`** 路径 **`not_allowed`**；**`list --json`** 含 **`allowed_chat_ids`** / **`allowlist_enabled`**；可选 **`serve-webhook --reply-on-deny`**；`tests/test_gateway_telegram_cli.py` |
 
 
@@ -58,9 +59,7 @@
 
 ## ⚠️ 部分完成（开发需补齐，QA 需扩充测试）
 
-| Story ID | 标题 | 说明 |
-| -------- | ---- | ---- |
-| **S6-02** | Telegram 消息收发（MVP 增量） | **`serve-webhook`**：**`_telegram_send_text_chunked`** 分块回发；**`/`** 首 token **slash**（**`/ping`** / **`/status`** / **`/help`** / **`/start`** / **`/new`**）不进入 **`_execute_scheduled_goal`**。**真机** Bot 长链路、媒体消息等仍待 **GTW-TG** 手工与自动化扩充。 |
+*（当前 **0** 条 Story 置于此区。真机 **GTW-TG** 媒体/长链路仍以专项计划与手工为主。）*
 
 ---
 
@@ -110,12 +109,12 @@
 | **S6-04** | 跨端会话连续性                     | P2  | L   | GTW-CONT-001                                                                                    |
 
 
-**注意**：**S6-01 / S6-03 已在主线以 CLI MVP 收口**；**S6-02** 见上表 **⚠️ 部分完成**；手工测仍建议配置 **`allowed_chat_ids`** 与测试 Bot。  
+**注意**：**S6-01 / S6-02 / S6-03 已在主线以 CLI MVP 收口**；手工测仍建议配置 **`allowed_chat_ids`** 与测试 Bot。  
 **开发关键文件**：
 
 - `cai-agent/src/cai_agent/gateway_lifecycle.py`（**S6-01**）
 - `__main__.py`：`gateway` 顶级命令组、**`serve-webhook`** 与 Telegram HTTP 辅助  
-**QA 等待信号**：**GTW-BASE** 可随 **S6-01** 自动化开跑；**GTW-TG** 仍待测试 Bot Token 与 **S6-02** 补齐项
+**QA 等待信号**：**GTW-BASE** 随 **S6-01** 自动化；**GTW-TG** 真机与媒体用例仍待测试 Bot Token
 
 ---
 
@@ -192,7 +191,7 @@ Sprint 8（GA）
 | S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
 | S4     | S4-01~S4-05 已合并主线（PR #18~#22） | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT + SCH-SLA；故障注入 SCH-FI-001~003 |
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
-| S6     | S6-01/S6-03 合并；S6-02 部分合并 | 自动化 **GTW-BASE**（**`gateway_lifecycle` CLI`**）+ **GTW-SEC**；**S6-02** 真机链路与 **GTW-TG** 待 Bot Token |
+| S6     | S6-01/S6-02/S6-03 合并 | 自动化 **GTW-BASE** + **GTW-SEC** + **`test_gateway_telegram_execute_goal`**；**GTW-TG** 真机待 Bot Token |
 | S7     | S7-01/S7-02 合并             | 运行 `test_observe*.py` + OBS-RPT-001~006           |
 | S8     | S2~S7 全部 P0/P1 完成          | 全量回归 + 压测 + 安全审计 + 发布冒烟                           |
 
@@ -227,3 +226,4 @@ Sprint 8（GA）
 - **2026-04-22 · Sprint 4 Scheduler（S4-05，已合并 PR #22）**：`schedule stats --json` + `compute_schedule_stats_from_audit`；文档 `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`。
 - **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。
 - **2026-04-23 · Sprint 6 Gateway（`0.6.3`）**：**`gateway setup|start|status|stop`**（**`gateway_lifecycle.py`**）；**`serve-webhook`** 长文本分块与 slash 快捷回复（**S6-02** 部分）。
+- **2026-04-23 · Sprint 6 Gateway（`0.6.4`）**：**`_execute_gateway_telegram_goal`** 会话写回；**`/stop`** 与 env 门控；**`test_gateway_telegram_execute_goal.py`**。

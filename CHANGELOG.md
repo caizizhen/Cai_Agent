@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.4 (2026-04-23)
+
+- **Gateway (Hermes S6-02)**: **`serve-webhook --execute-on-update`** now runs **`_execute_gateway_telegram_goal`**: same load/append/save path as CLI **`run`/`continue`** on the bound **`session_file`** (new file created on first message). **`reply_template`** receives the full **`{answer}`** (Telegram send still chunked). Slash **`/stop`**: default text points to **`gateway stop`**; optional **`CAI_TELEGRAM_STOP_WEBHOOK=1`** plus **`CAI_TELEGRAM_ADMIN_USER_IDS`** (comma-separated Telegram **`user_id`**) allows in-chat **`gateway_lifecycle.stop_webhook_subprocess`**. **`/help`** documents **`/stop`** and run-like execution.
+- **Tests**: **`tests/test_gateway_telegram_execute_goal.py`** (session persistence, **`/stop`** paths).
+
 ### 0.6.3 (2026-04-23)
 
 - **Gateway lifecycle (Hermes S6-01)**: **`cai-agent gateway setup|start|status|stop`** backed by **`cai_agent.gateway_lifecycle`** (writes **`gateway_telegram_config_v1`** to **`.cai/gateway/telegram-config.json`**, PID **`.cai/gateway/telegram-webhook.pid`**). **`setup`** mirrors **`serve-webhook`** flags and optional **`--allow-chat-id`**. **`start`** spawns **`gateway telegram serve-webhook`** detached (logs under **`.cai/gateway/`**). **`-w`/`--workspace`** on **`telegram`**, **`platforms`**, and lifecycle subcommands sets the workspace root.

@@ -2,7 +2,7 @@
 
 > 目的：每次开发完成后，对照目标文档记录“已完成 / 进行中 / 未完成”，并给出总体进度。
 
-**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 96%**（**25÷26**）；**Hermes 约 74%**（**25÷34** ✅ + **S6-02 ⚠️**）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **364 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.3`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`gateway telegram list`**、**`gateway status --json`**（**`gateway_lifecycle_status_v1`**）、**`gateway platforms`/`ops dashboard`/`skills hub manifest`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **364 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
+**量化完成度（百分比）**：见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0**（当前：**§二 加权约 96%**（**25÷26**）；**Hermes 约 76%**（**26÷34** ✅）；T1 以本机 **`pytest cai-agent/tests`** 为准，例 **369 passed**（**3 subtests passed**））。**发行包**：**`cai-agent` `0.6.4`（2026-04-23）**（`pyproject.toml` / **`cai_agent.__version__`**）。**冒烟**：`scripts/smoke_new_features.py` 已覆盖 **`gateway telegram list`**、**`gateway status --json`**（**`gateway_lifecycle_status_v1`**）、**`gateway platforms`/`ops dashboard`/`skills hub manifest`**、**`workflow --json`**（**`task_id`** + **`summary.on_error` / `budget_*`**）、**`run --json` `task_id`**、**`mcp-check`/`security-scan`** 等；**`insights`** 空窗口 **快速路径** 见 **`__main__._build_insights_payload`**。入口为 **`python -m cai_agent`** + **`PYTHONPATH`**（与 **`run_regression.py`** 一致）。**T2**：可按 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2** 使用 **`QA_SKIP_LOG=1`** 复跑 **`run_regression.py`**，**不写**新的 **`docs/qa/runs/*.md`**；**本日** **`QA_SKIP_LOG=1`** **T2** **PASS**（与 **T1** **369 passed**（**3 subtests**）、**`NEW_FEATURE_CHECKS_OK`** 同日复核）。
 
 ## 对照基线
 
@@ -121,6 +121,7 @@
 - **`0.6.1`**：**`gateway platforms list --json`**（**`gateway_platforms_v1`**）：多平台 **实现阶段目录**（Telegram **full**；Discord/Slack **stub** + **`env`** 引导；其余 **planned**）
 - **`0.6.2`（Hermes S6-03）**：**`allowed_chat_ids`** 写入 **`telegram-session-map.json`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`/`serve-webhook`** **`not_allowed`**；**`serve-webhook`** 补齐 **`--reply-on-execution`** / **`--telegram-bot-token`**（或 **`CAI_TELEGRAM_BOT_TOKEN`**）/ **`--reply-template`**，及 **`--reply-on-deny`**
 - **`0.6.3`（Hermes S6-01 + S6-02 部分）**：**`gateway setup|start|status|stop`**（**`gateway_lifecycle.py`**）；**`serve-webhook`** 分块回发（**`_telegram_send_text_chunked`**）与 slash 快捷回复
+- **`0.6.4`（Hermes S6-02）**：**`_execute_gateway_telegram_goal`** 绑定会话与 **`run`/`continue`** 同源写回；**`/stop`** 与 **`CAI_TELEGRAM_STOP_WEBHOOK`** / **`CAI_TELEGRAM_ADMIN_USER_IDS`**；**`test_gateway_telegram_execute_goal.py`**
 
 ### J. 运营面板 / Skills Hub（CLI MVP，`0.6.1`）
 
