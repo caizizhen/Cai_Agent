@@ -5774,6 +5774,7 @@ def main(argv: list[str] | None = None) -> int:
                                 print(f"    {sn}")
             return 0
         if action == "benchmark":
+            t_rix = time.perf_counter()
             payload = _benchmark_recall_index(
                 cwd=cwd,
                 query=str(args.query),
@@ -5788,6 +5789,14 @@ def main(argv: list[str] | None = None) -> int:
                 runs=int(getattr(args, "runs", 3)),
                 sort=str(getattr(args, "sort", "recent") or "recent"),
             )
+            scan_blk = payload.get("scan") if isinstance(payload.get("scan"), dict) else {}
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.benchmark",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(scan_blk.get("sessions_scanned") or 0),
+                success=True,
+            )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -5798,9 +5807,17 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
         if action == "info":
+            t_rix = time.perf_counter()
             payload = _recall_index_info(
                 cwd=cwd,
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+            )
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.info",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(payload.get("entries_count") or 0),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -5811,9 +5828,17 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
         if action == "clear":
+            t_rix = time.perf_counter()
             payload = _clear_recall_index(
                 cwd=cwd,
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+            )
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.clear",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(payload.get("removed") or 0),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -5821,10 +5846,21 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"removed={payload.get('removed')} index_file={payload.get('index_file')}")
             return 0
         if action == "doctor":
+            t_rix = time.perf_counter()
             doc_payload, doc_rc = _recall_index_doctor(
                 cwd=cwd,
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
                 fix=bool(getattr(args, "fix", False)),
+            )
+            iss = doc_payload.get("issues") if isinstance(doc_payload.get("issues"), list) else []
+            miss = doc_payload.get("missing_files") if isinstance(doc_payload.get("missing_files"), list) else []
+            stl = doc_payload.get("stale_paths") if isinstance(doc_payload.get("stale_paths"), list) else []
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.doctor",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=len(iss) + len(miss) + len(stl),
+                success=bool(doc_payload.get("is_healthy")),
             )
             if bool(args.json_output):
                 print(json.dumps(doc_payload, ensure_ascii=False))
@@ -6277,10 +6313,18 @@ def main(argv: list[str] | None = None) -> int:
                 rows, vwarn = load_memory_entries_validated(root)
                 for w in vwarn:
                     print(f"[memory] {w}", file=sys.stderr)
+                t_ms = time.perf_counter()
                 payload = evaluate_memory_entry_states(
                     root,
                     stale_after_days=int(getattr(args, "stale_days", 30)),
                     min_active_confidence=float(getattr(args, "stale_confidence", 0.4)),
+                )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.state",
+                    latency_ms=(time.perf_counter() - t_ms) * 1000.0,
+                    tokens=int(payload.get("total_entries") or 0),
+                    success=True,
                 )
                 if args.json_output:
                     print(json.dumps(payload, ensure_ascii=False))
@@ -6475,11 +6519,19 @@ def main(argv: list[str] | None = None) -> int:
                         return 2
                 return 0
             if args.memory_action == "nudge":
+                t_mn = time.perf_counter()
                 payload = _build_memory_nudge_payload(
                     cwd=str(root),
                     days=int(getattr(args, "days", 7)),
                     session_pattern=str(getattr(args, "session_pattern", ".cai-session*.json")),
                     session_limit=int(getattr(args, "session_limit", 50)),
+                )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.nudge",
+                    latency_ms=(time.perf_counter() - t_mn) * 1000.0,
+                    tokens=int(payload.get("memory_entries") or 0),
+                    success=True,
                 )
                 out_text = json.dumps(payload, ensure_ascii=False)
                 raw_write = getattr(args, "write_file", None)
@@ -6523,12 +6575,20 @@ def main(argv: list[str] | None = None) -> int:
                         return 2
                 return 0
             if args.memory_action == "nudge-report":
+                t_mnr = time.perf_counter()
                 payload = _build_memory_nudge_report_payload(
                     cwd=str(root),
                     history_file=getattr(args, "history_file", None),
                     limit=int(getattr(args, "limit", 200)),
                     days=int(getattr(args, "days", 30)),
                     freshness_days=int(getattr(args, "freshness_days", 14)),
+                )
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.nudge_report",
+                    latency_ms=(time.perf_counter() - t_mnr) * 1000.0,
+                    tokens=int(payload.get("entries_considered") or 0),
+                    success=True,
                 )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
@@ -6711,7 +6771,15 @@ def main(argv: list[str] | None = None) -> int:
                     )
             return 0
         if args.schedule_action == "rm":
+            t_srm = time.perf_counter()
             ok = remove_schedule_task(str(args.id), str(root))
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.rm",
+                latency_ms=(time.perf_counter() - t_srm) * 1000.0,
+                tokens=1 if ok else 0,
+                success=bool(ok),
+            )
             if bool(args.json_output):
                 print(
                     json.dumps(
@@ -6723,6 +6791,7 @@ def main(argv: list[str] | None = None) -> int:
                 print("removed=1" if ok else "removed=0")
             return 0 if ok else 2
         if args.schedule_action == "run-due":
+            t_srd = time.perf_counter()
             due = compute_due_tasks(cwd=str(root))
             if not bool(args.execute):
                 payload = {
@@ -6731,6 +6800,13 @@ def main(argv: list[str] | None = None) -> int:
                     "due_jobs": due,
                     "executed": [],
                 }
+                _maybe_metrics_cli(
+                    module="schedule",
+                    event="schedule.run_due",
+                    latency_ms=(time.perf_counter() - t_srd) * 1000.0,
+                    tokens=len(due),
+                    success=True,
+                )
                 if bool(args.json_output):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -6887,6 +6963,13 @@ def main(argv: list[str] | None = None) -> int:
                 "due_jobs": due,
                 "executed": executed,
             }
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.run_due",
+                latency_ms=(time.perf_counter() - t_srd) * 1000.0,
+                tokens=len(executed),
+                success=True,
+            )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -6941,6 +7024,7 @@ def main(argv: list[str] | None = None) -> int:
             total_skipped_concurrency = 0
             results: list[dict[str, Any]] = []
             interrupted = False
+            t_daemon_total = time.perf_counter()
             try:
                 while True:
                     cycles += 1
@@ -7185,6 +7269,13 @@ def main(argv: list[str] | None = None) -> int:
                     f"skipped_concurrency={total_skipped_concurrency} max_concurrent={max_concurrent} "
                     f"execute={execute} interrupted={interrupted}",
                 )
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.daemon",
+                latency_ms=(time.perf_counter() - t_daemon_total) * 1000.0,
+                tokens=int(total_executed),
+                success=not interrupted,
+            )
             return 0
         if args.schedule_action == "stats":
             audit_raw = getattr(args, "audit_file", None)
@@ -7857,6 +7948,7 @@ def main(argv: list[str] | None = None) -> int:
                     p = p.resolve()
                 key = f"{chat_id}:{user_id}"
                 row = {"chat_id": chat_id, "user_id": user_id, "session_file": str(p)}
+                t_gtb = time.perf_counter()
                 bindings[key] = row
                 _save_gateway_map(map_path, doc)
                 payload = {
@@ -7867,6 +7959,13 @@ def main(argv: list[str] | None = None) -> int:
                     "binding": row,
                     "bindings_count": len(bindings),
                 }
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.bind",
+                    latency_ms=(time.perf_counter() - t_gtb) * 1000.0,
+                    tokens=len(bindings),
+                    success=True,
+                )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -7878,6 +7977,7 @@ def main(argv: list[str] | None = None) -> int:
                 chat_id = str(getattr(args, "chat_id", "") or "").strip()
                 user_id = str(getattr(args, "user_id", "") or "").strip()
                 key = f"{chat_id}:{user_id}"
+                t_gtg = time.perf_counter()
                 row = bindings.get(key) if isinstance(bindings.get(key), dict) else None
                 payload = {
                     "schema_version": "gateway_telegram_map_v1",
@@ -7886,6 +7986,13 @@ def main(argv: list[str] | None = None) -> int:
                     "map_file": str(map_path),
                     "binding": row,
                 }
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.get",
+                    latency_ms=(time.perf_counter() - t_gtg) * 1000.0,
+                    tokens=1 if row else 0,
+                    success=bool(row),
+                )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 elif row:
@@ -7934,11 +8041,20 @@ def main(argv: list[str] | None = None) -> int:
                         file=sys.stderr,
                     )
                     return 2
+                t_gch = time.perf_counter()
                 payload_ch = _gateway_continue_hint_payload(
                     root=root,
                     map_path=map_path,
                     chat_id=cid_h or None,
                     user_id=uid_h or None,
+                )
+                hints_n = payload_ch.get("hints") if isinstance(payload_ch.get("hints"), list) else []
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.continue_hint",
+                    latency_ms=(time.perf_counter() - t_gch) * 1000.0,
+                    tokens=len(hints_n),
+                    success=bool(payload_ch.get("ok")),
                 )
                 json_ch = bool(getattr(args, "json_output", False))
                 if json_ch:
@@ -7976,6 +8092,7 @@ def main(argv: list[str] | None = None) -> int:
                     if cid_a not in allowed:
                         allowed.append(cid_a)
                     doc["allowed_chat_ids"] = sorted(set(allowed))
+                    t_gaa = time.perf_counter()
                     _save_gateway_map(map_path, doc)
                     out_a = {
                         "schema_version": "gateway_telegram_map_v1",
@@ -7985,12 +8102,20 @@ def main(argv: list[str] | None = None) -> int:
                         "chat_id": cid_a,
                         "allowed_chat_ids": allowed,
                     }
+                    _maybe_metrics_cli(
+                        module="gateway",
+                        event="gateway.telegram.allow_add",
+                        latency_ms=(time.perf_counter() - t_gaa) * 1000.0,
+                        tokens=len(allowed),
+                        success=True,
+                    )
                     if bool(getattr(args, "json_output", False)):
                         print(json.dumps(out_a, ensure_ascii=False))
                     else:
                         print(f"allow_add chat_id={cid_a} total={len(allowed)}")
                     return 0
                 if sub_allow == "list":
+                    t_gal = time.perf_counter()
                     out_l = {
                         "schema_version": "gateway_telegram_map_v1",
                         "action": "allow_list",
@@ -7998,6 +8123,13 @@ def main(argv: list[str] | None = None) -> int:
                         "map_file": str(map_path),
                         "allowed_chat_ids": allowed,
                     }
+                    _maybe_metrics_cli(
+                        module="gateway",
+                        event="gateway.telegram.allow_list",
+                        latency_ms=(time.perf_counter() - t_gal) * 1000.0,
+                        tokens=len(allowed),
+                        success=True,
+                    )
                     if bool(getattr(args, "json_output", False)):
                         print(json.dumps(out_l, ensure_ascii=False))
                     else:
@@ -8010,6 +8142,7 @@ def main(argv: list[str] | None = None) -> int:
                         return 2
                     removed_r = cid_r in allowed
                     doc["allowed_chat_ids"] = [x for x in allowed if x != cid_r]
+                    t_gar = time.perf_counter()
                     _save_gateway_map(map_path, doc)
                     out_r = {
                         "schema_version": "gateway_telegram_map_v1",
@@ -8019,6 +8152,13 @@ def main(argv: list[str] | None = None) -> int:
                         "chat_id": cid_r,
                         "allowed_chat_ids": doc["allowed_chat_ids"],
                     }
+                    _maybe_metrics_cli(
+                        module="gateway",
+                        event="gateway.telegram.allow_rm",
+                        latency_ms=(time.perf_counter() - t_gar) * 1000.0,
+                        tokens=1 if removed_r else 0,
+                        success=bool(removed_r),
+                    )
                     if bool(getattr(args, "json_output", False)):
                         print(json.dumps(out_r, ensure_ascii=False))
                     else:
@@ -8030,6 +8170,7 @@ def main(argv: list[str] | None = None) -> int:
                 chat_id = str(getattr(args, "chat_id", "") or "").strip()
                 user_id = str(getattr(args, "user_id", "") or "").strip()
                 key = f"{chat_id}:{user_id}"
+                t_gtu = time.perf_counter()
                 row = bindings.pop(key, None)
                 if row is not None:
                     _save_gateway_map(map_path, doc)
@@ -8042,6 +8183,13 @@ def main(argv: list[str] | None = None) -> int:
                     "binding": row if isinstance(row, dict) else None,
                     "bindings_count": len(bindings),
                 }
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.unbind",
+                    latency_ms=(time.perf_counter() - t_gtu) * 1000.0,
+                    tokens=len(bindings),
+                    success=bool(row),
+                )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -8613,7 +8761,7 @@ def main(argv: list[str] | None = None) -> int:
                 except Exception as e:
                     print(f"写入会话失败: {e}", file=sys.stderr)
                     return 2
-            if args.command in ("run", "continue"):
+            if args.command in ("run", "continue", "command", "agent", "fix-build"):
                 _maybe_metrics_cli(
                     module=str(args.command),
                     event=f"{args.command}.invoke",

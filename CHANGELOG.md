@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.13 (2026-04-23)
+
+- **Observability (Hermes S7-01 AC2 extension)**: **`CAI_METRICS_JSONL`** now also records **`command.invoke` / `agent.invoke` / `fix-build.invoke`** (same shape as **`run.invoke`**), **`memory.state` / `memory.nudge` / `memory.nudge_report`**, **`recall_index.benchmark` / `info` / `clear` / `doctor`**, **`schedule.rm` / `schedule.run_due` / `schedule.daemon`**, and **`gateway.telegram`** paths **`bind` / `get` / `unbind` / `continue_hint` / `allow_add` / `allow_list` / `allow_rm`**. **`docs/schema/METRICS_JSON.zh-CN.md`** updated.
+- **Tests**: **`test_metrics_jsonl.py`** covers the new paths.
+
 ### 0.6.12 (2026-04-23)
 
 - **Observability (Hermes S7-01 AC2 extension)**: When **`CAI_METRICS_JSONL`** is set, **`_maybe_metrics_cli`** also appends **`recall_index.build` / `recall_index.refresh` / `recall_index.search`**, **`schedule.list`**, **`schedule.add`**, **`gateway.telegram.list`**, and **`run.invoke` / `continue.invoke`** (latency, coarse **`tokens`**, **`success`** for run/continue). **`docs/schema/METRICS_JSON.zh-CN.md`** and schema index updated.

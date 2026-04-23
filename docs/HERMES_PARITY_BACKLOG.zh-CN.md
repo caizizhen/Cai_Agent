@@ -335,7 +335,7 @@
 - **测试用例 ID**：OBS-METRICS-001 ~ OBS-METRICS-008
 - **依赖**：S4-04
 - **估算**：M
-- **主线交付注（`0.6.6`）**：**AC1/3** 已合（**`cai_agent.metrics`**、**`METRICS_SCHEMA_VERSION`**、**`docs/schema/METRICS_JSON.zh-CN.md`**）。**AC2（增量）**：**`0.6.6`** 起 **`observe.summary` / `observe.report` / `observe.export`**；**`0.6.11`** 起增加 **`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**；**`0.6.12`** 起增加 **`recall_index.build`/`refresh`/`search`**、**`schedule.list`**、**`schedule.add`**、**`gateway.telegram.list`**、**`run.invoke`/`continue.invoke`**（均经 **`_maybe_metrics_cli`**，见 **`__main__.py`**）。**`command`/`agent`/`fix-build`**、**`schedule`/`gateway telegram`/`recall-index`/`memory`** 其余子命令等仍为 **后续增量**。
+- **主线交付注（`0.6.6`）**：**AC1/3** 已合（**`cai_agent.metrics`**、**`METRICS_SCHEMA_VERSION`**、**`docs/schema/METRICS_JSON.zh-CN.md`**）。**AC2（增量）**：**`0.6.6`** 起 **`observe.summary` / `observe.report` / `observe.export`**；**`0.6.11`** 起增加 **`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**；**`0.6.12`** 起增加 **`recall_index.build`/`refresh`/`search`**、**`schedule.list`**、**`schedule.add`**、**`gateway.telegram.list`**、**`run.invoke`/`continue.invoke`**；**`0.6.13`** 起增加 **`command.invoke`/`agent.invoke`/`fix-build.invoke`**、**`memory.state`/`memory.nudge`/`memory.nudge_report`**、**`recall_index.benchmark`/`info`/`clear`/`doctor`**、**`schedule.rm`/`schedule.run_due`/`schedule.daemon`**、**`gateway.telegram`** 的 **`bind`/`get`/`unbind`/`continue_hint`/`allow_*`**（均经 **`_maybe_metrics_cli`**，见 **`__main__.py`**）。**`memory`/`schedule`/`gateway telegram`** 其余子命令、**`quality-gate`/`security-scan`** 等仍为 **后续增量**。
 
 ### S7-02 observe report（周报/日报导出）
 - **Story**：作为运营，我希望用一条命令生成过去 7 天的运营摘要报告（会话量/成功率/成本/工具错误率），导出 Markdown 或 JSON。

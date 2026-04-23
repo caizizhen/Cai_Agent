@@ -33,8 +33,18 @@
 - **`cai-agent schedule add`**：**`schedule.add`**（**`tokens`** = **`len(depends_on)`**）。
 - **`cai-agent gateway telegram list`**：**`gateway.telegram.list`**（**`tokens`** = **`bindings_count`**）。
 - **`cai-agent run` / `continue`**（**`app.invoke`** 成功落盘路径）：**`run.invoke`** / **`continue.invoke`**（**`latency_ms`** = 会话 **`elapsed_ms`**；**`tokens`** = **`total_tokens`**；**`success`** = 任务是否 **`completed`**）。
+- **`cai-agent command` / `agent` / `fix-build`**（**`app.invoke`** 成功落盘路径）：**`command.invoke`** / **`agent.invoke`** / **`fix-build.invoke`**（字段含义同 **`run.invoke`**）。
+- **`cai-agent memory state`**：**`memory.state`**（**`tokens`** ≈ **`total_entries`**）。
+- **`cai-agent memory nudge`**：**`memory.nudge`**（**`tokens`** ≈ **`memory_entries`**）。
+- **`cai-agent memory nudge-report`**：**`memory.nudge_report`**（**`tokens`** ≈ **`entries_considered`**）。
+- **`cai-agent recall-index benchmark` / `info` / `clear` / `doctor`**：**`recall_index.benchmark`** / **`recall_index.info`** / **`recall_index.clear`** / **`recall_index.doctor`**（**`doctor`** 的 **`success`** = **`is_healthy`**；**`tokens`** 视子命令为扫描会话数、**`entries_count`**、**`removed`** 或问题条目规模）。
+- **`cai-agent schedule rm`**：**`schedule.rm`**（**`success`** = 是否删除成功；**`tokens`** 粗记 **`0`/`1`**）。
+- **`cai-agent schedule run-due`**（dry-run 与 execute 成功路径）：**`schedule.run_due`**（**`tokens`** = **`len(due_jobs)`** 或 **`len(executed)`**）。
+- **`cai-agent schedule daemon`**（单实例锁获取成功、正常结束摘要）：**`schedule.daemon`**（**`tokens`** = **`total_executed`**；**`success`** = 未 **`KeyboardInterrupt`**）。
+- **`cai-agent gateway telegram bind` / `get` / `unbind` / `continue-hint`**：**`gateway.telegram.bind`** / **`gateway.telegram.get`** / **`gateway.telegram.unbind`** / **`gateway.telegram.continue_hint`**（CLI 子命令 **`continue-hint`**；**`get`** 的 **`success`** = 是否找到绑定）。
+- **`cai-agent gateway telegram allow add|list|rm`**：**`gateway.telegram.allow_add`** / **`allow_list`** / **`allow_rm`**。
 
-> 其它 **memory** 子命令（除 **`health`**）、**`command` / `agent` / `fix-build`**、**`schedule`/`gateway telegram`/`recall-index`** 其余子命令等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
+> 其它 **memory** 子命令（**`extract`/`list`/…**）、**`schedule`/`gateway telegram`** 的 **`resolve-update`** 等、**`quality-gate`/`security-scan`** 等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
 
 ## 示例行
 
