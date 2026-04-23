@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.17（2026-04-23）
+
+- **可观测性（Hermes S7-01 AC2 扩展）**：**`CAI_METRICS_JSONL`** 追加 **`init.apply`**、**`models.*`**（按子命令，如 **`models.list`/`models.fetch`** 等）、**`workflow.run`**（含 **`run_workflow` 异常**）、**`release_ga.gate`**、**`ui.tui`**。**`docs/schema/METRICS_JSON.zh-CN.md`** 与索引已同步。
+- **测试**：**`test_metrics_jsonl.py`** 覆盖上述路径。
+
 ### 0.6.16（2026-04-23）
 
 - **可观测性（Hermes S7-01 AC2 扩展）**：**`CAI_METRICS_JSONL`** 追加 **`sessions.list`**、**`stats.summary`**、**`insights.summary`/`insights.cross_domain`**、**`plugins.surface`**、**`skills.hub_manifest`**、**`commands.list`**、**`agents.list`**、**`doctor.run`**、**`plan.generate`**、**`cost.budget`**、**`export.target`**、**`observe.report`**（独立子命令 **`observe-report`**）、**`ops.dashboard`**、**`board.summary`**、**`hooks.list`**。**`docs/schema/METRICS_JSON.zh-CN.md`** 已同步。

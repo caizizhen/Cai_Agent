@@ -4875,12 +4875,21 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "init":
-        return _cmd_init(
+        t_ini = time.perf_counter()
+        rc_ini = _cmd_init(
             force=args.force,
             is_global=bool(getattr(args, "global_flag", False)),
             preset=str(getattr(args, "init_preset", "default") or "default"),
             json_output=bool(getattr(args, "json_output", False)),
         )
+        _maybe_metrics_cli(
+            module="init",
+            event="init.apply",
+            latency_ms=(time.perf_counter() - t_ini) * 1000.0,
+            tokens=1 if int(rc_ini) == 0 else 0,
+            success=(int(rc_ini) == 0),
+        )
+        return rc_ini
 
     if args.command == "doctor":
         try:
@@ -5122,7 +5131,44 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if args.command == "models":
-        return _cmd_models(args)
+        t_mdl = time.perf_counter()
+        rc_mdl = _cmd_models(args)
+        act_m = str(getattr(args, "models_action", None) or "list").strip().lower()
+        ev_m = {
+            "list": "models.list",
+            "fetch": "models.fetch",
+            "ping": "models.ping",
+            "route": "models.route",
+            "add": "models.add",
+            "use": "models.use",
+            "rm": "models.rm",
+            "edit": "models.edit",
+        }.get(act_m, "models.cli")
+        tok_m = 0
+        if act_m == "list" and int(rc_mdl) == 0:
+            ld = _load_settings_for_models(getattr(args, "config", None))
+            if not isinstance(ld, int):
+                tok_m = len(ld.profiles)
+        elif act_m == "fetch" and int(rc_mdl) == 0 and bool(getattr(args, "json_output", False)):
+            tok_m = 1
+        elif act_m == "ping" and int(rc_mdl) == 0:
+            ld2 = _load_settings_for_models(getattr(args, "config", None))
+            if not isinstance(ld2, int):
+                pid = getattr(args, "id", None)
+                if pid:
+                    tok_m = 1
+                else:
+                    tok_m = len(ld2.profiles)
+        elif act_m in {"add", "use", "rm", "route", "edit"} and int(rc_mdl) == 0:
+            tok_m = 1
+        _maybe_metrics_cli(
+            module="models",
+            event=ev_m,
+            latency_ms=(time.perf_counter() - t_mdl) * 1000.0,
+            tokens=tok_m,
+            success=(int(rc_mdl) == 0),
+        )
+        return rc_mdl
 
     if args.command == "plugins":
         try:
@@ -8728,6 +8774,7 @@ def main(argv: list[str] | None = None) -> int:
             json_output=bool(args.json_output),
             hook_payload=wf_hook_payload,
         )
+        t_wf = time.perf_counter()
         try:
             result = run_workflow(settings, args.file)
         except Exception as e:
@@ -8737,6 +8784,13 @@ def main(argv: list[str] | None = None) -> int:
                 event="workflow_end",
                 json_output=bool(args.json_output),
                 hook_payload=wf_hook_payload,
+            )
+            _maybe_metrics_cli(
+                module="workflow",
+                event="workflow.run",
+                latency_ms=(time.perf_counter() - t_wf) * 1000.0,
+                tokens=0,
+                success=False,
             )
             return 2
         try:
@@ -8778,19 +8832,33 @@ def main(argv: list[str] | None = None) -> int:
                     f"- [{name}] elapsed_ms={elapsed_ms} "
                     f"tool_calls={tools} errors={errors} goal={goal!r}"
                 )
+        rc_wf = 0
         if bool(getattr(args, "fail_on_step_errors", False)):
             tk = result.get("task") if isinstance(result.get("task"), dict) else {}
             if str(tk.get("status") or "").strip().lower() == "failed":
-                return 2
+                rc_wf = 2
             sm = result.get("summary") if isinstance(result.get("summary"), dict) else {}
-            if int(sm.get("tool_errors_total") or 0) > 0:
-                return 2
-            for st in result.get("steps") or []:
-                if isinstance(st, dict) and int(st.get("error_count") or 0) > 0:
-                    return 2
-        return 0
+            if rc_wf == 0 and int(sm.get("tool_errors_total") or 0) > 0:
+                rc_wf = 2
+            if rc_wf == 0:
+                for st in result.get("steps") or []:
+                    if isinstance(st, dict) and int(st.get("error_count") or 0) > 0:
+                        rc_wf = 2
+                        break
+        wf_tk = result.get("task") if isinstance(result.get("task"), dict) else {}
+        wf_sm = result.get("summary") if isinstance(result.get("summary"), dict) else {}
+        wf_done = str(wf_tk.get("status") or "").strip().lower() == "completed"
+        _maybe_metrics_cli(
+            module="workflow",
+            event="workflow.run",
+            latency_ms=(time.perf_counter() - t_wf) * 1000.0,
+            tokens=int(wf_sm.get("budget_used") or 0),
+            success=(wf_done and rc_wf == 0),
+        )
+        return rc_wf
 
     if args.command == "release-ga":
+        t_rg = time.perf_counter()
         payload = _run_release_ga_gate(
             cwd=os.getcwd(),
             max_failure_rate=float(getattr(args, "max_failure_rate", 0.20)),
@@ -8823,7 +8891,16 @@ def main(argv: list[str] | None = None) -> int:
                 for x in failures:
                     if isinstance(x, dict):
                         print(f"- {x.get('name')}: {x.get('reason')}")
-        return 0 if str(payload.get("state")) == "pass" else 2
+        rc_rg = 0 if str(payload.get("state")) == "pass" else 2
+        chk = payload.get("checks") if isinstance(payload.get("checks"), list) else []
+        _maybe_metrics_cli(
+            module="release_ga",
+            event="release_ga.gate",
+            latency_ms=(time.perf_counter() - t_rg) * 1000.0,
+            tokens=len(chk),
+            success=(rc_rg == 0),
+        )
+        return rc_rg
 
     if args.command in ("run", "continue", "command", "agent", "fix-build"):
         try:
@@ -9145,6 +9222,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "ui":
         from cai_agent.tui import run_tui
 
+        t_ui = time.perf_counter()
         try:
             settings = Settings.from_env(
                 config_path=args.config,
@@ -9152,6 +9230,13 @@ def main(argv: list[str] | None = None) -> int:
             )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
+            _maybe_metrics_cli(
+                module="ui",
+                event="ui.tui",
+                latency_ms=(time.perf_counter() - t_ui) * 1000.0,
+                tokens=0,
+                success=False,
+            )
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -9160,8 +9245,20 @@ def main(argv: list[str] | None = None) -> int:
                 settings,
                 workspace=os.path.abspath(args.workspace),
             )
-        run_tui(settings)
-        return 0
+        rc_ui = 0
+        try:
+            run_tui(settings)
+        except Exception:
+            rc_ui = 2
+        finally:
+            _maybe_metrics_cli(
+                module="ui",
+                event="ui.tui",
+                latency_ms=(time.perf_counter() - t_ui) * 1000.0,
+                tokens=0,
+                success=(rc_ui == 0),
+            )
+        return rc_ui
 
     # S1-03: should not happen while subparsers stay aligned with dispatch below.
     cmd = getattr(args, "command", None)

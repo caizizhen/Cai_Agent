@@ -65,6 +65,11 @@
 - **`cai-agent ops dashboard`**：**`ops.dashboard`**（**`tokens`** ≈ **`summary.sessions_count`** 或 **`schedule_tasks_in_stats`**）。
 - **`cai-agent board`**：**`board.summary`**（**`tokens`** ≈ 内嵌 **`observe.sessions_count`**）。
 - **`cai-agent hooks list`**：**`hooks.list`**（**`tokens`** = 目录 **`hooks`** 条数；**`hooks.json` 缺失/无效** 时 **`success=false`**）。
+- **`cai-agent init`**：**`init.apply`**（**`tokens`** = 成功 **`1`** / 失败 **`0`**；**`success`** 与 exit 一致）。
+- **`cai-agent models`**：**`models.list`** / **`models.fetch`** / **`models.ping`** / **`models.route`** / **`models.add`** / **`models.use`** / **`models.rm`** / **`models.edit`**（未映射子命令为 **`models.cli`**；**`tokens`** 为 profile 数、**`fetch`+`--json`** 成功记 **`1`**、变更类成功记 **`1`** 等粗粒度提示）。
+- **`cai-agent workflow`**：**`workflow.run`**（**`tokens`** = 汇总 **`budget_used`**；**`success`** = 任务 **`completed`** 且未因 **`--fail-on-step-errors`** 置 **`2`**；**`run_workflow` 抛错** 时 **`success=false`**、**`tokens=0`**）。
+- **`cai-agent release-ga`**：**`release_ga.gate`**（**`tokens`** = **`len(checks)`**；**`success`** = **`state`** 为 **`pass`**）。
+- **`cai-agent ui`**：**`ui.tui`**（**`tokens`**=`0`**；**`success`** = TUI 正常退出；配置缺失等 **`success=false`**）。
 
 > 其它长尾子命令若需指标，仍按 **S7-01 AC2** 增量扩展。
 
