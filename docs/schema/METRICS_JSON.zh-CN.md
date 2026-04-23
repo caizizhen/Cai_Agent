@@ -28,8 +28,13 @@
 - **`cai-agent recall`**（扫描或 **`--use-index`**，成功路径）：写入 **`recall.query`**（**`tokens`** ≈ **`sessions_scanned`**）。
 - **`cai-agent schedule stats`**：写入 **`schedule.stats`**（**`tokens`** = 任务行数 **`len(tasks)`**）。
 - **`cai-agent gateway status`**：写入 **`gateway.status`**（**`tokens`**=`0`）。
+- **`cai-agent recall-index build` / `refresh` / `search`**（成功路径）：**`recall_index.build`** / **`recall_index.refresh`** / **`recall_index.search`**（**`tokens`** ≈ **`sessions_indexed`** / **`sessions_touched`** / **`sessions_scanned`**，视子命令而定）。
+- **`cai-agent schedule list`**：**`schedule.list`**（**`tokens`** = **`len(jobs)`**）。
+- **`cai-agent schedule add`**：**`schedule.add`**（**`tokens`** = **`len(depends_on)`**）。
+- **`cai-agent gateway telegram list`**：**`gateway.telegram.list`**（**`tokens`** = **`bindings_count`**）。
+- **`cai-agent run` / `continue`**（**`app.invoke`** 成功落盘路径）：**`run.invoke`** / **`continue.invoke`**（**`latency_ms`** = 会话 **`elapsed_ms`**；**`tokens`** = **`total_tokens`**；**`success`** = 任务是否 **`completed`**）。
 
-> 其它 **memory / recall / schedule / gateway** 子命令、**`run`/`continue`** 等仍为 **后续增量**（与 **S7-01 AC2** 扩展一致）。
+> 其它 **memory** 子命令（除 **`health`**）、**`command` / `agent` / `fix-build`**、**`schedule`/`gateway telegram`/`recall-index`** 其余子命令等仍为 **后续增量**（与 **S7-01 AC2** 一致）。
 
 ## 示例行
 

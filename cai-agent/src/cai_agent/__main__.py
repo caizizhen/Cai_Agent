@@ -5678,12 +5678,20 @@ def main(argv: list[str] | None = None) -> int:
         cwd = os.getcwd()
         index_path_arg = getattr(args, "index_path", None)
         if action == "build":
+            t_rix = time.perf_counter()
             payload = _build_recall_index(
                 cwd=cwd,
                 pattern=str(args.pattern),
                 limit=int(args.limit),
                 days=int(args.days),
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
+            )
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.build",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(payload.get("sessions_indexed") or 0),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -5695,6 +5703,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
         if action == "refresh":
+            t_rix = time.perf_counter()
             payload = _refresh_recall_index(
                 cwd=cwd,
                 pattern=str(args.pattern),
@@ -5702,6 +5711,13 @@ def main(argv: list[str] | None = None) -> int:
                 days=int(args.days),
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
                 prune_missing=bool(getattr(args, "prune", False)),
+            )
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.refresh",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(payload.get("sessions_indexed") or payload.get("sessions_touched") or 0),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -5715,6 +5731,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0
         if action == "search":
+            t_rix = time.perf_counter()
             payload = _search_recall_index(
                 cwd=cwd,
                 query=str(args.query),
@@ -5723,6 +5740,13 @@ def main(argv: list[str] | None = None) -> int:
                 max_hits=int(args.max_hits),
                 index_path=str(index_path_arg) if isinstance(index_path_arg, str) else None,
                 sort=str(getattr(args, "sort", "recent") or "recent"),
+            )
+            _maybe_metrics_cli(
+                module="recall_index",
+                event="recall_index.search",
+                latency_ms=(time.perf_counter() - t_rix) * 1000.0,
+                tokens=int(payload.get("sessions_scanned") or 0),
+                success=True,
             )
             if bool(args.json_output):
                 print(json.dumps(payload, ensure_ascii=False))
@@ -6526,6 +6550,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "schedule":
         root = Path.cwd().resolve()
         if args.schedule_action == "add":
+            t_sadd = time.perf_counter()
             try:
                 job = add_schedule_task(
                     goal=str(args.goal),
@@ -6555,6 +6580,8 @@ def main(argv: list[str] | None = None) -> int:
                 else:
                     print(msg, file=sys.stderr)
                 return 2
+            sadd_ms = (time.perf_counter() - t_sadd) * 1000.0
+            dep_n = job.get("depends_on") if isinstance(job.get("depends_on"), list) else []
             append_schedule_audit_event(
                 task_id=str(job.get("id") or ""),
                 status="created",
@@ -6593,6 +6620,13 @@ def main(argv: list[str] | None = None) -> int:
                     f"added id={job.get('id')} every_minutes={job.get('every_minutes')} "
                     f"enabled={job.get('enabled')}",
                 )
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.add",
+                latency_ms=sadd_ms,
+                tokens=len(dep_n),
+                success=True,
+            )
             return 0
         if args.schedule_action == "add-memory-nudge":
             out_path = str(getattr(args, "output_file", ".cai/memory-nudge-latest.json"))
@@ -6637,8 +6671,16 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"goal={goal}")
             return 0
         if args.schedule_action == "list":
+            t_sl = time.perf_counter()
             raw_jobs = list_schedule_tasks(str(root))
             jobs = enrich_schedule_tasks_for_display(raw_jobs)
+            _maybe_metrics_cli(
+                module="schedule",
+                event="schedule.list",
+                latency_ms=(time.perf_counter() - t_sl) * 1000.0,
+                tokens=len(jobs),
+                success=True,
+            )
             if bool(args.json_output):
                 print(
                     json.dumps(
@@ -7852,6 +7894,7 @@ def main(argv: list[str] | None = None) -> int:
                     print("(not found)")
                 return 0 if row else 2
             if act == "list":
+                t_gtl = time.perf_counter()
                 items = [
                     v
                     for _, v in sorted(bindings.items(), key=lambda x: x[0])
@@ -7868,6 +7911,13 @@ def main(argv: list[str] | None = None) -> int:
                     "allowed_chat_ids": allowed_ids,
                     "allowlist_enabled": bool(allowed_ids),
                 }
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.list",
+                    latency_ms=(time.perf_counter() - t_gtl) * 1000.0,
+                    tokens=len(items),
+                    success=True,
+                )
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
@@ -8563,6 +8613,14 @@ def main(argv: list[str] | None = None) -> int:
                 except Exception as e:
                     print(f"写入会话失败: {e}", file=sys.stderr)
                     return 2
+            if args.command in ("run", "continue"):
+                _maybe_metrics_cli(
+                    module=str(args.command),
+                    event=f"{args.command}.invoke",
+                    latency_ms=float(elapsed_ms),
+                    tokens=int(usage.get("total_tokens", 0)),
+                    success=(str(task.status) == "completed"),
+                )
             _print_hook_status(
                 settings,
                 event="session_end",

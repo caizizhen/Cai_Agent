@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.12 (2026-04-23)
+
+- **Observability (Hermes S7-01 AC2 extension)**: When **`CAI_METRICS_JSONL`** is set, **`_maybe_metrics_cli`** also appends **`recall_index.build` / `recall_index.refresh` / `recall_index.search`**, **`schedule.list`**, **`schedule.add`**, **`gateway.telegram.list`**, and **`run.invoke` / `continue.invoke`** (latency, coarse **`tokens`**, **`success`** for run/continue). **`docs/schema/METRICS_JSON.zh-CN.md`** and schema index updated.
+- **Tests**: **`test_metrics_jsonl.py`** covers the new paths.
+
 ### 0.6.11 (2026-04-23)
 
 - **Observability (Hermes S7-01 AC2 extension)**: When **`CAI_METRICS_JSONL`** is set, **`_maybe_metrics_cli`** appends **`memory.health`**, **`recall.query`**, **`schedule.stats`**, and **`gateway.status`** events (latency + coarse **`tokens`** hint). **`docs/schema/METRICS_JSON.zh-CN.md`** and schema index updated.
