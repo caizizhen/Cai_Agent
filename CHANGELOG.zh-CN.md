@@ -4,7 +4,14 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
-### 0.5.0（当前开发）
+### 0.6.0（2026-04-23）
+
+- **Workflow（Hermes S5-03）**：JSON 根级 **`on_error`**：**`fail_fast`**（默认）或 **`continue_on_error`**（别名 **`continue-on-error`**）。`fail_fast` 时后续未跑步骤 **`skipped`**（**`fail_fast_prior_batch`**）并产生 **`workflow.step.skipped`**；`continue_on_error` 时 merge/conflict 仅统计成功完成步骤。`summary` 增加 **`on_error`**、**`steps_skipped`**、**`merge_steps_considered`**。
+- **Workflow（Hermes S5-04）**：根级可选 **`budget_max_tokens`**；已执行步骤 **`total_tokens`** 在下一批前与预算比较，未启动步骤 **`skipped`/`budget_exceeded`**。`summary` 与 **`workflow.finished`** 含 **`budget_limit`/`budget_used`/`budget_exceeded`**；**`task.error`** 可为 **`workflow_budget_exceeded`**；已提交的并行批仍跑完。
+- **Workflow 任务状态**：通过 **`skip_reason=fail_fast_prior_batch`** 识别 fail-fast 中止，避免与预算跳过混淆。
+- **冒烟与文档**：**`smoke_new_features.py`** 断言 **`workflow --json`** 的 **`summary.on_error`** 与 **`budget_*`**；**`PRODUCT_PLAN.zh-CN.md`** §3.0 写明 **>20%** 同步基线与 QA；**`QA_SKIP_LOG=1`** 跑 **`run_regression.py`** 可不写 **`docs/qa/runs/*.md`**。Schema / Parity / Sprint5 测试计划文档已同步 S5-03/S5-04。
+
+### 0.5.0 – 0.5.7（累积条目见下）
 
 - **文档**：[`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) **§三之二**（开发项 1–26 状态计数、**未开发项 21–26**、**QA 清单**）及 **§三之二 · 3.0 同步完成度（百分比）**（§二加权、Hermes 34 Story、T1）；[`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) 增加 **`gateway telegram` / `gateway_telegram_map_v1`**、**`schedule stats` / `schedule_stats_v1`**（S1-02，与 [`SCHEDULE_STATS_JSON.zh-CN.md`](docs/schema/SCHEDULE_STATS_JSON.zh-CN.md) 互链）；[`HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](docs/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 与上述口径交叉引用。
 - **CLI `init --json`**：stdout **单行 `init_cli_v1`**（成功时 **`ok`**、**`config_path`**、**`preset`**、**`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等）。无 **`--json`** 时仍为原有文本输出。见 **`docs/schema/README.zh-CN.md`**。

@@ -718,7 +718,7 @@ ctx ███░░░░░░░░░░░░░░░░░ ~512 / 32,768 (
 
 `workflow` 当前使用 JSON 文件，核心字段如下：
 
-- 根对象：`{"steps":[ ... ]}`
+- 根对象：`{"steps":[ ... ]}`；可选根字段：**`merge_strategy`**（`require_manual` / `last_wins` / `role_priority`）、**`on_error`**（`fail_fast` 默认 / `continue_on_error`，Hermes S5-03）、**`budget_max_tokens`**（Hermes S5-04，批间 token 预算；`summary` 含 **`budget_used`/`budget_limit`/`budget_exceeded`**）。步骤上可设 **`parallel_group`**（同名字符串同批并行）。
 - 每个 step 支持：
   - `name`：步骤名称（可选，不填自动 `step-N`）
   - `goal`：步骤目标（必填）

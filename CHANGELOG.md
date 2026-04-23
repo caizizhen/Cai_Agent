@@ -2,7 +2,14 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
-### 0.5.0 (in development)
+### 0.6.0 (2026-04-23)
+
+- **Workflow (Hermes S5-03)**: JSON root **`on_error`**: **`fail_fast`** (default) or **`continue_on_error`** (alias **`continue-on-error`**). On fail-fast, remaining steps are **`skipped`** with **`skip_reason=fail_fast_prior_batch`** and **`workflow.step.skipped`** events; merge/conflict resolution only considers successfully finished steps when continuing. Summary adds **`on_error`**, **`steps_skipped`**, **`merge_steps_considered`**.
+- **Workflow (Hermes S5-04)**: Optional root **`budget_max_tokens`**. Cumulative executed-step **`total_tokens`** gates the next batch; unstarted steps become **`skipped`/`budget_exceeded`**. **`summary`** and **`workflow.finished`** include **`budget_limit`**, **`budget_used`**, **`budget_exceeded`**; **`task.error`** may be **`workflow_budget_exceeded`**. Batches already submitted still run to completion.
+- **Workflow status logic**: Fail-fast completion is detected via **`skip_reason=fail_fast_prior_batch`**, so budget-driven skips are not misclassified as fail-fast.
+- **Smoke / docs**: `scripts/smoke_new_features.py` asserts **`workflow --json`** **`summary.on_error`** and **`budget_*`**; `docs/PRODUCT_PLAN.zh-CN.md` §3.0 documents the **>20%** sync baseline; `QA_SKIP_LOG=1` on `scripts/run_regression.py` skips writing new `docs/qa/runs/*.md` reports. Parity docs (`docs/schema/README.zh-CN.md`, `docs/HERMES_PARITY_*`, `docs/qa/sprint5-subagents-testplan.md`) updated for S5-03/S5-04.
+
+### 0.5.0 – 0.5.7 (cumulative; see entries below)
 
 - **Docs**: [`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) **§三之二 · 3.0** adds **quantified progress** (weighted §二 items 1–26, Hermes 34 stories, T1); [`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) documents **`gateway telegram` / `gateway_telegram_map_v1`** and **`schedule stats` / `schedule_stats_v1`** (S1-02; links [`SCHEDULE_STATS_JSON.zh-CN.md`](docs/schema/SCHEDULE_STATS_JSON.zh-CN.md)); [`docs/HERMES_PARITY_PROGRESS.zh-CN.md`](docs/HERMES_PARITY_PROGRESS.zh-CN.md) and [`docs/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](docs/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) cross-link the same metrics. **§三之二** also lists dev-item counts (1–26), backlog **21–26**, and the **QA handoff checklist**.
 - **`cai-agent init --json`**: Prints a single-line **`init_cli_v1`** payload (`ok`, `config_path`, `preset`, `global` on success; `error` + `message` on `config_exists` / `template_read_failed` / `mkdir_failed`). Default text output unchanged without `--json`. See `docs/schema/README.zh-CN.md`.
