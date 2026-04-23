@@ -205,6 +205,7 @@
 - **`schema_version`**：`workflow_run_v1`；根级 **`task_id`** 与 **`task.task_id`** 同源（与 `run --json` 对齐）；另有 **`subagent_io_schema_version`**：`1.0` 与 `subagent_io`（`inputs` / `merge` / `outputs`）、`steps`、`summary`、`events`、`task`。
 - **并行**：步骤可设 **`parallel_group`**（同名字符串同批并发）；`summary` 含 **`parallel_groups_count`** / **`parallel_steps_count`** 等；**S5-01 / S5-02** 能力见 `tests/test_cli_workflow.py`。
 - **S5-03**：workflow JSON 根级可选 **`on_error`**：`fail_fast`（默认）或 `continue_on_error`（亦接受 `continue-on-error`）。`fail_fast` 下后续未跑步骤以 **`skipped: true`** 占位并产生 **`workflow.step.skipped`** 事件；`continue_on_error` 跑满全步骤，**merge / conflict** 仅统计 **`finished` 且无 `error_count`** 的步骤。`summary` 增补 **`on_error`**、**`steps_skipped`**、**`merge_steps_considered`**；`workflow.finished` 事件含 **`on_error`** / **`steps_skipped`**。
+- **S5-04**：根级可选 **`budget_max_tokens`**（非负整数）。已执行步骤的 **`total_tokens`** 累计在下一批开始前 **≥** 限额时，本批及之后未启动步骤 **`skipped`**（**`budget_exceeded`**）；已提交的并行批仍跑完。`summary` 与 **`workflow.finished`** 含 **`budget_limit`** / **`budget_used`** / **`budget_exceeded`**。
 
 **Exit**：文件缺失/解析失败 → `2`；默认成功 `0`。`--fail-on-step-errors`：`task.status == failed` 或 `summary.tool_errors_total > 0` 或任一步 `error_count > 0` → `2`。
 

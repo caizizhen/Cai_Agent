@@ -16,7 +16,7 @@
 | 定时无人值守 | 内置 cron + 任意平台投递 | `schedule` / `daemon` / scaffold **已落地** | **完成** |
 | 跨会话检索 | FTS5 + LLM 摘要等 | `recall` / `recall-index`、`insights` **已落地** | **完成** |
 | 记忆治理 | 周期性 nudge、健康度、用户建模（Honcho 等） | `memory nudge` / `nudge-report`、**`memory health`（S2-01）已合并** | **部分完成**（见开发项 **9–10**；用户建模 / Honcho 级能力见 **§一** 与 **开发项 25**） |
-| 子代理 / 并行 | 隔离子 agent、RPC 脚本 | `workflow` **`parallel_group`** + **`subagent_io.merge`** + 根级 **`on_error`**（S5-03）已落地；路由与 hooks **部分**对齐 | **部分完成**（Hermes **S5-01～S5-03** ✅；见 **§二 23**） |
+| 子代理 / 并行 | 隔离子 agent、RPC 脚本 | `workflow` **`parallel_group`** + **`subagent_io.merge`** + **`on_error`** + **`budget_max_tokens`**（S5-03 / S5-04）已落地；路由与 hooks **部分**对齐 | **部分完成**（Hermes **S5-01～S5-04** ✅；见 **§二 23**） |
 | 运行后端 | 本地 / Docker / SSH / Modal / Daytona 等 | 以本机 + 可选配置为主；**无** Modal/Daytona 一等公民 | **未开始**（P2） |
 | 语音 / Bridge | 产品化能力 | **OOS** 或 MCP 路径（见 Parity 矩阵） | **定案** |
 
@@ -48,7 +48,7 @@
 | 20 | **S4-04** 调度审计 JSONL 事件类型统一（7 种标准事件名） | **完成** | 与 PROGRESS 一致；`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`、`tests/test_schedule_audit_schema_s4_04.py` |
 | 21 | 统一任务 ID / 全链路状态机 + Dashboard 消费 | **完成** | **`run`/`continue`/… `--json`** 与 **`workflow --json`**（**`workflow_run_v1`**）根级 **`task_id`**（与 **`task.task_id`** 同源）；`sessions`/`observe` 行内 **`task_id`**；**`smoke_new_features`** 已抽样 **`workflow`**；**全链路状态机 + Dashboard** 仍为后续增量 |
 | 22 | 敏感信息扫描、高危命令二次确认 | **部分完成** | **MVP**：**`security-scan --json`**（**`security_scan_result_v1`**）+ **`smoke_new_features`** 空工作区抽样；**高危命令二次确认** 仍依赖 `sandbox`/`permissions` 与 [`NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`](NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md) 已述策略，未单列闭环 |
-| 23 | 子 Agent 标准 IO、多 Agent 编排模板 | **部分完成** | **MVP**：**`parallel_group`** 并行批 + **`subagent_io`**（**`merge`/`outputs`**）+ **`on_error`**（**`fail_fast`** / **`continue_on_error`**，S5-03）；Hermes **S5-01～S5-03** 已 ✅；**S5-04**、RPC 级标准 IO 仍为增量 |
+| 23 | 子 Agent 标准 IO、多 Agent 编排模板 | **部分完成** | **MVP**：**`parallel_group`** + **`subagent_io`** + **`on_error`** + **`budget_max_tokens`**（**`budget_used`/`budget_limit`/`budget_exceeded`**，S5-04）；Hermes **S5-01～S5-04** 已 ✅；**RPC** 级标准 IO 仍为增量 |
 | 24 | 多平台 Gateway 与 Hermes 对齐（Discord/Slack/…） | **未开始** | 大项；依赖产品与密钥策略 |
 | 25 | 技能自进化 / Skills Hub 式分发 | **未开始** | Hermes 核心差异 |
 | 26 | 运营面板（队列、失败率、成本） | **未开始** | P2 |
@@ -59,8 +59,8 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **354 passed**（以本机 `pytest cai-agent/tests` 为准） |
-| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`security-scan --json`（`security_scan_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 exit `2` / `recall_index_doctor_v1`）**、**`recall-index info --json`（无索引 `ok`=`false` / `index_not_found`，exit `0`）**、**`run --json`（`CAI_MOCK=1` 时根级 `task_id` 与 `task.task_id` 一致）**、**`workflow --json`（根级 `task_id` / `workflow_run_v1`）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md`；**最新一次**：[`regression-20260423-090410.md`](qa/runs/regression-20260423-090410.md)（**Overall PASS**） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | 例：主线 **356 passed**（以本机 `pytest cai-agent/tests` 为准） |
+| T2 | `python scripts/run_regression.py` | 自动化 | **完成** | 已修复：强制 `PYTHONPATH=cai-agent/src` + 使用 `python -m cai_agent`，避免 PATH 上旧版 `cai-agent` 脚本；**`smoke_new_features.py`** 与回归主流程一致，**内联 `python -m cai_agent`**（同一 **`PYTHONPATH`**），校验 **`mcp-check --json`（`mcp_check_result_v1`，exit 0/2）**、**`security-scan --json`（`security_scan_result_v1`，exit 0/2）**、**`sessions`/`observe-report --json`**、**`hooks run-event --dry-run --json`（`hooks_run_event_result_v1`）**、**`memory state --json`（`memory_state_eval_v1`）**、**`plugins --json`（`plugins_surface_v1`）**、**`doctor --json`（`doctor_v1`）**、**`insights --json`（`1.1`，空工作区）**、**`board --json`（`board_v1`）**、**`hooks list --json`（`hooks_catalog_v1`）**、**`memory health --json`（S2-01，`schema_version` 1.0）**、**`init --json`**、**二次 init（`config_exists` / exit `2`）**、**`schedule add|list|rm|stats --json`（`schedule_stats_v1`）**、**`gateway telegram list --json`（`gateway_telegram_map_v1`）**、**`recall --json`（`schema_version` 1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 exit `2` / `recall_index_doctor_v1`）**、**`recall-index info --json`（无索引 `ok`=`false` / `index_not_found`，exit `0`）**、**`run --json`（`CAI_MOCK=1` 时根级 `task_id` 与 `task.task_id` 一致）**、**`workflow --json`（根级 `task_id` / `workflow_run_v1`）**、**`memory … --json`** 等；见 `docs/qa/runs/regression-*.md`；**最新一次**：[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md)（**Overall PASS**） |
 | T3 | Hermes 总测试计划 | 文档 | **已写** | [`docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 手工/自动化 | **S2-01 已覆盖** | [`docs/qa/sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` |
 | T5 | Sprint3–8 专项计划（recall v2、scheduler、subagents、gateway、observability、GA） | 手工 | **计划已写 / 随开发推进** | `docs/qa/sprint3-recall-v2-testplan.md` … `sprint8-ga-testplan.md` |
@@ -80,8 +80,8 @@
 | 口径 | 计算方式 | **当前值** |
 |------|----------|------------|
 | **§二 开发项 1–26（加权）** | 「完成」权重 **1**；**定案**（项 8）**1**；**持续演进**（项 9）**1**；**部分完成**（项 **22、23**）各 **0.5**；「未开始」**0**。分子 ÷ **26** | **约 85%**（**22÷26≈84.6%**；较上统计周期 **+3.8pp**） |
-| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34 | **约 65%**（**22÷34≈64.7%**；较上统计周期 **+2.7pp**） |
-| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **354 passed**（**2026-04-23** 本机复核；见上表 T1） |
+| **Hermes Backlog 34 Story** | 仅 ✅ 条数 ÷ 34 | **约 68%**（**23÷34≈67.6%**；较上统计周期 **+2.9pp**） |
+| **自动化测试 T1** | `pytest cai-agent/tests` 全绿即视为本条里程碑达成（用例数随版本增加） | **356 passed**（**2026-04-23** 本机复核；见上表 T1） |
 
 ### 3.1 §二 开发项（1–26）状态计数
 
@@ -90,7 +90,7 @@
 | **完成** | **20** | 1–7、9–21（**含** 18、19、**21**） |
 | **定案（产品决策，无对等代码里程碑）** | **1** | 8（WebSearch/Notebook **MCP 优先**） |
 | **完成（持续演进）** | **1** | 9（记忆 CLI 仍随需求迭代） |
-| **部分完成** | **2** | **22**（`security-scan`；高危命令确认仍增量）、**23**（`parallel_group` + `subagent_io` + **`on_error`**（S5-03）；**S5-04** 待办） |
+| **部分完成** | **2** | **22**（`security-scan`；高危命令确认仍增量）、**23**（S5 **编排 + 预算** 已 ✅；**RPC** 标准 IO 仍增量） |
 | **未开始** | **3** | **24、25、26**（见下表 **已全部标记**） |
 
 ### 3.2 未开发项全表（**标记：待分 Sprint / 立项后开发**）
@@ -107,8 +107,8 @@
 
 | 序号 | 测试对象 | 类型 | 建议执行人 | 操作说明 | 当前证据（开发侧） |
 |------|----------|------|------------|----------|---------------------|
-| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**354 passed**（**2026-04-23** Windows 本机 `pytest cai-agent/tests -q` 复核；以执行机为准） |
-| **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；**`smoke_new_features`** 亦 **`python -m cai_agent`**；开发侧 **2026-04-23** 复核：[`regression-20260423-090410.md`](qa/runs/regression-20260423-090410.md) **PASS** |
+| **QA-1** | **T1** `pytest cai-agent/tests` | 自动化 | CI / 测试 | 每版合并后必跑；失败则阻塞发布 | 主线最近一次：**356 passed**（**2026-04-23** Windows 本机 `pytest cai-agent/tests -q` 复核；以执行机为准） |
+| **QA-2** | **T2** `python scripts/run_regression.py` | 自动化 | 测试 | 仓库根执行；关注 `docs/qa/runs/regression-*.md` | 脚本已固定 `PYTHONPATH` + `python -m cai_agent`；**`smoke_new_features`** 亦 **`python -m cai_agent`**；开发侧 **2026-04-23** 复核：[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS** |
 | **QA-3** | **冒烟** `python scripts/smoke_new_features.py` | 自动化 | 测试 | 与 T2 可合并执行；校验 **`mcp-check`/`security-scan`/`sessions`/`observe-report`/`hooks run-event`（dry-run）**、**`plugins`/`doctor`/`insights`/`board`/`hooks list`/`memory health`/`memory state`** JSON 信封、**`run --json` `task_id`**、**`workflow --json` `task_id`**、**`init`**（含二次 **`config_exists`**）、**`schedule stats`（`schedule_stats_v1`）**、**`gateway telegram list`**（`gateway_telegram_map_v1`）、**`recall --json`（1.3 / `no_hit_reason`）**、**`recall-index doctor --json`（无索引 / exit `2`）**、**`recall-index info --json`（无索引 / exit `0`）**、`schedule` / `memory` JSON 信封 | 退出码 **0** 且 stdout **`NEW_FEATURE_CHECKS_OK`** |
 | **QA-4** | Hermes 总测 | 文档化手工 | 测试 | 按 [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) 抽样 | 文档已维护 |
 | **QA-5** | Sprint2 memory health | 手工 + 自动化 | 测试 | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) + `test_memory_health_cli.py` | S2-01 已在 `main` |
@@ -138,4 +138,4 @@
 
 ---
 
-*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）；**Hermes 34 Story 约 65%**（**22÷34≈64.7%**）；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-03 `on_error`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json` `task_id`**；S5-01～S5-03 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 354 passed**（本机）、T2 **[`regression-20260423-090410.md`](qa/runs/regression-20260423-090410.md) PASS**。）*
+*文档版本：2026-04-23（§三之二 **3.0**：**§二 加权约 85%**（**22÷26≈84.6%**）；**Hermes 34 Story 约 68%**（**23÷34≈67.6%**）；**开发项 21** **完成**（`run`/`workflow` 根级 **`task_id`**）；**22、23** **部分完成**（**23**：**S5-04 `budget_max_tokens`** 已合入）；**`smoke_new_features`** 已含 **`workflow --json` `task_id`**；S5-01～S5-04 见 **`HERMES_PARITY_PROGRESS.zh-CN.md`**；**QA 证据**：T1 **`pytest` 356 passed**（本机）、T2 **[`regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) PASS**。）*

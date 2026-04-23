@@ -358,6 +358,114 @@ class WorkflowCliTests(unittest.TestCase):
 
         self.assertEqual(out.get("summary", {}).get("on_error"), "continue_on_error")
 
+    def test_workflow_budget_max_skips_unstarted_tail(self) -> None:
+        """S5-04: after a batch, cumulative total_tokens >= budget skips remaining steps."""
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "budget_max_tokens": 50,
+                        "steps": [
+                            {"name": "s1", "goal": "a"},
+                            {"name": "s2", "goal": "b"},
+                            {"name": "s3", "goal": "c"},
+                        ],
+                    },
+                ),
+                encoding="utf-8",
+            )
+
+            def fake_run_step(settings, raw_step, idx):
+                name = str(raw_step.get("name") or "")
+                tokens = {"s1": 40, "s2": 20, "s3": 1}.get(name, 0)
+                sr = {
+                    "index": idx,
+                    "name": name,
+                    "goal": str(raw_step.get("goal", "")),
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": "ok",
+                    "finished": True,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": tokens,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": raw_step.get("goal"), "role": "default", "parallel_group": None},
+                        "output": {"answer": "ok"},
+                        "error": None,
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": name,
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": 0,
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        steps = out.get("steps") or []
+        self.assertEqual(len(steps), 3)
+        self.assertFalse(steps[0].get("skipped"))
+        self.assertFalse(steps[1].get("skipped"))
+        self.assertTrue(steps[2].get("skipped"))
+        self.assertEqual(steps[2].get("skip_reason"), "budget_exceeded")
+        sm = out.get("summary") or {}
+        self.assertEqual(sm.get("budget_limit"), 50)
+        self.assertEqual(sm.get("budget_used"), 60)
+        self.assertTrue(sm.get("budget_exceeded"))
+        self.assertEqual(out.get("task", {}).get("error"), "workflow_budget_exceeded")
+
+    def test_workflow_budget_summary_when_no_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps({"steps": [{"name": "only", "goal": "g"}]}),
+                encoding="utf-8",
+            )
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                buf = io.StringIO()
+                with redirect_stdout(buf):
+                    rc = main(["workflow", str(wf_path), "--json"])
+                out = json.loads(buf.getvalue().strip())
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+        self.assertEqual(rc, 0)
+        sm = out.get("summary") or {}
+        self.assertIsNone(sm.get("budget_limit"))
+        self.assertIs(sm.get("budget_exceeded"), False)
+        self.assertIn("budget_used", sm)
+
 
 if __name__ == "__main__":
     unittest.main()

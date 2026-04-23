@@ -50,6 +50,55 @@ def _step_ok_for_merge(step: Dict[str, Any]) -> bool:
     return bool(step.get("finished"))
 
 
+def _parse_budget_max_tokens(data: Dict[str, Any]) -> int | None:
+    """根级 `budget_max_tokens`（S5-04）：非负整数有效，否则视为未配置。"""
+    raw = data.get("budget_max_tokens")
+    if raw is None:
+        return None
+    try:
+        n = int(raw)
+    except (TypeError, ValueError):
+        return None
+    if n < 0:
+        return None
+    return n
+
+
+def _tokens_used_executed(results: List[Dict[str, Any]]) -> int:
+    return sum(int(r.get("total_tokens") or 0) for r in results if not r.get("skipped"))
+
+
+def _append_workflow_skipped_range(
+    settings: Settings,
+    steps_data: List[Any],
+    start_idx: int,
+    end_idx: int,
+    *,
+    reason: str,
+    results: List[Dict[str, Any]],
+    events: List[Dict[str, Any]],
+    wf_task: Any,
+) -> None:
+    """为 [start_idx, end_idx]（1-based 下标，含端点）写入 skipped 占位与事件。"""
+    for j in range(start_idx, end_idx + 1):
+        raw_skip = steps_data[j - 1]
+        if not isinstance(raw_skip, dict):
+            raise ValueError(f"workflow.steps[{j - 1}] 必须是 JSON object")
+        sk = _skipped_step_stub(settings, j, raw_skip, reason=reason)
+        results.append(sk)
+        events.append(
+            {
+                "event": "workflow.step.skipped",
+                "task_id": wf_task.task_id,
+                "workflow_task_id": wf_task.task_id,
+                "step_index": j,
+                "name": sk.get("name"),
+                "parallel_group": sk.get("parallel_group"),
+                "reason": reason,
+            },
+        )
+
+
 def _skipped_step_stub(
     settings: Settings,
     idx: int,
@@ -57,7 +106,7 @@ def _skipped_step_stub(
     *,
     reason: str,
 ) -> dict[str, Any]:
-    """fail_fast 提前中止后，为未运行步骤写入占位，便于与 workflow.steps 对齐。"""
+    """未运行步骤占位（fail_fast / budget 等），便于与 workflow.steps 对齐。"""
     goal = str(raw_step.get("goal", "")).strip()
     name = str(raw_step.get("name") or f"step-{idx}").strip()
     ws_raw = raw_step.get("workspace")
@@ -366,6 +415,11 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
 
     `on_error`（Hermes S5-03）：`fail_fast`（默认）表示任一步骤执行失败则中止后续步骤并写入
     `skipped` 占位；`continue_on_error` 则跑完全部步骤，且 merge/conflict 仅统计成功完成的步骤。
+
+    `budget_max_tokens`（Hermes S5-04，可选）：已执行步骤的 **`total_tokens`** 累计值在**下一批**
+    开始前若 **≥** 预算，则本批及之后未启动步骤全部 **`skipped`**（`skip_reason=budget_exceeded`）；
+    本批已启动的并行组仍会跑完（已运行结果保留）。`summary` / `workflow.finished` 含 **`budget_used`** /
+    **`budget_limit`** / **`budget_exceeded`**。
     """
     wf_task = new_task("workflow")
     wf_task.status = "running"
@@ -376,6 +430,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     merge_strategy = str(data.get("merge_strategy", "require_manual")).strip().lower()
     if merge_strategy not in ("require_manual", "last_wins", "role_priority"):
         merge_strategy = "require_manual"
+    budget_max = _parse_budget_max_tokens(data)
 
     results: List[Dict[str, Any]] = []
     total_elapsed = 0
@@ -404,6 +459,21 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
                     break
                 batch.append((j, cand))
                 j += 1
+
+        next_idx = idx + len(batch)
+
+        if budget_max is not None and _tokens_used_executed(results) >= budget_max:
+            _append_workflow_skipped_range(
+                settings,
+                steps_data,
+                idx,
+                len(steps_data),
+                reason="budget_exceeded",
+                results=results,
+                events=events,
+                wf_task=wf_task,
+            )
+            break
 
         for bi, br in batch:
             bname = str(br.get("name") or f"step-{bi}").strip()
@@ -442,35 +512,33 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             total_errors += int(step_result.get("error_count") or 0)
             instincts_roots.add(workspace)
 
-        next_idx = idx + len(batch)
         batch_failed = any(
             _step_execution_failed(sr) for sr, _, _ in batch_results
         )
         if on_error == "fail_fast" and batch_failed:
-            j = next_idx
-            while j <= len(steps_data):
-                raw_skip = steps_data[j - 1]
-                if not isinstance(raw_skip, dict):
-                    raise ValueError(f"workflow.steps[{j - 1}] 必须是 JSON object")
-                sk = _skipped_step_stub(
-                    settings,
-                    j,
-                    raw_skip,
-                    reason="fail_fast_prior_batch",
-                )
-                results.append(sk)
-                events.append(
-                    {
-                        "event": "workflow.step.skipped",
-                        "task_id": wf_task.task_id,
-                        "workflow_task_id": wf_task.task_id,
-                        "step_index": j,
-                        "name": sk.get("name"),
-                        "parallel_group": sk.get("parallel_group"),
-                        "reason": "fail_fast_prior_batch",
-                    },
-                )
-                j += 1
+            _append_workflow_skipped_range(
+                settings,
+                steps_data,
+                next_idx,
+                len(steps_data),
+                reason="fail_fast_prior_batch",
+                results=results,
+                events=events,
+                wf_task=wf_task,
+            )
+            break
+
+        if budget_max is not None and _tokens_used_executed(results) >= budget_max:
+            _append_workflow_skipped_range(
+                settings,
+                steps_data,
+                next_idx,
+                len(steps_data),
+                reason="budget_exceeded",
+                results=results,
+                events=events,
+                wf_task=wf_task,
+            )
             break
 
         idx = next_idx
@@ -480,6 +548,11 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     merge_decision = _merge_decision_for_strategy(merge_strategy, conflicts, merge_inputs)
 
     skipped_count = sum(1 for r in results if r.get("skipped"))
+    tok_used = _tokens_used_executed(results)
+    budget_exceeded = budget_max is not None and (
+        tok_used > budget_max
+        or any(str(r.get("skip_reason") or "") == "budget_exceeded" for r in results)
+    )
     summary = {
         "steps_count": len(results),
         "parallel_steps_count": sum(
@@ -509,6 +582,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "on_error": on_error,
         "steps_skipped": skipped_count,
         "merge_steps_considered": len(merge_inputs),
+        "budget_limit": budget_max,
+        "budget_used": tok_used,
+        "budget_exceeded": budget_exceeded,
     }
     subagent_io = _build_subagent_io_summary(
         steps=results,
@@ -534,15 +610,21 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     wf_task.ended_at = time.time()
     wf_task.elapsed_ms = int((wf_task.ended_at - wf_task.started_at) * 1000)
     ran_failed = any(_step_execution_failed(r) for r in results)
-    if skipped_count > 0 and on_error == "fail_fast":
+    fail_fast_tail = on_error == "fail_fast" and any(
+        str(r.get("skip_reason") or "") == "fail_fast_prior_batch" for r in results
+    )
+    if fail_fast_tail:
         wf_task.status = "failed"
         wf_task.error = "workflow_fail_fast"
-    elif total_errors == 0 and not ran_failed:
-        wf_task.status = "completed"
-        wf_task.error = None
-    else:
+    elif total_errors > 0 or ran_failed:
         wf_task.status = "failed"
         wf_task.error = "workflow_has_step_errors"
+    elif budget_exceeded:
+        wf_task.status = "failed"
+        wf_task.error = "workflow_budget_exceeded"
+    else:
+        wf_task.status = "completed"
+        wf_task.error = None
     events.append(
         {
             "event": "workflow.finished",
@@ -554,6 +636,9 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             "tool_errors_total": total_errors,
             "on_error": on_error,
             "steps_skipped": skipped_count,
+            "budget_limit": budget_max,
+            "budget_used": tok_used,
+            "budget_exceeded": budget_exceeded,
         },
     )
     return {

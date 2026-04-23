@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（进度统计与 **QA 测试移交清单** 同步见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T2 最新回归日志 [`docs/qa/runs/regression-20260423-090410.md`](qa/runs/regression-20260423-090410.md) **PASS**）  
+> 生成时间：2026-04-23（进度统计与 **QA 测试移交清单** 同步见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T2 最新回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**）  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 22     | 65%      |
+| ✅ 已完成        | 23     | 68%      |
 | ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 12     | 35%      |
+| ❌ 未开发        | 11     | 32%      |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **22/34 ≈ 64.7%**（较上一统计周期 **+2.7pp**）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **23/34 ≈ 67.6%**（较上一统计周期 **+2.9pp**）。
 
 ---
 
@@ -49,6 +49,7 @@
 | **S5-01**   | workflow `parallel_group` 字段 | 同名字符串步骤同批调度；`summary.parallel_groups_count` / `parallel_steps_count`；`tests/test_cli_workflow.py::test_workflow_parallel_group_emits_group_summary` |
 | **S5-02**   | fan-out/fan-in 结果聚合 | `subagent_io.merge`（`decision` / `confidence` / `conflicts` 等）、`merge_confidence`；与并行组摘要同源；`test_cli_workflow.py` |
 | **S5-03**   | fail-fast / continue-on-error | 根级 **`on_error`**（`fail_fast` 默认 / `continue-on-error` 别名 → `continue_on_error`）；`summary.on_error`、`steps_skipped`、`merge_steps_considered`；事件 **`workflow.step.skipped`**；`tests/test_cli_workflow.py` |
+| **S5-04**   | 预算与 token 门禁 | 根级 **`budget_max_tokens`**；批间 **`total_tokens`** 累计 ≥ 预算则 **`skipped`/`budget_exceeded`**；`summary` 与 **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` **`workflow_budget_exceeded`**；`tests/test_cli_workflow.py` |
 
 
 ---
@@ -88,17 +89,12 @@
 
 ### Sprint 5：Subagents 并行编排
 
-**S5-01 / S5-02 / S5-03** 已迁入 **✅ 已完成** 表；余下 Story：
-
-| Story ID  | 标题                               | 优先级 | 估算  | 测试计划                                                                              |
-| --------- | -------------------------------- | --- | --- | --------------------------------------------------------------------------------- |
-| **S5-04** | 预算与质量门禁联动                        | P2  | M   | SAG-BUDGET-001~003                                                                |
-
+**本 Sprint（S5-01 ~ S5-04）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
 
 **开发关键文件**：
 
-- `cai_agent/workflow.py`：`parallel_group` 批调度、**`on_error`**（S5-03）与 **`subagent_io`** 汇总  
-**QA 等待信号**：**S5-04** 提测后继续预算联动测试（S5-03 见 `docs/qa/sprint5-subagents-testplan.md`）
+- `cai_agent/workflow.py`：`parallel_group`、**`on_error`**（S5-03）、**`budget_max_tokens`**（S5-04）与 **`subagent_io`** 汇总  
+**QA 等待信号**：编排与预算自动化见 `docs/qa/sprint5-subagents-testplan.md`；**质量门禁与 `quality-gate` 深度联动**仍为后续增量。
 
 ---
 

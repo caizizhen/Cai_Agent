@@ -3,7 +3,7 @@
 > 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 5  
 > 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S5  
 > 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_workflow*.py`  
-> **开发状态（2026-04-23）**：**S5-03**（`workflow` 根级 `on_error`：`fail_fast` / `continue_on_error`）已在 `cai_agent/workflow.py` 落地；自动化见 `cai-agent/tests/test_cli_workflow.py`（`test_workflow_fail_fast_*` / `test_workflow_continue_on_error_*` 等）。**S5-04**（`budget_max_tokens`）仍为待开发。
+> **开发状态（2026-04-23）**：**S5-03**（`on_error`）与 **S5-04**（`budget_max_tokens` + `budget_used`/`budget_limit`/`budget_exceeded`）已在 `cai_agent/workflow.py` 落地；自动化见 `cai-agent/tests/test_cli_workflow.py`。与 CLI **`quality-gate`** 的硬编码联动仍为后续增量。
 
 ---
 
