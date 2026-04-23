@@ -83,6 +83,8 @@ Do not commit real API keys.
 | `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (40 cases: add/edit/rm/ping/switch + context-bar UC-CTX-* + empty state + `/compact` prompt) |
 | `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
 | [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md) | **0.5.x → 0.6.x** upgrade: JSON `--json` envelopes, exit codes, schedule audit, recall (Hermes **S8-04**) |
+| [`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py) | **S8-02** GA perf gate (recall 200 thresholds; optional `--pytest-daemon`) |
+| [`scripts/security_ga_gate.py`](scripts/security_ga_gate.py) | **S8-03** GA security gate (`run_security_scan` on `cai-agent/src` + quoted `sk-` probe) |
 
 ---
 

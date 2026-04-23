@@ -1,6 +1,6 @@
 # Hermes 对齐开发进度状态表
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.9`**；**S8-04** **迁移指南**（**[`docs/MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md)** + **`CHANGELOG` §0.6.0** 结构化小节）；此前 **S7-04**（**`0.6.8`** **`observe export`**）；**S7-01～S7-03**（**`0.6.6`–`0.6.7`**）；**S6-04** **`gateway telegram continue-hint`**（**`gateway_telegram_continue_hint_v1`**）+ **`docs/qa/sprint6-gateway-telegram-testplan.md`** **GTW-CONT**；此前 **S6-01/S6-02/S6-03** 仍有效；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 32/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **386 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
+> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.10`**；**S8-02/S8-03** **GA 压测与安全门禁脚本**（**[`scripts/perf_ga_gate.py`](../scripts/perf_ga_gate.py)**、**[`scripts/security_ga_gate.py`](../scripts/security_ga_gate.py)**）+ **`test_perf_ga_s8_02` / `test_sec_ga_s8_03`**；此前 **S8-04**（**`0.6.9`** **迁移指南**）；**S7-04**（**`0.6.8`** **`observe export`**）；**S7-01～S7-03**（**`0.6.6`–`0.6.7`**）；**S6-04** **`gateway telegram continue-hint`**；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 34/34**；进度统计与 **QA** 见 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之二**；T1 **`pytest`** 例 **390 passed**（**3 subtests**）+ **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
 > 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
 > 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
 >
@@ -13,12 +13,12 @@
 
 | 状态           | 数量     | 占比       |
 | ------------ | ------ | -------- |
-| ✅ 已完成        | 32     | 94%      |
+| ✅ 已完成        | 34     | 100%     |
 | ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 2      | 6%       |
+| ❌ 未开发        | 0      | 0%       |
 | **合计**       | **34** | **100%** |
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **32/34 ≈ 94.1%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。
+**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **34/34 = 100%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。**S7-01 AC2**（各模块 metrics 全量打点）仍为 **增量**，见 backlog **S7-01 交付注**。
 
 ---
 
@@ -32,6 +32,8 @@
 | **S1-03**   | 错误码 exit 0/2 / 130 | 见 schema README；主流失败路径 **exit `2`**；`run` 族 Ctrl+C **exit `130`** |
 | S1-04       | Parity Matrix 基础 | `docs/PARITY_MATRIX.zh-CN.md` 已有，需按新格式补充 Gap 列                  |
 | **S8-01**   | 回归与冒烟套件 | `scripts/run_regression.py` + `scripts/smoke_new_features.py`（`PYTHONPATH` + `python -m cai_agent`）；随 Sprint 扩充 |
+| **S8-02**   | **关键路径压测门禁** | **`scripts/perf_ga_gate.py`**（recall **200** 与 **`perf_recall_bench`** 阈值一致；可选 **`--pytest-daemon`**）；**`test_perf_ga_s8_02.py`**（**PERF-GA-001/002/003** 自动化；daemon **mock** 执行 **100** 轮）。**AC3**（gateway **500** 条真机压测）仍为 **专项/真机**，未纳入本脚本 |
+| **S8-03**   | **安全审计门禁** | **`scripts/security_ga_gate.py`**（**`run_security_scan`** 扫 **`cai-agent/src`** + 引号内长 **`sk-`** 探测）；**`test_sec_ga_s8_03.py`**；**SEC-GA-004** 见 **`test_gateway_telegram_cli`** **`not_allowed`** |
 | **S8-04**   | **发布说明与迁移指南** | **[`docs/MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md)**（**0.5.x → 0.6.x**）；**`CHANGELOG` §0.6.0** 增加 **破坏性变更 / 新 CLI / 废弃说明**；**`README`** 版本要求；**`docs/schema/README.zh-CN.md`** 互链；**`test_migration_guide_present.py`** |
 | **S2-01**   | `memory health` 统一评分 | `cai-agent memory health --json`（`schema_version`=`1.0`）、`--fail-on-grade` exit 0/2；实现见 `memory.build_memory_health_payload` + `tests/test_memory_health_cli.py` |
 | **S2-02**   | freshness 指标 | `compute_memory_freshness_metrics` 与 `memory health` 共用；`memory nudge-report --json` 输出 `freshness` / `freshness_days` / `since_freshness` / `fresh_entries`；CLI `--freshness-days` |
@@ -70,6 +72,8 @@
 ---
 
 ## ❌ 未开发（按 Sprint 排序，开发认领后逐步交付）
+
+**Hermes 34 Story** 已全部 **✅**（见上表与 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) 交付注）。下表为 **各 Sprint 收口说明** 与 **非 Story 增量**（如 **S7-01 AC2**、**S8-02 AC3** 真机项）；**产品大颗粒能力** 仍以 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§二 / §三之二 · 3.2** 为准。
 
 ### Sprint 2：Memory Loop 2.0
 
@@ -132,15 +136,7 @@
 
 ### Sprint 8：GA 收敛
 
-
-| Story ID      | 标题        | 优先级 | 估算  | 测试计划                                                               |
-| ------------- | --------- | --- | --- | ------------------------------------------------------------------ |
-| **S8-01**（补齐） | 全量回归套件扩充  | P0  | L   | [sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) GA-REG-001~003 |
-| **S8-02**     | 关键路径压测脚本  | P0  | L   | PERF-GA-001~005                                                    |
-| **S8-03**（补齐） | 安全审计完整覆盖  | P0  | M   | SEC-GA-001~005                                                     |
-
-
-> **注**：**Sprint 7（S7-01～S7-04）** 主线 **CLI MVP** 已收口（**`0.6.6`–`0.6.8`**）。**S8-04** 已在 **`0.6.9`** 交付（见上表 **✅**）。S8 **压测 / 安全审计**（**S8-02**、**S8-03**）仍建议按 [`sprint8-ga-testplan.md`](qa/sprint8-ga-testplan.md) 排期；**S8-01** 回归入口见上表 **✅**。
+**S8-01～S8-04** 均已主线交付（**`0.6.6`–`0.6.10`** 分段，见上表 **✅**）。**S8-02 AC3**（gateway **500** 条连续消息）与 **Sprint 8 §3** 其余 **PERF-GA-004/005** 等仍建议按 [`sprint8-ga-testplan.md`](qa/sprint8-ga-testplan.md) **手工 / 真机** 排期。
 
 ---
 
@@ -185,7 +181,7 @@ Sprint 8（GA）
 | S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
 | S6     | S6-01～S6-04 合并 | 自动化 **GTW-BASE** + **GTW-SEC** + **`test_gateway_telegram_execute_goal`** + **`test_gateway_telegram_cli`（continue-hint）**；**GTW-TG** 真机待 Bot Token |
 | S7     | **S7-01～S7-04 已合 `0.6.6`–`0.6.8`** | **OBS-EXP/RPT/CROSS** 见 [sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md)；**S7-01 AC2** OBS-METRICS 扩展 |
-| S8     | **S8-04** 已合 **`0.6.9`**；**S8-02/S8-03** 待开发 | 文档门禁见 **S8-04**；**PERF-GA** / **SEC-GA** 见 [sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) |
+| S8     | **S8-01～S8-04** 已合 **`0.6.6`–`0.6.10`** | [sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) **PERF-GA / SEC-GA**；**`perf_ga_gate` / `security_ga_gate`** |
 
 
 ---
@@ -207,6 +203,7 @@ Sprint 8（GA）
 | [qa/sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md) | S7 专项测试 |
 | [qa/sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) | S8 发布门禁 |
 | [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) | **S8-04**：0.5.x → 0.6.x 升级与破坏性变更摘要 |
+| [`scripts/perf_ga_gate.py`](../scripts/perf_ga_gate.py) / [`scripts/security_ga_gate.py`](../scripts/security_ga_gate.py) | **S8-02 / S8-03**：GA 压测与安全门禁（仓库根执行） |
 
 ---
 
@@ -225,3 +222,4 @@ Sprint 8（GA）
 - **2026-04-23 · Sprint 7 Observability（`0.6.7`）**：**`insights --json --cross-domain`**（**`insights_cross_domain_v1`**）；**`aggregate_schedule_audit_by_calendar_day_utc`**；**`test_insights_cross_domain`**。
 - **2026-04-23 · Sprint 7 Observability（`0.6.8`）**：**`observe export`**（**`observe_export_v1`**）；**`observe_export.py`**；**`test_observe_export_cli`**。
 - **2026-04-23 · Sprint 8 GA 文档（`0.6.9`）**：**`docs/MIGRATION_GUIDE.md`**；**`CHANGELOG` §0.6.0** 小节；**`test_migration_guide_present`**。
+- **2026-04-23 · Sprint 8 GA 压测/安全（`0.6.10`）**：**`scripts/perf_ga_gate.py`**、**`scripts/security_ga_gate.py`**；**`test_perf_ga_s8_02`**、**`test_sec_ga_s8_03`**。

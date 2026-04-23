@@ -396,6 +396,7 @@
 - **测试用例 ID**：PERF-GA-001 ~ PERF-GA-010
 - **依赖**：S3-04，S4-02，S6-02
 - **估算**：L
+- **主线交付注（`0.6.10`）**：**[`scripts/perf_ga_gate.py`](../scripts/perf_ga_gate.py)** 复用 **`perf_recall_bench._bench_once`** 校验 **200** 会话 **scan/index_search** 阈值（**PERF-GA-001/002**）；**`test_perf_ga_s8_02.py`** 含 **daemon `max_cycles=100`** 稳定性（**mock** 执行 + **sleep**，**PERF-GA-003**）。**AC3**（gateway **500** 条）仍为 **真机/专项**，见 [sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md)。
 
 ### S8-03 安全审计
 - **Story**：作为安全负责人，我希望发布前完成一轮安全扫描，确保无已知 secret 泄露、无越权路径。
@@ -407,6 +408,7 @@
 - **测试用例 ID**：SEC-GA-001 ~ SEC-GA-010
 - **依赖**：S6-03
 - **估算**：M
+- **主线交付注（`0.6.10`）**：**[`scripts/security_ga_gate.py`](../scripts/security_ga_gate.py)** 对 **`cai-agent/src`** 跑 **`run_security_scan`**（无 **high** finding）+ 引号内长 **`sk-`** 字面量扫描；**`test_sec_ga_s8_03.py`**。**SEC-GA-004**（白名单绕过）由 **`test_gateway_telegram_cli`** **`not_allowed`** 覆盖。
 
 ### S8-04 发布说明与迁移指南
 - **Story**：作为用户，我希望升级时有清晰的 breaking change 列表和迁移步骤，不会因为不知道有破坏性变更而遇到意外问题。

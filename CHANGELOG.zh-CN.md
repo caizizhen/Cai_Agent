@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.10（2026-04-23）
+
+- **GA 压测门禁（Hermes S8-02）**：**[`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py)** 复用 **`perf_recall_bench`** 逻辑校验 **200** 会话 **scan/index_search** 阈值；可选 **`--pytest-daemon`**。**`tests/test_perf_ga_s8_02.py`**（**PERF-GA-001/002/003**）。**AC3**（gateway **500** 条）仍为 **真机/专项**。
+- **GA 安全门禁（Hermes S8-03）**：**[`scripts/security_ga_gate.py`](scripts/security_ga_gate.py)** + **`tests/test_sec_ga_s8_03.py`**；**SEC-GA-004** 见 **`test_gateway_telegram_cli`**。
+
 ### 0.6.9（2026-04-23）
 
 - **文档（Hermes S8-04）**：新增 **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)**（**0.5.x → 0.6.x**：JSON 信封、exit 码、调度审计、recall）。**`README.md` / `README.zh-CN.md`**：版本要求 + 迁移指南入口。**`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** 在 **§0.6.0** 增加 **破坏性变更**、**新 CLI（0.6.x 系列）**、**废弃说明** 小节以满足 GA 文档门禁。

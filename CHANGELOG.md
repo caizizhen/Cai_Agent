@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.10 (2026-04-23)
+
+- **GA perf gate (Hermes S8-02)**: **[`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py)** runs the recall **200**-session benchmark thresholds (same logic as **`perf_recall_bench.py`**); optional **`--pytest-daemon`** runs the daemon stability test. **`tests/test_perf_ga_s8_02.py`**: **PERF-GA-001/002** (recall scan + index search) and **PERF-GA-003** (`schedule daemon` **100** cycles with mocked execute + sleep). **AC3** (gateway **500** messages) remains manual / harness-specific per sprint plan.
+- **GA security gate (Hermes S8-03)**: **[`scripts/security_ga_gate.py`](scripts/security_ga_gate.py)** runs **`run_security_scan`** over **`cai-agent/src`** plus a quoted **`sk-…`** literal probe. **`tests/test_sec_ga_s8_03.py`**. Allowlist deny path remains **`tests/test_gateway_telegram_cli.py`** (**`not_allowed`** / **SEC-GA-004**).
+
 ### 0.6.9 (2026-04-23)
 
 - **Docs (Hermes S8-04)**: Added **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)** (0.5.x → 0.6.x: JSON envelopes, exit codes, schedule audit, recall). **`README.md` / `README.zh-CN.md`**: version requirements + link to the migration guide. **`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** §**0.6.0**: explicit **Breaking changes**, **New CLI (0.6.x train)**, and **Deprecations** subsections for GA doc gates.

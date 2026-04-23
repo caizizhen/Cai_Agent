@@ -12,14 +12,14 @@
 
 | 类别 | 项目 | 状态 |
 |------|------|------|
-| 功能 | S1~S7 所有 P0/P1 测试通过 | ⬜ |
-| 回归 | 全量回归 208+ 用例通过 | ⬜ |
-| 性能 | recall 200 文件 < 5s | ⬜ |
-| 性能 | schedule daemon 100 轮次无崩溃 | ⬜ |
-| 性能 | gateway 500 消息无掉线（如已实现） | ⬜ |
-| 安全 | security-scan 零 P0 告警 | ⬜ |
-| 安全 | 无硬编码 API key 或 token | ⬜ |
-| 安全 | gateway allowlist bypass 测试通过 | ⬜ |
+| 功能 | S1~S7 所有 P0/P1 测试通过 | ✅（以 **`pytest cai-agent/tests`** 为准） |
+| 回归 | 全量回归 390+ 用例通过 | ✅（**`0.6.10`** 本机；以 CI 为准） |
+| 性能 | recall 200 文件 < 5s | ✅（**`scripts/perf_ga_gate.py`** + **`test_perf_ga_s8_02`**） |
+| 性能 | schedule daemon 100 轮次无崩溃 | ✅（**`test_perf_ga_s8_02`** mock 执行；可选 **`perf_ga_gate.py --pytest-daemon`**） |
+| 性能 | gateway 500 消息无掉线（如已实现） | ⬜（**S8-02 AC3** 真机专项） |
+| 安全 | security-scan 零 P0 告警 | ✅（**`scripts/security_ga_gate.py`** + **`test_sec_ga_s8_03`** 扫 **`src`**） |
+| 安全 | 无硬编码 API key 或 token | ✅（**`test_sec_ga_s8_03`** 引号 **`sk-`** 长字面量扫描） |
+| 安全 | gateway allowlist bypass 测试通过 | ✅（**`test_gateway_telegram_cli`** **`not_allowed`**） |
 | 文档 | CHANGELOG 0.6.0 章节完整 | ✅（**0.6.9**：含 **Breaking changes / New CLI / Deprecations** 小节） |
 | 文档 | 迁移指南覆盖所有 breaking changes | ✅（**[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**；自动化 **`test_migration_guide_present`**） |
 

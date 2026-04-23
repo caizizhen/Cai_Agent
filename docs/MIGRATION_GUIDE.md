@@ -65,3 +65,12 @@ You do not have to adopt these immediately; they are additive CLI surfaces:
 ## 5. Deprecations
 
 - No fields were removed in 0.6.0 solely as “deprecated without replacement”; see **`CHANGELOG`** **Deprecations** under **0.6.0** for the small compatibility notes (e.g. **`models ping`** alias).
+
+## 6. GA gates (0.6.10+)
+
+From the repository root (with dev dependencies / **`PYTHONPATH=cai-agent/src`** as in other `scripts/` tools):
+
+- **Performance (Hermes S8-02)**: `python scripts/perf_ga_gate.py` (optional `python scripts/perf_ga_gate.py --pytest-daemon`).
+- **Security (Hermes S8-03)**: `python scripts/security_ga_gate.py`.
+
+These complement **`pytest cai-agent/tests`**; they do not replace full QA in [`docs/qa/sprint8-ga-testplan.md`](qa/sprint8-ga-testplan.md).
