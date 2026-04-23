@@ -28,7 +28,7 @@
 
 - [本轮已落地] `run` / `continue` 等 JSON：**`run_schema_version`=`1.1`**，**`events`** 为 **`run_events_envelope_v1`**（与 `workflow` 事件风格对齐）；**`cai_agent.session_events`**
 - [本轮已落地] `observe` 聚合 `run.*` 事件计数并与落盘会话对齐；`sessions --json` 为 **`sessions_list_v1`**，**`sessions[]`** 默认附带 **`events_count`** / **`task_id`** 等（**`normalize_session_run_events`**）
-- [本轮已落地] TUI 只读任务看板：**`/tasks`**、**`Ctrl+B`**（**`tui_task_board.py`**）
+- [本轮已落地] TUI 只读任务看板：**`/tasks`**、**`Ctrl+B`**（**`tui_task_board.py`**）；**`render_task_board_markup`** 与 **`board`** / **`schedule list`** 数据源对齐（**`build_board_payload`** + **`attach_*`**、**`enrich_schedule_tasks_for_display`**）；**`test_tui_task_board_render.py`**
 
 ### 计划与子 Agent
 
