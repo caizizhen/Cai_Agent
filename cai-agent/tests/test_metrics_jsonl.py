@@ -1031,6 +1031,108 @@ class MetricsJsonlTests(unittest.TestCase):
             self.assertEqual(row.get("tokens"), 2)
             self.assertIs(row.get("success"), True)
 
+    def test_release_ga_gate_metrics_on_fail_state_when_env_set(self) -> None:
+        payload = {
+            "schema_version": "release_ga_gate_v1",
+            "state": "fail",
+            "checks": [{"name": "bad"}],
+            "checks_passed": 0,
+            "failure_rate": 1.0,
+            "total_tokens": 0,
+            "failed_checks": [{"name": "bad", "reason": "stub"}],
+        }
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "rgf.jsonl"
+            root = Path(td) / "wsrgf"
+            root.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch("cai_agent.__main__._run_release_ga_gate", return_value=payload):
+                        with redirect_stdout(buf):
+                            rc = main(["release-ga", "--json"])
+            self.assertEqual(rc, 2)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "release_ga")
+            self.assertEqual(row.get("event"), "release_ga.gate")
+            self.assertEqual(row.get("tokens"), 1)
+            self.assertIs(row.get("success"), False)
+
+    def test_models_fetch_appends_metrics_when_env_set(self) -> None:
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "mdf.jsonl"
+            root = Path(td) / "wsmdf"
+            root.mkdir(parents=True, exist_ok=True)
+            (root / "cai-agent.toml").write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch("cai_agent.__main__.fetch_models", return_value=["alpha", "beta"]):
+                        with redirect_stdout(buf):
+                            rc = main(["models", "fetch", "--json"])
+            self.assertEqual(rc, 0)
+            out = json.loads(buf.getvalue().strip())
+            self.assertIn("models", out)
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "models")
+            self.assertEqual(row.get("event"), "models.fetch")
+            self.assertEqual(row.get("tokens"), 1)
+            self.assertIs(row.get("success"), True)
+
+    def test_workflow_run_metrics_on_fail_on_step_errors_when_env_set(self) -> None:
+        fake = {
+            "schema_version": "workflow_run_v1",
+            "task": {
+                "task_id": "wf-fe",
+                "type": "workflow",
+                "status": "completed",
+            },
+            "subagent_io_schema_version": "1.0",
+            "subagent_io": {"inputs": {}, "merge": {"conflicts": []}, "outputs": []},
+            "steps": [{"name": "s1", "index": 1, "error_count": 1}],
+            "summary": {
+                "steps_count": 1,
+                "budget_used": 4,
+                "elapsed_ms_total": 1,
+                "elapsed_ms_avg": 1,
+                "tool_calls_total": 0,
+                "tool_errors_total": 0,
+            },
+            "events": [],
+        }
+        with TemporaryDirectory() as td:
+            metrics_path = Path(td) / "wff.jsonl"
+            root = Path(td) / "wswff"
+            root.mkdir(parents=True, exist_ok=True)
+            (root / "cai-agent.toml").write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            wf_path = root / "wf.json"
+            wf_path.write_text(
+                json.dumps({"steps": [{"name": "s1", "goal": "g"}]}),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch.dict(os.environ, {"CAI_METRICS_JSONL": str(metrics_path)}):
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with patch("cai_agent.__main__.run_workflow", return_value=fake):
+                        with redirect_stdout(buf):
+                            rc = main(
+                                ["workflow", str(wf_path), "--json", "--fail-on-step-errors"],
+                            )
+            self.assertEqual(rc, 2)
+            json.loads(buf.getvalue().strip())
+            row = json.loads(metrics_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+            self.assertEqual(row.get("module"), "workflow")
+            self.assertEqual(row.get("event"), "workflow.run")
+            self.assertEqual(row.get("tokens"), 4)
+            self.assertIs(row.get("success"), False)
+
     def test_ui_tui_appends_metrics_when_env_set(self) -> None:
         with TemporaryDirectory() as td:
             metrics_path = Path(td) / "ui.jsonl"
