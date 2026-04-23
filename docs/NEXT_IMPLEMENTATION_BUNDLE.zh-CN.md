@@ -100,6 +100,7 @@
 - [本轮已落地] **§24 Slack Events API Webhook MVP**：`gateway slack serve-webhook [--signing-secret S] [--bot-token T] [--host H] [--port P]`；HMAC 签名验证；bind/allow 映射管理；`gateway_slack.py`；`gateway platforms list --json` 中 Discord/Slack 状态升级为 `mvp`
 - [本轮已落地] **§25 技能自进化闭环**：`auto_extract_skill_after_task(..., settings=...)` 在具备 **API key** 且非 **mock** 时经 **`chat_completion_by_role`** 生成 Markdown 草稿（**`draft_method`=`llm`**；失败回退 **`template`**）；否则仍为占位模板；`skills hub serve [--host H] [--port P]` HTTP 运行时分发（`GET /manifest`、`GET /skill/<name>`）；`test_skills_auto_extract_hub_serve.py` 已扩 case
 - [本轮已落地] **§26 运营面板 HTML 导出**：`ops dashboard --format html [-o FILE]` 生成自包含单文件 HTML 仪表盘（KPI 卡片、调度 SLA 表、Top 工具表）；`build_ops_dashboard_html(payload)` 函数；`test_ops_dashboard_html.py`（10 cases）
+- [本轮已落地] **§26 后续 · 动态 Web 运营 HTTP 契约草案 + MVP 分阶段**：[`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（建议 **`GET /v1/ops/dashboard`** / **`dashboard.html`**、查询参数与 **`build_ops_dashboard_payload`** 对齐、**`CAI_OPS_API_TOKEN`** 鉴权草案、Phase A–C、明确 OOS）；**不含**仓库内随 CLI 发布的 HTTP 服务实现
 
 ### 导出与生态
 

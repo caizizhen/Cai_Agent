@@ -20,7 +20,7 @@
 | **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
 | **模型与 UI** | `[[models.profile]]`、`cai-agent models`、**`models suggest`**（**`models_suggest_v1`**，按任务描述启发式推荐 profile）、TUI **`/models`**、**`/tasks`**（**`Ctrl+B`** 只读任务看板，见 **`tui_task_board.py`**）；会话落盘含 `profile` |
-| **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘） |
+| **可观测与看板** | `stats`、`sessions`、`observe`、`observe-report`、`observe export`、`board --json`、`insights`（含 `--cross-domain`）、**`ops dashboard --format json/text/html`**（聚合 board + 调度 SLA + 成本 rollup；`--format html` 生成单文件 HTML 仪表盘）；动态 Web 侧 HTTP 契约草案见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
 | **记忆与本能** | `memory extract/list/search/prune`、`instincts`、`nudge`、`nudge-report`、**`memory health`**（评分 / grade / `--fail-on-grade`）、import/export、状态机、prune 策略（**TTL/置信度** 见 [`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)）、**`memory user-model`**（**`honcho_parity: behavior_extract`**：工具频次、错误率、近期 goal 摘要；可叠加 **`.cai/user-model.json`**）、**`memory validate-entries`**（**`memory_entries_file_validate_v1`**）、**`memory/entries.jsonl` 追加前整文件洁净性门禁**（与 validate-entries 同源；救急 **`CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`**）、**`memory extract --structured`**；S2 freshness / conflict / coverage / nudge-report 与 health 联动等 |
 | **跨会话** | `insights`、`recall`（含 sort、`no_hit_reason`、schema 演进）、`recall-index`（build/refresh/doctor/info/benchmark 等） |
 | **调度** | `schedule` CRUD、`daemon`、`run-due`、依赖与环检测、审计 JSONL（S4-04 七种事件）、跨轮次重试退避、并发上限、`schedule stats`（SLA） |
@@ -37,7 +37,7 @@
 
 | 领域 | 说明 | 对应 §二 |
 |------|------|----------|
-| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；**动态 Web 可视化**（队列拖拽、实时刷新等）仍为 P2 | **26（后续）** |
+| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；**动态 Web 可视化**（队列拖拽、实时刷新等）仍为 P2；**HTTP API 契约与 MVP 分阶段**见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) | **26（后续）** |
 | **Gateway 全量** | Discord/Slack 已有 MVP；Slash Commands、频道监控、多工作区等**生产级特性**仍为后续 Sprint | **24（后续）** |
 | **运行后端（P2）** | Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
@@ -89,7 +89,7 @@
 | 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算 + root **`quality_gate`** / **`post_gate`**（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
 | 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack 升级 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；bind/unbind/get/list/allow 完整映射管理；`test_gateway_discord_slack_cli.py`（19 cases） |
 | 25 | 技能自进化 / Hub | **完成** | `skills_hub_manifest_v1` + `skills_evolution_suggest_v1` + **`skills hub install`**；**`auto_extract_skill_after_task`**；**`skills hub serve`**；**`CAI_SKILLS_AUTO_SUGGEST`**；`test_skills_auto_extract_hub_serve.py`（8 cases） |
-| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘（KPI 卡片 + 调度 SLA 表 + Top 工具表）；**`-o FILE`** 落盘；`test_ops_dashboard_html.py`（10 cases） |
+| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘（KPI 卡片 + 调度 SLA 表 + Top 工具表）；**`-o FILE`** 落盘；`test_ops_dashboard_html.py`（10 cases）；**26 后续** HTTP 契约见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
 
 ---
 
@@ -136,7 +136,7 @@
 | 项 | 说明 |
 |----|------|
 | **24 后续** | Discord/Slack Slash Commands、频道监控、多工作区等生产级特性 |
-| **26 后续** | 动态 Web 运营 UI（实时刷新、队列可视化） |
+| **26 后续** | 动态 Web 运营 UI（实时刷新、队列可视化）；侧车 HTTP 见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
 | **§一 P2** | Modal/Daytona 类后端（若立项） |
 
 ### 3.3 QA 移交顺序

@@ -51,7 +51,7 @@
 | 记忆 / 本能 | ECC | `Done` | 已落地：单行 **v1 schema** 校验 + **整文件洁净性门禁**（`append_memory_entry` / `import_memory_entries_bundle` 追加前；`memory extract` 写条目前预检；脏文件拒绝写入，救急 `CAI_MEMORY_ALLOW_DIRTY_ENTRIES_JSONL=1`）；`memory validate-entries`（`memory_entries_file_validate_v1`）；`memory extract --structured` LLM/启发式双模结构化抽取；`memory import-entries`（dry-run + error-report）；`memory prune`（TTL/置信度/overflow/non-active）；`memory nudge` schema `1.1`；`memory health`（评分/grade/freshness/conflict/coverage）；`memory user-model`（行为偏好抽取：工具频率、错误率、goal 摘要）；`memory state` 状态机；**`auto_extract_skill_after_task`** 可选传入 **Settings** 走 **LLM** 生成草稿（`draft_method`=`llm`\|`template`） |
 | 成本预算 | ECC | `Done` / `Next` | `cost budget`；新增 `release-ga` 汇总 budget 与会话失败率门禁；策略深化见 L2 |
 | 跨工具导出 | ECC | `Done` | `export --target cursor|codex|opencode`；`export --ecc-diff`（`export_ecc_dir_diff_v1` 对比 vs `.cursor/cai-agent-export`）；`skills hub install`（按 manifest 选择性拷贝技能包）；见 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
-| 可视化运营面板 | ECC | `Next` | P2+，见路线图 |
+| 可视化运营面板 | ECC | `Next` | P2+；CLI **`ops dashboard`** + 静态 HTML 已对齐；侧车 HTTP 契约草案见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
 | 大规模社区技能库本体 | ECC | `MCP` / `Next` | 以导出格式与外部包渐进吸收，不阻塞核心发版 |
 
 ---

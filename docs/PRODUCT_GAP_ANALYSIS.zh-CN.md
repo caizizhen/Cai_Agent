@@ -34,7 +34,7 @@
 ## 关键缺口（按优先级）
 
 1. **P1 - 工具深度**：无内置 WebFetch/WebSearch、Notebook 编辑等；在「完全体」目标下，**每个小版本**须选择：**内置补齐**、**新增认证 MCP 配方 + 文档**、或在 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 标注 `OOS` 并写明理由。
-2. **P1 - 任务运营面**：缺独立「任务看板」UI；当前以 JSON（`workflow` / `observe`）为主，适合 CI 与二次集成。
+2. **P1 - 任务运营面**：缺独立「任务看板」UI；当前以 JSON（`workflow` / `observe`）为主，适合 CI 与二次集成；**动态运营 Web** 的 HTTP 契约与 MVP 分阶段见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)（尚无内置 HTTP 服务）。
 3. **P1 - 记忆与学习**：`entries.jsonl` **追加前整文件校验**与 **`auto_extract_skill_after_task` LLM 提炼**已落地（见 `memory.py` / `skills.py`、`PARITY_MATRIX` L3）；**`insights --cross-domain`** 已输出 **`recall_hit_rate_metric_kind`/`metric_kind`** 明示索引探测语义（**A3** 诚实标注已落地，**真实 recall 命中率统计**仍为后续项）；**TTL/置信度策略**见 **[`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md)**；**Honcho 级用户建模（A1）** 仍为后续项。
 4. **P2 - 分发与反馈闭环**：对比官方安装器、`/bug` 类反馈通道；Cai_Agent 以 pip/源码为主，需自建支持渠道。
 

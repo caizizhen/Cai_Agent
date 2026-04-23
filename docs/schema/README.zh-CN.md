@@ -295,6 +295,7 @@
 
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
 - **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens` 等）与 **`board`** / **`schedule_stats`** / **`cost_aggregate`**。
+- **动态 Web / HTTP 侧车（草案）**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**（与 CLI 同源载荷；**非**内置 HTTP 实现）。
 
 **Exit**：成功 → **`0`**。
 
