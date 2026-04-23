@@ -4,6 +4,11 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### 0.6.9（2026-04-23）
+
+- **文档（Hermes S8-04）**：新增 **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)**（**0.5.x → 0.6.x**：JSON 信封、exit 码、调度审计、recall）。**`README.md` / `README.zh-CN.md`**：版本要求 + 迁移指南入口。**`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** 在 **§0.6.0** 增加 **破坏性变更**、**新 CLI（0.6.x 系列）**、**废弃说明** 小节以满足 GA 文档门禁。
+- **测试**：**`test_migration_guide_present.py`** 在 monorepo 布局下守护迁移文档存在与关键锚点。
+
 ### 0.6.8（2026-04-23）
 
 - **可观测性（Hermes S7-04）**：**`cai-agent observe export`**（**`--days`**、**`--format` csv|json|markdown**、**`-o`**）→ **`observe_export_v1`**，**`rows`** 为按 UTC 日一行（会话数、成功率、token、**调度** ok/fail、**记忆健康** 分/档）。**`cai_agent.observe_export`**；**`smoke_new_features`** 在同目录写 **`observe-export.json`** 抽样。
@@ -48,6 +53,22 @@
 - **测试与冒烟**：**`cai-agent/tests/test_ops_gateway_skills_cli.py`**；**`scripts/smoke_new_features.py`** 覆盖上述三条 JSON 路径。
 
 ### 0.6.0（2026-04-23）
+
+#### 破坏性变更（自 0.5.x 升级）
+
+- **带版本号的 `--json` stdout**：多数命令不再输出「裸 JSON 数组/字符串」；每条 stdout 含 **`schema_version`** 与稳定根字段（如 **`sessions_list_v1.sessions`**、**`schedule_list_v1.jobs`**）。详见 **[`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md)** 与 **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)**。
+- **Exit 码**：**`init`** 失败路径、**`models ping`** 非 OK、CLI 分发兜底等，若干场景由 **exit `1`** 调整为 **exit `2`**（见 schema README **S1-03**）。
+- **`models fetch --json`**：包装为 **`{"schema_version":"models_fetch_v1","models":[…]}`**（非裸数组）。
+
+#### 新 CLI（0.6.x 系列概要）
+
+- **0.6.0 本版**：Workflow **`on_error` / `budget_max_tokens`**；调度 **stats / 审计 schema / 重试 / 并发 / `depends_on` 环检测**；recall **排序 / `no_hit_reason` / doctor`**；**memory health / nudge / nudge-report**；**sessions、commands、agents、schedule、cost budget、export、plugins** 等与 memory list/search 的 JSON 契约（详见下列条目）。
+- **0.6.1–0.6.5**：**`gateway platforms`**、**`skills hub manifest`**、**`ops dashboard`**、Telegram **生命周期 / 白名单 / execute-on-update / continue-hint**。
+- **0.6.6–0.6.8**：**`CAI_METRICS_JSONL`**、**`observe report`**、**`insights --json --cross-domain`**、**`observe export`**。
+
+#### 废弃说明
+
+- **0.6.0** 无「移除且无替代」的 CLI 旗标；**`models ping --fail-on-any-error`** 保留为与默认行为一致的**无操作别名**（与 **exit `2`** 语义一致）。
 
 - **Workflow（Hermes S5-03）**：JSON 根级 **`on_error`**：**`fail_fast`**（默认）或 **`continue_on_error`**（别名 **`continue-on-error`**）。`fail_fast` 时后续未跑步骤 **`skipped`**（**`fail_fast_prior_batch`**）并产生 **`workflow.step.skipped`**；`continue_on_error` 时 merge/conflict 仅统计成功完成步骤。`summary` 增加 **`on_error`**、**`steps_skipped`**、**`merge_steps_considered`**。
 - **Workflow（Hermes S5-04）**：根级可选 **`budget_max_tokens`**；已执行步骤 **`total_tokens`** 在下一批前与预算比较，未启动步骤 **`skipped`/`budget_exceeded`**。`summary` 与 **`workflow.finished`** 含 **`budget_limit`/`budget_used`/`budget_exceeded`**；**`task.error`** 可为 **`workflow_budget_exceeded`**；已提交的并行批仍跑完。

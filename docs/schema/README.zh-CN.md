@@ -6,6 +6,8 @@
 
 **仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
 
+**从 0.5.x 升级 0.6.x**：破坏性 `--json` 形态与 exit 码摘要见 **[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**（Hermes **S8-04**）。
+
 ### S1-02 / S1-03 收口口径（本仓）
 
 - **S1-02**：以 **本节** 为各命令 JSON 契约的 **唯一索引**（外加 `SCHEDULE_*` 两长文）；破坏性变更须升 `schema_version` 并同步 `CHANGELOG`；**`scripts/smoke_new_features.py`** 提供跨命令 JSON 抽样回归（**含** **`security-scan --json` → `security_scan_result_v1`**、**`workflow --json` → `workflow_run_v1`** 与根级 **`task_id`**）。

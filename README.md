@@ -82,6 +82,14 @@ Do not commit real API keys.
 | `docs/qa/runs/` | Auto-generated per-run reports (`regression-YYYYMMDD-HHmmss.md`) |
 | `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (40 cases: add/edit/rm/ping/switch + context-bar UC-CTX-* + empty state + `/compact` prompt) |
 | `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
+| [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md) | **0.5.x → 0.6.x** upgrade: JSON `--json` envelopes, exit codes, schedule audit, recall (Hermes **S8-04**) |
+
+---
+
+## Version requirements
+
+- **Python**: **3.11+** (see `cai-agent/pyproject.toml` **`requires-python`**).
+- **Upgrading from 0.5.x**: read **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)** before relying on saved `jq`/CI parsers for `--json` output.
 
 ---
 

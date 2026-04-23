@@ -20,8 +20,8 @@
 | 安全 | security-scan 零 P0 告警 | ⬜ |
 | 安全 | 无硬编码 API key 或 token | ⬜ |
 | 安全 | gateway allowlist bypass 测试通过 | ⬜ |
-| 文档 | CHANGELOG 0.6.0 章节完整 | ⬜ |
-| 文档 | 迁移指南覆盖所有 breaking changes | ⬜ |
+| 文档 | CHANGELOG 0.6.0 章节完整 | ✅（**0.6.9**：含 **Breaking changes / New CLI / Deprecations** 小节） |
+| 文档 | 迁移指南覆盖所有 breaking changes | ✅（**[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**；自动化 **`test_migration_guide_present`**） |
 
 ---
 

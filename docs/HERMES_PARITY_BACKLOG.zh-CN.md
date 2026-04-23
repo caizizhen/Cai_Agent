@@ -418,6 +418,7 @@
 - **测试用例 ID**：（文档验证）
 - **依赖**：S8-01
 - **估算**：M
+- **主线交付注（`0.6.9`）**：**[`docs/MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md)**（**0.5.x → 0.6.x** 步骤与破坏性摘要）；**`CHANGELOG` §0.6.0** 增加 **破坏性变更 / 新 CLI / 废弃说明** 小节；**`README.md` / `README.zh-CN.md`** 写明 **Python 3.11+** 与迁移入口；**`docs/schema/README.zh-CN.md`** 链至迁移指南；**`test_migration_guide_present.py`**。
 
 ---
 

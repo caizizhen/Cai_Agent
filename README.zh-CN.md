@@ -26,6 +26,7 @@
 - **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
 - **运行命令**：看“用法”+“内置斜杠命令（UI）”。
 - **演进历史**：**[CHANGELOG.md](CHANGELOG.md)**（默认英文）、**[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)**（中文全文）。
+- **升级与破坏性变更（0.5.x → 0.6.x）**：[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)（英文步骤清单；Hermes **S8-04**）。
 - **QA 回归记录**：每次跑 `python scripts/run_regression.py` 会在 `docs/qa/runs/` 生成带时间戳的 Markdown 报告；策略与变量见 **[docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)**（英文镜像：[docs/QA_REGRESSION_LOGGING.md](docs/QA_REGRESSION_LOGGING.md)）。
 
 ## 5 分钟跑通（推荐）
@@ -226,8 +227,9 @@ mcp_enabled = true
 
 ## 环境要求
 
-- Python **3.11+**
+- Python **3.11+**（与 `cai-agent/pyproject.toml` 中 **`requires-python`** 一致）
 - 提供 OpenAI 兼容 Chat Completions 的推理或 API 服务
+- 从 **0.5.x** 升级到 **0.6.x** 时，请先阅读 **[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)**（`--json` 输出形态与 exit 码等破坏性变更摘要）
 
 ## 安装
 

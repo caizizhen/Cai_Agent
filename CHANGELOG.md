@@ -2,6 +2,11 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### 0.6.9 (2026-04-23)
+
+- **Docs (Hermes S8-04)**: Added **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)** (0.5.x → 0.6.x: JSON envelopes, exit codes, schedule audit, recall). **`README.md` / `README.zh-CN.md`**: version requirements + link to the migration guide. **`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** §**0.6.0**: explicit **Breaking changes**, **New CLI (0.6.x train)**, and **Deprecations** subsections for GA doc gates.
+- **Tests**: `tests/test_migration_guide_present.py` guards the migration doc in the monorepo layout.
+
 ### 0.6.8 (2026-04-23)
 
 - **Observability (Hermes S7-04)**: **`cai-agent observe export`** (`--days`, **`--format` csv|json|markdown**, **`-o`**) → **`observe_export_v1`** with per-day **`rows`** (sessions, tokens, schedule ok/fail, **memory** score/grade). **`cai_agent.observe_export`**, **`schedule.aggregate_schedule_audit_by_calendar_day_utc`** reuse. **`smoke_new_features`** writes **`observe-export.json`** in the sessions/observe temp dir.
@@ -46,6 +51,22 @@
 - **Tests / smoke**: `cai-agent/tests/test_ops_gateway_skills_cli.py`; `scripts/smoke_new_features.py` exercises the three JSON paths.
 
 ### 0.6.0 (2026-04-23)
+
+#### Breaking changes (upgrade from 0.5.x)
+
+- **Versioned `--json` stdout**: Many commands no longer emit bare JSON arrays/strings; each payload documents **`schema_version`** and stable root keys (e.g. **`sessions_list_v1.sessions`**, **`schedule_list_v1.jobs`**). See **[`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md)** and **[`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md)**.
+- **Exit codes**: `init` failures, `models ping` non-OK, and CLI dispatch fallthrough use **exit `2`** where **`1`** applied before (see schema README **S1-03**).
+- **`models fetch --json`**: Wrapped as **`{"schema_version":"models_fetch_v1","models":[…]}`** (not a bare array).
+
+#### New CLI (0.6.x train, high level)
+
+- **In 0.6.0**: Workflow **`on_error`** / **`budget_max_tokens`**; schedule **stats / audit schema / retries / concurrency / `depends_on`**; recall **sort / `no_hit_reason` / doctor`**; **memory health / nudge / nudge-report**; versioned JSON for **sessions, commands, agents, schedule, cost budget, export, plugins**, and memory list/search/instincts (detail bullets below).
+- **0.6.1–0.6.5**: **`gateway platforms`**, **`skills hub manifest`**, **`ops dashboard`**, Telegram **lifecycle / allowlist / execute-on-update / continue-hint`**.
+- **0.6.6–0.6.8**: **`CAI_METRICS_JSONL`**, **`observe report`**, **`insights --json --cross-domain`**, **`observe export`**.
+
+#### Deprecations
+
+- **None** that remove flags without replacement in 0.6.0. **`models ping --fail-on-any-error`** remains a **no-op alias** matching the new default (exit **`2`** on any error).
 
 - **Workflow (Hermes S5-03)**: JSON root **`on_error`**: **`fail_fast`** (default) or **`continue_on_error`** (alias **`continue-on-error`**). On fail-fast, remaining steps are **`skipped`** with **`skip_reason=fail_fast_prior_batch`** and **`workflow.step.skipped`** events; merge/conflict resolution only considers successfully finished steps when continuing. Summary adds **`on_error`**, **`steps_skipped`**, **`merge_steps_considered`**.
 - **Workflow (Hermes S5-04)**: Optional root **`budget_max_tokens`**. Cumulative executed-step **`total_tokens`** gates the next batch; unstarted steps become **`skipped`/`budget_exceeded`**. **`summary`** and **`workflow.finished`** include **`budget_limit`**, **`budget_used`**, **`budget_exceeded`**; **`task.error`** may be **`workflow_budget_exceeded`**. Batches already submitted still run to completion.
