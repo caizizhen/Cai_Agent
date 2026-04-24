@@ -144,3 +144,10 @@ def test_ops_dashboard_json_format_still_works(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     out = json.loads(result.stdout)
     assert out["schema_version"] == "ops_dashboard_v1"
+
+
+def test_ops_serve_help_exposes_dynamic_server_entry() -> None:
+    result = _cli("ops", "serve", "--help")
+    assert result.returncode == 0, result.stderr
+    assert "--allow-workspace" in result.stdout
+    assert "--port" in result.stdout

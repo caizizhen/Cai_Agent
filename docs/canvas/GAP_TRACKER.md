@@ -34,7 +34,7 @@ Status vocabulary:
 | `HM-01` | `Done` | **`HM-01a`/`HM-01b` Done** — profile contract + management CLI/fixture/smoke | `ROADMAP_EXECUTION` §10 |
 | `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Done` | **`HM-03a` / `HM-03b` Done**: Discord + Slack production path closed for current cycle | `ROADMAP_EXECUTION` §10 |
-| `HM-04` | `Ready` | `HM-04b` dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
+| `HM-04` | `Done` | **`HM-04a`/`HM-04b` Done**: shared gateway summary + dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
 | `HM-05` | `Ready` | **`HM-05a` Done**（store/query/learn + export `--with-store`）；**`HM-05b`/`HM-05c`** 仍 Ready | `ROADMAP_EXECUTION` §10 |
 | `HM-06` | `Explore` | `HM-06a` backend productization evaluation | `ROADMAP_EXECUTION` §10 |
 | `HM-07` | `Explore` | `HM-07a` voice boundary evaluation | `ROADMAP_EXECUTION` §10 |

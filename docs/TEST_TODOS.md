@@ -12,7 +12,7 @@ Canonical planning sources:
 
 Validated on 2026-04-25 from the repo root:
 
-- `python -m pytest -q cai-agent/tests`: **658 passed**, **3 subtests passed**
+- `python -m pytest -q cai-agent/tests`: **661 passed**, **3 subtests passed**
 - `python scripts/smoke_new_features.py`: **PASS**
 - `QA_SKIP_LOG=1 python scripts/run_regression.py`: **PASS**
 
@@ -25,7 +25,7 @@ Validated on 2026-04-25 from the repo root:
 | `CC-02a` | install / init / upgrade guidance | `test_init_presets.py`, `test_doctor_cli.py` |
 | `HM-01a` | profile schema and persistence | `test_model_profiles_*`, `test_model_routing.py`, `test_tui_model_panel.py` |
 | `HM-03a` | Discord production path | `test_gateway_discord_*`, `test_gateway_discord_slack_cli.py` |
-| `HM-04a` | ops/gateway/status payload unification | `test_ops_dashboard_html.py`, `test_ops_http_server.py`, ops CLI tests |
+| `HM-04` | ops/gateway/status payload unification + dynamic read-only dashboard | `test_ops_dashboard_html.py`, `test_ops_http_server.py`, ops CLI tests |
 | `HM-05a` | user-model store/query/learn loop | `test_user_model_store.py`, `test_memory_user_model_export.py`, `test_memory_user_model_store_cli.py` |
 | `ECC-01a` | rules/skills/hooks assetization | `test_ecc_layout_cli.py`, `test_hooks_*`, `test_skills_*`, `test_agentskills_*` |
 | `ECC-02a` | routing/profile/budget product path | `test_model_routing.py`, `test_cli_misc.py` (cost budget), `test_cost_aggregate.py`, `test_factory_routing_and_security.py` |

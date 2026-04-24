@@ -80,6 +80,7 @@
 - `HM-01b`：`models add/edit/rm/use/route/list` 的 profile 管理闭环已补进 pytest 与 smoke，`models_list_v1` 会稳定暴露 `profile_contract_v1`、active/subagent/planner 与编辑后的 notes。
 - `HM-04a`：`board` / `ops dashboard` / `gateway status` 现在共享 `gateway_summary_v1`，把 `status / bindings_count / webhook_running / allowlist_enabled` 收成同一套读侧字段。
 - 文档同步：已将 `HM-04a` 在执行看板中的状态统一回写为 `Done`，并把下一批候选项统一标记为 `Ready`，避免 `Ready/Next` 混用造成误读。
+- `HM-04b`：`ops serve` 现已正式暴露 `GET /v1/ops/dashboard` / `dashboard.html` / `dashboard/events`，支持 HTML `live_mode=sse|poll` 与只读 SSE 事件流，动态 dashboard 已收口为 `Done`。
 
 ---
 
@@ -87,7 +88,7 @@
 
 - [x] `HM-01b`：profile 管理命令与测试夹具
 - [x] `HM-03b`：Slack 生产路径收口
-- [ ] `HM-04b`：只读动态 dashboard（SSE 或轮询）
+- [x] `HM-04b`：只读动态 dashboard（SSE 或轮询）
 - [ ] `HM-05b`：recall 评估与负样本机制
 - [ ] `HM-05c`：memory policy 接入 `doctor` / `release-ga`
 - [ ] `ECC-01b`：导出 / 安装 / 共享流转说明统一
@@ -99,7 +100,7 @@
 
 1. 先从 `Ready` 项开始，`Design` 只做契约，不直接扩实现。
 2. 每次只把一个 issue 做到 `Done`，包含代码、测试、文档、状态回写。
-3. 当前默认顺序：`HM-04b` → `HM-05b` → `HM-05c` → `ECC-01b` → `ECC-02b`。
+3. 当前默认顺序：`HM-05b` → `HM-05c` → `ECC-01b` → `ECC-02b` → `HM-02a`。
 
 ---
 
@@ -151,7 +152,7 @@
 | `HM-03b` | `Done` | `HM-03` | Slack 生产路径收口 | `gateway slack health`、form Slash/Interactivity 分发、`bind --team-id/--label`、`serve-webhook --execute-on-slash`、测试与文档同步 | gateway smoke + `doctor` |
 | `HM-03c` | `Explore` | `HM-03` | 下一批 gateway 平台评估 | `HM-03a` `HM-03b` | 评估文档 |
 | `HM-04a` | `Done` | `HM-04` | ops/gateway/status 同源聚合 | — | JSON snapshot |
-| `HM-04b` | `Ready` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
+| `HM-04b` | `Done` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | user-model store/query/learn 闭环 | — | pytest + smoke |
 | `HM-05b` | `Ready` | `HM-05` | recall 评估与负样本机制 | `HM-05a` | benchmark/report |
 | `HM-05c` | `Ready` | `HM-05` | memory policy 接入 doctor / release gate | `HM-05a` | `doctor` + `release-ga` |
@@ -191,7 +192,7 @@
 | 演进主题 | 主要覆盖 Issue |
 |---|---|
 | Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
-| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~（Done）、`HM-02a`/`HM-02b`、`HM-04b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
+| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~（Done）、`HM-02a`/`HM-02b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
 | ECC 线 | `ECC-01b`、`ECC-02b`；Explore：`ECC-03a` |
 | 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 
@@ -203,7 +204,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **658 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **661 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 

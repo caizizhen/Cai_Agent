@@ -5787,6 +5787,18 @@ def main(argv: list[str] | None = None) -> int:
         help="仅 --format html：>0 时在 HTML 内加入 meta refresh（秒）",
     )
 
+    ops_serve = ops_sub.add_parser("serve", help="启动只读 dynamic ops dashboard HTTP 服务")
+    ops_serve.add_argument("--host", default="127.0.0.1")
+    ops_serve.add_argument("--port", type=int, default=8765)
+    ops_serve.add_argument(
+        "--allow-workspace",
+        action="append",
+        default=[],
+        dest="ops_allow_workspaces",
+        metavar="DIR",
+        help="允许通过 workspace query 访问的工作区根目录，可重复",
+    )
+
     gateway_p = sub.add_parser(
         "gateway",
         help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
@@ -10605,6 +10617,22 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "ops":
         oa = str(getattr(args, "ops_action", "") or "").strip()
+        if oa == "serve":
+            from cai_agent.ops_http_server import run_ops_api_server
+
+            allow = [
+                str(Path(p).expanduser().resolve())
+                for p in (getattr(args, "ops_allow_workspaces", None) or [])
+            ]
+            if not allow:
+                allow = [str(Path.cwd().resolve())]
+            return int(
+                run_ops_api_server(
+                    host=str(getattr(args, "host", "127.0.0.1") or "127.0.0.1"),
+                    port=int(getattr(args, "port", 8765)),
+                    allow_workspaces=allow,
+                ),
+            )
         if oa != "dashboard":
             print("ops: 未知子命令", file=sys.stderr)
             return 2

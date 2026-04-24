@@ -9,11 +9,12 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import sys
 from pathlib import Path
 from typing import TextIO
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 from cai_agent.ops_dashboard import build_ops_dashboard_html, build_ops_dashboard_payload
 
@@ -93,7 +94,7 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path or ""
-        if path not in ("/v1/ops/dashboard", "/v1/ops/dashboard.html"):
+        if path not in ("/v1/ops/dashboard", "/v1/ops/dashboard.html", "/v1/ops/dashboard/events"):
             self._send_json(404, {"error": "not_found", "path": path})
             return
         if not self._auth_ok():
@@ -162,6 +163,49 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         if path == "/v1/ops/dashboard":
             self._send_json(200, payload)
             return
+        if path == "/v1/ops/dashboard/events":
+            raw_interval = one("live_interval_seconds")
+            try:
+                live_interval = float(str(raw_interval).strip()) if raw_interval is not None and str(raw_interval).strip() != "" else 5.0
+            except ValueError:
+                self._send_json(400, {"error": "bad_request", "detail": "invalid_float:live_interval_seconds"})
+                return
+            if live_interval <= 0 or live_interval > 3600:
+                self._send_json(400, {"error": "bad_request", "detail": "out_of_range:live_interval_seconds"})
+                return
+            raw_max = one("max_events")
+            try:
+                max_events = int(str(raw_max).strip(), 10) if raw_max is not None and str(raw_max).strip() != "" else 0
+            except ValueError:
+                self._send_json(400, {"error": "bad_request", "detail": "invalid_int:max_events"})
+                return
+            if max_events < 0 or max_events > 10_000:
+                self._send_json(400, {"error": "bad_request", "detail": "out_of_range:max_events"})
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Connection", "close" if max_events > 0 else "keep-alive")
+            self.end_headers()
+            sent = 0
+            while True:
+                raw = json.dumps(payload, ensure_ascii=False)
+                body = f"event: ops_dashboard\ndata: {raw}\n\n".encode("utf-8")
+                self.wfile.write(body)
+                self.wfile.flush()
+                sent += 1
+                if max_events > 0 and sent >= max_events:
+                    self.close_connection = True
+                    return
+                time.sleep(live_interval)
+                payload = build_ops_dashboard_payload(
+                    cwd=str(workspace),
+                    observe_pattern=observe_pattern,
+                    observe_limit=observe_limit,
+                    schedule_days=schedule_days,
+                    audit_path=audit_path,
+                    cost_session_limit=cost_session_limit,
+                )
         html_refresh: int | None = None
         raw_rf = one("html_refresh_seconds")
         if raw_rf is not None and str(raw_rf).strip() != "":
@@ -177,7 +221,48 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
                 )
                 return
             html_refresh = v_rf if v_rf > 0 else None
+        live_mode = str(one("live_mode") or "").strip().lower()
+        raw_live_interval = one("live_interval_seconds")
+        live_interval_for_html = 0
+        if raw_live_interval is not None and str(raw_live_interval).strip() != "":
+            try:
+                live_interval_for_html = int(float(str(raw_live_interval).strip()))
+            except ValueError:
+                self._send_json(400, {"error": "bad_request", "detail": "invalid_float:live_interval_seconds"})
+                return
+            if live_interval_for_html <= 0 or live_interval_for_html > 3600:
+                self._send_json(400, {"error": "bad_request", "detail": "out_of_range:live_interval_seconds"})
+                return
         html = build_ops_dashboard_html(payload, html_refresh_seconds=html_refresh)
+        if live_mode in ("sse", "poll"):
+            live_query = {
+                "workspace": str(workspace),
+                "observe_pattern": observe_pattern,
+                "observe_limit": str(observe_limit),
+                "schedule_days": str(schedule_days),
+                "cost_session_limit": str(cost_session_limit),
+            }
+            if audit_path is not None:
+                live_query["audit_file"] = str(audit_path)
+            if live_interval_for_html > 0:
+                live_query["live_interval_seconds"] = str(live_interval_for_html)
+            if live_mode == "sse":
+                live_path = "/v1/ops/dashboard/events?" + urlencode(live_query)
+                live_script = (
+                    "<script>"
+                    f"(()=>{{if(!window.EventSource)return;const es=new EventSource({json.dumps(live_path, ensure_ascii=False)});"
+                    "es.onmessage=()=>window.location.reload();es.onerror=()=>es.close();}})();"
+                    "</script>"
+                )
+            else:
+                if live_interval_for_html <= 0:
+                    live_interval_for_html = 5
+                live_script = (
+                    "<script>"
+                    f"(()=>{{window.setInterval(()=>window.location.reload(), {live_interval_for_html * 1000});}})();"
+                    "</script>"
+                )
+            html = html.replace("</body>", f"{live_script}</body>", 1)
         body = html.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")

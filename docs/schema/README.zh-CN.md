@@ -312,7 +312,7 @@
 
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
 - **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens`，以及 `gateway_status` / `gateway_bindings_count` / `gateway_webhook_running`）与 **`board`** / **`gateway_summary`** / **`schedule_stats`** / **`cost_aggregate`**。
-- **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`**（HTML 路由可选 query **`html_refresh_seconds`**），载荷与上表同源。
+- **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`** / **`dashboard/events`**（HTML 路由可选 query **`html_refresh_seconds`**、`live_mode=sse|poll`、`live_interval_seconds`；SSE 路由支持 `max_events`），载荷与上表同源。
 
 **Exit**：成功 → **`0`**。
 

@@ -202,7 +202,7 @@
 | `HM-03b` | `Done` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | `gateway slack health`、Slash/Interactivity form 分发、mapping 元数据与 `--execute-on-slash` 收口 | — | gateway smoke + doctor |
 | `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |
 | `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
-| `HM-04b` | `Ready` | `HM-04` | 增加只读动态 dashboard 能力 | 先做 SSE 或轮询刷新，不做写操作 | `HM-04a` | 浏览器手测 |
+| `HM-04b` | `Done` | `HM-04` | 增加只读动态 dashboard 能力 | `ops serve` 已暴露 `dashboard/events`，HTML 支持 `live_mode=sse|poll`，继续保持只读 | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
 | `HM-05b` | `Ready` | `HM-05` | 建 recall 评估与负样本机制 | `recall --evaluate`、负样本、报告 schema | `HM-05a` | benchmark/report |
 | `HM-05c` | `Ready` | `HM-05` | 把 memory policy 接进 doctor / release gate | policy、TTL、修复命令、发版门禁一致 | `HM-05a` | doctor + release-ga |

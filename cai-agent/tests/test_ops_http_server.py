@@ -145,6 +145,44 @@ def test_ops_dashboard_html_refresh_query(tmp_path: Path) -> None:
         httpd.server_close()
 
 
+def test_ops_dashboard_events_sse(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/events",
+            {"workspace": str(root), "max_events": "1", "live_interval_seconds": "1"},
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            body = resp.read().decode("utf-8")
+            ctype = resp.headers.get("Content-Type") or ""
+        assert "text/event-stream" in ctype
+        assert "event: ops_dashboard" in body
+        assert '"schema_version": "ops_dashboard_v1"' in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_dashboard_html_live_mode_sse_injects_script(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard.html",
+            {"workspace": str(root), "live_mode": "sse", "live_interval_seconds": "4"},
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            html = resp.read().decode("utf-8")
+        assert "EventSource" in html
+        assert "/v1/ops/dashboard/events?" in html
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_ops_not_found(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start_server(frozenset({root}), None)

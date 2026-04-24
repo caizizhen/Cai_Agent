@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import html
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -84,6 +85,9 @@ def build_ops_dashboard_html(
     payload: dict[str, Any],
     *,
     html_refresh_seconds: int | None = None,
+    live_mode: str | None = None,
+    live_url: str | None = None,
+    live_interval_seconds: int | None = None,
 ) -> str:
     """将 ``ops_dashboard_v1`` 载荷渲染为单文件 HTML 仪表盘。
 
@@ -135,6 +139,32 @@ def build_ops_dashboard_html(
         sec = int(html_refresh_seconds)
         if sec > 0:
             refresh_line = f'  <meta http-equiv="refresh" content="{_h(sec)}">\n'
+
+    live_script = ""
+    live_mode_norm = str(live_mode or "").strip().lower()
+    live_url_norm = str(live_url or "").strip()
+    live_interval = int(live_interval_seconds or 0)
+    if live_mode_norm in ("sse", "poll") and live_url_norm:
+        live_url_js = json.dumps(live_url_norm, ensure_ascii=False)
+        if live_mode_norm == "sse":
+            live_script = f"""
+  <script>
+    (() => {{
+      const streamUrl = {live_url_js};
+      if (!window.EventSource) return;
+      const es = new EventSource(streamUrl);
+      es.onmessage = () => window.location.reload();
+      es.onerror = () => es.close();
+    }})();
+  </script>"""
+        elif live_interval > 0:
+            live_script = f"""
+  <script>
+    (() => {{
+      const refreshMs = {live_interval * 1000};
+      window.setInterval(() => window.location.reload(), refreshMs);
+    }})();
+  </script>"""
 
     html_body = f"""<!DOCTYPE html>
 <html lang="zh-CN">
