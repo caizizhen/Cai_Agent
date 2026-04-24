@@ -444,10 +444,18 @@
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
 | `memory user-model` | **`memory_user_model_v1`**（**`--json`**）：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`** 为 **`stub`** 或 **`behavior_extract`** | 根级 **`--days`** 控制会话 mtime 窗口（默认 14） |
-| `memory user-model export` | **`user_model_bundle_v1`**：含 **`exported_at`**、**`bundle_kind`**（**`behavior_overview`**）、嵌套 **`overview`**（同 **`memory_user_model_v1`**） | **`export` 子命令后的 `--days`** 控制窗口；**恒为 JSON stdout** |
+| `memory user-model export` | **`user_model_bundle_v1`**：含 **`exported_at`**、**`bundle_kind`**（**`behavior_overview`**）、嵌套 **`overview`**（同 **`memory_user_model_v1`**）；可选 **`--with-store`** → 附加 **`user_model_store`**（**`user_model_store_snapshot_v1`**） | **`export` 子命令后的 `--days`** 控制窗口；**恒为 JSON stdout** |
+| `memory user-model store init` | **`memory_user_model_store_init_v1`**：`ok`、`store_path` | |
+| `memory user-model store list` | **`memory_user_model_store_list_v1`**：`beliefs[]`、`store_path` | **`--limit`** |
+| `memory user-model query` | **`memory_user_model_query_v1`**：`needle`、`store_path`、`hits[]` | **`--text`** 必填 |
+| `memory user-model learn` | **`memory_user_model_learn_v1`**：`ok`、`belief`、`store_path`；无效 belief → **`ok`=`false`**、exit **`2`** | |
+| `ecc layout` | **`ecc_asset_layout_v1`**：`entries[]`、`hooks_resolved_path`、`workspace` | 根级 **`-w`** 须在子命令前：`ecc -w <dir> layout --json` |
+| `ecc scaffold` | **`ecc_scaffold_result_v1`**：`created[]`、`skipped[]`；**`--dry-run`** 不写盘 | 同上 **`-w`** 顺序 |
+| `models routing-test` | **`models_routing_test_v1`**（**`--json`**）；嵌 **`explain`**（**`routing_explain_v1`**）；无 **`--json`** 时仅文本摘要 | **`--goal`** / **`--role`** / **`--total-tokens-used`** |
+| `cost budget` | **`cost_budget_v1`**：含 **`explain`**（**`cost_budget_explain_v1`**）、**`active_profile_id`** | 读 **`[cost].budget_max_tokens`** 与会话聚合 |
 | `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory user-model --json`**（**`memory_user_model_v1`**）与 **`memory user-model export`**（**`user_model_bundle_v1`**）。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory user-model --json`**（**`memory_user_model_v1`**）、**`memory user-model export`**（**`user_model_bundle_v1`**），以及 **`memory user-model store init/list`**、**`learn`**/**`query`** 与 **`export --with-store`** 最小闭环。
 
 ---
 

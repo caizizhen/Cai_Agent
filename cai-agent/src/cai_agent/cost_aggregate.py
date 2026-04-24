@@ -142,3 +142,30 @@ def build_cost_by_profile_v1(
     if include_by_calendar_day:
         out["by_calendar_day"] = dict(sorted(by_calendar_day.items()))
     return out
+
+
+def build_cost_budget_explain_v1(
+    *,
+    state: str,
+    total_tokens: int,
+    max_tokens: int,
+) -> dict[str, Any]:
+    """嵌于 ``cost_budget_v1`` 的 ``explain``，便于 CLI/CI 人读。"""
+    if max_tokens <= 0:
+        zh = f"未配置有效预算（[cost].budget_max_tokens={max_tokens}）；当前聚合 total_tokens={total_tokens}。"
+        en = f"No effective token budget (max_tokens={max_tokens}); aggregated total_tokens={total_tokens}."
+    elif state == "fail":
+        zh = f"已超过预算：total_tokens={total_tokens} > max_tokens={max_tokens}（exit 2）。"
+        en = f"Over budget: total_tokens={total_tokens} > max_tokens={max_tokens} (exit 2)."
+    elif state == "warn":
+        zh = f"接近预算（>80%）：total_tokens={total_tokens} / max_tokens={max_tokens}，请关注。"
+        en = f"Near budget (>80%): total_tokens={total_tokens} / max_tokens={max_tokens}."
+    else:
+        zh = f"在预算内：total_tokens={total_tokens} / max_tokens={max_tokens}。"
+        en = f"Within budget: total_tokens={total_tokens} / max_tokens={max_tokens}."
+    return {
+        "schema_version": "cost_budget_explain_v1",
+        "state": state,
+        "summary_zh": zh,
+        "summary_en": en,
+    }

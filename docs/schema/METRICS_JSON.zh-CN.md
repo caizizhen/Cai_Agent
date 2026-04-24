@@ -26,6 +26,9 @@
 - **`cai-agent observe export`**：成功生成导出后写入 **`observe.export`**。
 - **`cai-agent memory health`**（文本或 **`--json`**）：成功生成健康负载后写入 **`memory.health`**（**`tokens`** ≈ **`counts.memory_entries`**）。
 - **`cai-agent memory user-model`**：**`memory.user_model`**（**`tokens`** ≈ **`sessions_recent_in_window`**）。
+- **`cai-agent memory user-model learn` / `query` / `export`**：**`memory.user_model.learn`** / **`memory.user_model.query`** / **`memory.user_model.export`**（**`tokens`** 分别为 **`1`** / **`len(hits)`** / 概览窗口内会话数）。
+- **`cai-agent memory user-model store`**（**`init`/`list`**）：**`memory.user_model.store`**（**`tokens`** = **`1`** 或 **`len(beliefs)`**）。
+- **`cai-agent ecc layout` / `ecc scaffold`**：**`ecc.layout`** / **`ecc.scaffold`**（**`tokens`** ≈ **`entries`** 行数或新建文件数）。
 - **`cai-agent recall`**（扫描或 **`--use-index`**，成功路径）：写入 **`recall.query`**（**`tokens`** ≈ **`sessions_scanned`**）。
 - **`cai-agent schedule stats`**：写入 **`schedule.stats`**（**`tokens`** = 任务行数 **`len(tasks)`**）。
 - **`cai-agent gateway status`**：写入 **`gateway.status`**（**`tokens`**=`0`）。
@@ -68,7 +71,7 @@
 - **`cai-agent board`**：**`board.summary`**（**`tokens`** ≈ 内嵌 **`observe.sessions_count`**）。
 - **`cai-agent hooks list`**：**`hooks.list`**（**`tokens`** = 目录 **`hooks`** 条数；**`hooks.json` 缺失/无效** 时 **`success=false`**）。
 - **`cai-agent init`**：**`init.apply`**（**`tokens`** = 成功 **`1`** / 失败 **`0`**；**`success`** 与 exit 一致）。
-- **`cai-agent models`**：**`models.list`** / **`models.fetch`** / **`models.ping`** / **`models.route`** / **`models.add`** / **`models.use`** / **`models.rm`** / **`models.edit`**（未映射子命令为 **`models.cli`**；**`tokens`** 为 profile 数、**`fetch`+`--json`** 成功记 **`1`**、变更类成功记 **`1`** 等粗粒度提示）。
+- **`cai-agent models`**：**`models.list`** / **`models.fetch`** / **`models.ping`** / **`models.route`** / **`models.routing_test`**（**`routing-test`** 含文本/JSON） / **`models.add`** / **`models.use`** / **`models.rm`** / **`models.edit`**（未映射子命令为 **`models.cli`**；**`tokens`** 为 profile 数、**`fetch`+`--json`** 成功记 **`1`**、变更类成功记 **`1`** 等粗粒度提示）。
 - **`cai-agent workflow`**：**`workflow.run`**（**`tokens`** = 汇总 **`budget_used`**；**`success`** = 任务 **`completed`** 且未因 **`--fail-on-step-errors`** 置 **`2`**；**`run_workflow` 抛错** 时 **`success=false`**、**`tokens=0`**）。
 - **`cai-agent release-ga`**：**`release_ga.gate`**（**`tokens`** = **`len(checks)`**；**`success`** = **`state`** 为 **`pass`**）。
 - **`cai-agent ui`**：**`ui.tui`**（**`tokens`**=`0`**；**`success`** = TUI 正常退出；配置缺失等 **`success=false`**）。

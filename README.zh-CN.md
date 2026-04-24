@@ -275,6 +275,8 @@ cai-agent memory extract --limit 5
 cai-agent memory list --limit 10
 cai-agent cost budget --check --max-tokens 60000
 cai-agent export --target cursor
+cai-agent ecc layout --json
+cai-agent ecc scaffold
 cai-agent observe --json
 ```
 
@@ -581,11 +583,18 @@ cai-agent memory nudge-report --json --days 30 --freshness-days 14
 ### `cai-agent memory user-model` / `export`
 
 - **`memory user-model --json`**：输出 **`memory_user_model_v1`**，从近期会话统计工具频次、错误率与 goal 摘要（**`honcho_parity: behavior_extract`**），可选合并 **`.cai/user-model.json`**。
-- **`memory user-model export [--days N]`**：stdout 恒为 JSON **`user_model_bundle_v1`**（嵌 **`overview`**，便于归档/CI）；**`--days` 请写在 `export` 子命令之后**（argparse 限制）。
+- **`memory user-model --with-store-v3 --json`**：输出 **`memory_user_model_v3`**（含 **`.cai/user_model_store.sqlite3`** 快照字段）。
+- **`memory user-model store init|list`**：显式初始化 SQLite store 或列出近期 beliefs（机读 schema 见 **`docs/schema/README.zh-CN.md`**）。
+- **`memory user-model learn` / `query`**：写入或检索 beliefs（**`learn`** 空文本 exit **`2`**）。
+- **`memory user-model export [--days N]`**：stdout 恒为 JSON **`user_model_bundle_v1`**（嵌 **`overview`**，便于归档/CI）；**`--with-store`** 同时导出 **`user_model_store`** 快照；**`--days` 请写在 `export` 子命令之后**（argparse 限制）。
 
 ```bash
 cai-agent memory user-model --json --days 14
+cai-agent memory user-model store init --json
+cai-agent memory user-model learn --belief "偏好小步提交" --json
+cai-agent memory user-model query --text "小步" --json
 cai-agent memory user-model export --days 7
+cai-agent memory user-model export --days 7 --with-store
 ```
 
 ### `cai-agent ops dashboard` / `ops serve`

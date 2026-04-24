@@ -76,6 +76,12 @@ class DoctorCliTests(unittest.TestCase):
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",
             )
+            ch = pl.get("cai_dir_health") or {}
+            self.assertIsInstance(ch, dict)
+            dsum = ch.get("discord_map_summary")
+            self.assertIsInstance(dsum, dict)
+            self.assertIn("bindings_count", dsum)
+            self.assertIn("allowlist_enabled", dsum)
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

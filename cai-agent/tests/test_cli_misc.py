@@ -284,6 +284,10 @@ class CostBudgetCliTests(unittest.TestCase):
             self.assertEqual(payload.get("state"), "pass")
             self.assertEqual(payload.get("total_tokens"), 100)
             self.assertEqual(payload.get("max_tokens"), 1000)
+            ex = payload.get("explain")
+            self.assertIsInstance(ex, dict)
+            self.assertEqual(ex.get("schema_version"), "cost_budget_explain_v1")
+            self.assertIn("summary_zh", ex)
 
 
 class ExportCliTests(unittest.TestCase):

@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Iterable
 
 from cai_agent.config import Settings
+from cai_agent.ecc_layout import rules_common_dir, rules_dir, rules_python_dir
 
 
 def _read_text_files(paths: Iterable[Path]) -> list[str]:
@@ -40,12 +41,12 @@ def load_rule_text(settings: Settings) -> str:
     - 将所有文本拼接为一个简短说明块。
     """
     root = _project_root_from_settings(settings)
-    rules_dir = root / "rules"
-    if not rules_dir.is_dir():
+    rdir = rules_dir(root)
+    if not rdir.is_dir():
         return ""
 
-    common_dir = rules_dir / "common"
-    python_dir = rules_dir / "python"
+    common_dir = rules_common_dir(root)
+    python_dir = rules_python_dir(root)
     chunks: list[str] = []
 
     if common_dir.is_dir():

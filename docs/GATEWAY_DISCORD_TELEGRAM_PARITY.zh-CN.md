@@ -21,6 +21,7 @@
 | 常驻收消息 | `gateway telegram serve-webhook` | `gateway discord serve-polling` |
 | **注册「命令」菜单** | Telegram 无单独注册（文本 `/` 即命令） | **`gateway discord register-commands`**（PUT Discord API） |
 | **列出已注册命令** | — | **`gateway discord list-commands`** |
+| **运维自检（映射 + 可选 Token）** | — | **`gateway discord health`** |
 
 注册示例（推荐写入 **Guild**，生效快）：
 
@@ -36,6 +37,20 @@ cai-agent gateway discord register-commands --guild-id <GUILD_SNOWFLAKE> --dry-r
 ```
 
 全局命令（省略 `--guild-id`）传播可能较慢，见 [Discord 文档](https://discord.com/developers/docs/interactions/application-commands)。
+
+## 排障与值班路径（HM-03a）
+
+1. **确认 Bot Token 与网络**
+   - `cai-agent gateway discord health --json`（不设 Token 时仅输出本地 `discord-session-map` 摘要；设 `CAI_DISCORD_BOT_TOKEN` 或 `--bot-token` 时会调用 `GET /users/@me`）。
+   - Token 无效或缺失权限时：`health` 的 JSON 里 `token_check.ok=false`，CLI 退出码为 `2`。
+2. **确认频道已绑定且未被白名单挡掉**
+   - `cai-agent gateway discord list --json` → 检查 `bindings`、`allowed_channel_ids`；若 `allowlist_enabled=true`，未列入的频道不会轮询。
+3. **主路径收消息（Polling）**
+   - `cai-agent gateway discord serve-polling --bot-token …`（或环境变量）；需要 **Message Content Intent**（Developer Portal → Bot → Privileged Gateway Intents）以便读取普通用户消息内容，否则 `content` 可能为空被跳过。
+4. **Slash 命令「点了没反应」**
+   - 见下文「实现边界」：当前仓库**未**实现 Discord Interactions HTTP 回调；已注册的 Slash 需自建 Interaction 服务才有与 Telegram 相同的短回复语义；**文本对话**请走 Polling + `--execute-on-message`。
+5. **与 `doctor` 对齐**
+   - `cai-agent doctor` / `doctor --json` 的 `cai_dir_health.discord_map_summary` 会给出绑定条数与白名单开关（仅本地文件，默认不触网）。
 
 ## 实现边界（B1 交付范围）
 

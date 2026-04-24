@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 from cai_agent.config import Settings
+from cai_agent.ecc_layout import skills_dir
 from cai_agent.skill_evolution import record_skill_usage, register_session_skill_touch
 
 
@@ -14,7 +15,7 @@ def _project_root(settings: Settings) -> Path:
 
 
 def _skills_dir(settings: Settings) -> Path:
-    return _project_root(settings) / "skills"
+    return skills_dir(_project_root(settings))
 
 
 def _read_skill(path: Path) -> str:

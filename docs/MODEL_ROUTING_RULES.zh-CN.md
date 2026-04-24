@@ -1,6 +1,6 @@
 # 模型路由规则表（TOML + 现状）
 
-> **状态**：**§ 1～2** 描述 **当前已实现** 行为（代码：`cai_agent.llm_factory.resolve_role_profile` / `chat_completion_by_role`）。**§ 3** 的 **`[models.routing]`** 已由 **`cai_agent.model_routing`** 解析并挂到 **`Settings.model_routing_rules`**；**`chat_completion_by_role`** 会读取 **首条 `user` 消息** 作为 goal 文本做规则命中（与 **`graph`** 主循环一致）。**`cai-agent models routing-test`** 提供干跑 JSON（**`models_routing_test_v1`**）。**`doctor --json`** 含 **`model_routing_enabled`** / **`model_routing_rules_count`**，`doctor --json` 与 `models list --json` 还会暴露共享的 **`profile_contract_v1`**，用于描述显式/隐式 profile 来源、激活优先级与迁移状态。
+> **状态**：**§ 1～2** 描述 **当前已实现** 行为（代码：`cai_agent.llm_factory.resolve_role_profile` / `chat_completion_by_role`）。**§ 3** 的 **`[models.routing]`** 已由 **`cai_agent.model_routing`** 解析并挂到 **`Settings.model_routing_rules`**；**`chat_completion_by_role`** 会读取 **首条 `user` 消息** 作为 goal 文本做规则命中（与 **`graph`** 主循环一致）。**`cai-agent models routing-test`**：默认输出 **effective_profile + 中文摘要**；**`--json`** 输出 **`models_routing_test_v1`**，并嵌 **`explain`**（**`routing_explain_v1`**：`decision` / `summary_zh` / `summary_en`）。**`cai-agent cost budget`** 的 **`cost_budget_v1`** 同样嵌 **`explain`**（**`cost_budget_explain_v1`**）及 **`active_profile_id`**。**`doctor --json`** 含 **`model_routing_enabled`** / **`model_routing_rules_count`**，`doctor --json` 与 `models list --json` 还会暴露共享的 **`profile_contract_v1`**，用于描述显式/隐式 profile 来源、激活优先级与迁移状态。
 
 ## 1. 当前路由（已实现）
 

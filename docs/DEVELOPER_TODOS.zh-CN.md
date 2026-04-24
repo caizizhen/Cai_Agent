@@ -33,11 +33,11 @@
 | `Done` | Sprint A | `CC-01a` | 收口 `mcp-check --preset websearch/notebook`、模板、onboarding 入口 | `mcp-check --preset websearch/notebook` |
 | `Done` | Sprint A | `CC-02a` | 梳理安装、升级、版本差异提示与 onboarding | walkthrough 一遍 onboarding |
 | `Done` | Sprint B | `HM-01a` | 先定 profile schema、默认项、激活规则、迁移口径 | schema review + pytest |
-| `Ready` | Sprint B | `HM-03a` | 把 Discord 主路径、mapping、health、排障文档收口 | gateway smoke + `doctor` |
+| `Done` | Sprint B | `HM-03a` | 把 Discord 主路径、mapping、health、排障文档收口 | gateway smoke + `doctor` |
 | `Done` | Sprint B | `HM-04a` | 把 `board` / `ops` / gateway 状态字段收成同源 JSON | JSON snapshot + 本地消费检查 |
-| `Ready` | Sprint C | `HM-05a` | 补齐 user-model store/query/learn 最小闭环 | pytest + smoke |
-| `Ready` | Sprint C | `ECC-01a` | 统一 rules/skills/hooks 目录、模板、导出说明 | sample asset + 文档走查 |
-| `Ready` | Sprint C | `ECC-02a` | 收口 routing/profile/budget 产品路径与解释性输出 | CLI smoke + JSON 检查 |
+| `Done` | Sprint C | `HM-05a` | 补齐 user-model store/query/learn 最小闭环 | pytest + smoke |
+| `Done` | Sprint C | `ECC-01a` | 统一 rules/skills/hooks 目录、模板、导出说明 | sample asset + 文档走查 |
+| `Done` | Sprint C | `ECC-02a` | 收口 routing/profile/budget 产品路径与解释性输出 | CLI smoke + JSON 检查 |
 
 建议执行顺序：
 
@@ -57,11 +57,11 @@
 | `2` | `CC-01a` | `Done` | `mcp-check --preset websearch/notebook`、模板、fallback、quickstart、onboarding 入口已收口 | `DEVELOPER_TODOS`、`WEBSEARCH_NOTEBOOK_MCP`、`ONBOARDING` |
 | `3` | `CC-02a` | `Done` | `init` / `doctor` / README / onboarding 的安装、升级、版本差异提示已串成可走通路径 | `DEVELOPER_TODOS`、README、`ONBOARDING`、schema 文档 |
 | `4` | `HM-01a` | `Done` | `profile_contract_v1` 已进入 `doctor` / `models list` / `/status`，显式/隐式来源与迁移口径固定 | `DEVELOPER_TODOS`、issue backlog、相关 schema 文档 |
-| `5` | `HM-03a` | `Ready` | 收口 Discord 主路径、mapping、health、排障文档 | `DEVELOPER_TODOS`、gateway 文档、CHANGELOG |
+| `5` | `HM-03a` | `Done` | `gateway discord health` / `register-commands` / `list-commands` CLI 已落地；`discord_gateway_health_v1`；`doctor` 含 `discord_map_summary`；排障见 `GATEWAY_DISCORD_TELEGRAM_PARITY` | `DEVELOPER_TODOS`、gateway 文档、CHANGELOG |
 | `6` | `HM-04a` | `Done` | `board` / `ops dashboard` / `gateway status` 已共享 `gateway_summary_v1`，状态口径与最小 snapshot 已同源 | `DEVELOPER_TODOS`、`OPS_DYNAMIC_WEB_API` |
-| `7` | `HM-05a` | `Ready` | 补齐 user-model store/query/learn 闭环 | `DEVELOPER_TODOS`、memory 文档、CHANGELOG |
-| `8` | `ECC-01a` | `Ready` | 统一 rules/skills/hooks 目录、模板、导出说明 | `DEVELOPER_TODOS`、生态专题文档 |
-| `9` | `ECC-02a` | `Ready` | 收口 routing/profile/budget 的产品化入口与解释输出 | `DEVELOPER_TODOS`、`MODEL_ROUTING_RULES`、CHANGELOG |
+| `7` | `HM-05a` | `Done` | **`store init`/`list`**、**`learn`/`query`** 字段与 **`export --with-store`**；**`test_memory_user_model_store_cli.py`**；smoke 闭环 | `DEVELOPER_TODOS`、schema 文档、CHANGELOG |
+| `8` | `ECC-01a` | `Done` | **`ecc_layout`** 单源路径；**`ecc layout`/`scaffold`** CLI；**`templates/ecc/*`**；**`CROSS_HARNESS`** 资产表；exporter README 指针 | `DEVELOPER_TODOS`、schema 文档、CHANGELOG |
+| `9` | `ECC-02a` | `Done` | **`routing-test`** 默认文本摘要 + JSON **`explain`**；**`cost budget`** 嵌 **`cost_budget_explain_v1`**；文档/schema 已同步 | `DEVELOPER_TODOS`、`MODEL_ROUTING_RULES`、CHANGELOG |
 
 当前默认做法：
 
@@ -136,8 +136,8 @@
 | `HM-03a` | 把 Discord 从 MVP 推到生产路径 | 多平台 gateway 是 Hermes 线里最能体现产品差异的一项 | `gateway_discord.py`、`gateway_maps.py`、`gateway_platforms.py`、`doctor.py` | `GATEWAY_DISCORD_TELEGRAM_PARITY.zh-CN.md` | Discord 主路径可接入、可排障、可值班 | gateway smoke + `doctor` |
 | `HM-04a` | 统一 ops/gateway/status 聚合载荷 | Dashboard 再往前做，必须先解决多套状态源问题 | `ops_dashboard.py`、`ops_http_server.py`、`board_state.py`、`__main__.py` | `OPS_DYNAMIC_WEB_API.zh-CN.md` | `board` / `ops` / gateway 状态字段同源 | JSON snapshot + 本地消费检查 |
 | `HM-05a` | 补齐 user-model store/query/learn 主链路 | 这是记忆线里最关键的“从已有功能走向产品化”一步 | `user_model.py`、`user_model_store.py`、`__main__.py` | `docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`、`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md` | 用户模型具备最小闭环：抽取、存储、查询、学习、导出 | pytest + smoke |
-| `ECC-01a` | 统一 rules/skills/hooks 资产目录与模板 | 治理线要落地，先让团队知道资产怎么组织 | `rules.py`、`skills.py`、`hook_runtime.py`、`hooks.py`、`skill_registry.py`、`exporter.py` | `CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | 新增资产时，团队知道放哪、怎么复用、怎么导出 | sample asset + 文档走查 |
-| `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | 当前能力已存在，但还不够“可解释、可操作” | `model_routing.py`、`cost_aggregate.py`、`config.py`、`doctor.py`、`__main__.py` | `MODEL_ROUTING_RULES.zh-CN.md`、`CONTEXT_AND_COMPACT.zh-CN.md` | 使用者能理解并验证路由和预算行为 | CLI smoke + JSON 输出检查 |
+| `ECC-01a` | 统一 rules/skills/hooks 资产目录与模板 | 治理线要落地，先让团队知道资产怎么组织 | **`ecc_layout.py`**、`rules.py`、`skill_registry.py`、`hook_runtime.py`、`exporter.py`、`templates/ecc/*` | `CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | 新增资产时，团队知道放哪、怎么复用、怎么导出 | **`ecc layout`/`scaffold`** + 文档走查 |
+| `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | 当前能力已存在，但还不够“可解释、可操作” | **`model_routing.build_routing_explain_v1`**、**`cost_aggregate.build_cost_budget_explain_v1`**、`__main__.py` | `MODEL_ROUTING_RULES*.md`、schema README | CLI 能用人话/JSON 双语解释路由与预算 | CLI smoke + JSON 输出检查 |
 
 ---
 

@@ -12,7 +12,8 @@
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
 | **运营 / 可观测** | **`cai-agent ops dashboard`**（json/text/html）；**`--html-refresh-seconds`**（HTML **`meta refresh`**）；**`cai-agent ops serve`** 只读 HTTP（**`/v1/ops/dashboard`**、**`/v1/ops/dashboard.html`**）；可选 **`CAI_OPS_API_TOKEN`** | [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)、**`cai_agent/ops_dashboard.py`**、**`cai_agent/ops_http_server.py`** |
-| **记忆 / 用户模型** | **`cai-agent memory user-model export`** → **`user_model_bundle_v1`**（嵌 **`memory_user_model_v1`** **`overview`**） | **`cai_agent/user_model.py`**、RFC [`docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
+| **记忆 / 用户模型** | **`memory user-model export`**（可选 **`--with-store`**）；**`store init`/`list`**、**`learn`**、**`query`** 与 SQLite **`.cai/user_model_store.sqlite3`** 最小闭环（**HM-05a**） | **`user_model.py`**、**`user_model_store.py`**、RFC [`docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
+| **ECC / 路由与预算** | **`models routing-test`** 文本/JSON 双语 **`explain`**；**`cost budget`** 嵌 **`cost_budget_explain_v1`**（**ECC-02a**） | **`model_routing.py`**、**`cost_aggregate.py`**、[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md) |
 | **测试 / 冒烟** | **`test_ops_http_server.py`**、**`test_ops_dashboard_html.py`**（含刷新）、**`test_memory_user_model_export.py`**；**`scripts/smoke_new_features.py`** 已扩 **`memory user-model export`** | **`cai-agent/tests/`**、**`scripts/smoke_new_features.py`** |
 
 ## 仍未完成（产品文档口径）
@@ -30,7 +31,7 @@
 ## 最近回归执行记录（QA）
 
 - **日期**：2026-04-24（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**：**620 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
+- **`pytest cai-agent/tests`**：**641 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（含 compileall、unittest discover、`smoke_new_features` 及 CLI 子集）；**未**新建 `docs/qa/runs/regression-*.md`（与 **QA_REGRESSION_LOGGING** 中 `QA_SKIP_LOG` 约定一致）。
 

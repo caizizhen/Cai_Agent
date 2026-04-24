@@ -198,17 +198,17 @@
 | `HM-01b` | `Ready` | `HM-01` | 落地 profile 管理命令与测试夹具 | CLI/TUI profile 增删改查 + fixture | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Design` | `HM-02` | 设计最小 API / server 契约 | 路由、鉴权、输入输出 schema、版本策略 | — | 契约评审 |
 | `HM-02b` | `Ready` | `HM-02` | 实现最小只读或任务触发型 API 面 | 最小 server 主路径与文档 | `HM-02a` | integration smoke |
-| `HM-03a` | `Ready` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
+| `HM-03a` | `Done` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
 | `HM-03b` | `Ready` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | webhook / block kit / mapping / allowlist 收口 | — | gateway smoke + doctor |
 | `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |
 | `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
 | `HM-04b` | `Ready` | `HM-04` | 增加只读动态 dashboard 能力 | 先做 SSE 或轮询刷新，不做写操作 | `HM-04a` | 浏览器手测 |
-| `HM-05a` | `Ready` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
+| `HM-05a` | `Done` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
 | `HM-05b` | `Ready` | `HM-05` | 建 recall 评估与负样本机制 | `recall --evaluate`、负样本、报告 schema | `HM-05a` | benchmark/report |
 | `HM-05c` | `Ready` | `HM-05` | 把 memory policy 接进 doctor / release gate | policy、TTL、修复命令、发版门禁一致 | `HM-05a` | doctor + release-ga |
-| `ECC-01a` | `Ready` | `ECC-01` | 统一 rules/skills/hooks 资产目录与模板 | 目录约定、模板、安装说明 | — | 文档 + sample asset |
+| `ECC-01a` | `Done` | `ECC-01` | 统一 rules/skills/hooks 资产目录与模板 | 目录约定、模板、安装说明 | — | 文档 + sample asset |
 | `ECC-01b` | `Ready` | `ECC-01` | 收口导出/安装/共享流转 | install/export/share/compatibility 说明统一 | `ECC-01a` | smoke + docs |
-| `ECC-02a` | `Ready` | `ECC-02` | 把 routing/profile/budget 变成稳定产品路径 | `models routing-test`、wizard、默认策略收口 | — | CLI smoke |
+| `ECC-02a` | `Done` | `ECC-02` | 把 routing/profile/budget 变成稳定产品路径 | `models routing-test`、wizard、默认策略收口 | — | CLI smoke |
 | `ECC-02b` | `Ready` | `ECC-02` | 补齐成本视图与 compact 策略解释 | cost report / profile rollup / compact 触发说明 | `ECC-02a` | JSON/text report |
 | `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | 先输出版本语义和兼容策略 | — | 设计文档 |
 | `HM-06a` | `Explore` | `HM-06` | Runtime backend 产品化评估 | 明确本地/Docker/SSH 优先级与交付边界 | — | 评估结论 |

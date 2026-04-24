@@ -166,6 +166,34 @@ def test_gateway_discord_allow_add_cli(tmp_path: Path) -> None:
     assert "CH_ALLOW" in out["allowed_channel_ids"]
 
 
+def test_gateway_discord_health_cli_no_token(tmp_path: Path) -> None:
+    result = _cli("gateway", "discord", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_discord_health_v1"
+    assert out.get("bindings_count") == 0
+    tc = out.get("token_check") or {}
+    assert tc.get("performed") is False
+
+
+def test_gateway_discord_register_commands_no_token_exit_2(tmp_path: Path) -> None:
+    result = _cli(
+        "gateway",
+        "discord",
+        "-w",
+        str(tmp_path),
+        "register-commands",
+        "--dry-run",
+        "--json",
+    )
+    assert result.returncode == 2, result.stderr
+
+
+def test_gateway_discord_list_commands_no_token_exit_2(tmp_path: Path) -> None:
+    result = _cli("gateway", "discord", "-w", str(tmp_path), "list-commands", "--json")
+    assert result.returncode == 2, result.stderr
+
+
 # ---------------------------------------------------------------------------
 # CLI 集成测试：gateway slack
 # ---------------------------------------------------------------------------

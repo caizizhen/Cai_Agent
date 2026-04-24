@@ -267,15 +267,26 @@ def build_user_model_bundle_v1(
     settings: Settings,
     *,
     days: int = 14,
+    with_store: bool = False,
 ) -> dict[str, Any]:
-    """RFC：可归档的导出包，嵌套当前 ``memory_user_model_v1`` 概览。"""
+    """RFC：可归档的导出包，嵌套当前 ``memory_user_model_v1`` 概览。
+
+    当 ``with_store=True`` 时附加 ``user_model_store``（``user_model_store_snapshot_v1``），
+    与 ``memory user-model export --with-store`` 对齐。
+    """
     overview = build_memory_user_model_overview(settings, days=days)
-    return {
+    out: dict[str, Any] = {
         "schema_version": "user_model_bundle_v1",
         "exported_at": datetime.now(UTC).isoformat(),
         "bundle_kind": "behavior_overview",
         "overview": overview,
     }
+    if with_store:
+        from cai_agent.user_model_store import export_store_payload
+
+        root = Path(settings.workspace).expanduser().resolve()
+        out["user_model_store"] = export_store_payload(root)
+    return out
 
 
 def build_memory_user_model_overview_v3(

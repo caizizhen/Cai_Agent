@@ -22,7 +22,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **626 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **641 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
@@ -72,11 +72,11 @@
 | ID | 对应开发项 | 现有测试入口 | 本轮测试 To-do | 手工 / 真机 | 完成定义 |
 |---|---|---|---|---|---|
 | `HM-01a` | 定义 profile 数据模型与持久化结构 | `test_model_profiles_config.py`、`test_model_profiles_cli.py`、`test_tui_model_panel.py`、`test_model_routing.py`、`test_context_usage_bar.py`、`test_llm_factory_dispatch.py` | 已补 `profile_contract_v1` 在 `doctor --json` / `models list --json` 的断言，并把同源信息接进 TUI `/status` | 手工检查 TUI `/models` 与 `/status` 一致性 | profile 契约稳定，CLI/TUI/配置写回不分叉 |
-| `HM-03a` | 把 Discord 从 MVP 推到生产路径 | `test_gateway_discord_slash_commands.py`、`test_gateway_discord_slack_cli.py`、`test_gateway_maps_summarize.py`、`test_doctor_cli.py` | 补 Discord slash / mapping / doctor 健康字段断言；必要时扩展 CLI 集成测试覆盖异常路径 | 真机或 mock 接近真机地走一次 Discord 消息链路 | Discord 不只是“命令存在”，而是主路径可接入可排障 |
+| `HM-03a` | 把 Discord 从 MVP 推到生产路径 | `test_gateway_discord_slash_commands.py`、`test_gateway_discord_slack_cli.py`、`test_gateway_maps_summarize.py`、`test_doctor_cli.py` | 已补 **`gateway discord health`**、**`register-commands`/`list-commands`**（无 Token exit 2）、**`discord_gateway_health_v1`** 单测、**`doctor` `discord_map_summary`** 断言；**`smoke_new_features`** 覆盖 **discord list/health** | 真机走 **serve-polling** + 可选 Slash 注册 | 主路径 CLI 与排障文档可回归；真机消息链路仍建议手工值班验证 |
 | `HM-04a` | 统一 ops/gateway/status 聚合载荷 | `test_ops_dashboard_html.py`、`test_ops_http_server.py`、`test_ops_gateway_skills_cli.py`、`scripts/smoke_new_features.py` | 已补 `gateway_summary_v1` 在 `board` / `ops dashboard` / `gateway status` 的同源字段断言，并扩了 smoke | 浏览器手工打开 `ops serve` 或 HTML 输出，确认消费体验 | 只读运营面板相关载荷可以稳定消费，不会多套口径打架 |
-| `HM-05a` | 补齐 user-model store/query/learn 主链路 | `test_user_model_store.py`、`test_memory_user_model_export.py`、`test_gateway_user_model_skills_evolution.py`、`scripts/smoke_new_features.py` | 新增 `query/learn` CLI 测试；补 store 初始化、写入、查询、学习、导出一条闭环用例；扩展 smoke | 手工检查空工作区、已有 overlay、异常输入三类场景 | 用户模型形成最小闭环，并且 CLI / JSON 契约可回归 |
-| `ECC-01a` | 统一 rules/skills/hooks 资产目录与模板 | `test_hooks_cli.py`、`test_hook_runtime.py`、`test_hook_status_output.py`、`test_skills_lint_cli.py`、`test_skills_auto_extract_hub_serve.py`、`test_skill_evolution.py`、`test_skills_promote.py`、`test_agentskills_*.py` | 补目录约定、模板、安装/导出流转的断言；若新增资产模板，至少补一个 golden case | 手工创建一个最小 asset，跑一遍 lint / serve / export | 团队能稳定创建和复用资产，不会因为目录或模板漂移而碎掉 |
-| `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | `test_model_routing.py`、`test_cost_aggregate.py`、`test_factory_routing_and_security.py`、`test_doctor_cli.py`、`scripts/smoke_new_features.py` | 补 route-wizard、budget/profile 解释路径、doctor 暴露字段断言；扩展 `cost budget` 和相关 JSON 输出检查 | 手工检查一条“为什么被路由到这个 profile”的解释链路 | 路由与预算不再只靠配置猜测，而是有稳定测试覆盖的产品输出 |
+| `HM-05a` | 补齐 user-model store/query/learn 主链路 | `test_user_model_store.py`、`test_memory_user_model_export.py`、`test_memory_user_model_store_cli.py`、`test_gateway_user_model_skills_evolution.py`、`scripts/smoke_new_features.py` | 已补 **`store init/list`**、**`learn`/`query`**、**`export --with-store`** 与空 belief exit **`2`**；smoke 串 **store→learn→query→list→export** | 手工检查空工作区、已有 overlay、异常输入三类场景 | SQLite store 与 bundle 可选快照可回归 |
+| `ECC-01a` | 统一 rules/skills/hooks 资产目录与模板 | `test_ecc_layout_cli.py`、`test_hooks_cli.py`、`test_hook_runtime.py`、… | 已补 **`ecc layout`/`scaffold`** JSON 与 **`ecc_layout`** 路径单测；smoke 含 **`ecc layout`** | 手工跑一次 **`ecc scaffold`** 后检查目录 | 约定集中在 **`ecc_asset_layout_v1`** + **`CROSS_HARNESS`** 表 |
+| `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | `test_model_routing.py`、`test_cli_misc.py`（cost budget）、`test_cost_aggregate.py`、`test_factory_routing_and_security.py`、`scripts/smoke_new_features.py` | 已补 **`routing-test`** 文本模式、JSON **`explain`**；**`cost budget`** 的 **`explain`** / **`active_profile_id`**；smoke 校验 budget 载荷 | 手工对照 TOML 跑 **`routing-test`** 与 **`cost budget`** | 路由/预算 CLI 有可回归解释块 |
 
 ---
 

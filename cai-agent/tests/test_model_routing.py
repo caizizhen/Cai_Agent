@@ -208,6 +208,61 @@ class ModelRoutingCliTests(unittest.TestCase):
             self.assertIsNotNone(o.get("matched_rule"))
             self.assertIn("cost_budget_max_tokens", o)
             self.assertIn("cost_budget_remaining", o)
+            ex = o.get("explain")
+            self.assertIsInstance(ex, dict)
+            self.assertEqual(ex.get("schema_version"), "routing_explain_v1")
+            self.assertEqual(ex.get("decision"), "matched_rule")
+
+    def test_routing_test_text_summary(self) -> None:
+        toml = "\n".join(
+            [
+                "[llm]",
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+                "[agent]",
+                "mock = true",
+                "",
+                "[models]",
+                'active = "fast"',
+                "",
+                "[[models.profile]]",
+                'id = "fast"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m-fast"',
+                'api_key = "k"',
+                "",
+                "[models.routing]",
+                "enabled = false",
+                "",
+            ],
+        )
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(toml, encoding="utf-8")
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "models",
+                            "--config",
+                            str(cfg),
+                            "routing-test",
+                            "--role",
+                            "active",
+                            "--goal",
+                            "hello",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            self.assertIn("effective_profile_id=fast", out)
+            self.assertIn("已关闭", out)
 
     def test_routing_test_cost_simulation(self) -> None:
         toml = "\n".join(

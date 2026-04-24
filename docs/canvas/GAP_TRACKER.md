@@ -35,11 +35,11 @@ Status vocabulary:
 | `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Ready` | `HM-03a` Discord production path | `ROADMAP_EXECUTION` §10 |
 | `HM-04` | `Ready` | `HM-04b` dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
-| `HM-05` | `Ready` | `HM-05a` user-model store/query/learn closure | `ROADMAP_EXECUTION` §10 |
+| `HM-05` | `Ready` | **`HM-05a` Done**（store/query/learn + export `--with-store`）；**`HM-05b`/`HM-05c`** 仍 Ready | `ROADMAP_EXECUTION` §10 |
 | `HM-06` | `Explore` | `HM-06a` backend productization evaluation | `ROADMAP_EXECUTION` §10 |
 | `HM-07` | `Explore` | `HM-07a` voice boundary evaluation | `ROADMAP_EXECUTION` §10 |
-| `ECC-01` | `Ready` | `ECC-01a` asset directory + template standardization | `ROADMAP_EXECUTION` §10 |
-| `ECC-02` | `Ready` | `ECC-02a` routing/profile/budget product path | `ROADMAP_EXECUTION` §10 |
+| `ECC-01` | `Ready` | **`ECC-01a` Done**（`ecc` CLI + `ecc_layout`）；**`ECC-01b`** install/export 流转仍 Ready | `ROADMAP_EXECUTION` §10 |
+| `ECC-02` | `Ready` | **`ECC-02a` Done**（routing-test / cost budget explain）；**`ECC-02b`** 成本视图仍 Ready | `ROADMAP_EXECUTION` §10 |
 | `ECC-03` | `Explore` | `ECC-03a` plugin/version governance design | `ROADMAP_EXECUTION` §10 |
 
 ## 3. Usage rule

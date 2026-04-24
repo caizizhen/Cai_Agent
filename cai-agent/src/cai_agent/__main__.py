@@ -3236,13 +3236,10 @@ def _cmd_models(args: argparse.Namespace) -> int:
         return 0
 
     if action == "routing-test":
-        if not bool(getattr(args, "json_output", False)):
-            print("routing-test 需要 --json", file=sys.stderr)
-            return 2
         role_raw = str(getattr(args, "routing_test_role", "active") or "active").strip().lower()
         goal = str(getattr(args, "routing_test_goal", "") or "").strip()
         total_used = int(getattr(args, "routing_test_total_tokens", 0) or 0)
-        from cai_agent.model_routing import first_matching_routing_rule
+        from cai_agent.model_routing import build_routing_explain_v1, first_matching_routing_rule
 
         rules = settings.model_routing_rules
         rout_on = settings.model_routing_enabled
@@ -3270,6 +3267,17 @@ def _cmd_models(args: argparse.Namespace) -> int:
             rem = max(0, int(cost_max) - int(total_used))
         else:
             rem = None
+        explain = build_routing_explain_v1(
+            model_routing_enabled=rout_on,
+            matched=matched,
+            base_profile_id=base_id,
+            effective_profile_id=eff,
+            role=role_raw,
+            rules_count=len(rules),
+            cost_budget_max_tokens=cost_max,
+            total_tokens_used=total_used,
+            cost_budget_remaining=rem,
+        )
         out_rt = {
             "schema_version": "models_routing_test_v1",
             "role": role_raw,
@@ -3282,8 +3290,13 @@ def _cmd_models(args: argparse.Namespace) -> int:
             "base_profile_id": base_id,
             "effective_profile_id": eff,
             "matched_rule": mr,
+            "explain": explain,
         }
-        print(json.dumps(out_rt, ensure_ascii=False))
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(out_rt, ensure_ascii=False))
+        else:
+            print(f"effective_profile_id={eff}")
+            print(explain.get("summary_zh") or "")
         return 0
 
     # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
@@ -3578,6 +3591,44 @@ def main(argv: list[str] | None = None) -> int:
         help="stdout 仅输出 init_cli_v1 JSON（成功或 config_exists 等错误）",
     )
 
+    ecc_p = sub.add_parser(
+        "ecc",
+        help="ECC：rules/skills/hooks 资产目录约定与最小脚手架（跨 harness 导出见 export）",
+    )
+    ecc_p.add_argument(
+        "--config",
+        default=None,
+        help="配置文件路径（可选；与全局 --config 解析规则一致）",
+    )
+    ecc_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（可选；layout 用于覆盖展示根，scaffold 为写入根）",
+    )
+    ecc_sub = ecc_p.add_subparsers(dest="ecc_action", required=True)
+    ecc_layout_p = ecc_sub.add_parser(
+        "layout",
+        help="输出 ecc_asset_layout_v1（约定路径与 hooks 解析结果）",
+    )
+    ecc_layout_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 仅输出一行 JSON",
+    )
+    ecc_scaffold_p = ecc_sub.add_parser(
+        "scaffold",
+        help="从内置模板创建最小 rules/skills/hooks 样例（不覆盖已有文件）",
+    )
+    ecc_scaffold_p.add_argument("--json", action="store_true", dest="json_output")
+    ecc_scaffold_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="ecc_scaffold_dry_run",
+        help="只打印将创建的路径，不写盘",
+    )
+
     plan_p = sub.add_parser(
         "plan",
         parents=[common],
@@ -3862,7 +3913,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="routing_test_total_tokens",
         help="与 [cost].budget_max_tokens 组合模拟剩余预算（成本条件规则）",
     )
-    _mrtx.add_argument("--json", action="store_true", dest="json_output", help="输出 models_routing_test_v1 JSON")
+    _mrtx.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="输出 models_routing_test_v1 JSON（含 explain）；省略则输出 effective_profile + 中文摘要",
+    )
 
     _mrt = models_sub.add_parser(
         "route",
@@ -5121,7 +5177,7 @@ def main(argv: list[str] | None = None) -> int:
     memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
     memory_user_model = memory_sub.add_parser(
         "user-model",
-        help="工作区用户建模占位摘要（Honcho 级能力的增量入口，非完整画像引擎）",
+        help="用户建模：会话行为概览（v1/v2/v3）+ SQLite store 的 init/list、learn、query、export（见子命令）",
     )
     memory_user_model.add_argument(
         "--days",
@@ -5149,6 +5205,22 @@ def main(argv: list[str] | None = None) -> int:
         dest="user_model_days",
         help="统计窗口天数（仅写在 export 子命令后时生效）",
     )
+    um_export.add_argument(
+        "--with-store",
+        action="store_true",
+        dest="user_model_export_with_store",
+        help="在 bundle 中附加 user_model_store_snapshot_v1（.cai/user_model_store.sqlite3）",
+    )
+    um_store = um_sub.add_parser(
+        "store",
+        help="SQLite user_model_store：初始化库文件或列出近期 beliefs",
+    )
+    um_store_sub = um_store.add_subparsers(dest="user_model_store_action", required=True)
+    um_store_init = um_store_sub.add_parser("init", help="创建 .cai/user_model_store.sqlite3 及表结构")
+    um_store_init.add_argument("--json", action="store_true", dest="json_output")
+    um_store_list = um_store_sub.add_parser("list", help="按 updated_at 倒序列出 beliefs")
+    um_store_list.add_argument("--limit", type=int, default=50, dest="user_store_list_limit")
+    um_store_list.add_argument("--json", action="store_true", dest="json_output")
     um_query = um_sub.add_parser(
         "query",
         help="在 SQLite user_model_store 中按子串检索 beliefs（需先 learn 或运行带 --with-store-v3 的概览以初始化库）",
@@ -5913,6 +5985,14 @@ def main(argv: list[str] | None = None) -> int:
     gw_dc_bind = gw_dc_sub.add_parser("bind", help="绑定 channel_id → session_file")
     gw_dc_bind.add_argument("channel_id")
     gw_dc_bind.add_argument("session_file")
+    gw_dc_bind.add_argument(
+        "--guild-id",
+        default=None,
+        dest="discord_bind_guild_id",
+        metavar="ID",
+        help="可选：写入绑定行的 guild_id（排障/展示）",
+    )
+    gw_dc_bind.add_argument("--label", default=None, dest="discord_bind_label", help="可选：绑定备注")
     gw_dc_bind.add_argument("--json", action="store_true", dest="json_output")
 
     gw_dc_unbind = gw_dc_sub.add_parser("unbind", help="解绑 channel_id")
@@ -5925,6 +6005,56 @@ def main(argv: list[str] | None = None) -> int:
 
     gw_dc_list = gw_dc_sub.add_parser("list", help="列出所有绑定与白名单")
     gw_dc_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_health = gw_dc_sub.add_parser("health", help="Discord 网关自检：本地映射 + 可选校验 Bot Token（GET /users/@me）")
+    gw_dc_health.add_argument(
+        "--bot-token",
+        default=None,
+        dest="discord_bot_token",
+        help="Discord Bot Token（或 CAI_DISCORD_BOT_TOKEN）",
+    )
+    gw_dc_health.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_regcmd = gw_dc_sub.add_parser(
+        "register-commands",
+        help="注册默认 Slash 命令（PUT Discord Application Commands，与文档 parity 表一致）",
+    )
+    gw_dc_regcmd.add_argument(
+        "--guild-id",
+        default=None,
+        dest="discord_guild_id",
+        metavar="ID",
+        help="Guild Snowflake（推荐，生效快）；省略则为全局命令",
+    )
+    gw_dc_regcmd.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="discord_dry_run",
+        help="仅解析并展示将提交的命令体（仍需 Token 调 GET /oauth2/applications/@me）",
+    )
+    gw_dc_regcmd.add_argument(
+        "--bot-token",
+        default=None,
+        dest="discord_bot_token",
+        help="Discord Bot Token（或 CAI_DISCORD_BOT_TOKEN）",
+    )
+    gw_dc_regcmd.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_dc_listcmd = gw_dc_sub.add_parser("list-commands", help="列出 Discord 已注册的 Application Commands")
+    gw_dc_listcmd.add_argument(
+        "--guild-id",
+        default=None,
+        dest="discord_guild_id",
+        metavar="ID",
+        help="Guild Snowflake；省略则列全局命令",
+    )
+    gw_dc_listcmd.add_argument(
+        "--bot-token",
+        default=None,
+        dest="discord_bot_token",
+        help="Discord Bot Token（或 CAI_DISCORD_BOT_TOKEN）",
+    )
+    gw_dc_listcmd.add_argument("--json", action="store_true", dest="json_output")
 
     gw_dc_allow = gw_dc_sub.add_parser("allow", help="白名单管理")
     gw_dc_allow_sub = gw_dc_allow.add_subparsers(dest="dc_allow_action", required=True)
@@ -6057,6 +6187,66 @@ def main(argv: list[str] | None = None) -> int:
             success=(int(rc_ini) == 0),
         )
         return rc_ini
+
+    if args.command == "ecc":
+        t_ecc = time.perf_counter()
+        from cai_agent.ecc_layout import build_ecc_asset_layout_payload, ecc_scaffold_workspace
+
+        ws_ecc = getattr(args, "workspace", None)
+        root_ecc = Path(str(ws_ecc)).expanduser().resolve() if ws_ecc else None
+        try:
+            settings_ecc = Settings.from_env(
+                config_path=getattr(args, "config", None),
+                workspace_hint=str(root_ecc) if root_ecc else None,
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        ecc_act = str(getattr(args, "ecc_action", "") or "").strip().lower()
+        if ecc_act == "layout":
+            pl = build_ecc_asset_layout_payload(settings_ecc, root_override=root_ecc)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(pl, ensure_ascii=False))
+            else:
+                print(f"ECC workspace={pl.get('workspace')} hooks_resolved={pl.get('hooks_resolved_path')}")
+                for row in pl.get("entries") or []:
+                    if isinstance(row, dict):
+                        print(f"- {row.get('id')}: {row.get('path')}")
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.layout",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(pl.get("entries") or []),
+                success=True,
+            )
+            return 0
+        if ecc_act == "scaffold":
+            rbase = root_ecc if root_ecc is not None else Path.cwd().resolve()
+            r = ecc_scaffold_workspace(
+                rbase,
+                dry_run=bool(getattr(args, "ecc_scaffold_dry_run", False)),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                print(
+                    f"[ecc scaffold] dry_run={r.get('dry_run')} "
+                    f"created={len(r.get('created') or [])} skipped={len(r.get('skipped') or [])}",
+                )
+                for c in r.get("created") or []:
+                    print(f"  + {c}")
+                for s in r.get("skipped") or []:
+                    print(f"  = {s}")
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.scaffold",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(r.get("created") or []),
+                success=True,
+            )
+            return 0
+        print(f"unknown ecc action: {ecc_act}", file=sys.stderr)
+        return 2
 
     if args.command == "doctor":
         try:
@@ -8908,21 +9098,73 @@ def main(argv: list[str] | None = None) -> int:
                     build_memory_user_model_overview_v3,
                     build_user_model_bundle_v1,
                 )
-                from cai_agent.user_model_store import append_event, query_beliefs_by_text, upsert_belief
+                from cai_agent.user_model_store import (
+                    append_event,
+                    init_user_model_store,
+                    list_recent_beliefs,
+                    query_beliefs_by_text,
+                    upsert_belief,
+                    user_model_store_path,
+                )
 
                 uact = str(getattr(args, "user_model_action", "") or "").strip().lower()
                 days_um = int(getattr(args, "user_model_days", 14) or 14)
+                sp_store = str(user_model_store_path(root))
+                if uact == "store":
+                    sact = str(getattr(args, "user_model_store_action", "") or "").strip().lower()
+                    if sact == "init":
+                        ppath = init_user_model_store(root)
+                        out_s: dict[str, Any] = {
+                            "schema_version": "memory_user_model_store_init_v1",
+                            "ok": True,
+                            "store_path": str(ppath),
+                        }
+                    elif sact == "list":
+                        lim_sl = int(getattr(args, "user_store_list_limit", 50) or 50)
+                        beliefs_sl = list_recent_beliefs(root, limit=lim_sl)
+                        out_s = {
+                            "schema_version": "memory_user_model_store_list_v1",
+                            "store_path": sp_store,
+                            "beliefs": beliefs_sl,
+                        }
+                    else:
+                        print(f"unknown user-model store action: {sact}", file=sys.stderr)
+                        return 2
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out_s, ensure_ascii=False))
+                    elif sact == "init":
+                        print(f"[memory user-model store init] store_path={out_s.get('store_path')}")
+                    else:
+                        bl = out_s.get("beliefs") or []
+                        print(f"[memory user-model store list] n={len(bl)} store_path={out_s.get('store_path')}")
+                        for b in bl[:40]:
+                            if isinstance(b, dict):
+                                print(f"  {b.get('confidence')}\t{(b.get('text') or '')[:120]}")
+                    _maybe_metrics_cli(
+                        module="memory",
+                        event="memory.user_model.store",
+                        latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                        tokens=len(out_s.get("beliefs") or []) if sact == "list" else 1,
+                        success=True,
+                    )
+                    return 0
                 if uact == "query":
+                    needle_q = str(getattr(args, "user_model_query_text", "") or "")
                     hits = query_beliefs_by_text(
                         root,
-                        needle=str(getattr(args, "user_model_query_text", "") or ""),
+                        needle=needle_q,
                         limit=int(getattr(args, "limit", 20) or 20),
                     )
-                    out_q = {"schema_version": "memory_user_model_query_v1", "hits": hits}
+                    out_q: dict[str, Any] = {
+                        "schema_version": "memory_user_model_query_v1",
+                        "store_path": sp_store,
+                        "needle": needle_q,
+                        "hits": hits,
+                    }
                     if bool(getattr(args, "json_output", False)):
                         print(json.dumps(out_q, ensure_ascii=False))
                     else:
-                        print(f"[memory user-model query] hits={len(hits)}")
+                        print(f"[memory user-model query] hits={len(hits)} store_path={sp_store}")
                         for h in hits[:20]:
                             print(f"  {h.get('confidence')}\t{h.get('text', '')[:120]}")
                     _maybe_metrics_cli(
@@ -8937,9 +9179,35 @@ def main(argv: list[str] | None = None) -> int:
                     belief = str(getattr(args, "belief", "") or "").strip()
                     conf = float(getattr(args, "confidence", 0.5) or 0.5)
                     tags = [str(x) for x in (getattr(args, "tag", None) or []) if str(x).strip()]
-                    row = upsert_belief(root, text=belief, confidence=conf, tags=tags or None)
+                    try:
+                        row = upsert_belief(root, text=belief, confidence=conf, tags=tags or None)
+                    except ValueError as e:
+                        out_bad: dict[str, Any] = {
+                            "schema_version": "memory_user_model_learn_v1",
+                            "ok": False,
+                            "store_path": sp_store,
+                            "error": "belief_invalid",
+                            "message": str(e).strip() or "belief_invalid",
+                        }
+                        if bool(getattr(args, "json_output", False)):
+                            print(json.dumps(out_bad, ensure_ascii=False))
+                        else:
+                            print(f"[memory user-model learn] error: {out_bad.get('message')}", file=sys.stderr)
+                        _maybe_metrics_cli(
+                            module="memory",
+                            event="memory.user_model.learn",
+                            latency_ms=(time.perf_counter() - t_mum) * 1000.0,
+                            tokens=0,
+                            success=False,
+                        )
+                        return 2
                     append_event(root, kind="learn", payload={"belief_id": row.get("id"), "text": belief[:200]})
-                    out_l = {"schema_version": "memory_user_model_learn_v1", "ok": True, "belief": row}
+                    out_l: dict[str, Any] = {
+                        "schema_version": "memory_user_model_learn_v1",
+                        "ok": True,
+                        "store_path": sp_store,
+                        "belief": row,
+                    }
                     if bool(getattr(args, "json_output", False)):
                         print(json.dumps(out_l, ensure_ascii=False))
                     else:
@@ -8953,7 +9221,11 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     return 0
                 if uact == "export":
-                    bundle = build_user_model_bundle_v1(settings_mem, days=days_um)
+                    bundle = build_user_model_bundle_v1(
+                        settings_mem,
+                        days=days_um,
+                        with_store=bool(getattr(args, "user_model_export_with_store", False)),
+                    )
                     ov = bundle.get("overview") if isinstance(bundle.get("overview"), dict) else {}
                     tok_um = int(ov.get("sessions_recent_in_window") or 0)
                     _maybe_metrics_cli(
@@ -9755,6 +10027,8 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         if args.cost_action == "budget":
+            from cai_agent.cost_aggregate import build_cost_budget_explain_v1
+
             settings_cost = Settings.from_env(config_path=None)
             t_cost = time.perf_counter()
             _print_hook_status(
@@ -9777,11 +10051,18 @@ def main(argv: list[str] | None = None) -> int:
                     state = "fail"
                 elif total_tokens > int(max_tokens * 0.8):
                     state = "warn"
+                explain_cb = build_cost_budget_explain_v1(
+                    state=state,
+                    total_tokens=total_tokens,
+                    max_tokens=max_tokens,
+                )
                 payload = {
                     "schema_version": "cost_budget_v1",
                     "state": state,
                     "total_tokens": total_tokens,
                     "max_tokens": max_tokens,
+                    "active_profile_id": str(settings_cost.active_profile_id or ""),
+                    "explain": explain_cb,
                 }
                 print(json.dumps(payload, ensure_ascii=False))
                 rc_cost = 0 if state != "fail" else 2
@@ -10996,21 +11277,73 @@ def main(argv: list[str] | None = None) -> int:
         if _gw_act == "discord":
             from cai_agent.gateway_discord import (
                 discord_allow_add, discord_allow_list, discord_allow_rm,
-                discord_bind, discord_get_binding, discord_list_bindings,
-                discord_unbind, serve_discord_polling,
+                discord_bind, discord_gateway_health, discord_get_binding,
+                discord_list_application_commands, discord_list_bindings,
+                discord_register_application_commands, discord_unbind,
+                serve_discord_polling,
             )
             dc_ws_raw = getattr(args, "workspace", None)
             dc_root = Path(os.path.abspath(dc_ws_raw)).resolve() if dc_ws_raw else Path.cwd().resolve()
             dc_act = str(getattr(args, "gateway_discord_action", "") or "").strip()
             json_out_dc = bool(getattr(args, "json_output", False))
+            exit_dc = 0
+            r: dict[str, Any] = {}
             if dc_act == "bind":
-                r = discord_bind(dc_root, args.channel_id, args.session_file)
+                r = discord_bind(
+                    dc_root,
+                    args.channel_id,
+                    args.session_file,
+                    guild_id=getattr(args, "discord_bind_guild_id", None),
+                    label=getattr(args, "discord_bind_label", None),
+                )
             elif dc_act == "unbind":
                 r = discord_unbind(dc_root, args.channel_id)
             elif dc_act == "get":
                 r = discord_get_binding(dc_root, args.channel_id)
             elif dc_act == "list":
                 r = discord_list_bindings(dc_root)
+            elif dc_act == "health":
+                bot_tok_h = str(
+                    getattr(args, "discord_bot_token", None) or os.environ.get("CAI_DISCORD_BOT_TOKEN", "") or "",
+                )
+                r = discord_gateway_health(dc_root, bot_token=bot_tok_h or None)
+                tc = r.get("token_check") if isinstance(r.get("token_check"), dict) else {}
+                if tc.get("performed") and tc.get("ok") is False:
+                    exit_dc = 2
+            elif dc_act == "register-commands":
+                bot_tok_rc = str(
+                    getattr(args, "discord_bot_token", None) or os.environ.get("CAI_DISCORD_BOT_TOKEN", "") or "",
+                )
+                if not bot_tok_rc:
+                    print(
+                        "Discord Bot Token 必须通过 --bot-token 或 CAI_DISCORD_BOT_TOKEN 提供",
+                        file=sys.stderr,
+                    )
+                    return 2
+                gid_raw = getattr(args, "discord_guild_id", None)
+                gid = str(gid_raw).strip() if gid_raw else None
+                r = discord_register_application_commands(
+                    bot_tok_rc,
+                    guild_id=gid,
+                    dry_run=bool(getattr(args, "discord_dry_run", False)),
+                )
+                if not r.get("ok"):
+                    exit_dc = 2
+            elif dc_act == "list-commands":
+                bot_tok_lc = str(
+                    getattr(args, "discord_bot_token", None) or os.environ.get("CAI_DISCORD_BOT_TOKEN", "") or "",
+                )
+                if not bot_tok_lc:
+                    print(
+                        "Discord Bot Token 必须通过 --bot-token 或 CAI_DISCORD_BOT_TOKEN 提供",
+                        file=sys.stderr,
+                    )
+                    return 2
+                gid_raw2 = getattr(args, "discord_guild_id", None)
+                gid2 = str(gid_raw2).strip() if gid_raw2 else None
+                r = discord_list_application_commands(bot_tok_lc, guild_id=gid2)
+                if not r.get("ok"):
+                    exit_dc = 2
             elif dc_act == "allow":
                 al_act = str(getattr(args, "dc_allow_action", "") or "")
                 if al_act == "add":
@@ -11040,9 +11373,24 @@ def main(argv: list[str] | None = None) -> int:
                 return 2
             if json_out_dc:
                 print(json.dumps(r, ensure_ascii=False))
-            else:
+            elif dc_act == "health":
+                tc2 = r.get("token_check") if isinstance(r.get("token_check"), dict) else {}
+                print(
+                    f"Discord health: bindings={r.get('bindings_count')} "
+                    f"allowlist={r.get('allowlist_enabled')} "
+                    f"token_checked={tc2.get('performed')} token_ok={tc2.get('ok')}",
+                )
+            elif dc_act == "register-commands":
+                print(
+                    f"register-commands ok={r.get('ok')} dry_run={r.get('dry_run')} "
+                    f"registered={r.get('registered')} n_commands={len(r.get('commands') or [])}",
+                )
+            elif dc_act == "list-commands":
+                cmds = r.get("commands") or []
+                print(f"list-commands ok={r.get('ok')} n={len(cmds)} guild_id={r.get('guild_id')!r}")
+            elif dc_act != "serve-polling":
                 print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
-            return 0
+            return exit_dc
 
         # ---- Slack Gateway（§24 补齐）----
         if _gw_act == "slack":

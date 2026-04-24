@@ -62,6 +62,24 @@ def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
         except Exception:
             return False
 
+    discord_map_summary: dict[str, Any] = {
+        "bindings_count": 0,
+        "allowlist_enabled": False,
+        "map_path": str(dc_map),
+    }
+    try:
+        from cai_agent.gateway_discord import discord_list_bindings
+
+        _dl = discord_list_bindings(root)
+        _b = _dl.get("bindings") if isinstance(_dl.get("bindings"), dict) else {}
+        discord_map_summary = {
+            "bindings_count": len(_b),
+            "allowlist_enabled": bool(_dl.get("allowlist_enabled")),
+            "map_path": str(_dl.get("map_path") or dc_map),
+        }
+    except Exception:
+        pass
+
     return {
         "cai_dir_exists": cai.is_dir(),
         "gateway_dir_exists": gw_dir.is_dir(),
@@ -69,6 +87,7 @@ def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
         "telegram_map_readable": _map_readable(tg_map),
         "discord_map_exists": dc_map.is_file(),
         "discord_map_readable": _map_readable(dc_map),
+        "discord_map_summary": discord_map_summary,
         "slack_map_exists": sl_map.is_file(),
         "slack_map_readable": _map_readable(sl_map),
         "hooks_file": hooks_found,
@@ -353,6 +372,14 @@ def run_doctor(
           f"tg_map={cai_health['telegram_map_exists']} "
           f"dc_map={cai_health['discord_map_exists']} "
           f"sl_map={cai_health['slack_map_exists']}")
+    _dc_sum = cai_health.get("discord_map_summary") if isinstance(cai_health.get("discord_map_summary"), dict) else {}
+    if cai_health.get("discord_map_exists") or int(_dc_sum.get("bindings_count") or 0) > 0:
+        print(
+            "  Discord: "
+            f"绑定 {int(_dc_sum.get('bindings_count') or 0)} 条 | "
+            f"白名单={'开' if _dc_sum.get('allowlist_enabled') else '关'} | "
+            "API 自检: cai-agent gateway discord health --json（需 Token）",
+        )
     hf = cai_health["hooks_file"]
     hv = cai_health["hooks_file_valid"]
     if hf:

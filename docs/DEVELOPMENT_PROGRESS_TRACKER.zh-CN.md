@@ -15,7 +15,7 @@
 
 - `PRODUCT_PLAN` §二口径约 **100%** 收口
 - 冻结版 **Hermes 34 Story** 为 **34/34 完成**
-- 自动化基线：`pytest cai-agent/tests` 为 **620 passed**、**3 subtests passed**
+- 自动化基线：`pytest cai-agent/tests` 为 **641 passed**、**3 subtests passed**
 
 ## 维护规则
 

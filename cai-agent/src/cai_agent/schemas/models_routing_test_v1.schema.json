@@ -48,6 +48,20 @@
           }
         }
       ]
+    },
+    "explain": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version", "decision", "summary_zh", "summary_en"],
+      "properties": {
+        "schema_version": { "const": "routing_explain_v1" },
+        "decision": {
+          "type": "string",
+          "enum": ["routing_disabled", "matched_rule", "fallback_active"]
+        },
+        "summary_zh": { "type": "string" },
+        "summary_en": { "type": "string" }
+      }
     }
   }
 }

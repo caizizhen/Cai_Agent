@@ -9,16 +9,13 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
+from cai_agent.ecc_layout import iter_hooks_json_paths
 
 
 def _project_root(settings: Settings) -> Path:
     if settings.config_loaded_from:
         return Path(settings.config_loaded_from).expanduser().resolve().parent
     return Path.cwd().resolve()
-
-
-def _hooks_file_default(settings: Settings) -> Path:
-    return _project_root(settings) / "hooks" / "hooks.json"
 
 
 def resolve_hooks_json_path(
@@ -32,14 +29,7 @@ def resolve_hooks_json_path(
     若传入 ``hooks_dir``（相对项目根），则优先使用 ``<hooks_dir>/hooks.json``。
     """
     root = _project_root(settings)
-    candidates: list[Path] = []
-    rel = (hooks_dir or "").strip().replace("\\", "/")
-    if rel:
-        candidates.append((root / rel).resolve())
-    candidates.append(_hooks_file_default(settings))
-    candidates.append((root / ".cai" / "hooks" / "hooks.json").resolve())
-    for base in candidates:
-        p = base if base.name == "hooks.json" else base / "hooks.json"
+    for p in iter_hooks_json_paths(root, hooks_dir=hooks_dir):
         if p.is_file():
             return p
     return None

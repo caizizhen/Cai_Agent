@@ -273,8 +273,80 @@ def routing_goal_from_messages(messages: list[dict[str, Any]]) -> str | None:
     return None
 
 
+def build_routing_explain_v1(
+    *,
+    model_routing_enabled: bool,
+    matched: ModelRoutingRule | None,
+    base_profile_id: str,
+    effective_profile_id: str,
+    role: str,
+    rules_count: int,
+    cost_budget_max_tokens: int,
+    total_tokens_used: int,
+    cost_budget_remaining: int | None,
+) -> dict[str, Any]:
+    """人读/机读解释块（嵌于 ``models_routing_test_v1`` 的 ``explain`` 字段）。"""
+    rem_txt = (
+        f"剩余预算≈{cost_budget_remaining} tokens（max={cost_budget_max_tokens}, used={total_tokens_used}）"
+        if cost_budget_remaining is not None
+        else f"未启用成本预算条件（max_tokens={cost_budget_max_tokens}）"
+    )
+    rem_en = (
+        f"remaining budget ≈{cost_budget_remaining} tokens (max={cost_budget_max_tokens}, used={total_tokens_used})"
+        if cost_budget_remaining is not None
+        else f"no cost-budget window (max_tokens={cost_budget_max_tokens})"
+    )
+    if not model_routing_enabled:
+        zh = (
+            f"[models.routing] 已关闭（enabled=false）。role={role}，使用 active profile「{effective_profile_id}」。"
+            f"{rem_txt}。"
+        )
+        en = (
+            f"[models.routing] disabled. role={role}, using active profile '{effective_profile_id}'. "
+            f"{rem_en}."
+        )
+        decision = "routing_disabled"
+    elif matched is not None:
+        conds: list[str] = []
+        if matched.goal_regex:
+            conds.append(f"goal_regex={matched.goal_regex!r}")
+        if matched.goal_substring:
+            conds.append(f"goal_substring={matched.goal_substring!r}")
+        if matched.cost_budget_remaining_tokens_below is not None:
+            conds.append(
+                f"cost_remaining_below={matched.cost_budget_remaining_tokens_below}",
+            )
+        cond_s = "，".join(conds) if conds else "（无条件，仅 role）"
+        zh = (
+            f"命中第 1 条匹配的 [models.routing.rules]：profile={matched.profile_id}，roles={list(matched.roles)}，"
+            f"{cond_s}。最终 effective={effective_profile_id}。{rem_txt}。"
+        )
+        en = (
+            f"First matching [models.routing.rules]: profile={matched.profile_id}, roles={list(matched.roles)}, "
+            f"conditions: {cond_s}. effective={effective_profile_id}. {rem_en}."
+        )
+        decision = "matched_rule"
+    else:
+        zh = (
+            f"未命中任何规则（共 {rules_count} 条，role={role}）。回退到 active profile「{base_profile_id}」。"
+            f"{rem_txt}。"
+        )
+        en = (
+            f"No rule matched ({rules_count} rules, role={role}). Fallback to active profile '{base_profile_id}'. "
+            f"{rem_en}."
+        )
+        decision = "fallback_active"
+    return {
+        "schema_version": "routing_explain_v1",
+        "decision": decision,
+        "summary_zh": zh,
+        "summary_en": en,
+    }
+
+
 __all__ = [
     "ModelRoutingRule",
+    "build_routing_explain_v1",
     "first_matching_routing_rule",
     "model_routing_enabled",
     "parse_model_routing_section",

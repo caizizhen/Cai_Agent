@@ -96,7 +96,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-24** 全量回归：**620 passed**，**3 subtests passed**（Windows / Python 3.13）；含 Gateway Slash/Maps、`models routing-test`、`plugins --with-compat-matrix`、`memory user-model export`、ops HTML refresh 等） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-24** 全量回归：**641 passed**，**3 subtests passed**（Windows / Python 3.13）；含 Gateway Slash/Maps、`models routing-test`、`plugins --with-compat-matrix`、`memory user-model export`、ops HTML refresh 等） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | `PYTHONPATH=cai-agent/src` + `python -m cai_agent`；`docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测计划 | 文档 | **已写** | [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
@@ -118,7 +118,7 @@
 |------|----------|---------------------------|
 | **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 100%**（22完成 + 1定案 + 1持续演进 + 2MVP完成 = **26** → **26/26=100%**） |
 | **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
-| **T1** | pytest 全绿 | 同 §三 T1（**620** cases + **3** subtests，见上表证据列） |
+| **T1** | pytest 全绿 | 同 §三 T1（**641** cases + **3** subtests，见上表证据列） |
 
 ### 3.1 §二 状态计数
 

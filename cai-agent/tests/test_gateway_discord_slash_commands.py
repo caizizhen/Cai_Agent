@@ -3,12 +3,42 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from pathlib import Path
+
 from cai_agent.gateway_discord import (
     discord_default_slash_command_specs,
+    discord_gateway_health,
     discord_list_application_commands,
     discord_register_application_commands,
     discord_resolve_application,
 )
+
+
+def test_discord_gateway_health_no_token(tmp_path: Path) -> None:
+    r = discord_gateway_health(tmp_path, bot_token=None)
+    assert r.get("schema_version") == "gateway_discord_health_v1"
+    assert r.get("bindings_count") == 0
+    tc = r.get("token_check") or {}
+    assert tc.get("performed") is False
+
+
+def test_discord_gateway_health_token_ok(tmp_path: Path) -> None:
+    fake_me = {"id": "9", "username": "cai_test_bot", "discriminator": "0", "bot": True}
+    with patch("cai_agent.gateway_discord._discord_request", return_value=fake_me):
+        r = discord_gateway_health(tmp_path, bot_token="tok")
+    tc = r.get("token_check") or {}
+    assert tc.get("performed") is True
+    assert tc.get("ok") is True
+    assert tc.get("username") == "cai_test_bot"
+
+
+def test_discord_gateway_health_token_error(tmp_path: Path) -> None:
+    err = {"_error": True, "status": 401, "message": "Unauthorized"}
+    with patch("cai_agent.gateway_discord._discord_request", return_value=err):
+        r = discord_gateway_health(tmp_path, bot_token="bad")
+    tc = r.get("token_check") or {}
+    assert tc.get("performed") is True
+    assert tc.get("ok") is False
 
 
 def test_default_slash_specs_match_telegram_surface() -> None:

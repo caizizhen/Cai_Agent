@@ -24,7 +24,8 @@ At least one of **`goal_regex` / `goal_substring` / `cost_budget_remaining_token
 
 ## CLI
 
-- **`cai-agent models routing-test [--goal …] [--role active|subagent|planner] [--total-tokens-used N] --json`**: prints **`models_routing_test_v1`** with `base_profile_id`, `effective_profile_id`, `cost_budget_max_tokens`, `total_tokens_used`, `cost_budget_remaining`, and optional `matched_rule`. **`--total-tokens-used`** simulates usage for dry-runs (also wired into the effective-profile resolver for that invocation). No LLM call.
+- **`cai-agent models routing-test [--goal …] [--role active|subagent|planner] [--total-tokens-used N] [--json]`**: without **`--json`**, prints **`effective_profile_id=`** plus a **Chinese summary** line. With **`--json`**, prints **`models_routing_test_v1`** including **`explain`** (**`routing_explain_v1`**: `decision`, `summary_zh`, `summary_en`), `base_profile_id`, `effective_profile_id`, `cost_budget_max_tokens`, `total_tokens_used`, `cost_budget_remaining`, and optional `matched_rule`. **`--total-tokens-used`** simulates usage for dry-runs. No LLM call.
+- **`cai-agent cost budget`**: stdout **`cost_budget_v1`** now includes **`explain`** (**`cost_budget_explain_v1`**) and **`active_profile_id`** for the same “why pass/warn/fail” story.
 
 ## Doctor
 

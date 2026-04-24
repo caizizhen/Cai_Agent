@@ -5,9 +5,10 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
 ``plugins --json --with-compat-matrix``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
-``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json`` + ``memory user-model export``, plus
+``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json`` + ``memory user-model export``
++ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
---json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+--json, gateway discord list/health --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
@@ -166,9 +167,12 @@ def main() -> int:
         o = json.loads((p.stdout or "").strip())
         if o.get("schema_version") != "cost_budget_v1":
             errs.append(f"cost budget schema_version {o.get('schema_version')!r}")
-        for k in ("state", "total_tokens", "max_tokens"):
+        for k in ("state", "total_tokens", "max_tokens", "explain", "active_profile_id"):
             if k not in o:
                 errs.append(f"cost budget missing {k}")
+        exo = o.get("explain")
+        if not isinstance(exo, dict) or exo.get("schema_version") != "cost_budget_explain_v1":
+            errs.append(f"cost budget explain missing {exo!r}")
 
     p = _run([*cli, "stats", "--json"])
     if p.returncode != 0:
@@ -631,6 +635,74 @@ def main() -> int:
             ubo = ub.get("overview")
             if not isinstance(ubo, dict) or ubo.get("schema_version") != "memory_user_model_v1":
                 errs.append("memory user-model export overview missing or wrong schema")
+        pumsi = _run([*cli, "memory", "user-model", "store", "init", "--json"], cwd=mh_td)
+        if pumsi.returncode != 0:
+            errs.append(f"memory user-model store init exit {pumsi.returncode} stderr={pumsi.stderr!r}")
+        else:
+            si = json.loads((pumsi.stdout or "").strip())
+            if si.get("schema_version") != "memory_user_model_store_init_v1":
+                errs.append(f"memory user-model store init schema {si.get('schema_version')!r}")
+            if si.get("ok") is not True:
+                errs.append(f"memory user-model store init ok false {si!r}")
+        puml = _run(
+            [
+                *cli,
+                "memory",
+                "user-model",
+                "learn",
+                "--belief",
+                "smoke_user_model_store_roundtrip",
+                "--confidence",
+                "0.5",
+                "--json",
+            ],
+            cwd=mh_td,
+        )
+        if puml.returncode != 0:
+            errs.append(f"memory user-model learn exit {puml.returncode} stderr={puml.stderr!r}")
+        pumq = _run(
+            [*cli, "memory", "user-model", "query", "--text", "smoke_user", "--json"],
+            cwd=mh_td,
+        )
+        if pumq.returncode != 0:
+            errs.append(f"memory user-model query exit {pumq.returncode} stderr={pumq.stderr!r}")
+        else:
+            qo = json.loads((pumq.stdout or "").strip())
+            if qo.get("schema_version") != "memory_user_model_query_v1":
+                errs.append(f"memory user-model query schema {qo.get('schema_version')!r}")
+            if not isinstance(qo.get("hits"), list) or not qo["hits"]:
+                errs.append(f"memory user-model query hits empty {qo!r}")
+        pumsl = _run([*cli, "memory", "user-model", "store", "list", "--json", "--limit", "5"], cwd=mh_td)
+        if pumsl.returncode != 0:
+            errs.append(f"memory user-model store list exit {pumsl.returncode} stderr={pumsl.stderr!r}")
+        else:
+            slo = json.loads((pumsl.stdout or "").strip())
+            if slo.get("schema_version") != "memory_user_model_store_list_v1":
+                errs.append(f"memory user-model store list schema {slo.get('schema_version')!r}")
+            if not isinstance(slo.get("beliefs"), list) or not slo["beliefs"]:
+                errs.append(f"memory user-model store list beliefs empty {slo!r}")
+        pumexs = _run(
+            [*cli, "memory", "user-model", "export", "--days", "7", "--with-store"],
+            cwd=mh_td,
+        )
+        if pumexs.returncode != 0:
+            errs.append(f"memory user-model export with-store exit {pumexs.returncode} stderr={pumexs.stderr!r}")
+        else:
+            ubx = json.loads((pumexs.stdout or "").strip())
+            if ubx.get("schema_version") != "user_model_bundle_v1":
+                errs.append(f"memory export with-store bundle schema {ubx.get('schema_version')!r}")
+            uxs = ubx.get("user_model_store")
+            if not isinstance(uxs, dict) or uxs.get("schema_version") != "user_model_store_snapshot_v1":
+                errs.append("memory export with-store missing user_model_store snapshot")
+        pec = _run([*cli, "ecc", "-w", mh_td, "layout", "--json"], cwd=mh_td)
+        if pec.returncode != 0:
+            errs.append(f"ecc layout exit {pec.returncode} stderr={pec.stderr!r}")
+        else:
+            elo = json.loads((pec.stdout or "").strip())
+            if elo.get("schema_version") != "ecc_asset_layout_v1":
+                errs.append(f"ecc layout schema {elo.get('schema_version')!r}")
+            if not isinstance(elo.get("entries"), list) or len(elo["entries"]) < 3:
+                errs.append("ecc layout entries missing")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)
@@ -719,6 +791,24 @@ def main() -> int:
                 errs.append("gateway list allowed_chat_ids not list")
             if "allowlist_enabled" not in go:
                 errs.append("gateway list missing allowlist_enabled")
+        gd = _run([*cli, "gateway", "discord", "list", "--json"], cwd=gw_td)
+        if gd.returncode != 0:
+            errs.append(f"gateway discord list exit {gd.returncode} stderr={gd.stderr!r}")
+        else:
+            gdo = json.loads((gd.stdout or "").strip())
+            if gdo.get("schema_version") != "gateway_discord_map_v1":
+                errs.append(f"gateway discord list schema {gdo.get('schema_version')!r}")
+            if "allowlist_enabled" not in gdo:
+                errs.append("gateway discord list missing allowlist_enabled")
+        gdh = _run([*cli, "gateway", "discord", "health", "--json"], cwd=gw_td)
+        if gdh.returncode != 0:
+            errs.append(f"gateway discord health exit {gdh.returncode} stderr={gdh.stderr!r}")
+        else:
+            ho = json.loads((gdh.stdout or "").strip())
+            if ho.get("schema_version") != "gateway_discord_health_v1":
+                errs.append(f"gateway discord health schema {ho.get('schema_version')!r}")
+            if "token_check" not in ho:
+                errs.append("gateway discord health missing token_check")
         pp = _run([*cli, "gateway", "platforms", "list", "--json"], cwd=gw_td)
         if pp.returncode != 0:
             errs.append(f"gateway platforms list exit {pp.returncode} stderr={pp.stderr!r}")

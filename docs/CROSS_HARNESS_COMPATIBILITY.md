@@ -42,6 +42,18 @@ This document defines how Cai_Agent maps assets across multiple agent harnesses.
 
 The same semantics as the table above are available as JSON: **`plugin_compat_matrix_v1`** via `cai-agent plugins --json --with-compat-matrix`, and as **`doctor --json` → `plugins.compat_matrix`**. Human maintenance notes: [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md) / [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md).
 
+## Repo-root asset layout (ECC-01a)
+
+Default resolution order (shared with `cai_agent.ecc_layout` and `doctor`):
+
+| Asset | Paths | Notes |
+|-------|-------|-------|
+| rules | `rules/common/*.md`, `rules/python/*.md` | Injected during `plan` |
+| skills | `skills/*.md` (except `README.md`) | Skill binding / hub |
+| hooks | `hooks/hooks.json` then `.cai/hooks/hooks.json` | First existing file wins |
+
+**Scaffold**: `cai-agent ecc -w <root> scaffold` creates minimal README / sample skill / empty `hooks.json` without overwriting existing files. **Machine-readable index**: `cai-agent ecc -w <root> layout --json` → **`ecc_asset_layout_v1`** (pass `-w` before the subcommand).
+
 ## Acceptance (P2)
 
 - One repo can export at least two harness configurations.

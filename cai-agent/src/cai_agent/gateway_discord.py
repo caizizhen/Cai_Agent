@@ -247,6 +247,62 @@ def discord_list_bindings(root: Path) -> dict[str, Any]:
     }
 
 
+def discord_gateway_health(
+    root: Path,
+    *,
+    bot_token: str | None = None,
+) -> dict[str, Any]:
+    """运维自检：本地 ``discord-session-map`` + 可选 ``GET /users/@me`` 校验 Token。
+
+    机读契约：``gateway_discord_health_v1``。
+    """
+    local = discord_list_bindings(root)
+    binds = local.get("bindings") if isinstance(local.get("bindings"), dict) else {}
+    allow = local.get("allowed_channel_ids") if isinstance(local.get("allowed_channel_ids"), list) else []
+    base: dict[str, Any] = {
+        "schema_version": "gateway_discord_health_v1",
+        "workspace": str(root.resolve()),
+        "map_path": local.get("map_path"),
+        "map_schema_version": local.get("schema_version"),
+        "bindings_count": len(binds),
+        "allowlist_enabled": bool(local.get("allowlist_enabled")),
+        "allowed_channel_ids_count": len(allow),
+    }
+    tok = (bot_token or "").strip()
+    if not tok:
+        base["token_check"] = {
+            "performed": False,
+            "ok": None,
+            "hint": "提供 --bot-token 或环境变量 CAI_DISCORD_BOT_TOKEN 以调用 Discord API 校验 Token。",
+        }
+        return base
+    me = _discord_request("GET", "/users/@me", tok)
+    if isinstance(me, dict) and me.get("_error"):
+        base["token_check"] = {
+            "performed": True,
+            "ok": False,
+            "http_status": me.get("status"),
+            "message": str(me.get("message") or me.get("body") or "")[:400],
+        }
+        return base
+    if isinstance(me, dict) and me.get("id") is not None:
+        base["token_check"] = {
+            "performed": True,
+            "ok": True,
+            "username": me.get("username"),
+            "user_id": str(me.get("id")),
+            "discriminator": str(me.get("discriminator") or ""),
+            "bot": bool(me.get("bot")),
+        }
+        return base
+    base["token_check"] = {
+        "performed": True,
+        "ok": False,
+        "message": "unexpected_users_me_payload",
+    }
+    return base
+
+
 # ---------------------------------------------------------------------------
 # 白名单
 # ---------------------------------------------------------------------------

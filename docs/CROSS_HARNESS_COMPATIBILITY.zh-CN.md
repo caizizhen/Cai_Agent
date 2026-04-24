@@ -46,6 +46,20 @@
 
 与上表同一语义的 **JSON** 由 **`plugin_compat_matrix_v1`** 承载：`cai-agent plugins --json --with-compat-matrix`，且 **`doctor --json`** 的 **`plugins.compat_matrix`** 同源。人读与维护约定见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md)。
 
+## 仓库根资产目录约定（ECC-01a）
+
+以下路径为 **Cai_Agent 默认读取顺序**（与 `cai_agent.ecc_layout` / `doctor` 口径一致）：
+
+| 资产 | 路径 | 说明 |
+|------|------|------|
+| rules | `rules/common/*.md`、`rules/python/*.md` | `plan` 阶段注入通用规则文本 |
+| skills | `skills/*.md`（排除 `README.md`） | 技能绑定、hub、进化 |
+| hooks | `hooks/hooks.json` → `.cai/hooks/hooks.json` | 事件钩子；前者优先 |
+
+**脚手架**：`cai-agent ecc -w <工作区> scaffold` 从内置模板创建最小 `README` / 示例 skill / 空 `hooks.json`（**不覆盖**已有文件）。**机读索引**：`cai-agent ecc -w <工作区> layout --json` → **`ecc_asset_layout_v1`**。
+
+**导出**：`cai-agent export --target cursor|codex|opencode` 与 **`export_ecc_dir_diff`** 仍以仓库根 `rules/`、`skills/` 等为源；详见上文 Manifest 与 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md)。
+
 ## 验收条件（P2）
 
 - 同一仓库可导出至少两种 harness 配置

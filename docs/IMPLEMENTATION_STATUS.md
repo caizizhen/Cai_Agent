@@ -13,6 +13,7 @@ The following landed on **`main`** around the **0.7.0** window (see **CHANGELOG 
 |------|----------------|---------------|
 | **Ops / observability** | **`cai-agent ops dashboard`** JSON/text/html; **`--html-refresh-seconds`** for HTML auto-refresh; **`cai-agent ops serve`** read-only HTTP (**`/v1/ops/dashboard`**, **`/v1/ops/dashboard.html`**); optional **`CAI_OPS_API_TOKEN`** | [`OPS_DYNAMIC_WEB_API.md`](OPS_DYNAMIC_WEB_API.md), `cai_agent/ops_dashboard.py`, `cai_agent/ops_http_server.py` |
 | **Memory / user model** | **`cai-agent memory user-model export`** → **`user_model_bundle_v1`** (wraps **`memory_user_model_v1`** overview) | `cai_agent/user_model.py`, RFC [`rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
+| **ECC / routing & budget** | **`models routing-test`** text/JSON with bilingual **`explain`**; **`cost budget`** embeds **`cost_budget_explain_v1`** (**ECC-02a**) | `cai_agent/model_routing.py`, `cai_agent/cost_aggregate.py`, [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) |
 | **Tests / smoke** | **`test_ops_http_server.py`**, **`test_ops_dashboard_html.py`** (refresh), **`test_memory_user_model_export.py`**; **`scripts/smoke_new_features.py`** extended | `cai-agent/tests/`, `scripts/smoke_new_features.py` |
 
 ## Still open (not claimed “done” in product docs)
@@ -30,7 +31,7 @@ High-level only; details live in **`PRODUCT_PLAN.zh-CN.md`** §0.2 / §3.2 and *
 ## Latest regression run (QA)
 
 - **Date**: 2026-04-24 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
-- **`pytest cai-agent/tests`**: **620 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
+- **`pytest cai-agent/tests`**: **641 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
 - **`python scripts/smoke_new_features.py`**: **NEW_FEATURE_CHECKS_OK**.  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**: exit **0** (compileall, unittest discover, smoke, CLI subset); **no** new `docs/qa/runs/regression-*.md` (per **QA_REGRESSION_LOGGING** `QA_SKIP_LOG` policy).
 

@@ -57,7 +57,8 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             "- `rules/`、`skills/` 等为从仓库根目录复制的子树。\n\n"
             "**降级说明**：Cursor 原生规则格式可能与仓库 `rules/` 中 Markdown "
             "不完全一致；若需 `.mdc` frontmatter 规则，请在本机再执行一次转换或 "
-            "手动迁移。详见仓库 `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`。\n",
+            "手动迁移。目录约定与脚手架：`cai-agent ecc layout` / `ecc scaffold`；"
+            "详见 `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`。\n",
             encoding="utf-8",
         )
         return {
