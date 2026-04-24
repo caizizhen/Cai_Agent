@@ -172,33 +172,44 @@ The goal is **integration**, not a wrapper suite of multiple CLIs and not a clon
 
 ## Architecture (high level)
 
+The run loop lives in **`cai_agent/graph.py`**: a **LangGraph** `StateGraph` with an **llm** node (one JSON object per turn: `finish` or `tool`) and a **tools** node (`dispatch` → workspace tools + optional MCP), wired `llm → route → (END | tools | llm)` and `tools → llm` until finished or `max_iterations`. CLI, TUI, `plan`, `workflow`, schedules, and gateways orchestrate this graph (and related commands) on top of shared **Settings** (TOML + env + workspace).
+
 ```mermaid
-flowchart TD
-  user[User] --> cli[CLI/Entry]
-  cli --> mainAgent[MainAgent]
-  mainAgent --> planEngine[PlanEngine]
-  mainAgent --> toolRegistry[ToolRegistry]
-  mainAgent --> subAgents[SubAgents]
-  mainAgent --> skills[Skills]
-  mainAgent --> memory[Memory_Instincts]
-  mainAgent --> hooks[Hooks]
-
-  toolRegistry --> fsTools[FSTools]
-  toolRegistry --> searchTools[SearchTools]
-  toolRegistry --> shellTools[ShellTools]
-
-  subAgents --> explorerAgent[ExplorerAgent]
-  subAgents --> reviewerAgent[ReviewerAgent]
-  subAgents --> securityAgent[SecurityAgent]
-
-  memory --> instincts[InstinctStore]
-  memory --> summaries[ContextSummaries]
-
-  hooks --> securityHooks[SecurityHooks]
-  hooks --> automationHooks[AutomationHooks]
-
-  mainAgent --> llmClient[LLMClient]
+flowchart TB
+  User[User] --> Entry[CLI / TUI / workflow / schedules / gateways]
+  Entry --> Cfg[Settings: cai-agent.toml + env + workspace]
+  subgraph LG["LangGraph StateGraph"]
+    LLM[llm node]
+    Route{route after llm}
+    TN[tools node]
+    LLM --> Route
+    Route -->|finished| Stop((END))
+    Route -->|pending tool| TN
+    Route -->|retry| LLM
+    TN --> LLM
+  end
+  Entry --> LLM
+  Cfg -.-> LLM
+  LLM --> API[OpenAI-compatible chat/completions]
+  TN --> Disp["dispatch: FS / search / git / shell / MCP / ..."]
 ```
+
+Plain-text layout (works when Mermaid is not rendered):
+
+```text
+  User → CLI / TUI / workflow / … (+ Settings: TOML + env + workspace)
+
+  LangGraph StateGraph (simplified):
+    START → llm → route:
+                ├─► END                         (finished)
+                ├─► tools → llm → route → …    (one tool round)
+                └─► llm → route → …           (retry JSON / next iteration)
+
+  llm  →  OpenAI-compatible chat/completions
+  tools → dispatch (FS / search / git / shell / MCP / …)
+```
+
+Longer narrative: [`docs/ARCHITECTURE.zh-CN.md`](docs/ARCHITECTURE.zh-CN.md).
 
 ## Copilot provider
 

@@ -60,6 +60,10 @@ class DoctorCliTests(unittest.TestCase):
             self.assertEqual(cm.get("detail_doc_en"), "docs/PLUGIN_COMPAT_MATRIX.md")
             self.assertIn("model_routing_rules_count", pl)
             self.assertIsInstance(pl.get("model_routing_rules_count"), int)
+            release = pl.get("release_runbook")
+            self.assertIsInstance(release, dict)
+            self.assertEqual(release.get("schema_version"), "release_runbook_v1")
+            self.assertIsInstance(release.get("runbook_steps"), list)
             self.assertEqual(
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",

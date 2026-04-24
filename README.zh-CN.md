@@ -126,33 +126,44 @@ workflow root 也支持 `quality_gate: true | {...}`。当 workflow 本身先成
 
 ## 高层架构示意
 
+执行主循环在 **`cai_agent/graph.py`**：用 **LangGraph** 的 `StateGraph` 实现 **llm** 节点（每轮模型只输出一个 JSON：`finish` 或 `tool`）与 **tools** 节点（`dispatch` → 工作区工具 + 可选 MCP），边为 `llm → route →（结束 | tools | 再进 llm）` 以及 `tools → llm`，直到结束或达到 `max_iterations`。CLI、TUI、`plan`、`workflow`、定时任务与网关等都在同一套 **Settings**（TOML + 环境变量 + workspace）之上编排该图（及相关子命令）。
+
 ```mermaid
-flowchart TD
-  user[User] --> cli[CLI/Entry]
-  cli --> mainAgent[MainAgent]
-  mainAgent --> planEngine[PlanEngine]
-  mainAgent --> toolRegistry[ToolRegistry]
-  mainAgent --> subAgents[SubAgents]
-  mainAgent --> skills[Skills]
-  mainAgent --> memory[Memory_Instincts]
-  mainAgent --> hooks[Hooks]
-
-  toolRegistry --> fsTools[FSTools]
-  toolRegistry --> searchTools[SearchTools]
-  toolRegistry --> shellTools[ShellTools]
-
-  subAgents --> explorerAgent[ExplorerAgent]
-  subAgents --> reviewerAgent[ReviewerAgent]
-  subAgents --> securityAgent[SecurityAgent]
-
-  memory --> instincts[InstinctStore]
-  memory --> summaries[ContextSummaries]
-
-  hooks --> securityHooks[SecurityHooks]
-  hooks --> automationHooks[AutomationHooks]
-
-  mainAgent --> llmClient[LLMClient]
+flowchart TB
+  User[用户] --> Entry[CLI / TUI / workflow / 定时 / 网关]
+  Entry --> Cfg[配置: cai-agent.toml + 环境变量 + workspace]
+  subgraph LG["LangGraph StateGraph"]
+    LLM[llm 节点]
+    Route{route after llm}
+    TN[tools 节点]
+    LLM --> Route
+    Route -->|结束| Stop((END))
+    Route -->|待执行工具| TN
+    Route -->|重试解析| LLM
+    TN --> LLM
+  end
+  Entry --> LLM
+  Cfg -.-> LLM
+  LLM --> API[OpenAI 兼容 chat/completions]
+  TN --> Disp["dispatch: 文件/搜索/git/命令行/MCP/..."]
 ```
+
+若阅读器不渲染 Mermaid，可用下列纯文本总览：
+
+```text
+  用户 → CLI / TUI / workflow / …（+ Settings：TOML + 环境变量 + workspace）
+
+  LangGraph StateGraph（示意）：
+    START → llm → route：
+                ├─► END                        （已结束）
+                ├─► tools → llm → route → …  （一轮工具执行）
+                └─► llm → route → …          （重试 JSON / 下一轮）
+
+  llm   → OpenAI 兼容 chat/completions
+  tools → dispatch（文件 / 搜索 / git / 命令行 / MCP / …）
+```
+
+更细的叙述见 [`docs/ARCHITECTURE.zh-CN.md`](docs/ARCHITECTURE.zh-CN.md)。
 
 ## ⭐ Copilot 集成（重点）
 

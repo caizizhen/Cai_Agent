@@ -14,6 +14,7 @@
 | 下一阶段开发计划 | [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
 | 可直接开单的 issue 草案 | [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md) / [`ISSUE_BACKLOG.md`](ISSUE_BACKLOG.md) |
 | 开发起步清单 | [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
+| 测试起步清单 | [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) / [`TEST_TODOS.md`](TEST_TODOS.md) |
 | 缺口、边界、发版门禁 | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
 | 发版评审勾选 | [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
 | 版本变更 | 根目录 `CHANGELOG.md` / `CHANGELOG.zh-CN.md` |

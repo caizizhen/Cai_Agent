@@ -20,12 +20,25 @@
 
 手工发版前除 [`docs/qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md`](qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md) 表格外，**CHANGELOG 双写**为其中「产品与契约文档」子项；未完成则 **T7 不勾选完成**。
 
-## 4. 机器人 / 单语补丁策略
+## 4. 建议命令顺序（固定 runbook）
+
+建议维护者按下面顺序执行，而不是靠记忆补流程：
+
+1. `cai-agent doctor --json`
+2. `cai-agent release-changelog --json --semantic`
+3. `python scripts/smoke_new_features.py`
+4. 必要时执行 `QA_SKIP_LOG=1 python scripts/run_regression.py`
+5. `cai-agent feedback export --dest dist/feedback-export.jsonl --json`
+6. 回写 `PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、`CHANGELOG.md`、`CHANGELOG.zh-CN.md`
+
+如果只做局部修复，步骤 4 可以留到合入前；但 **步骤 1 / 2 / 3 / 6 不建议跳过**。
+
+## 5. 机器人 / 单语补丁策略
 
 - 若 PR 仅英文机器人提交：合并前由维护者补中文节，或在同一 PR 追加 commit。
 - 若紧急 hotfix 仅中文：须补英文一行 **parity** 说明，避免海外用户只看到中文文件。
 
-## 5. 滚动摘要（非替代 CHANGELOG）
+## 6. 滚动摘要（非替代 CHANGELOG）
 
 发版叙事仍以 **`CHANGELOG.md` / `CHANGELOG.zh-CN.md`** 为准；若只需一页「最近合了什么 / 还有什么没做」，维护者可同步更新：
 

@@ -289,6 +289,57 @@ def main() -> int:
                     errs.append(f"mcp-check schema_version {mco.get('schema_version')!r}")
                 if "mcp_enabled" not in mco:
                     errs.append("mcp-check missing mcp_enabled")
+        pmcp_preset = _run(
+            [
+                *cli,
+                "mcp-check",
+                "--json",
+                "--preset",
+                "websearch/notebook",
+                "--list-only",
+                "--config",
+                str(cfg_repo),
+            ],
+            cwd=str(root),
+        )
+        if pmcp_preset.returncode not in (0, 2):
+            errs.append(f"mcp-check preset json exit {pmcp_preset.returncode} stderr={pmcp_preset.stderr!r}")
+        else:
+            try:
+                mpo = json.loads((pmcp_preset.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"mcp-check preset json parse: {e}")
+            else:
+                if (mpo.get("preset") or {}).get("name") != "websearch/notebook":
+                    errs.append(f"mcp-check preset aggregate name {(mpo.get('preset') or {}).get('name')!r}")
+                presets = mpo.get("presets") or []
+                if not isinstance(presets, list) or len(presets) != 2:
+                    errs.append(f"mcp-check presets envelope {presets!r}")
+                if (mpo.get("preset") or {}).get("onboarding_path") != "docs/ONBOARDING.zh-CN.md":
+                    errs.append("mcp-check preset onboarding_path missing")
+        pmcp_template = _run(
+            [
+                *cli,
+                "mcp-check",
+                "--json",
+                "--preset",
+                "notebook",
+                "--print-template",
+                "--config",
+                str(cfg_repo),
+            ],
+            cwd=str(root),
+        )
+        if pmcp_template.returncode not in (0, 2):
+            errs.append(f"mcp-check template json exit {pmcp_template.returncode} stderr={pmcp_template.stderr!r}")
+        else:
+            try:
+                mto = json.loads((pmcp_template.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"mcp-check template json parse: {e}")
+            else:
+                if "docs/ONBOARDING.zh-CN.md" not in str(mto.get("template") or ""):
+                    errs.append("mcp-check template missing onboarding path")
 
         with tempfile.TemporaryDirectory(prefix="cai-smoke-secscan-") as sec_td:
             psec = _run(

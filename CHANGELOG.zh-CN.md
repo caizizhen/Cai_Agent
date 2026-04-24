@@ -6,6 +6,8 @@
 
 ### 0.7.0（2026-04-23）
 
+- **MCP preset onboarding**：`mcp-check --preset` 现在支持组合路径 `websearch/notebook`，会输出 `presets[]` 明细、文档/onboarding 指针，以及更完整的模板与 next-step 提示，方便新用户接入 WebSearch / Notebook。
+- **发版 runbook 摘要**：`doctor --json` 与 `release-ga --json` 新增同源 **`release_runbook_v1`**，汇总固定命令顺序、CHANGELOG 双语/结构检查、文档回写目标与 feedback 摘要；`release-ga` 同时把 changelog 同步纳入 GA 门禁，并新增 **`failed_check_details`** 便于人读排障。
 - **会话 `events` 信封（`run_schema_version=1.1`）**：`run`/`continue`/`command`/`agent`/`fix-build` 的 **`--json`** 将 **`events`** 包在稳定的 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）内，不再输出裸数组。`observe` / `sessions` 经 **`normalize_session_run_events`** 兼容旧列表与新信封。各失败路径（`goal_empty`、`load_session_failed`、`interrupted` 等）同样输出结构化信封。
 - **TUI 任务看板**：**`/tasks`** 与 **`Ctrl+B`** 只读面板（**`.cai-schedule.json`** 与 **`.cai/last-workflow.json`**），实现见 **`tui_task_board.py`**。
 - **Hooks `script` 自动执行**：**`hook_runtime.py`** 除 **`command[]`** 外解析 **`script`**（`.py`/`.sh`/`.ps1`/`.cmd`/`.bat`），含路径逃逸防护与平台规范化；**`hooks/README.md`** 已更新。

@@ -44,6 +44,12 @@ from cai_agent.hook_runtime import (
 from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.llm_factory import chat_completion_by_role
 from cai_agent.models import fetch_models, ping_profile
+from cai_agent.mcp_presets import (
+    allowed_mcp_preset_choices,
+    build_mcp_preset_report,
+    build_mcp_preset_template,
+    expand_mcp_preset_choice,
+)
 from cai_agent.profiles import (
     PRESETS,
     Profile,
@@ -78,6 +84,7 @@ from cai_agent.memory import (
 )
 from cai_agent.plugin_registry import list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
+from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.rules import load_rule_text
 from cai_agent.security_scan import run_pii_scan, run_security_scan
 from cai_agent.schedule import (
@@ -1632,6 +1639,7 @@ def _run_release_ga_gate(
     with_memory_policy: bool = False,
 ) -> dict[str, Any]:
     settings = Settings.from_env(config_path=None, workspace_hint=cwd)
+    release_root = resolve_release_repo_root(cwd)
     ag = aggregate_sessions(cwd=cwd, limit=200)
     failure_rate = float(ag.get("failure_rate", 0.0) or 0.0)
     total_tokens = int(ag.get("total_tokens", 0) or 0)
@@ -1657,6 +1665,43 @@ def _run_release_ga_gate(
             "actual": total_tokens,
             "threshold": token_budget,
             "detail": f"total_tokens={total_tokens} threshold={token_budget}",
+        },
+    )
+
+    release_runbook = build_release_runbook_payload(repo_root=release_root, workspace=cwd)
+    rel_changelog = release_runbook.get("changelog") if isinstance(release_runbook.get("changelog"), dict) else {}
+    rel_bilingual = rel_changelog.get("bilingual") if isinstance(rel_changelog.get("bilingual"), dict) else {}
+    rel_semantic = rel_changelog.get("semantic") if isinstance(rel_changelog.get("semantic"), dict) else {}
+    checks.append(
+        {
+            "name": "changelog_bilingual",
+            "ok": bool(rel_bilingual.get("ok")),
+            "actual": {
+                "lines_en": int(rel_bilingual.get("lines_en", 0) or 0),
+                "lines_zh": int(rel_bilingual.get("lines_zh", 0) or 0),
+                "line_ratio": float(rel_bilingual.get("line_ratio", 0.0) or 0.0),
+            },
+            "threshold": {"line_ratio_min": 0.5},
+            "detail": (
+                f"ok={bool(rel_bilingual.get('ok'))} "
+                f"ratio={float(rel_bilingual.get('line_ratio', 0.0) or 0.0):.3f}"
+            ),
+        },
+    )
+    checks.append(
+        {
+            "name": "changelog_semantic",
+            "ok": bool(rel_semantic.get("ok")),
+            "actual": {
+                "h2_count_en": int(rel_semantic.get("h2_count_en", 0) or 0),
+                "h2_count_zh": int(rel_semantic.get("h2_count_zh", 0) or 0),
+            },
+            "threshold": {"same_h2_count": True},
+            "detail": (
+                f"ok={bool(rel_semantic.get('ok'))} "
+                f"h2_en={int(rel_semantic.get('h2_count_en', 0) or 0)} "
+                f"h2_zh={int(rel_semantic.get('h2_count_zh', 0) or 0)}"
+            ),
         },
     )
 
@@ -1794,6 +1839,14 @@ def _run_release_ga_gate(
 
     ok = all(bool(c.get("ok")) for c in checks)
     failed_checks = [str(c.get("name") or "") for c in checks if not bool(c.get("ok"))]
+    failed_check_details = [
+        {
+            "name": str(c.get("name") or ""),
+            "reason": str(c.get("detail") or ""),
+        }
+        for c in checks
+        if not bool(c.get("ok"))
+    ]
     state = "pass" if ok else "fail"
     return {
         "schema_version": "release_ga_gate_v1",
@@ -1804,9 +1857,11 @@ def _run_release_ga_gate(
         "checks_passed": len(checks) - len(failed_checks),
         "checks_failed": len(failed_checks),
         "failed_checks": failed_checks,
+        "failed_check_details": failed_check_details,
         "failure_rate": failure_rate,
         "total_tokens": total_tokens,
         "checks": checks,
+        "release_runbook": release_runbook,
         "aggregates": {
             "sessions_count": int(ag.get("sessions_count", 0) or 0),
             "failure_rate": failure_rate,
@@ -4335,9 +4390,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     mcp_p.add_argument(
         "--preset",
-        choices=["websearch", "notebook"],
+        choices=list(allowed_mcp_preset_choices()),
         default=None,
-        help="按预设能力进行工具存在性诊断（websearch/notebook）",
+        help="按 WebSearch / Notebook 预设能力进行工具诊断；支持 websearch、notebook、websearch/notebook",
     )
     mcp_p.add_argument(
         "--list-only",
@@ -6904,20 +6959,15 @@ def main(argv: list[str] | None = None) -> int:
                     if name:
                         tool_list.append(name)
         preset = str(getattr(args, "preset", "") or "").strip().lower() or None
-        preset_keywords: dict[str, list[str]] = {
-            "websearch": ["search", "web", "serp", "tavily", "duckduckgo", "google", "bing"],
-            "notebook": ["notebook", "jupyter", "ipynb", "cell"],
-        }
+        preset_names = expand_mcp_preset_choice(preset)
+        preset_reports = [build_mcp_preset_report(name=name, tool_list=tool_list) for name in preset_names]
         preset_matches: list[str] = []
         preset_missing: list[str] = []
-        if preset in preset_keywords:
-            kws = preset_keywords[preset]
-            for kw in kws:
-                hit = next((t for t in tool_list if kw in t.lower()), None)
-                if hit is not None:
-                    preset_matches.append(hit)
-                else:
-                    preset_missing.append(kw)
+        for report in preset_reports:
+            preset_matches.extend([str(x) for x in (report.get("matched_tools") or [])])
+            preset_missing.extend([str(x) for x in (report.get("missing_tools") or [])])
+        preset_matches = list(dict.fromkeys(preset_matches))
+        preset_missing = list(dict.fromkeys(preset_missing))
         probe_result = None
         if ok and args.tool and not bool(getattr(args, "list_only", False)):
             try:
@@ -6938,43 +6988,47 @@ def main(argv: list[str] | None = None) -> int:
         preset_payload: dict[str, Any] | None = None
         preset_hint: dict[str, Any] | None = None
         template_text: str | None = None
-        if preset in preset_keywords:
-            doc_path = "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
-            suggested_cmd = f"cai-agent mcp-check --json --preset {preset} --list-only"
-            if bool(getattr(args, "print_template", False)):
-                template_text = (
-                    "# cai-agent.toml (MCP 示例片段)\n"
-                    "[agent]\n"
-                    "mcp_enabled = true\n"
-                    "mcp_base_url = \"http://127.0.0.1:8787\"\n\n"
-                    "[permissions]\n"
-                    "mcp_list_tools = \"allow\"\n"
-                    "mcp_call_tool = \"ask\"\n\n"
-                    "# 期望能力关键词\n"
-                    f"# preset = {preset}\n"
-                    f"# recommended_tools = {', '.join(preset_keywords[preset])}\n"
-                )
+        if preset_names:
+            aggregate_ok = all(bool(report.get("ok")) for report in preset_reports)
             preset_payload = {
                 "name": preset,
-                "recommended_tools": list(preset_keywords[preset]),
+                "selected_presets": preset_names,
+                "recommended_tools": sorted(
+                    {
+                        str(tool)
+                        for report in preset_reports
+                        for tool in (report.get("recommended_tools") or [])
+                    },
+                ),
                 "matched_tools": preset_matches,
                 "matches": preset_matches,
                 "missing_tools": preset_missing,
                 "missing_keywords": preset_missing,
-                "ok": len(preset_matches) > 0,
-                "doc_path": doc_path,
-                "suggested_command": suggested_cmd,
+                "ok": aggregate_ok,
+                "doc_path": "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md",
+                "onboarding_path": "docs/ONBOARDING.zh-CN.md",
+                "quickstart_commands": [
+                    str(cmd)
+                    for report in preset_reports
+                    for cmd in (report.get("quickstart_commands") or [])
+                ],
             }
-            if len(preset_matches) <= 0:
-                preset_hint = {
-                    "kind": "preset_missing_tools",
-                    "message": (
-                        f"未检测到 {preset} 相关 MCP 工具；请先按文档完成服务配置后重试。"
-                    ),
-                    "doc_path": doc_path,
-                    "recommended_keywords": list(preset_keywords[preset]),
-                    "suggested_command": suggested_cmd,
-                }
+            first_hint = next(
+                (report.get("next_step") for report in preset_reports if isinstance(report.get("next_step"), dict)),
+                None,
+            )
+            if isinstance(first_hint, dict):
+                preset_hint = first_hint
+            if bool(getattr(args, "print_template", False)):
+                if len(preset_names) == 1:
+                    template_text = build_mcp_preset_template(preset_names[0])
+                else:
+                    template_text = "\n".join(
+                        [
+                            build_mcp_preset_template(name).rstrip()
+                            for name in preset_names
+                        ],
+                    )
         if args.json_output:
             payload = {
                 "schema_version": "mcp_check_result_v1",
@@ -6987,12 +7041,14 @@ def main(argv: list[str] | None = None) -> int:
                 "tool": args.tool,
                 "list_only": bool(getattr(args, "list_only", False)),
                 "preset": preset_payload,
+                "presets": preset_reports,
                 "elapsed_ms": elapsed_ms,
                 "result": txt,
                 "tool_names": tool_list,
                 "preset_matches": preset_matches,
                 "preset_missing_keywords": preset_missing,
                 "fallback_hint": preset_hint,
+                "next_step": preset_hint,
                 "template": template_text,
                 "probe_result": probe_result,
             }
@@ -7016,11 +7072,24 @@ def main(argv: list[str] | None = None) -> int:
                     f"matched={len(preset_matches)} "
                     f"missing={len(preset_missing)}"
                 )
+                print(f"docs={preset_payload.get('doc_path')}")
+                print(f"onboarding={preset_payload.get('onboarding_path')}")
+                for report in preset_reports:
+                    if not isinstance(report, dict):
+                        continue
+                    print(
+                        f"- {report.get('title')} "
+                        f"matched={len(report.get('matched_tools') or [])} "
+                        f"missing={len(report.get('missing_tools') or [])} "
+                        f"list={report.get('suggested_command')}",
+                    )
             if preset_hint is not None:
                 print("--- preset fallback hint ---")
                 print(str(preset_hint.get("message") or ""))
                 print(f"doc={preset_hint.get('doc_path')}")
+                print(f"onboarding={preset_hint.get('onboarding_path')}")
                 print(f"suggested={preset_hint.get('suggested_command')}")
+                print(f"template={preset_hint.get('print_template_command')}")
             if template_text is not None:
                 print("--- preset template ---")
                 print(template_text)
@@ -11140,12 +11209,22 @@ def main(argv: list[str] | None = None) -> int:
                 f"failure_rate={payload.get('failure_rate')} "
                 f"total_tokens={payload.get('total_tokens')}",
             )
-            failures = payload.get("failed_checks") or []
+            failures = payload.get("failed_check_details") or []
             if failures:
                 print("[release-ga] failed checks:")
                 for x in failures:
                     if isinstance(x, dict):
                         print(f"- {x.get('name')}: {x.get('reason')}")
+            rel = payload.get("release_runbook") if isinstance(payload.get("release_runbook"), dict) else {}
+            print("[release-ga] runbook:")
+            print("- cai-agent doctor --json")
+            print("- cai-agent release-changelog --json --semantic")
+            print("- python scripts/smoke_new_features.py")
+            if isinstance(rel.get("feedback"), dict):
+                print(
+                    f"- feedback total={int((rel.get('feedback') or {}).get('total', 0) or 0)} "
+                    "-> cai-agent feedback export --dest dist/feedback-export.jsonl --json",
+                )
         rc_rg = 0 if str(payload.get("state")) == "pass" else 2
         chk = payload.get("checks") if isinstance(payload.get("checks"), list) else []
         _maybe_metrics_cli(

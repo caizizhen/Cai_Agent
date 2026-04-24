@@ -76,11 +76,21 @@ def list_feedback(cwd: str | Path, *, limit: int = 50) -> list[dict[str, Any]]:
 
 def feedback_stats(cwd: str | Path) -> dict[str, Any]:
     rows = list_feedback(cwd, limit=10_000)
+    latest_ts = None
+    sources: dict[str, int] = {}
+    for row in rows:
+        ts = str(row.get("ts") or "").strip() or None
+        if ts and (latest_ts is None or ts > latest_ts):
+            latest_ts = ts
+        source = str(row.get("source") or "unknown").strip() or "unknown"
+        sources[source] = sources.get(source, 0) + 1
     return {
         "schema_version": "feedback_stats_v1",
         "generated_at": datetime.now(UTC).isoformat(),
         "workspace": str(Path(cwd).expanduser().resolve()),
         "total": len(rows),
+        "latest_ts": latest_ts,
+        "sources": sources,
     }
 
 

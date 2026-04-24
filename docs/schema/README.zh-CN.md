@@ -175,7 +175,7 @@
 
 - **实现**：`__main__.py` `mcp-check` 分支
 - **`schema_version`**：`mcp_check_result_v1`（`--json` 单行对象）
-- **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等
+- **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`presets[]`（组合 preset 时的明细）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint` / `next_step`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等
 
 **Exit**：`ok == true` → `0`；否则 → `2`。
 
@@ -218,7 +218,7 @@
 ## `release-ga` / `release-ga --json`
 
 - **实现**：`_run_release_ga_gate`
-- **`schema_version`**：`release_ga_gate_v1`；含 `generated_at`、`workspace`、`ok`、`state`（`pass`/`fail`）、`checks_passed` / `checks_failed`、`failed_checks`、`failure_rate`、`total_tokens`、`checks[]`、`aggregates` 等。
+- **`schema_version`**：`release_ga_gate_v1`；含 `generated_at`、`workspace`、`ok`、`state`（`pass`/`fail`）、`checks_passed` / `checks_failed`、`failed_checks`、`failed_check_details[]`、`failure_rate`、`total_tokens`、`checks[]`、`aggregates`，以及同源的 **`release_runbook`**（`release_runbook_v1`：runbook 步骤、回写目标、CHANGELOG 检查、feedback 摘要）。
 
 **Exit**：`ok == false`（任一子检查失败）→ **`2`**；否则 **`0`**。
 
@@ -357,7 +357,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 

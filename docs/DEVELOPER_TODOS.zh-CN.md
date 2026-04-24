@@ -14,6 +14,37 @@
 
 为准；本页只做开发执行翻译。
 
+测试同学与开发自测配套清单见 [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md)。
+
+---
+
+## 0. 整体执行 TODO（当前建议）
+
+本节不是新的规划源，只是把当前 roadmap/backlog 翻成适合直接开工的执行视图。
+
+使用规则：
+
+- 状态变化先改 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)，再同步本页。
+- `Doing` 代表已经进入开发；`Ready` 代表边界清楚可直接开干；`Design` 代表先定契约；`Explore` 不进入当前默认交付。
+
+| 状态 | 阶段 | ID | 本轮最小输出 | 验证 |
+|---|---|---|---|---|
+| `Doing` | Sprint A | `REL-01a` | 收口 `release-ga` / `doctor` / `release-changelog` / 回写路径，形成固定 runbook | `doctor`、smoke、T7 checklist |
+| `Doing` | Sprint A | `CC-01a` | 收口 `mcp-check --preset websearch/notebook`、模板、onboarding 入口 | `mcp-check --preset websearch/notebook` |
+| `Ready` | Sprint A | `CC-02a` | 梳理安装、升级、版本差异提示与 onboarding | walkthrough 一遍 onboarding |
+| `Design` | Sprint B | `HM-01a` | 先定 profile schema、默认项、激活规则、迁移口径 | schema review + pytest |
+| `Ready` | Sprint B | `HM-03a` | 把 Discord 主路径、mapping、health、排障文档收口 | gateway smoke + `doctor` |
+| `Ready` | Sprint B | `HM-04a` | 把 `board` / `ops` / gateway 状态字段收成同源 JSON | JSON snapshot + 本地消费检查 |
+| `Ready` | Sprint C | `HM-05a` | 补齐 user-model store/query/learn 最小闭环 | pytest + smoke |
+| `Ready` | Sprint C | `ECC-01a` | 统一 rules/skills/hooks 目录、模板、导出说明 | sample asset + 文档走查 |
+| `Ready` | Sprint C | `ECC-02a` | 收口 routing/profile/budget 产品路径与解释性输出 | CLI smoke + JSON 检查 |
+
+建议执行顺序：
+
+1. 先做 Sprint A，只放 `REL-01a`、`CC-01a`、`CC-02a`。
+2. Sprint A 合完后，再开 Sprint B 的 schema 与 gateway/ops 产品化。
+3. Memory / Ecosystem 放在 Sprint C，避免与前两轮的 `config.py` / `doctor.py` / README 冲突。
+
 ---
 
 ## 1. 当前测试结论

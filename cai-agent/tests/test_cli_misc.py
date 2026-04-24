@@ -57,9 +57,11 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn("matched_tools", preset)
         self.assertIn("missing_tools", preset)
         self.assertIn("fallback_hint", payload)
+        self.assertEqual(preset.get("onboarding_path"), "docs/ONBOARDING.zh-CN.md")
         hint = payload.get("fallback_hint") or {}
         self.assertTrue(isinstance(hint, dict))
         self.assertEqual(hint.get("doc_path"), "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md")
+        self.assertEqual(hint.get("onboarding_path"), "docs/ONBOARDING.zh-CN.md")
 
     def test_mcp_check_json_print_template_for_notebook(self) -> None:
         old = os.environ.get("MCP_ENABLED")
@@ -88,6 +90,31 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertTrue(isinstance(tmpl, str))
         self.assertIn("mcp_enabled = true", str(tmpl))
         self.assertIn("preset = notebook", str(tmpl))
+        self.assertIn("docs/ONBOARDING.zh-CN.md", str(tmpl))
+
+    def test_mcp_check_json_with_combined_preset(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["mcp-check", "--json", "--preset", "websearch/notebook", "--list-only"])
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        payload = json.loads(buf.getvalue().strip())
+        preset = payload.get("preset") or {}
+        presets = payload.get("presets") or []
+        self.assertEqual(preset.get("name"), "websearch/notebook")
+        self.assertEqual(preset.get("selected_presets"), ["websearch", "notebook"])
+        self.assertTrue(isinstance(presets, list))
+        self.assertEqual(len(presets), 2)
+        self.assertEqual([row.get("name") for row in presets], ["websearch", "notebook"])
+        self.assertIn("next_step", payload)
 
 
 class PluginsCliTests(unittest.TestCase):

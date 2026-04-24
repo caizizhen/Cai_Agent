@@ -33,6 +33,10 @@ class ReleaseGaCliTests(unittest.TestCase):
         payload = json.loads(buf.getvalue().strip())
         self.assertEqual(payload.get("ok"), True)
         self.assertEqual(payload.get("failed_checks"), [])
+        self.assertEqual((payload.get("release_runbook") or {}).get("schema_version"), "release_runbook_v1")
+        names = [c.get("name") for c in (payload.get("checks") or []) if isinstance(c, dict)]
+        self.assertIn("changelog_bilingual", names)
+        self.assertIn("changelog_semantic", names)
 
     def test_release_ga_fail_on_thresholds(self) -> None:
         with (
@@ -64,6 +68,8 @@ class ReleaseGaCliTests(unittest.TestCase):
         self.assertIn("security_scan", failed)
         self.assertIn("session_failure_rate", failed)
         self.assertIn("token_budget", failed)
+        failed_details = payload.get("failed_check_details") or []
+        self.assertTrue(any(isinstance(row, dict) and row.get("name") == "quality_gate" for row in failed_details))
 
     def test_release_ga_includes_doctor_and_memory_nudge_gate(self) -> None:
         with (

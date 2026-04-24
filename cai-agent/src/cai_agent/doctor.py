@@ -14,6 +14,7 @@ from cai_agent.models import ping_profile
 from cai_agent.feedback import feedback_stats
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
 from cai_agent.provider_registry import provider_readiness_snapshot
+from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.runtime.registry import get_runtime_backend
 
 
@@ -85,6 +86,7 @@ def _git_inside_worktree(root: Path) -> bool:
 def build_doctor_payload(settings: Settings) -> dict[str, Any]:
     """结构化诊断（`doctor --json`），字段与文本 doctor 同源信息。"""
     root = Path(settings.workspace).resolve()
+    release_root = resolve_release_repo_root(root)
     key_line = _mask_api_key(settings.api_key)
     env_name = settings.active_api_key_env
     if env_name:
@@ -187,6 +189,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             ),
         },
         "feedback": feedback_stats(settings.workspace),
+        "release_runbook": build_release_runbook_payload(repo_root=release_root, workspace=root),
     }
 
 
@@ -328,6 +331,20 @@ def run_doctor(
         "  兼容矩阵: cai-agent plugins --json --with-compat-matrix；"
         "说明见 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md（英文: docs/PLUGIN_COMPAT_MATRIX.md）",
     )
+    print()
+    rel = build_release_runbook_payload(repo_root=resolve_release_repo_root(root), workspace=root)
+    rel_changelog = rel.get("changelog") if isinstance(rel.get("changelog"), dict) else {}
+    rel_bilingual = rel_changelog.get("bilingual") if isinstance(rel_changelog.get("bilingual"), dict) else {}
+    rel_semantic = rel_changelog.get("semantic") if isinstance(rel_changelog.get("semantic"), dict) else {}
+    rel_feedback = rel.get("feedback") if isinstance(rel.get("feedback"), dict) else {}
+    print("发版闭环:")
+    print(
+        f"  CHANGELOG bilingual={bool(rel_bilingual.get('ok'))} "
+        f"semantic={bool(rel_semantic.get('ok'))} "
+        f"feedback_total={int(rel_feedback.get('total', 0) or 0)}",
+    )
+    print("  runbook: cai-agent doctor --json -> cai-agent release-changelog --json --semantic")
+    print("  docs:    docs/CHANGELOG_SYNC.zh-CN.md | docs/qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md")
     print()
     print("建议下一步:")
     print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")

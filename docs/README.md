@@ -11,6 +11,7 @@ This page is the English docs entrypoint.
 | Current roadmap / todo list | [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
 | Execution issue drafts | [`ISSUE_BACKLOG.md`](ISSUE_BACKLOG.md) / [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md) |
 | Developer start list | [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
+| Test start list | [`TEST_TODOS.md`](TEST_TODOS.md) / [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) |
 | Gaps, boundaries, release gates | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
 | Release review matrix | [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
 | Version history | repo-root `CHANGELOG.md` / `CHANGELOG.zh-CN.md` |
