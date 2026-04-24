@@ -44,6 +44,8 @@ cai-agent gateway maps summarize -w D:\repo\A --json
 
 `guild_id` / `team_id` 用于在 **多团队 / 多 Guild** 运维时区分来源；不改变网关执行逻辑（仍以 `channel_id` 为主键）。
 
+补充：Slack 侧现在还提供 `gateway slack health --json`，可把 `slack-session-map.json` 的绑定数量、allowlist 开关、Signing Secret 配置状态和可选 `auth.test` 结果统一导出为 `gateway_slack_health_v1`。
+
 ## 与 `gateway status` 的关系
 
 - **`gateway status`**：Telegram 生命周期（`telegram-config.json`、PID、白名单计数等，Hermes S6-01）。

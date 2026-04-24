@@ -207,6 +207,32 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertNotIn("subagent", data["models"])
         self.assertNotIn("planner", data["models"])
 
+    def test_edit_updates_model_and_notes_and_list_reflects_changes(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "p1", "--preset", "lmstudio", "--model", "m1", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "edit",
+            "p1",
+            "--model",
+            "m2",
+            "--notes",
+            "primary local profile",
+        )
+        self.assertEqual(rc, 0)
+
+        rc, out = self._cli("models", "--config", str(self.cfg), "list", "--json")
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.strip())
+        prof = next(p for p in payload["profiles"] if p["id"] == "p1")
+        self.assertEqual(prof["model"], "m2")
+        self.assertEqual(prof["notes"], "primary local profile")
+
     def test_route_rejects_unknown_profile_id(self) -> None:
         rc, _ = self._cli(
             "models", "--config", str(self.cfg), "add",
@@ -217,6 +243,39 @@ class ModelsCliEndToEnd(unittest.TestCase):
             "models", "--config", str(self.cfg), "route", "--subagent", "nope",
         )
         self.assertEqual(rc2, 2)
+
+    def test_rm_clears_subagent_and_planner_when_target_is_removed(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pa", "--preset", "lmstudio", "--model", "m1", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "pb", "--preset", "lmstudio", "--model", "m2",
+        )
+        self.assertEqual(rc, 0)
+        rc, _ = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "route",
+            "--subagent",
+            "pb",
+            "--planner",
+            "pb",
+        )
+        self.assertEqual(rc, 0)
+
+        rc, _ = self._cli("models", "--config", str(self.cfg), "rm", "pb")
+        self.assertEqual(rc, 0)
+
+        rc, out = self._cli("models", "--config", str(self.cfg), "list", "--json")
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.strip())
+        self.assertEqual(payload["active"], "pa")
+        self.assertIsNone(payload.get("subagent"))
+        self.assertIsNone(payload.get("planner"))
 
     def test_route_subagent_unset_mutually_exclusive(self) -> None:
         rc, _ = self._cli(

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cai_agent.gateway_slack import (
+    _build_slack_http_response,
     build_slack_slash_command_http_response,
     slack_interactivity_http_response,
     verify_slack_request_signature,
@@ -94,3 +95,33 @@ def test_interactivity_block_actions() -> None:
     r = slack_interactivity_http_response(payload)
     assert r["response_type"] == "ephemeral"
     assert "block_actions" in json.dumps(r, ensure_ascii=False)
+
+
+def test_http_form_slash_dispatch_returns_pong(tmp_path: Path) -> None:
+    status, payload = _build_slack_http_response(
+        root=tmp_path,
+        body_bytes=b"command=%2Fcai&text=ping&channel_id=C1&user_id=U1",
+        content_type="application/x-www-form-urlencoded; charset=utf-8",
+        bot_token="x",
+        execute_on_slash=False,
+        reply_on_execution=False,
+    )
+    assert status == 200
+    assert payload["response_type"] == "ephemeral"
+    assert payload["text"] == "pong"
+
+
+def test_http_form_interactivity_dispatch_returns_ephemeral_ack(tmp_path: Path) -> None:
+    raw = json.dumps({"type": "block_actions", "actions": [{"action_id": "ok"}]}, ensure_ascii=False)
+    body = f"payload={raw}".encode("utf-8")
+    status, payload = _build_slack_http_response(
+        root=tmp_path,
+        body_bytes=body,
+        content_type="application/x-www-form-urlencoded",
+        bot_token="x",
+        execute_on_slash=False,
+        reply_on_execution=False,
+    )
+    assert status == 200
+    assert payload["response_type"] == "ephemeral"
+    assert "block_actions" in json.dumps(payload, ensure_ascii=False)

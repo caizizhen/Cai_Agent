@@ -31,9 +31,9 @@ Status vocabulary:
 | `CC-01` | `Done` | **`CC-01b` Done** — `/mcp-presets` + task board/help/status quickstart + `mcp-check` epilog | `ROADMAP_EXECUTION` §10 |
 | `CC-02` | `Done` | **`CC-02b` Done** — `feedback bug` + `feedback_bug_report_v1` | `ROADMAP_EXECUTION` §10 |
 | `CC-03` | `Design` | **`CC-03a` Done**（`tui_session_strip`）；**`CC-03b`** profile/status UX | `ROADMAP_EXECUTION` §10 |
-| `HM-01` | `Ready` | `HM-01b` profile management commands and fixtures | `ROADMAP_EXECUTION` §10 |
+| `HM-01` | `Done` | **`HM-01a`/`HM-01b` Done** — profile contract + management CLI/fixture/smoke | `ROADMAP_EXECUTION` §10 |
 | `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
-| `HM-03` | `Ready` | `HM-03a` Discord production path | `ROADMAP_EXECUTION` §10 |
+| `HM-03` | `Done` | **`HM-03a` / `HM-03b` Done**: Discord + Slack production path closed for current cycle | `ROADMAP_EXECUTION` §10 |
 | `HM-04` | `Ready` | `HM-04b` dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
 | `HM-05` | `Ready` | **`HM-05a` Done**（store/query/learn + export `--with-store`）；**`HM-05b`/`HM-05c`** 仍 Ready | `ROADMAP_EXECUTION` §10 |
 | `HM-06` | `Explore` | `HM-06a` backend productization evaluation | `ROADMAP_EXECUTION` §10 |

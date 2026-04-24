@@ -200,10 +200,26 @@ def test_gateway_discord_list_commands_no_token_exit_2(tmp_path: Path) -> None:
 
 
 def test_gateway_slack_bind_cli(tmp_path: Path) -> None:
-    result = _cli("gateway", "slack", "-w", str(tmp_path), "bind", "C_SLACK", "session.json", "--json")
+    result = _cli(
+        "gateway",
+        "slack",
+        "-w",
+        str(tmp_path),
+        "bind",
+        "C_SLACK",
+        "session.json",
+        "--team-id",
+        "T_TEAM",
+        "--label",
+        "ops",
+        "--json",
+    )
     assert result.returncode == 0, result.stderr
     out = json.loads(result.stdout)
     assert out["ok"] is True
+    binding = out.get("binding") or {}
+    assert binding.get("team_id") == "T_TEAM"
+    assert binding.get("label") == "ops"
 
 
 def test_gateway_slack_list_cli(tmp_path: Path) -> None:
@@ -219,6 +235,17 @@ def test_gateway_slack_allow_add_cli(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     out = json.loads(result.stdout)
     assert out["ok"] is True
+
+
+def test_gateway_slack_health_cli_no_token(tmp_path: Path) -> None:
+    result = _cli("gateway", "slack", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_slack_health_v1"
+    assert out.get("bindings_count") == 0
+    assert out.get("signing_secret_configured") is False
+    tc = out.get("token_check") or {}
+    assert tc.get("performed") is False
 
 
 # ---------------------------------------------------------------------------

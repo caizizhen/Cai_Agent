@@ -6124,6 +6124,8 @@ def main(argv: list[str] | None = None) -> int:
     gw_sl_bind = gw_sl_sub.add_parser("bind", help="绑定 channel_id → session_file")
     gw_sl_bind.add_argument("channel_id")
     gw_sl_bind.add_argument("session_file")
+    gw_sl_bind.add_argument("--team-id", default=None, dest="team_id")
+    gw_sl_bind.add_argument("--label", default=None)
     gw_sl_bind.add_argument("--json", action="store_true", dest="json_output")
 
     gw_sl_unbind = gw_sl_sub.add_parser("unbind", help="解绑 channel_id")
@@ -6136,6 +6138,10 @@ def main(argv: list[str] | None = None) -> int:
 
     gw_sl_list = gw_sl_sub.add_parser("list", help="列出所有绑定与白名单")
     gw_sl_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_sl_health = gw_sl_sub.add_parser("health", help="检查 Slack gateway 映射、Token 与 Signing Secret 状态")
+    gw_sl_health.add_argument("--bot-token", default=None, dest="slack_bot_token", help="Slack Bot Token（或 CAI_SLACK_BOT_TOKEN）")
+    gw_sl_health.add_argument("--signing-secret", default=None, dest="slack_signing_secret", help="Slack Signing Secret（或 CAI_SLACK_SIGNING_SECRET）")
+    gw_sl_health.add_argument("--json", action="store_true", dest="json_output")
 
     gw_sl_allow = gw_sl_sub.add_parser("allow", help="白名单管理")
     gw_sl_allow_sub = gw_sl_allow.add_subparsers(dest="sl_allow_action", required=True)
@@ -6150,6 +6156,7 @@ def main(argv: list[str] | None = None) -> int:
     gw_sl_serve.add_argument("--port", type=int, default=7892)
     gw_sl_serve.add_argument("--max-events", type=int, default=0)
     gw_sl_serve.add_argument("--execute-on-event", action="store_true", default=False)
+    gw_sl_serve.add_argument("--execute-on-slash", action="store_true", default=False)
     gw_sl_serve.add_argument("--reply-on-execution", action="store_true", default=False)
     gw_sl_serve.add_argument("--log-file", default=None)
     gw_sl_serve.add_argument("--json", action="store_true", dest="json_output")
@@ -11500,20 +11507,34 @@ def main(argv: list[str] | None = None) -> int:
             from cai_agent.gateway_slack import (
                 slack_allow_add, slack_allow_list, slack_allow_rm,
                 slack_bind, slack_get_binding, slack_list_bindings,
-                slack_unbind, serve_slack_webhook,
+                slack_gateway_health, slack_unbind, serve_slack_webhook,
             )
             sl_ws_raw = getattr(args, "workspace", None)
             sl_root = Path(os.path.abspath(sl_ws_raw)).resolve() if sl_ws_raw else Path.cwd().resolve()
             sl_act = str(getattr(args, "gateway_slack_action", "") or "").strip()
             json_out_sl = bool(getattr(args, "json_output", False))
             if sl_act == "bind":
-                r = slack_bind(sl_root, args.channel_id, args.session_file)
+                r = slack_bind(
+                    sl_root,
+                    args.channel_id,
+                    args.session_file,
+                    team_id=getattr(args, "team_id", None),
+                    label=getattr(args, "label", None),
+                )
             elif sl_act == "unbind":
                 r = slack_unbind(sl_root, args.channel_id)
             elif sl_act == "get":
                 r = slack_get_binding(sl_root, args.channel_id)
             elif sl_act == "list":
                 r = slack_list_bindings(sl_root)
+            elif sl_act == "health":
+                bot_tok_sl = str(getattr(args, "slack_bot_token", None) or os.environ.get("CAI_SLACK_BOT_TOKEN", "") or "")
+                signing_sec = str(getattr(args, "slack_signing_secret", None) or os.environ.get("CAI_SLACK_SIGNING_SECRET", "") or "")
+                r = slack_gateway_health(
+                    sl_root,
+                    bot_token=bot_tok_sl or None,
+                    signing_secret=signing_sec or None,
+                )
             elif sl_act == "allow":
                 al_act = str(getattr(args, "sl_allow_action", "") or "")
                 if al_act == "add":
@@ -11539,6 +11560,7 @@ def main(argv: list[str] | None = None) -> int:
                     host=sl_host,
                     port=sl_port,
                     execute_on_event=bool(getattr(args, "execute_on_event", False)),
+                    execute_on_slash=bool(getattr(args, "execute_on_slash", False)),
                     reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
                     log_file=getattr(args, "log_file", None),
                     max_events=int(getattr(args, "max_events", 0)),
@@ -11549,7 +11571,16 @@ def main(argv: list[str] | None = None) -> int:
             if json_out_sl:
                 print(json.dumps(r, ensure_ascii=False))
             else:
-                print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+                if sl_act == "health":
+                    tc3 = r.get("token_check") if isinstance(r.get("token_check"), dict) else {}
+                    print(
+                        f"Slack health: bindings={r.get('bindings_count')} "
+                        f"allowlist={r.get('allowlist_enabled')} "
+                        f"signing_secret={r.get('signing_secret_configured')} "
+                        f"token_checked={tc3.get('performed')} token_ok={tc3.get('ok')}",
+                    )
+                else:
+                    print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
             return 0
 
         return 2

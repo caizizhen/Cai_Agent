@@ -18,6 +18,7 @@ import hmac
 import json
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -140,6 +141,57 @@ def slack_list_bindings(root: Path) -> dict[str, Any]:
         "allowed_channel_ids": m.get("allowed_channel_ids", []),
         "allowlist_enabled": bool(m.get("allowed_channel_ids")),
     }
+
+
+def slack_gateway_health(
+    root: Path,
+    *,
+    bot_token: str | None = None,
+    signing_secret: str | None = None,
+) -> dict[str, Any]:
+    """运维自检：本地 ``slack-session-map`` + 可选 ``auth.test`` 校验 Bot Token。"""
+    local = slack_list_bindings(root)
+    binds = local.get("bindings") if isinstance(local.get("bindings"), dict) else {}
+    allow = local.get("allowed_channel_ids") if isinstance(local.get("allowed_channel_ids"), list) else []
+    secret = (signing_secret or "").strip()
+    base: dict[str, Any] = {
+        "schema_version": "gateway_slack_health_v1",
+        "workspace": str(root.resolve()),
+        "map_path": local.get("map_path"),
+        "map_schema_version": local.get("schema_version"),
+        "bindings_count": len(binds),
+        "allowlist_enabled": bool(local.get("allowlist_enabled")),
+        "allowed_channel_ids_count": len(allow),
+        "signing_secret_configured": bool(secret),
+    }
+    tok = (bot_token or "").strip()
+    if not tok:
+        base["token_check"] = {
+            "performed": False,
+            "ok": None,
+            "hint": "提供 --bot-token 或环境变量 CAI_SLACK_BOT_TOKEN 以调用 Slack API 校验 Token。",
+        }
+        return base
+    auth = _slack_post("auth.test", tok)
+    if isinstance(auth, dict) and auth.get("ok") is True:
+        base["token_check"] = {
+            "performed": True,
+            "ok": True,
+            "team": auth.get("team"),
+            "team_id": auth.get("team_id"),
+            "user": auth.get("user"),
+            "user_id": auth.get("user_id"),
+            "bot_id": auth.get("bot_id"),
+            "url": auth.get("url"),
+        }
+        return base
+    base["token_check"] = {
+        "performed": True,
+        "ok": False,
+        "http_status": auth.get("_http_error") if isinstance(auth, dict) else None,
+        "message": str((auth or {}).get("error") or (auth or {}).get("body") or "unexpected_auth_test_payload")[:400],
+    }
+    return base
 
 
 # ---------------------------------------------------------------------------
@@ -322,6 +374,55 @@ def slack_interactivity_http_response(payload: dict[str, Any]) -> dict[str, Any]
     }
 
 
+def _parse_form_body(body_bytes: bytes) -> dict[str, str]:
+    parsed = urllib.parse.parse_qs(body_bytes.decode("utf-8"), keep_blank_values=True)
+    out: dict[str, str] = {}
+    for key, values in parsed.items():
+        if not values:
+            out[key] = ""
+        else:
+            out[key] = str(values[0])
+    return out
+
+
+def _build_slack_http_response(
+    *,
+    root: Path,
+    body_bytes: bytes,
+    content_type: str,
+    bot_token: str,
+    execute_on_slash: bool,
+    reply_on_execution: bool,
+) -> tuple[int, dict[str, Any]]:
+    normalized = str(content_type or "").split(";", 1)[0].strip().lower()
+    if normalized == "application/x-www-form-urlencoded":
+        form = _parse_form_body(body_bytes)
+        if "payload" in form:
+            try:
+                interactive_payload = json.loads(form.get("payload", ""))
+            except Exception:
+                return 400, {"error": "invalid_interactivity_payload"}
+            return 200, slack_interactivity_http_response(interactive_payload)
+        if form.get("command"):
+            resp, _meta = build_slack_slash_command_http_response(
+                root=root,
+                command=form.get("command", ""),
+                text=form.get("text", ""),
+                channel_id=form.get("channel_id", ""),
+                user_id=form.get("user_id", ""),
+                bot_token=bot_token,
+                execute_on_slash=execute_on_slash,
+                reply_on_execution=reply_on_execution,
+            )
+            return 200, resp
+        return 400, {"error": "unsupported_form_payload"}
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+    except Exception:
+        return 400, {"error": "invalid_json"}
+    return 200, payload
+
+
 # ---------------------------------------------------------------------------
 # Webhook 服务（Events API）
 # ---------------------------------------------------------------------------
@@ -333,6 +434,7 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
     bot_token: str = ""
     signing_secret: str = ""
     execute_on_event: bool = False
+    execute_on_slash: bool = False
     reply_on_execution: bool = False
     log_path: Path | None = None
     events_handled: list = []  # 共享计数器（list 可变）
@@ -347,6 +449,7 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         content_length = int(self.headers.get("Content-Length", 0))
         body_bytes = self.rfile.read(content_length)
+        content_type = str(self.headers.get("Content-Type", "") or "").split(";", 1)[0].strip().lower()
 
         if self.signing_secret:
             ts = self.headers.get("X-Slack-Request-Timestamp", "")
@@ -355,11 +458,18 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
                 self._send_json(403, {"error": "invalid_signature"})
                 return
 
-        try:
-            payload = json.loads(body_bytes.decode("utf-8"))
-        except Exception:
-            self._send_json(400, {"error": "invalid_json"})
+        status_code, parsed = _build_slack_http_response(
+            root=self.root,
+            body_bytes=body_bytes,
+            content_type=content_type,
+            bot_token=self.bot_token,
+            execute_on_slash=self.execute_on_slash,
+            reply_on_execution=self.reply_on_execution,
+        )
+        if status_code != 200:
+            self._send_json(status_code, parsed)
             return
+        payload = parsed
 
         # URL Verification challenge
         if payload.get("type") == "url_verification":
@@ -454,6 +564,7 @@ def serve_slack_webhook(
     host: str = "0.0.0.0",
     port: int = 7892,
     execute_on_event: bool = False,
+    execute_on_slash: bool = False,
     reply_on_execution: bool = False,
     log_file: str | None = None,
     max_events: int = 0,
@@ -487,6 +598,7 @@ def serve_slack_webhook(
     _Handler.bot_token = bot_token
     _Handler.signing_secret = signing_secret
     _Handler.execute_on_event = execute_on_event
+    _Handler.execute_on_slash = execute_on_slash
     _Handler.reply_on_execution = reply_on_execution
     _Handler.log_path = log_path
     _Handler.events_handled = shared_events
@@ -507,6 +619,8 @@ def serve_slack_webhook(
         "host": host,
         "port": port,
         "events_handled": len(shared_events),
+        "execute_on_event": bool(execute_on_event),
+        "execute_on_slash": bool(execute_on_slash),
         "log_file": str(log_path) if log_path else None,
         "ok": True,
     }

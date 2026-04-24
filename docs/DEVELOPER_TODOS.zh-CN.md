@@ -77,8 +77,29 @@
 - `CC-02a`：`init` 文本模式补上建议顺序与文档指针，安装/升级 walkthrough 不再只靠 README 自己串。
 - `REL-01a`：`release-ga` 文本模式补上 writeback targets，终端里就能继续完成 changelog / parity / plan 回写。
 - `HM-01a`：TUI `/status` 现在也会显示 `profile_contract` 来源与迁移状态，CLI/TUI 口径对齐。
+- `HM-01b`：`models add/edit/rm/use/route/list` 的 profile 管理闭环已补进 pytest 与 smoke，`models_list_v1` 会稳定暴露 `profile_contract_v1`、active/subagent/planner 与编辑后的 notes。
 - `HM-04a`：`board` / `ops dashboard` / `gateway status` 现在共享 `gateway_summary_v1`，把 `status / bindings_count / webhook_running / allowlist_enabled` 收成同一套读侧字段。
 - 文档同步：已将 `HM-04a` 在执行看板中的状态统一回写为 `Done`，并把下一批候选项统一标记为 `Ready`，避免 `Ready/Next` 混用造成误读。
+
+---
+
+## 0.3 剩余任务 Checklist（执行入口）
+
+- [x] `HM-01b`：profile 管理命令与测试夹具
+- [x] `HM-03b`：Slack 生产路径收口
+- [ ] `HM-04b`：只读动态 dashboard（SSE 或轮询）
+- [ ] `HM-05b`：recall 评估与负样本机制
+- [ ] `HM-05c`：memory policy 接入 `doctor` / `release-ga`
+- [ ] `ECC-01b`：导出 / 安装 / 共享流转说明统一
+- [ ] `ECC-02b`：成本视图与 compact 策略解释
+- [ ] `HM-02a`：最小 API / server 契约设计
+- [ ] `CC-03b`：模型切换与 `/status` 提示统一
+
+执行规则：
+
+1. 先从 `Ready` 项开始，`Design` 只做契约，不直接扩实现。
+2. 每次只把一个 issue 做到 `Done`，包含代码、测试、文档、状态回写。
+3. 当前默认顺序：`HM-04b` → `HM-05b` → `HM-05c` → `ECC-01b` → `ECC-02b`。
 
 ---
 
@@ -123,11 +144,11 @@
 | `CC-03a` | `Done` | `CC-03` | **`tui_session_strip`** 单源文案 + **`#context-label`** profile 前缀 | — | pytest |
 | `CC-03b` | `Design` | `CC-03` | 模型切换与 `/status` 提示与 profile 一致 | `HM-01a` | TUI/CLI 手测 |
 | `HM-01a` | `Done` | `HM-01` | profile schema、迁移与默认项 | — | schema review |
-| `HM-01b` | `Ready` | `HM-01` | profile 管理命令与测试夹具 | `HM-01a` | pytest + smoke |
+| `HM-01b` | `Done` | `HM-01` | **`models add/edit/rm/use/route/list`** 闭环、`profile_contract_v1`、CLI fixture 与 smoke 回归 | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Design` | `HM-02` | 最小 API/server 契约 | — | 契约评审 |
 | `HM-02b` | `Ready` | `HM-02` | 最小只读或任务触发型 API | `HM-02a` | integration smoke |
 | `HM-03a` | `Done` | `HM-03` | Discord 生产路径 | — | gateway smoke + `doctor` |
-| `HM-03b` | `Ready` | `HM-03` | Slack 生产路径收口 | — | gateway smoke + `doctor` |
+| `HM-03b` | `Done` | `HM-03` | Slack 生产路径收口 | `gateway slack health`、form Slash/Interactivity 分发、`bind --team-id/--label`、`serve-webhook --execute-on-slash`、测试与文档同步 | gateway smoke + `doctor` |
 | `HM-03c` | `Explore` | `HM-03` | 下一批 gateway 平台评估 | `HM-03a` `HM-03b` | 评估文档 |
 | `HM-04a` | `Done` | `HM-04` | ops/gateway/status 同源聚合 | — | JSON snapshot |
 | `HM-04b` | `Ready` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
@@ -151,8 +172,8 @@
 
 **波次 1 — 高杠杆 Ready（依赖已满足的优先开）**
 
-1. ~~`REL-01b`~~ / ~~`CC-02b`~~ / ~~`CC-01b`~~ / ~~`CC-03a`~~（Done）→ 后续 **`HM-01b`** 等
-2. `HM-01b`、`HM-03b`、`HM-04b`（可与 1 并行，注意 `HM-04b` 依赖 `HM-04a` 已 Done）
+1. ~~`REL-01b`~~ / ~~`CC-02b`~~ / ~~`CC-01b`~~ / ~~`CC-03a`~~ / ~~`HM-01b`~~ / ~~`HM-03b`~~（Done）
+2. `HM-04b`（依赖 `HM-04a` 已 Done），随后 `HM-05b` / `HM-05c`
 3. `HM-05b`、`HM-05c`、`ECC-01b`、`ECC-02b`（记忆/ECC 线可与 gateway/ops 并行，注意冲突面：`doctor`、`__main__.py`）
 
 **波次 2 — API 实现**
@@ -170,7 +191,7 @@
 | 演进主题 | 主要覆盖 Issue |
 |---|---|
 | Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
-| Hermes 线 | `HM-01b`、`HM-02a`/`HM-02b`、`HM-03b`、`HM-04b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
+| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~（Done）、`HM-02a`/`HM-02b`、`HM-04b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
 | ECC 线 | `ECC-01b`、`ECC-02b`；Explore：`ECC-03a` |
 | 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 

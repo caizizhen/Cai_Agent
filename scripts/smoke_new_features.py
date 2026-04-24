@@ -727,6 +727,115 @@ def main() -> int:
                 if dup.get("ok") is not False or dup.get("error") != "config_exists":
                     errs.append(f"init dup payload: {dup!r}")
 
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-models-") as mdl_td:
+        cfg = Path(mdl_td) / "cai-agent.toml"
+        cfg.write_text(
+            '[llm]\nbase_url = "http://localhost:1234/v1"\nmodel = "legacy"\napi_key = "k"\n',
+            encoding="utf-8",
+        )
+        pma = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(cfg),
+                "add",
+                "--id",
+                "local",
+                "--preset",
+                "lmstudio",
+                "--model",
+                "qwen2.5-coder:7b",
+                "--set-active",
+            ],
+            cwd=mdl_td,
+        )
+        if pma.returncode != 0:
+            errs.append(f"models add exit {pma.returncode} stderr={pma.stderr!r}")
+        pmb = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(cfg),
+                "add",
+                "--id",
+                "remote",
+                "--preset",
+                "openai",
+                "--model",
+                "gpt-4o-mini",
+            ],
+            cwd=mdl_td,
+        )
+        if pmb.returncode != 0:
+            errs.append(f"models second add exit {pmb.returncode} stderr={pmb.stderr!r}")
+        pme = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(cfg),
+                "edit",
+                "remote",
+                "--notes",
+                "review profile",
+            ],
+            cwd=mdl_td,
+        )
+        if pme.returncode != 0:
+            errs.append(f"models edit exit {pme.returncode} stderr={pme.stderr!r}")
+        pmr = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(cfg),
+                "route",
+                "--subagent",
+                "remote",
+                "--planner",
+                "local",
+            ],
+            cwd=mdl_td,
+        )
+        if pmr.returncode != 0:
+            errs.append(f"models route exit {pmr.returncode} stderr={pmr.stderr!r}")
+        pmu = _run([*cli, "models", "--config", str(cfg), "use", "remote"], cwd=mdl_td)
+        if pmu.returncode != 0:
+            errs.append(f"models use exit {pmu.returncode} stderr={pmu.stderr!r}")
+        pml = _run([*cli, "models", "--config", str(cfg), "list", "--json"], cwd=mdl_td)
+        if pml.returncode != 0:
+            errs.append(f"models list exit {pml.returncode} stderr={pml.stderr!r}")
+        else:
+            mlo = json.loads((pml.stdout or "").strip())
+            if mlo.get("schema_version") != "models_list_v1":
+                errs.append(f"models list schema {mlo.get('schema_version')!r}")
+            if mlo.get("active") != "remote":
+                errs.append(f"models list active {mlo.get('active')!r}")
+            if mlo.get("subagent") != "remote" or mlo.get("planner") != "local":
+                errs.append(f"models list routes {mlo.get('subagent')!r} {mlo.get('planner')!r}")
+            contract = mlo.get("profile_contract") or {}
+            if contract.get("schema_version") != "profile_contract_v1":
+                errs.append(f"models list contract {contract!r}")
+            rows = mlo.get("profiles") or []
+            remote = next((x for x in rows if isinstance(x, dict) and x.get("id") == "remote"), None)
+            if not isinstance(remote, dict) or remote.get("notes") != "review profile":
+                errs.append(f"models list remote notes {remote!r}")
+        pmd = _run([*cli, "models", "--config", str(cfg), "rm", "remote"], cwd=mdl_td)
+        if pmd.returncode != 0:
+            errs.append(f"models rm exit {pmd.returncode} stderr={pmd.stderr!r}")
+        else:
+            pml2 = _run([*cli, "models", "--config", str(cfg), "list", "--json"], cwd=mdl_td)
+            if pml2.returncode != 0:
+                errs.append(f"models post-rm list exit {pml2.returncode} stderr={pml2.stderr!r}")
+            else:
+                mlo2 = json.loads((pml2.stdout or "").strip())
+                if mlo2.get("active") != "local":
+                    errs.append(f"models post-rm active {mlo2.get('active')!r}")
+                if len(mlo2.get("profiles") or []) != 1:
+                    errs.append(f"models post-rm profiles {mlo2.get('profiles')!r}")
+
     with tempfile.TemporaryDirectory(prefix="cai-smoke-schedule-") as sched_td:
         tid = ""
         p = _run(
@@ -800,6 +909,50 @@ def main() -> int:
                 errs.append(f"gateway discord list schema {gdo.get('schema_version')!r}")
             if "allowlist_enabled" not in gdo:
                 errs.append("gateway discord list missing allowlist_enabled")
+        gsb = _run(
+            [
+                *cli,
+                "gateway",
+                "slack",
+                "bind",
+                "C_SMOKE",
+                "sessions/slack-smoke.json",
+                "--team-id",
+                "T_SMOKE",
+                "--label",
+                "smoke",
+                "--json",
+            ],
+            cwd=gw_td,
+        )
+        if gsb.returncode != 0:
+            errs.append(f"gateway slack bind exit {gsb.returncode} stderr={gsb.stderr!r}")
+        else:
+            sbo = json.loads((gsb.stdout or "").strip())
+            binding = sbo.get("binding") if isinstance(sbo.get("binding"), dict) else {}
+            if binding.get("team_id") != "T_SMOKE" or binding.get("label") != "smoke":
+                errs.append(f"gateway slack bind metadata {binding!r}")
+        gsl = _run([*cli, "gateway", "slack", "list", "--json"], cwd=gw_td)
+        if gsl.returncode != 0:
+            errs.append(f"gateway slack list exit {gsl.returncode} stderr={gsl.stderr!r}")
+        else:
+            slo = json.loads((gsl.stdout or "").strip())
+            if slo.get("schema_version") != "gateway_slack_map_v1":
+                errs.append(f"gateway slack list schema {slo.get('schema_version')!r}")
+            sbind = (slo.get("bindings") or {}).get("C_SMOKE") if isinstance(slo.get("bindings"), dict) else None
+            if not isinstance(sbind, dict) or sbind.get("team_id") != "T_SMOKE":
+                errs.append(f"gateway slack list binding {sbind!r}")
+        gsh = _run([*cli, "gateway", "slack", "health", "--json"], cwd=gw_td)
+        if gsh.returncode != 0:
+            errs.append(f"gateway slack health exit {gsh.returncode} stderr={gsh.stderr!r}")
+        else:
+            sho = json.loads((gsh.stdout or "").strip())
+            if sho.get("schema_version") != "gateway_slack_health_v1":
+                errs.append(f"gateway slack health schema {sho.get('schema_version')!r}")
+            if "token_check" not in sho:
+                errs.append("gateway slack health missing token_check")
+            if sho.get("bindings_count") != 1:
+                errs.append(f"gateway slack health bindings_count {sho.get('bindings_count')!r}")
         gdh = _run([*cli, "gateway", "discord", "health", "--json"], cwd=gw_td)
         if gdh.returncode != 0:
             errs.append(f"gateway discord health exit {gdh.returncode} stderr={gdh.stderr!r}")

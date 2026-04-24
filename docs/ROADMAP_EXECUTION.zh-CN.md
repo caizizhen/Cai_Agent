@@ -195,11 +195,11 @@
 | `CC-03a` | `Done` | `CC-03` | 统一任务板、状态栏与会话继续体验 | **`tui_session_strip`**；**`/help`**/欢迎/**`/sessions`**/**`/load`**/**`/retry`**/placeholder/看板/`#context-label` | — | pytest |
 | `CC-03b` | `Design` | `CC-03` | 收口模型切换与状态提示 | `/models`、`/status`、profile 反馈更一致 | `HM-01a` | TUI/CLI 手测 |
 | `HM-01a` | `Done` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
-| `HM-01b` | `Ready` | `HM-01` | 落地 profile 管理命令与测试夹具 | CLI/TUI profile 增删改查 + fixture | `HM-01a` | pytest + smoke |
+| `HM-01b` | `Done` | `HM-01` | 落地 profile 管理命令与测试夹具 | `models add/edit/rm/use/route/list` + `profile_contract_v1` + fixture / smoke 回归 | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Design` | `HM-02` | 设计最小 API / server 契约 | 路由、鉴权、输入输出 schema、版本策略 | — | 契约评审 |
 | `HM-02b` | `Ready` | `HM-02` | 实现最小只读或任务触发型 API 面 | 最小 server 主路径与文档 | `HM-02a` | integration smoke |
 | `HM-03a` | `Done` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
-| `HM-03b` | `Ready` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | webhook / block kit / mapping / allowlist 收口 | — | gateway smoke + doctor |
+| `HM-03b` | `Done` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | `gateway slack health`、Slash/Interactivity form 分发、mapping 元数据与 `--execute-on-slash` 收口 | — | gateway smoke + doctor |
 | `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |
 | `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
 | `HM-04b` | `Ready` | `HM-04` | 增加只读动态 dashboard 能力 | 先做 SSE 或轮询刷新，不做写操作 | `HM-04a` | 浏览器手测 |

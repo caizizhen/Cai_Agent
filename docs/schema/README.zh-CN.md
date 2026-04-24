@@ -292,6 +292,9 @@
 - **`gateway setup`**：写入 **`.cai/gateway/telegram-config.json`**（**`schema_version`=`gateway_telegram_config_v1`**），可选 **`serve_webhook`** 字段（与 **`gateway telegram serve-webhook`** 对齐的开关/模板）；**`--allow-chat-id`** 可重复，合并进 **`telegram-session-map.json`** 的 **`allowed_chat_ids`**。stdout **`--json`** 含 **`ok`**、**`config_path`**、**`workspace`** 等。
 - **`gateway start`**：按配置文件组装 **`python -m cai_agent gateway telegram serve-webhook …`** 后台进程，写 **`.cai/gateway/telegram-webhook.pid`**（**`gateway_telegram_pid_v1`**）。stdout **`gateway_lifecycle_start_v1`**（**`ok`** / **`pid`** / **`pid_file`** / 日志路径等）。
 - **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等），并内嵌 **`gateway_summary`**（`gateway_summary_v1`）供 `board` / `ops dashboard` 复用。
+- **`gateway slack health --json`**：stdout **`gateway_slack_health_v1`**；顶层含 **`workspace`**、**`map_path`**、**`map_schema_version`**、**`bindings_count`**、**`allowlist_enabled`**、**`allowed_channel_ids_count`**、**`signing_secret_configured`** 与 **`token_check`**。未提供 token 时 **`token_check.performed=false`**；提供后走 Slack `auth.test`，成功时返回 `team` / `team_id` / `user` / `user_id` / `bot_id`。
+- **`gateway slack bind`**：stdout 仍为 **`gateway_slack_map_v1`** 生态中的绑定对象，但单个 **`binding`** 现可带 **`team_id`** 与 **`label`**，用于多 workspace / 多 team 运维映射。
+- **`gateway slack serve-webhook`**：除 Events API JSON 外，还支持 **`application/x-www-form-urlencoded`** 的 Slash / Interactivity 请求；`--execute-on-slash` 打开后，`/cai <goal>` 可复用与 Events 同源的执行链。
 - **`gateway stop`**：读 PID 文件并结束进程；stdout **`gateway_lifecycle_stop_v1`**。**无 PID 文件**时 **`ok:false`**、**`error`=`no_pid_file`**（CLI **exit `0`**，幂等）；**`stop_failed`** 等 → **exit `2`**。**`start`** 在配置缺失时 **exit `2`**。
 
 ---

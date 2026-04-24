@@ -37,6 +37,19 @@
 
 `block_actions` 等事件目前仅返回 **ephemeral** 确认块，便于验证 URL 与签名；与业务执行链的对接可作为后续迭代（hooks / 异步 `response_url`）。
 
+## 运维自检与映射元数据
+
+- `cai-agent gateway slack health --json`
+  - 输出 `gateway_slack_health_v1`
+  - 汇总 `bindings_count`、`allowlist_enabled`、`allowed_channel_ids_count`
+  - 标明 `signing_secret_configured`
+  - 若提供 `--bot-token` 或 `CAI_SLACK_BOT_TOKEN`，会调用 `auth.test` 写入 `token_check`
+- `cai-agent gateway slack bind <channel_id> <session_file> --team-id <team> --label <label>`
+  - 把多 workspace / 多 team 运维需要的元数据写入 `slack-session-map.json`
+- `cai-agent gateway slack serve-webhook --execute-on-slash`
+  - 允许 `/cai <goal>` 直接走与 Events 同源的执行链
+  - 未开启时 Slash 仅返回帮助、`ping`、`status` 等同步提示
+
 ## 相关代码
 
 - `cai_agent.gateway_slack`：`build_slack_slash_command_http_response`、`slack_interactivity_http_response`、`slack_try_execute_channel_text`、`_SlackWebhookHandler`。
