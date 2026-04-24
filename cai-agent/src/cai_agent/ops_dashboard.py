@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.board_state import attach_failed_summary, attach_status_summary, build_board_payload
+from cai_agent.gateway_lifecycle import build_gateway_summary_payload
 from cai_agent.schedule import compute_schedule_stats_from_audit
 from cai_agent.session import aggregate_sessions
 
@@ -42,6 +43,7 @@ def build_ops_dashboard_payload(
         pattern=observe_pattern,
         limit=max(1, int(cost_session_limit)),
     )
+    gateway_summary = build_gateway_summary_payload(base)
     st_tasks = schedule_stats.get("tasks")
     n_sched = len(st_tasks) if isinstance(st_tasks, list) else 0
     return {
@@ -59,8 +61,12 @@ def build_ops_dashboard_payload(
             "schedule_tasks_in_stats": n_sched,
             "cost_total_tokens": int(cost_agg.get("total_tokens", 0) or 0),
             "cost_failed_count": int(cost_agg.get("failed_count", 0) or 0),
+            "gateway_status": gateway_summary.get("status"),
+            "gateway_bindings_count": int(gateway_summary.get("bindings_count", 0) or 0),
+            "gateway_webhook_running": bool(gateway_summary.get("webhook_running")),
         },
         "board": board,
+        "gateway_summary": gateway_summary,
         "schedule_stats": schedule_stats,
         "cost_aggregate": cost_agg,
     }

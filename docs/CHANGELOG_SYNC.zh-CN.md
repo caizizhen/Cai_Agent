@@ -33,6 +33,11 @@
 
 如果只做局部修复，步骤 4 可以留到合入前；但 **步骤 1 / 2 / 3 / 6 不建议跳过**。
 
+补充说明：
+
+- `cai-agent release-changelog --json --semantic` 现在会输出统一的 **`release_changelog_report_v1`**，内含 `bilingual`、`semantic` 与 `runbook` 摘要，适合直接接入 smoke / CI。
+- 文本模式 `cai-agent release-changelog --semantic` 也会打印固定 runbook 提示，方便维护者在终端里按顺序继续执行。
+
 ## 5. 机器人 / 单语补丁策略
 
 - 若 PR 仅英文机器人提交：合并前由维护者补中文节，或在同一 PR 追加 commit。

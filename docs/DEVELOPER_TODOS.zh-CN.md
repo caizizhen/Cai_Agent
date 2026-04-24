@@ -29,10 +29,10 @@
 
 | 状态 | 阶段 | ID | 本轮最小输出 | 验证 |
 |---|---|---|---|---|
-| `Doing` | Sprint A | `REL-01a` | 收口 `release-ga` / `doctor` / `release-changelog` / 回写路径，形成固定 runbook | `doctor`、smoke、T7 checklist |
-| `Doing` | Sprint A | `CC-01a` | 收口 `mcp-check --preset websearch/notebook`、模板、onboarding 入口 | `mcp-check --preset websearch/notebook` |
-| `Ready` | Sprint A | `CC-02a` | 梳理安装、升级、版本差异提示与 onboarding | walkthrough 一遍 onboarding |
-| `Design` | Sprint B | `HM-01a` | 先定 profile schema、默认项、激活规则、迁移口径 | schema review + pytest |
+| `Done` | Sprint A | `REL-01a` | 收口 `release-ga` / `doctor` / `release-changelog` / 回写路径，形成固定 runbook | `doctor`、smoke、T7 checklist |
+| `Done` | Sprint A | `CC-01a` | 收口 `mcp-check --preset websearch/notebook`、模板、onboarding 入口 | `mcp-check --preset websearch/notebook` |
+| `Done` | Sprint A | `CC-02a` | 梳理安装、升级、版本差异提示与 onboarding | walkthrough 一遍 onboarding |
+| `Done` | Sprint B | `HM-01a` | 先定 profile schema、默认项、激活规则、迁移口径 | schema review + pytest |
 | `Ready` | Sprint B | `HM-03a` | 把 Discord 主路径、mapping、health、排障文档收口 | gateway smoke + `doctor` |
 | `Ready` | Sprint B | `HM-04a` | 把 `board` / `ops` / gateway 状态字段收成同源 JSON | JSON snapshot + 本地消费检查 |
 | `Ready` | Sprint C | `HM-05a` | 补齐 user-model store/query/learn 最小闭环 | pytest + smoke |
@@ -47,13 +47,47 @@
 
 ---
 
+## 0.1 逐步开发看板（按当前推进节奏）
+
+下面这张表是“做成一个 TODO、逐步推进”的执行面。每轮开发完成后，优先更新这里。
+
+| 顺序 | 任务 | 当前状态 | 当前轮次 To-do | 完成后同步 |
+|---|---|---|---|---|
+| `1` | `REL-01a` | `Done` | `doctor` / `release-ga` / `release-changelog` / runbook / writeback 已同源，文本与 JSON 路径都可回归 | `DEVELOPER_TODOS`、`CHANGELOG_SYNC`、schema 文档 |
+| `2` | `CC-01a` | `Done` | `mcp-check --preset websearch/notebook`、模板、fallback、quickstart、onboarding 入口已收口 | `DEVELOPER_TODOS`、`WEBSEARCH_NOTEBOOK_MCP`、`ONBOARDING` |
+| `3` | `CC-02a` | `Done` | `init` / `doctor` / README / onboarding 的安装、升级、版本差异提示已串成可走通路径 | `DEVELOPER_TODOS`、README、`ONBOARDING`、schema 文档 |
+| `4` | `HM-01a` | `Done` | `profile_contract_v1` 已进入 `doctor` / `models list` / `/status`，显式/隐式来源与迁移口径固定 | `DEVELOPER_TODOS`、issue backlog、相关 schema 文档 |
+| `5` | `HM-03a` | `Next` | 收口 Discord 主路径、mapping、health、排障文档 | `DEVELOPER_TODOS`、gateway 文档、CHANGELOG |
+| `6` | `HM-04a` | `Done` | `board` / `ops dashboard` / `gateway status` 已共享 `gateway_summary_v1`，状态口径与最小 snapshot 已同源 | `DEVELOPER_TODOS`、`OPS_DYNAMIC_WEB_API` |
+| `7` | `HM-05a` | `Next` | 补齐 user-model store/query/learn 闭环 | `DEVELOPER_TODOS`、memory 文档、CHANGELOG |
+| `8` | `ECC-01a` | `Next` | 统一 rules/skills/hooks 目录、模板、导出说明 | `DEVELOPER_TODOS`、生态专题文档 |
+| `9` | `ECC-02a` | `Next` | 收口 routing/profile/budget 的产品化入口与解释输出 | `DEVELOPER_TODOS`、`MODEL_ROUTING_RULES`、CHANGELOG |
+
+当前默认做法：
+
+1. 每次只推进一项主任务，但顺手把相关文档一起回写。
+2. 当前轮优先收完 Sprint A：`REL-01a`、`CC-01a`、`CC-02a`。
+3. 当某项从 `Doing` 进入“可回归、可文档化”状态时，再把下一项切到 `Doing`。
+
+本轮同步更新（2026-04-24）：
+
+- `REL-01a`：补上 `release-changelog --json --semantic` 的统一报告 `release_changelog_report_v1`，并把 runbook 提示带回文本输出与 smoke。
+- `CC-01a`：`mcp-check --preset` 文本模式现在会直接打印 `preset quickstart`，降低 CLI 首次接入成本。
+- `HM-01a`：开始把 profile 契约收成共享 `profile_contract_v1`，先暴露到 `doctor --json` 与 `models list --json`，固定显式/隐式 profile 来源、激活优先级、fallback 与迁移状态。
+- `CC-02a`：`init` 文本模式补上建议顺序与文档指针，安装/升级 walkthrough 不再只靠 README 自己串。
+- `REL-01a`：`release-ga` 文本模式补上 writeback targets，终端里就能继续完成 changelog / parity / plan 回写。
+- `HM-01a`：TUI `/status` 现在也会显示 `profile_contract` 来源与迁移状态，CLI/TUI 口径对齐。
+- `HM-04a`：`board` / `ops dashboard` / `gateway status` 现在共享 `gateway_summary_v1`，把 `status / bindings_count / webhook_running / allowlist_enabled` 收成同一套读侧字段。
+
+---
+
 ## 1. 当前测试结论
 
 2026-04-24 在仓库根 `D:\gitrepo\Cai_Agent` 实测结果：
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **620 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **626 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 

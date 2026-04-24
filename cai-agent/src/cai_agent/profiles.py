@@ -629,6 +629,52 @@ def profile_to_public_dict(p: Profile, *, include_resolved_key: bool = False) ->
     return out
 
 
+def build_profile_contract_payload(
+    profiles: Sequence[Profile],
+    *,
+    profiles_explicit: bool,
+    active_profile_id: str,
+    subagent_profile_id: str | None = None,
+    planner_profile_id: str | None = None,
+    env_active_override: str | None = None,
+) -> dict[str, Any]:
+    """Shared profile contract summary used by HM-01a-facing surfaces."""
+    ids = [p.id for p in profiles]
+    source_kind = "explicit_models_profile" if profiles_explicit else "legacy_llm_default_profile"
+    persistence_mode = "explicit_profiles" if profiles_explicit else "implicit_default_profile"
+    migration_state = "ready" if profiles_explicit else "needs_explicit_profiles"
+    migration_hint = (
+        "Add explicit [[models.profile]] entries before configuring route/subagent/planner features."
+        if not profiles_explicit
+        else "Profile contract is explicit; future HM-01 work can build on this persisted structure."
+    )
+    return {
+        "schema_version": "profile_contract_v1",
+        "source_kind": source_kind,
+        "persistence_mode": persistence_mode,
+        "profiles_explicit": bool(profiles_explicit),
+        "legacy_llm_compatible": not profiles_explicit,
+        "profiles_count": len(ids),
+        "profile_ids": ids,
+        "active_profile_id": active_profile_id,
+        "subagent_profile_id": subagent_profile_id,
+        "planner_profile_id": planner_profile_id,
+        "selection_order": ["CAI_ACTIVE_MODEL", "[models].active", "first_profile"],
+        "env_active_override": env_active_override,
+        "fallback_behavior": {
+            "active_profile": "configured_or_first_profile",
+            "subagent_profile": subagent_profile_id or active_profile_id,
+            "planner_profile": planner_profile_id or active_profile_id,
+        },
+        "migration_state": migration_state,
+        "migration_hint": migration_hint,
+        "docs": {
+            "backlog_doc": "docs/ISSUE_BACKLOG.zh-CN.md",
+            "routing_doc": "docs/MODEL_ROUTING_RULES.zh-CN.md",
+        },
+    }
+
+
 __all__ = [
     "KNOWN_PROVIDERS",
     "PRESETS",
@@ -637,6 +683,7 @@ __all__ = [
     "add_profile",
     "apply_preset",
     "build_profile",
+    "build_profile_contract_payload",
     "edit_profile",
     "normalize_openai_chat_base_url",
     "parse_models_section",

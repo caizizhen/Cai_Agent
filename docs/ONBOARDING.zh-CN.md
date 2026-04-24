@@ -11,6 +11,7 @@
 
 3. **初始化与自检**  
    - `cai-agent init`（或 `init --global`）生成配置骨架。  
+   - 如果是升级后回来看差异，先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，再决定是否切到 `init --preset starter` 或补新的 profile。
    - `cai-agent doctor`：确认工作区、API Key（脱敏）、工具链可发现性。
    - 若已启用 MCP：`cai-agent mcp-check --json --preset websearch/notebook --list-only`，先确认工具列表是否具备目标能力，再做单工具探活。
 
@@ -20,3 +21,11 @@
 
 5. **深入清单**  
    已完成能力以 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) 为准；当前阶段开发顺序看 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)；缺口与 OOS 看 [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)。
+
+## 快速升级路径
+
+如果你已经在用 `cai-agent`，建议按这条最短路径更新认知：
+
+1. 先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，确认本轮新增命令、schema 或 runbook 是否影响你的使用方式。
+2. 再运行 `cai-agent doctor`，确认当前配置、MCP、profile、文档入口都还健康。
+3. 如果你之前只有单一 `[llm]`，但现在需要多后端或 profile 管理，再考虑 `cai-agent init --preset starter` 的迁移路径。

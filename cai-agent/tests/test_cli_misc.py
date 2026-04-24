@@ -116,6 +116,25 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertEqual([row.get("name") for row in presets], ["websearch", "notebook"])
         self.assertIn("next_step", payload)
 
+    def test_mcp_check_text_prints_quickstart_for_preset(self) -> None:
+        old = os.environ.get("MCP_ENABLED")
+        try:
+            os.environ.pop("MCP_ENABLED", None)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["mcp-check", "--preset", "websearch", "--list-only"])
+        finally:
+            if old is None:
+                os.environ.pop("MCP_ENABLED", None)
+            else:
+                os.environ["MCP_ENABLED"] = old
+
+        self.assertIn(rc, (0, 2))
+        out = buf.getvalue()
+        self.assertIn("--- preset quickstart ---", out)
+        self.assertIn("cai-agent mcp-check --json --preset websearch --list-only", out)
+        self.assertIn("docs=docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md", out)
+
 
 class PluginsCliTests(unittest.TestCase):
     def test_plugins_json_returns_0(self) -> None:

@@ -68,6 +68,8 @@ class InitPresetTests(unittest.TestCase):
             self.assertIs(payload.get("ok"), True)
             self.assertEqual(payload.get("preset"), "default")
             self.assertIs(payload.get("global"), False)
+            self.assertEqual((payload.get("support_docs") or {}).get("onboarding"), "docs/ONBOARDING.zh-CN.md")
+            self.assertIn("cai-agent doctor", payload.get("next_steps") or [])
             self.assertTrue((root / "cai-agent.toml").is_file())
 
     def test_init_json_config_exists(self) -> None:
@@ -83,6 +85,21 @@ class InitPresetTests(unittest.TestCase):
             self.assertEqual(payload.get("schema_version"), "init_cli_v1")
             self.assertIs(payload.get("ok"), False)
             self.assertEqual(payload.get("error"), "config_exists")
+            self.assertEqual((payload.get("support_docs") or {}).get("docs_index"), "docs/README.zh-CN.md")
+
+    def test_init_text_output_prints_walkthrough_and_docs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["init"])
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            self.assertIn("建议顺序:", out)
+            self.assertIn("- cai-agent doctor", out)
+            self.assertIn("docs/ONBOARDING.zh-CN.md", out)
+            self.assertIn("CHANGELOG.zh-CN.md / CHANGELOG.md", out)
 
 
 if __name__ == "__main__":

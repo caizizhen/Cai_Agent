@@ -260,6 +260,9 @@ class BoardAndWorkflowSnapshotTests(unittest.TestCase):
                 self.assertEqual(counts.get("failed"), 1)
                 self.assertEqual(counts.get("pending"), 0)
                 self.assertEqual(counts.get("unknown"), 1)
+                gateway_summary = payload.get("gateway_summary") or {}
+                self.assertEqual(gateway_summary.get("schema_version"), "gateway_summary_v1")
+                self.assertEqual(gateway_summary.get("status"), "not_configured")
             finally:
                 os.chdir(old)
 

@@ -4,8 +4,12 @@
 
 ### 0.7.0 (2026-04-23)
 
+- **Install / upgrade guidance**: `init --json` now returns `support_docs` and `next_steps`, while `doctor --json` includes `installation_guidance` so first-run and upgrade users can discover onboarding, docs index, and changelog pointers from the CLI itself.
 - **MCP preset onboarding**: `mcp-check --preset` now supports the combined `websearch/notebook` path, emits `presets[]` details plus onboarding/doc pointers, and prints richer preset templates and next-step hints for WebSearch / Notebook onboarding.
 - **Release runbook summary**: `doctor --json` and `release-ga --json` now include a shared `release_runbook_v1` block with the recommended command order, changelog bilingual/semantic status, write-back targets, and feedback summary. `release-ga` also promotes changelog sync into GA checks and adds `failed_check_details` for human-readable failures.
+- **Release changelog report**: `release-changelog --json --semantic` now emits a dedicated `release_changelog_report_v1` envelope with nested bilingual/semantic results plus a trimmed runbook summary, and the text-mode command prints the next release steps directly in the terminal.
+- **Profile contract summary**: `doctor --json` and `models list --json` now expose a shared `profile_contract_v1` block so HM-01 work has one source of truth for explicit vs legacy profiles, active-profile selection order, fallback behavior, and migration status.
+- **Ops / gateway shared summary**: `board --json`, `ops dashboard --json`, and `gateway status --json` now share `gateway_summary_v1`, aligning read-side fields such as `status`, `bindings_count`, `webhook_running`, and allowlist state for HM-04.
 - **Session events envelope (`run_schema_version=1.1`)**: `run`/`continue`/`command`/`agent`/`fix-build` JSON output now wraps `events` in a stable `run_events_envelope_v1` object (`schema_version` + `items[]`) instead of a bare list. `observe` / `sessions` consume both formats via `normalize_session_run_events`. All failure paths (`goal_empty`, `load_session_failed`, `interrupted`, etc.) also emit the structured envelope.
 - **TUI task board** (`/tasks` + `Ctrl+B`): new read-only panel showing `.cai-schedule.json` tasks and `.cai/last-workflow.json` workflow snapshot — `tui_task_board.py`.
 - **Hooks `script` auto-execution**: `hook_runtime.py` now resolves a `script` field (`.py` / `.sh` / `.ps1` / `.cmd` / `.bat`) in addition to `command[]`, with path-escape guard and platform normalization. `hooks/README.md` updated.

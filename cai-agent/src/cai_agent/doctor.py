@@ -11,11 +11,26 @@ from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.models import ping_profile
+from cai_agent.profiles import build_profile_contract_payload
 from cai_agent.feedback import feedback_stats
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
 from cai_agent.provider_registry import provider_readiness_snapshot
 from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.runtime.registry import get_runtime_backend
+
+
+def build_installation_guidance() -> dict[str, Any]:
+    return {
+        "schema_version": "doctor_installation_guidance_v1",
+        "onboarding_doc": "docs/ONBOARDING.zh-CN.md",
+        "docs_index": "docs/README.zh-CN.md",
+        "upgrade_docs": ["CHANGELOG.zh-CN.md", "CHANGELOG.md"],
+        "recommended_flow": [
+            "cai-agent init",
+            "cai-agent doctor",
+            'cai-agent run "用一句话描述当前工作区用途"',
+        ],
+    }
 
 
 def build_doctor_cai_dir_health(root: Path) -> dict[str, Any]:
@@ -116,6 +131,14 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
     api_present = bool(str(settings.api_key or "").strip())
     _rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
     _rt = get_runtime_backend(_rb, settings=settings)
+    profile_contract = build_profile_contract_payload(
+        settings.profiles,
+        profiles_explicit=bool(settings.profiles_explicit),
+        active_profile_id=settings.active_profile_id,
+        subagent_profile_id=settings.subagent_profile_id,
+        planner_profile_id=settings.planner_profile_id,
+        env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+    )
     return {
         "schema_version": "doctor_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -128,6 +151,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "api_key_present": api_present,
         "api_key_masked_line": key_line,
         "active_profile_id": settings.active_profile_id,
+        "profile_contract": profile_contract,
         "profiles_count": len(settings.profiles),
         "subagent_profile_id": settings.subagent_profile_id or None,
         "planner_profile_id": settings.planner_profile_id or None,
@@ -188,6 +212,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
                 getattr(settings, "skills_auto_improve_min_days_since_last_improve", 0) or 0,
             ),
         },
+        "installation_guidance": build_installation_guidance(),
         "feedback": feedback_stats(settings.workspace),
         "release_runbook": build_release_runbook_payload(repo_root=release_root, workspace=root),
     }
@@ -223,6 +248,18 @@ def run_doctor(
             key_line += " (AUTH_FAIL: env not set)"
     print("API Key: ", key_line)
     print("Profile: ", settings.active_profile_id, f"(共 {len(settings.profiles)} 个)")
+    profile_contract = build_profile_contract_payload(
+        settings.profiles,
+        profiles_explicit=bool(settings.profiles_explicit),
+        active_profile_id=settings.active_profile_id,
+        subagent_profile_id=settings.subagent_profile_id,
+        planner_profile_id=settings.planner_profile_id,
+        env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+    )
+    print(
+        "Profile Contract:",
+        f"{profile_contract.get('source_kind')} | migration={profile_contract.get('migration_state')}",
+    )
     if settings.subagent_profile_id or settings.planner_profile_id:
         print(
             "路由:    ",
@@ -337,6 +374,7 @@ def run_doctor(
     rel_bilingual = rel_changelog.get("bilingual") if isinstance(rel_changelog.get("bilingual"), dict) else {}
     rel_semantic = rel_changelog.get("semantic") if isinstance(rel_changelog.get("semantic"), dict) else {}
     rel_feedback = rel.get("feedback") if isinstance(rel.get("feedback"), dict) else {}
+    install = build_installation_guidance()
     print("发版闭环:")
     print(
         f"  CHANGELOG bilingual={bool(rel_bilingual.get('ok'))} "
@@ -345,6 +383,13 @@ def run_doctor(
     )
     print("  runbook: cai-agent doctor --json -> cai-agent release-changelog --json --semantic")
     print("  docs:    docs/CHANGELOG_SYNC.zh-CN.md | docs/qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md")
+    print()
+    print("安装 / 升级指引:")
+    print(
+        "  onboarding: "
+        f"{install.get('onboarding_doc')} | docs index: {install.get('docs_index')}",
+    )
+    print(f"  upgrade:    {' | '.join(str(x) for x in (install.get('upgrade_docs') or []))}")
     print()
     print("建议下一步:")
     print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")

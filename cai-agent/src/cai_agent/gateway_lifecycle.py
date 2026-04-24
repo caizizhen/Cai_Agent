@@ -169,16 +169,36 @@ def _read_pid_doc(root: Path) -> dict[str, Any] | None:
     return o if isinstance(o, dict) else None
 
 
-def build_status_payload(root: Path | str) -> dict[str, Any]:
+def build_gateway_summary_payload(root: Path | str) -> dict[str, Any]:
+    """Shared read-side gateway summary for board / ops / gateway status."""
     base = Path(root).expanduser().resolve()
-    cfg = load_telegram_config(base)
-    pmap = _gateway_dir(base) / "telegram-session-map.json"
-    mdoc = _read_map_file(pmap)
+    cfg_path = config_path(base)
+    map_path = _gateway_dir(base) / "telegram-session-map.json"
+    mdoc = _read_map_file(map_path)
     binds = mdoc.get("bindings") if isinstance(mdoc.get("bindings"), dict) else {}
-    allowed = mdoc.get("allowed_chat_ids") if isinstance(mdoc.get("allowed_chat_ids"), list) else []
+    allowed = [str(x) for x in (mdoc.get("allowed_chat_ids") or []) if str(x).strip()]
     pid_doc = _read_pid_doc(base)
     pid = int(pid_doc.get("pid") or 0) if isinstance(pid_doc, dict) else 0
     alive = _pid_alive(pid) if pid else False
+    return {
+        "schema_version": "gateway_summary_v1",
+        "workspace": str(base),
+        "config_path": str(cfg_path),
+        "config_exists": cfg_path.is_file(),
+        "map_path": str(map_path),
+        "bindings_count": len(binds),
+        "allowed_chat_ids_count": len(allowed),
+        "allowed_chat_ids": allowed,
+        "allowlist_enabled": bool(allowed),
+        "webhook_pid": pid or None,
+        "webhook_running": alive,
+        "status": "running" if alive else ("configured" if cfg_path.is_file() else "not_configured"),
+    }
+
+
+def build_status_payload(root: Path | str) -> dict[str, Any]:
+    base = Path(root).expanduser().resolve()
+    summary = build_gateway_summary_payload(base)
     return {
         "schema_version": STATUS_SCHEMA,
         "generated_at": datetime.now(UTC).isoformat(),
@@ -186,11 +206,12 @@ def build_status_payload(root: Path | str) -> dict[str, Any]:
         "config_path": str(config_path(base)),
         "config_exists": config_path(base).is_file(),
         "pid_path": str(pid_path(base)),
-        "webhook_pid": pid or None,
-        "webhook_running": alive,
-        "bindings_count": len(binds),
-        "allowed_chat_ids": [str(x) for x in allowed if str(x).strip()],
-        "allowlist_enabled": bool(allowed),
+        "webhook_pid": summary.get("webhook_pid"),
+        "webhook_running": summary.get("webhook_running"),
+        "bindings_count": summary.get("bindings_count"),
+        "allowed_chat_ids": summary.get("allowed_chat_ids"),
+        "allowlist_enabled": summary.get("allowlist_enabled"),
+        "gateway_summary": summary,
     }
 
 

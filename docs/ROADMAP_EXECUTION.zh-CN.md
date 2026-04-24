@@ -186,22 +186,22 @@
 |---|---|---|---|---|---|---|
 | `DOC-01a` | `Done` | `DOC-01` | 统一根 README 与 docs 入口 | 中英文入口统一、主文档收敛 | — | 手工检查 + 链接检查 |
 | `DOC-01b` | `Done` | `DOC-01` | 删除重复 roadmap / backlog 文档 | 删除历史重复页并清理引用 | `DOC-01a` | `rg` 无残链 |
-| `REL-01a` | `Ready` | `REL-01` | 收口 release-ga / doctor / changelog 回写流程 | 一条固定发版 runbook，明确输入输出 | — | `doctor` + smoke + checklist |
+| `REL-01a` | `Done` | `REL-01` | 收口 release-ga / doctor / changelog 回写流程 | 一条固定发版 runbook，明确输入输出 | — | `doctor` + smoke + checklist |
 | `REL-01b` | `Ready` | `REL-01` | 统一 feedback、doctor 与发布摘要出口 | `feedback`、`doctor --json`、发版摘要字段同源 | `REL-01a` | JSON schema + smoke |
-| `CC-01a` | `Ready` | `CC-01` | 收口 MCP 预设与 WebSearch/Notebook 接入入口 | `mcp-check` preset、模板、文档、onboarding 入口统一 | — | 预设探测 + 文档示例 |
+| `CC-01a` | `Done` | `CC-01` | 收口 MCP 预设与 WebSearch/Notebook 接入入口 | `mcp-check` preset、模板、文档、onboarding 入口统一 | — | 预设探测 + 文档示例 |
 | `CC-01b` | `Ready` | `CC-01` | 在 CLI/TUI 暴露 WebSearch/Notebook 推荐入口 | `/mcp`、`/tasks`、帮助信息中补最短路径 | `CC-01a` | TUI / CLI 手工冒烟 |
-| `CC-02a` | `Ready` | `CC-02` | 梳理安装、更新与版本提示体验 | 安装/升级路径、版本差异提示、常见错误指引 | — | onboarding walkthrough |
+| `CC-02a` | `Done` | `CC-02` | 梳理安装、更新与版本提示体验 | 安装/升级路径、版本差异提示、常见错误指引 | — | onboarding walkthrough |
 | `CC-02b` | `Ready` | `CC-02` | 设计 /bug 等价反馈入口 | 明确命令、字段、落盘位置、脱敏策略 | `REL-01b` | 命令冒烟 + 文档 |
 | `CC-03a` | `Ready` | `CC-03` | 统一任务板、状态栏与会话继续体验 | `board`、`/tasks`、会话状态模型统一 | — | CLI/TUI 截面检查 |
 | `CC-03b` | `Design` | `CC-03` | 收口模型切换与状态提示 | `/models`、`/status`、profile 反馈更一致 | `HM-01a` | TUI/CLI 手测 |
-| `HM-01a` | `Design` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
+| `HM-01a` | `Done` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
 | `HM-01b` | `Ready` | `HM-01` | 落地 profile 管理命令与测试夹具 | CLI/TUI profile 增删改查 + fixture | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Design` | `HM-02` | 设计最小 API / server 契约 | 路由、鉴权、输入输出 schema、版本策略 | — | 契约评审 |
 | `HM-02b` | `Ready` | `HM-02` | 实现最小只读或任务触发型 API 面 | 最小 server 主路径与文档 | `HM-02a` | integration smoke |
 | `HM-03a` | `Ready` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
 | `HM-03b` | `Ready` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | webhook / block kit / mapping / allowlist 收口 | — | gateway smoke + doctor |
 | `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |
-| `HM-04a` | `Ready` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
+| `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
 | `HM-04b` | `Ready` | `HM-04` | 增加只读动态 dashboard 能力 | 先做 SSE 或轮询刷新，不做写操作 | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Ready` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
 | `HM-05b` | `Ready` | `HM-05` | 建 recall 评估与负样本机制 | `recall --evaluate`、负样本、报告 schema | `HM-05a` | benchmark/report |

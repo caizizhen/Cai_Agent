@@ -93,6 +93,8 @@ pip install -e .
 cai-agent init
 ```
 
+If you are upgrading instead of starting fresh, check repo-root `CHANGELOG.md` / `CHANGELOG.zh-CN.md` first, then run `cai-agent doctor` to confirm the current config and entry docs still line up.
+
 For a **single file** that already lists **LM Studio, Ollama, vLLM, OpenRouter, Zhipu GLM, and a self-hosted OpenAI-compatible gateway** as separate `[[models.profile]]` entries, run:
 
 ```bash

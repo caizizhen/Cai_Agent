@@ -75,6 +75,7 @@ def build_board_payload(
     observe_limit: int = 100,
 ) -> dict[str, Any]:
     from cai_agent.session import build_observe_payload
+    from cai_agent.gateway_lifecycle import build_gateway_summary_payload
 
     base = Path(cwd or ".").expanduser().resolve()
     obs = build_observe_payload(
@@ -91,6 +92,7 @@ def build_board_payload(
         # 任务看板 / CI 只解析 `board_v1` 时可用本字段快速读取 observe 代际。
         "observe_schema_version": obs.get("schema_version"),
         "observe": obs,
+        "gateway_summary": build_gateway_summary_payload(base),
         "last_workflow": wf,
     }
 

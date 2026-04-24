@@ -23,7 +23,7 @@ from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, get_last_usage
 from cai_agent.llm_factory import activate_profile_in_memory
 from cai_agent.models import fetch_models
-from cai_agent.profiles import Profile
+from cai_agent.profiles import Profile, build_profile_contract_payload
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.tui_model_panel import ModelPanelScreen
@@ -991,11 +991,20 @@ class CaiAgentApp(App[None]):
             src = str(getattr(s, "context_window_source", "default"))
             sub = getattr(s, "subagent_profile_id", None)
             pln = getattr(s, "planner_profile_id", None)
+            contract = build_profile_contract_payload(
+                s.profiles,
+                profiles_explicit=bool(getattr(s, "profiles_explicit", False)),
+                active_profile_id=s.active_profile_id,
+                subagent_profile_id=sub,
+                planner_profile_id=pln,
+            )
             route_lines = (
                 f"profile: [cyan]{s.active_profile_id}[/]\n"
                 f"profile(active): [cyan]{s.active_profile_id}[/]\n"
                 f"subagent: [cyan]{sub or '（未设置，沿用 active）'}[/]\n"
                 f"planner: [cyan]{pln or '（未设置，沿用 active）'}[/]\n"
+                f"profile_contract: [cyan]{contract.get('source_kind')}[/] "
+                f"(migration={contract.get('migration_state')})\n"
             )
             self.query_one("#chat", RichLog).write(
                 f"\n[bold]状态[/]\n"

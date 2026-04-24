@@ -299,6 +299,8 @@ cai-agent init
 
 会生成 `cai-agent.toml`，按需编辑其中的 `[llm]` / `[agent]` 即可。
 
+如果你是升级已有环境，建议先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，再跑一次 `cai-agent doctor`，确认配置、入口文档和主链路命令都还是你预期的状态。
+
 ## 配置文件
 
 1. 推荐在 `cai-agent/` 目录内运行 **`cai-agent init`** 生成 `cai-agent.toml`（默认仅 `[llm]`，指向本机 LM Studio）。需要多后端与 OpenRouter、**智谱** 并列时，使用 **`cai-agent init --preset starter`**，再按需设置 `OPENROUTER_API_KEY` / `OPENAI_API_KEY` / **`ZAI_API_KEY`** 等并用 `cai-agent models use <id>` 切换。CI 可用 **`cai-agent init --json`**，stdout 单行 **`init_cli_v1`**（见 **`docs/schema/README.zh-CN.md`**）。

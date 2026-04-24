@@ -140,7 +140,7 @@
 ## `board` / `board --json`
 
 - **实现**：`cai_agent.board_state.build_board_payload` 等
-- **`schema_version`**：`board_v1`；`observe_schema_version` 与内嵌 `observe` 同源 `build_observe_payload`
+- **`schema_version`**：`board_v1`；`observe_schema_version` 与内嵌 `observe` 同源 `build_observe_payload`，并额外包含 **`gateway_summary`**（`gateway_summary_v1`）作为 `ops` / `gateway status` 的共享只读摘要。
 
 内嵌 `observe` 与 `observe --json` 根对象同源；筛选后 `sessions` / `sessions_count` 会更新，`aggregates` 可能仍为全量扫描值（实现细节以代码为准）。
 
@@ -176,10 +176,11 @@
 - **实现**：`__main__.py` `mcp-check` 分支
 - **`schema_version`**：`mcp_check_result_v1`（`--json` 单行对象）
 - **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`presets[]`（组合 preset 时的明细）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint` / `next_step`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等
+- **文本模式补充**：带 `--preset` 时会额外打印 `docs=`、`onboarding=`、`preset quickstart` 命令序列，以及在失败场景下打印 `fallback hint` 与 `template` 指令，作为非 JSON onboarding 入口。
 
 **Exit**：`ok == true` → `0`；否则 → `2`。
 
-**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`mcp-check --json --list-only`**，接受 exit **`0`** 或 **`2`**，并断言 **`mcp_check_result_v1`** 与 **`mcp_enabled`** 字段存在。
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`mcp-check --json --list-only`**，以及 **`--preset websearch/notebook --list-only`** / **`--preset notebook --print-template`**，接受 exit **`0`** 或 **`2`**，并断言 **`mcp_check_result_v1`**、**`mcp_enabled`**、`presets[]` / `onboarding_path` / `template` 等字段存在。
 
 ---
 
@@ -212,6 +213,18 @@
 - **字段**：`state`（`pass` / `warn` / `fail`：`total_tokens > max_tokens` 为 `fail`；`> 0.8 * max_tokens` 为 `warn`）、`total_tokens`、`max_tokens`
 
 **Exit**：`state == fail` → **`2`**；`pass` / `warn` → **`0`**。
+
+---
+
+## `release-changelog` / `release-changelog --json --semantic`
+
+- **实现**：`__main__.py` `release-changelog` 分支；基础校验来自 `changelog_sync`，`--semantic` 时叠加 `changelog_semantic`，并附带发版 runbook 摘要。
+- **`--json`（无 `--semantic`）**：保持原有 `changelog_bilingual_check_v1` 单对象输出。
+- **`--json --semantic`**：stdout 输出 **`release_changelog_report_v1`**，含 `ok`、`workspace`、`repo_root`、`bilingual`（`changelog_bilingual_check_v1`）、`semantic`（`changelog_semantic_v1`）、`runbook`（裁剪后的 `release_runbook_v1`，含 `runbook_steps` 与 `writeback_targets`）。
+
+**Exit**：双语检查失败或 `--semantic` 下任一语义检查失败 → **`2`**；否则 **`0`**。
+
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根执行 **`release-changelog --json --semantic`**，断言 **`release_changelog_report_v1`** 与其内嵌的 `bilingual` / `semantic` / `runbook` schema 版本字段存在。
 
 ---
 
@@ -278,7 +291,7 @@
 - **实现**：`cai_agent.gateway_lifecycle`；CLI 在 **`__main__.py`** 的 **`gateway`** 分支分发。
 - **`gateway setup`**：写入 **`.cai/gateway/telegram-config.json`**（**`schema_version`=`gateway_telegram_config_v1`**），可选 **`serve_webhook`** 字段（与 **`gateway telegram serve-webhook`** 对齐的开关/模板）；**`--allow-chat-id`** 可重复，合并进 **`telegram-session-map.json`** 的 **`allowed_chat_ids`**。stdout **`--json`** 含 **`ok`**、**`config_path`**、**`workspace`** 等。
 - **`gateway start`**：按配置文件组装 **`python -m cai_agent gateway telegram serve-webhook …`** 后台进程，写 **`.cai/gateway/telegram-webhook.pid`**（**`gateway_telegram_pid_v1`**）。stdout **`gateway_lifecycle_start_v1`**（**`ok`** / **`pid`** / **`pid_file`** / 日志路径等）。
-- **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等）。
+- **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等），并内嵌 **`gateway_summary`**（`gateway_summary_v1`）供 `board` / `ops dashboard` 复用。
 - **`gateway stop`**：读 PID 文件并结束进程；stdout **`gateway_lifecycle_stop_v1`**。**无 PID 文件**时 **`ok:false`**、**`error`=`no_pid_file`**（CLI **exit `0`**，幂等）；**`stop_failed`** 等 → **exit `2`**。**`start`** 在配置缺失时 **exit `2`**。
 
 ---
@@ -295,7 +308,7 @@
 ## `ops dashboard`（`--json`）
 
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
-- **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens` 等）与 **`board`** / **`schedule_stats`** / **`cost_aggregate`**。
+- **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens`，以及 `gateway_status` / `gateway_bindings_count` / `gateway_webhook_running`）与 **`board`** / **`gateway_summary`** / **`schedule_stats`** / **`cost_aggregate`**。
 - **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`**（HTML 路由可选 query **`html_refresh_seconds`**），载荷与上表同源。
 
 **Exit**：成功 → **`0`**。
@@ -331,7 +344,7 @@
 
 ## `init`
 
-- **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`**；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`** 等。
+- **输出**：默认文本（写入 `cai-agent.toml` 路径提示等）。**`init --json`**：stdout **仅一行** **`init_cli_v1`**：`ok`（bool）、成功时 **`config_path`** / **`preset`**（`default`|`starter`）/ **`global`** / `support_docs` / `next_steps`；失败时 **`error`**（`config_exists` / `template_read_failed` / `mkdir_failed`）及 **`message`**、`support_docs` 等。
 
 **Exit**：自 **S1-03** 起，失败路径（目标已存在且无 `--force`、模板读取失败、创建目录失败）均为 **`2`**（此前为 **`1`**）；成功 → **`0`**。
 
@@ -357,7 +370,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`profile_contract`**（**`profile_contract_v1`**：profile 来源、激活优先级、fallback、迁移状态）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`installation_guidance`**（**`doctor_installation_guidance_v1`**：onboarding、文档入口、升级查看点、推荐命令链）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 
@@ -380,7 +393,7 @@
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |
 |--------|----------------|-------------------------|
-| `models list` | 对象：`active`、`subagent`、`planner`、`profiles[]` | **`models_list_v1`**（`profile_to_public_dict` 行） |
+| `models list` | 对象：`active`、`subagent`、`planner`、`profile_contract`、`profiles[]` | **`models_list_v1`**（`profile_contract` 为 **`profile_contract_v1`**，描述显式/隐式 profile 来源、激活优先级、迁移状态） |
 | `models fetch` | 对象：`schema_version`=`models_fetch_v1`、`models[]`（排序去重后的模型 id 字符串） | **`models_fetch_v1`** |
 | `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等） | **`models_ping_v1`** |
 | `models suggest` | 单行对象 **`models_suggest_v1`**：`task_description`、`matched_role`、`reason`、`suggested_profiles[]`、`active_profile_id`、`hint` 等 | **`cai-agent models suggest <任务描述…> --json`** |

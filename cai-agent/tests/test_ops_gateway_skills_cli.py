@@ -38,11 +38,15 @@ def test_ops_dashboard_json(tmp_path: Path) -> None:
     o = json.loads(p.stdout.strip())
     assert o.get("schema_version") == "ops_dashboard_v1"
     assert isinstance(o.get("board"), dict)
+    assert isinstance(o.get("gateway_summary"), dict)
+    assert (o.get("gateway_summary") or {}).get("schema_version") == "gateway_summary_v1"
     assert isinstance(o.get("schedule_stats"), dict)
     assert isinstance(o.get("cost_aggregate"), dict)
     sm = o.get("summary")
     assert isinstance(sm, dict)
     assert "failure_rate" in sm
+    assert "gateway_status" in sm
+    assert isinstance((o.get("board") or {}).get("gateway_summary"), dict)
 
 
 def test_skills_hub_manifest_json(tmp_path: Path) -> None:

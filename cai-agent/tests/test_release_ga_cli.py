@@ -149,6 +149,28 @@ class ReleaseGaCliTests(unittest.TestCase):
         self.assertEqual(actual.get("stale_rate"), 0.6)
         self.assertEqual(actual.get("expired_rate"), 0.0)
 
+    def test_release_ga_text_output_prints_writeback_targets(self) -> None:
+        with (
+            patch("cai_agent.__main__.run_quality_gate", return_value={"ok": True, "failed_count": 0}),
+            patch("cai_agent.__main__.aggregate_sessions", return_value={"failure_rate": 0.0, "total_tokens": 10}),
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "release-ga",
+                        "--max-failure-rate",
+                        "0.2",
+                        "--max-tokens",
+                        "100",
+                    ],
+                )
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("[release-ga] runbook:", out)
+        self.assertIn("[release-ga] writeback targets:", out)
+        self.assertIn("CHANGELOG.md", out)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -58,6 +58,11 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             self.assertEqual(st.get("schema_version"), "gateway_lifecycle_status_v1")
             self.assertIs(st.get("config_exists"), True)
             self.assertIs(st.get("webhook_running"), False)
+            summary = st.get("gateway_summary") or {}
+            self.assertEqual(summary.get("schema_version"), "gateway_summary_v1")
+            self.assertEqual(summary.get("status"), "configured")
+            self.assertEqual(summary.get("allowed_chat_ids_count"), 1)
+            self.assertEqual(summary.get("bindings_count"), 0)
 
             buf3 = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):

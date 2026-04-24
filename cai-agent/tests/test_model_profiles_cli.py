@@ -77,6 +77,10 @@ class ModelsCliEndToEnd(unittest.TestCase):
         payload = json.loads(out.strip())
         self.assertEqual(payload.get("schema_version"), "models_list_v1")
         self.assertEqual(payload["active"], "p1")
+        contract = payload.get("profile_contract") or {}
+        self.assertEqual(contract.get("schema_version"), "profile_contract_v1")
+        self.assertEqual(contract.get("migration_state"), "ready")
+        self.assertEqual(contract.get("active_profile_id"), "p1")
         ids = [p["id"] for p in payload["profiles"]]
         self.assertEqual(sorted(ids), ["p1", "p2"])
 
@@ -96,6 +100,16 @@ class ModelsCliEndToEnd(unittest.TestCase):
         payload = json.loads(out.strip())
         self.assertEqual(payload["active"], "p1")
         self.assertEqual(len(payload["profiles"]), 1)
+
+    def test_list_json_includes_legacy_profile_contract_for_llm_only_config(self) -> None:
+        rc, out = self._cli("models", "--config", str(self.cfg), "list", "--json")
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.strip())
+        contract = payload.get("profile_contract") or {}
+        self.assertEqual(contract.get("schema_version"), "profile_contract_v1")
+        self.assertEqual(contract.get("source_kind"), "legacy_llm_default_profile")
+        self.assertEqual(contract.get("migration_state"), "needs_explicit_profiles")
+        self.assertEqual(contract.get("active_profile_id"), "default")
 
     def test_add_duplicate_id_fails_cleanly(self) -> None:
         rc, _ = self._cli(

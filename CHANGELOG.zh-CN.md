@@ -6,8 +6,12 @@
 
 ### 0.7.0（2026-04-23）
 
+- **安装 / 升级指引**：`init --json` 现在会返回 `support_docs` 与 `next_steps`，`doctor --json` 新增 `installation_guidance`，让新用户和升级用户都能从 CLI 里直接发现 onboarding、文档入口和 changelog 指针。
 - **MCP preset onboarding**：`mcp-check --preset` 现在支持组合路径 `websearch/notebook`，会输出 `presets[]` 明细、文档/onboarding 指针，以及更完整的模板与 next-step 提示，方便新用户接入 WebSearch / Notebook。
 - **发版 runbook 摘要**：`doctor --json` 与 `release-ga --json` 新增同源 **`release_runbook_v1`**，汇总固定命令顺序、CHANGELOG 双语/结构检查、文档回写目标与 feedback 摘要；`release-ga` 同时把 changelog 同步纳入 GA 门禁，并新增 **`failed_check_details`** 便于人读排障。
+- **release-changelog 统一报告**：`release-changelog --json --semantic` 现在会输出专用 **`release_changelog_report_v1`**，把双语检查、语义检查与裁剪后的 runbook 摘要放进同一个载荷；文本模式也会直接打印下一步发版命令提示。
+- **profile 契约摘要**：`doctor --json` 与 `models list --json` 现在会输出共享的 **`profile_contract_v1`**，统一描述显式/隐式 profile 来源、激活优先级、fallback 行为与迁移状态，作为 `HM-01` 后续实现的同源口径。
+- **ops / gateway 共享摘要**：`board --json`、`ops dashboard --json` 与 `gateway status --json` 现在共享 **`gateway_summary_v1`**，把 `status`、`bindings_count`、`webhook_running`、allowlist 状态这类读侧字段收成同一套口径，作为 `HM-04` 的最小统一载荷。
 - **会话 `events` 信封（`run_schema_version=1.1`）**：`run`/`continue`/`command`/`agent`/`fix-build` 的 **`--json`** 将 **`events`** 包在稳定的 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）内，不再输出裸数组。`observe` / `sessions` 经 **`normalize_session_run_events`** 兼容旧列表与新信封。各失败路径（`goal_empty`、`load_session_failed`、`interrupted` 等）同样输出结构化信封。
 - **TUI 任务看板**：**`/tasks`** 与 **`Ctrl+B`** 只读面板（**`.cai-schedule.json`** 与 **`.cai/last-workflow.json`**），实现见 **`tui_task_board.py`**。
 - **Hooks `script` 自动执行**：**`hook_runtime.py`** 除 **`command[]`** 外解析 **`script`**（`.py`/`.sh`/`.ps1`/`.cmd`/`.bat`），含路径逃逸防护与平台规范化；**`hooks/README.md`** 已更新。

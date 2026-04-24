@@ -3,7 +3,7 @@
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
-``plugins --json --with-compat-matrix``/``doctor``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
+``plugins --json --with-compat-matrix``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json`` + ``memory user-model export``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
@@ -273,6 +273,26 @@ def main() -> int:
                 dcm = (plug.get("compat_matrix") or {}).get("schema_version")
                 if dcm != "plugin_compat_matrix_v1":
                     errs.append(f"doctor plugins.compat_matrix schema_version {dcm!r}")
+        prc = _run(
+            [*cli, "release-changelog", "--json", "--semantic", "--config", str(cfg_repo)],
+            cwd=str(root),
+        )
+        if prc.returncode != 0:
+            errs.append(f"release-changelog json exit {prc.returncode} stderr={prc.stderr!r}")
+        else:
+            try:
+                rco = json.loads((prc.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"release-changelog json parse: {e}")
+            else:
+                if rco.get("schema_version") != "release_changelog_report_v1":
+                    errs.append(f"release-changelog schema_version {rco.get('schema_version')!r}")
+                if (rco.get("bilingual") or {}).get("schema_version") != "changelog_bilingual_check_v1":
+                    errs.append("release-changelog bilingual schema missing")
+                if (rco.get("semantic") or {}).get("schema_version") != "changelog_semantic_v1":
+                    errs.append("release-changelog semantic schema missing")
+                if (rco.get("runbook") or {}).get("schema_version") != "release_runbook_v1":
+                    errs.append("release-changelog runbook schema missing")
         pmcp = _run(
             [*cli, "mcp-check", "--json", "--list-only", "--config", str(cfg_repo)],
             cwd=str(root),
@@ -430,6 +450,9 @@ def main() -> int:
             obs = bo.get("observe")
             if not isinstance(obs, dict) or obs.get("schema_version") != "1.1":
                 errs.append(f"board observe envelope: {bo!r}")
+            gsum = bo.get("gateway_summary")
+            if not isinstance(gsum, dict) or gsum.get("schema_version") != "gateway_summary_v1":
+                errs.append("board gateway_summary missing")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-sessions-obsrpt-") as so_td:
         pss = _run([*cli, "sessions", "--json", "--limit", "3"], cwd=so_td)
@@ -714,6 +737,9 @@ def main() -> int:
                 errs.append(f"gateway status schema {gso.get('schema_version')!r}")
             if "config_exists" not in gso:
                 errs.append("gateway status missing config_exists")
+            gsum = gso.get("gateway_summary")
+            if not isinstance(gsum, dict) or gsum.get("schema_version") != "gateway_summary_v1":
+                errs.append("gateway status missing gateway_summary")
         gch = _run([*cli, "gateway", "telegram", "continue-hint", "--json"], cwd=gw_td)
         if gch.returncode != 0:
             errs.append(f"gateway continue-hint exit {gch.returncode} stderr={gch.stderr!r}")
@@ -734,6 +760,9 @@ def main() -> int:
                 errs.append(f"ops dashboard schema {oo.get('schema_version')!r}")
             if not isinstance(oo.get("board"), dict):
                 errs.append("ops dashboard board missing")
+            gsum = oo.get("gateway_summary")
+            if not isinstance(gsum, dict) or gsum.get("schema_version") != "gateway_summary_v1":
+                errs.append("ops dashboard gateway_summary missing")
         (Path(gw_td) / "skills").mkdir()
         (Path(gw_td) / "skills" / "smoke-skill.md").write_text("# s\n", encoding="utf-8")
         sk = _run([*cli, "skills", "hub", "manifest", "--json"], cwd=gw_td)

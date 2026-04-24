@@ -60,10 +60,18 @@ class DoctorCliTests(unittest.TestCase):
             self.assertEqual(cm.get("detail_doc_en"), "docs/PLUGIN_COMPAT_MATRIX.md")
             self.assertIn("model_routing_rules_count", pl)
             self.assertIsInstance(pl.get("model_routing_rules_count"), int)
+            contract = pl.get("profile_contract")
+            self.assertIsInstance(contract, dict)
+            self.assertEqual(contract.get("schema_version"), "profile_contract_v1")
+            self.assertEqual(contract.get("active_profile_id"), "p1")
             release = pl.get("release_runbook")
             self.assertIsInstance(release, dict)
             self.assertEqual(release.get("schema_version"), "release_runbook_v1")
             self.assertIsInstance(release.get("runbook_steps"), list)
+            install = pl.get("installation_guidance")
+            self.assertIsInstance(install, dict)
+            self.assertEqual(install.get("schema_version"), "doctor_installation_guidance_v1")
+            self.assertEqual(install.get("onboarding_doc"), "docs/ONBOARDING.zh-CN.md")
             self.assertEqual(
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",

@@ -47,6 +47,7 @@
 - `--list-only` 仅做工具清单检查，不执行 `--tool` 探活（适合先排配置再排调用）。
 - `--print-template` 会输出对应 preset 的最小 MCP 配置模板（文本模式直接打印，JSON 模式在 `template` 字段返回），用于快速拷贝到配置；`websearch` 与 `notebook` 模板会包含差异化注释、文档入口、onboarding 入口与示例工具命名建议。
 - 若未命中推荐工具，会在 JSON 与文本输出中返回 `next_step` / `fallback_hint`（含文档路径、onboarding 路径、建议命令、模板命令、缺失关键词），用于快速降级排障。
+- 文本模式下，`mcp-check --preset ...` 还会直接打印 `preset quickstart` 命令序列，方便在终端里顺手执行 `list-only -> print-template -> probe`。
 
 ### 失败降级提示（推荐流程）
 

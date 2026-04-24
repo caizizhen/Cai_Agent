@@ -56,6 +56,7 @@ from cai_agent.profiles import (
     ProfilesError,
     add_profile,
     apply_preset,
+    build_profile_contract_payload,
     build_profile,
     edit_profile,
     profile_to_public_dict,
@@ -2925,12 +2926,21 @@ def _cmd_models_list(settings: Settings, *, json_output: bool, list_providers: b
         return 0
     rows = [profile_to_public_dict(p) for p in settings.profiles]
     active = settings.active_profile_id
+    profile_contract = build_profile_contract_payload(
+        settings.profiles,
+        profiles_explicit=bool(settings.profiles_explicit),
+        active_profile_id=settings.active_profile_id,
+        subagent_profile_id=settings.subagent_profile_id,
+        planner_profile_id=settings.planner_profile_id,
+        env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+    )
     if json_output:
         payload = {
             "schema_version": "models_list_v1",
             "active": active,
             "subagent": settings.subagent_profile_id,
             "planner": settings.planner_profile_id,
+            "profile_contract": profile_contract,
             "profiles": rows,
         }
         print(json.dumps(payload, ensure_ascii=False))
@@ -2942,6 +2952,10 @@ def _cmd_models_list(settings: Settings, *, json_output: bool, list_providers: b
         f"active={active}"
         + (f" subagent={settings.subagent_profile_id}" if settings.subagent_profile_id else "")
         + (f" planner={settings.planner_profile_id}" if settings.planner_profile_id else ""),
+    )
+    print(
+        f"contract={profile_contract.get('source_kind')} "
+        f"migration={profile_contract.get('migration_state')}",
     )
     for r in rows:
         mark = "*" if r["id"] == active else " "
@@ -3358,6 +3372,25 @@ def _default_global_config_path() -> Path:
     return Path.home() / ".config" / "cai-agent" / "cai-agent.toml"
 
 
+def _install_support_docs() -> dict[str, str]:
+    return {
+        "onboarding": "docs/ONBOARDING.zh-CN.md",
+        "docs_index": "docs/README.zh-CN.md",
+        "changelog_zh": "CHANGELOG.zh-CN.md",
+        "changelog_en": "CHANGELOG.md",
+    }
+
+
+def _init_next_steps(*, preset: str) -> list[str]:
+    steps = [
+        "cai-agent doctor",
+        'cai-agent run "用一句话描述当前工作区用途"',
+    ]
+    if preset == "starter":
+        steps.insert(1, "cai-agent models use local-lmstudio")
+    return steps
+
+
 def _cmd_init(
     *,
     force: bool,
@@ -3381,6 +3414,7 @@ def _cmd_init(
                         "config_path": str(dest.resolve()),
                         "global": is_global,
                         "preset": preset_norm,
+                        "support_docs": _install_support_docs(),
                         "message": f"配置已存在: {dest}；若需覆盖请添加 --force",
                     },
                     ensure_ascii=False,
@@ -3448,6 +3482,8 @@ def _cmd_init(
                     "config_path": str(dest.resolve()),
                     "preset": preset_norm,
                     "global": is_global,
+                    "support_docs": _install_support_docs(),
+                    "next_steps": _init_next_steps(preset=preset_norm),
                 },
                 ensure_ascii=False,
             ),
@@ -3463,6 +3499,9 @@ def _cmd_init(
         "下一步: 编辑其中 [llm] 或 [[models.profile]] 指向你的 API；"
         "然后执行 cai-agent doctor 与 cai-agent run \"…\"。",
     )
+    print("建议顺序:")
+    for step in _init_next_steps(preset=preset_norm):
+        print(f"- {step}")
     print(
         "多模型: cai-agent models list；新增条目: "
         "cai-agent models add --preset lmstudio|ollama|vllm|openrouter|gateway|zhipu …",
@@ -3472,7 +3511,11 @@ def _cmd_init(
             "starter 模板已启用多条 profile；设置密钥后可用 "
             "`cai-agent models use local-lmstudio`（或其它 id）切换。",
         )
-    print("说明: docs/ONBOARDING.zh-CN.md（含 CI / CAI_AUTO_APPROVE）。")
+    print(
+        "说明: docs/ONBOARDING.zh-CN.md（首次使用） | "
+        "docs/README.zh-CN.md（文档入口） | "
+        "CHANGELOG.zh-CN.md / CHANGELOG.md（升级差异）。",
+    )
     return 0
 
 
@@ -7074,6 +7117,15 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 print(f"docs={preset_payload.get('doc_path')}")
                 print(f"onboarding={preset_payload.get('onboarding_path')}")
+                quickstart_commands = [
+                    str(cmd)
+                    for cmd in (preset_payload.get("quickstart_commands") or [])
+                    if str(cmd).strip()
+                ]
+                if quickstart_commands:
+                    print("--- preset quickstart ---")
+                    for cmd in dict.fromkeys(quickstart_commands):
+                        print(cmd)
                 for report in preset_reports:
                     if not isinstance(report, dict):
                         continue
@@ -9834,12 +9886,29 @@ def main(argv: list[str] | None = None) -> int:
             from cai_agent.changelog_semantic import build_changelog_semantic_compare
 
             sem = build_changelog_semantic_compare(repo_root=root_scan)
+        runbook = build_release_runbook_payload(repo_root=root_scan, workspace=anchor)
         if bool(getattr(args, "json_output", False)):
             if sem is None:
                 print(json.dumps(doc_cl, ensure_ascii=False))
             else:
                 print(
-                    json.dumps({"bilingual": doc_cl, "semantic": sem}, ensure_ascii=False),
+                    json.dumps(
+                        {
+                            "schema_version": "release_changelog_report_v1",
+                            "ok": bool(doc_cl.get("ok")) and bool(sem.get("ok")),
+                            "workspace": str(anchor),
+                            "repo_root": str(root_scan),
+                            "bilingual": doc_cl,
+                            "semantic": sem,
+                            "runbook": {
+                                "schema_version": runbook.get("schema_version"),
+                                "state": runbook.get("state"),
+                                "runbook_steps": runbook.get("runbook_steps"),
+                                "writeback_targets": runbook.get("writeback_targets"),
+                            },
+                        },
+                        ensure_ascii=False,
+                    ),
                 )
         else:
             print(
@@ -9852,6 +9921,8 @@ def main(argv: list[str] | None = None) -> int:
                     f"changelog semantic: ok={sem.get('ok')} "
                     f"h2_en={sem.get('h2_count_en')} h2_zh={sem.get('h2_count_zh')}",
                 )
+            print("runbook: cai-agent doctor --json -> cai-agent release-changelog --json --semantic")
+            print("docs: docs/CHANGELOG_SYNC.zh-CN.md | docs/qa/T7_RELEASE_GATE_CHECKLIST.zh-CN.md")
         ok_cl = bool(doc_cl.get("ok"))
         if sem is not None:
             ok_cl = ok_cl and bool(sem.get("ok"))
@@ -11220,6 +11291,12 @@ def main(argv: list[str] | None = None) -> int:
             print("- cai-agent doctor --json")
             print("- cai-agent release-changelog --json --semantic")
             print("- python scripts/smoke_new_features.py")
+            targets = rel.get("writeback_targets") if isinstance(rel.get("writeback_targets"), list) else []
+            if targets:
+                print("[release-ga] writeback targets:")
+                for row in targets:
+                    if isinstance(row, dict):
+                        print(f"- {row.get('path')}")
             if isinstance(rel.get("feedback"), dict):
                 print(
                     f"- feedback total={int((rel.get('feedback') or {}).get('total', 0) or 0)} "
