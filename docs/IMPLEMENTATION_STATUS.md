@@ -33,7 +33,7 @@ High-level only; details live in **`PRODUCT_PLAN.zh-CN.md`** §0.2 / §3.2 and *
 - **Date**: 2026-04-24 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
 - **`pytest cai-agent/tests`**: **641 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
 - **`python scripts/smoke_new_features.py`**: **NEW_FEATURE_CHECKS_OK**.  
-- **`QA_SKIP_LOG=1 python scripts/run_regression.py`**: exit **0** (compileall, unittest discover, smoke, CLI subset); **no** new `docs/qa/runs/regression-*.md` (per **QA_REGRESSION_LOGGING** `QA_SKIP_LOG` policy).
+- **`python scripts/run_regression.py`** (default: writes a log per **QA_REGRESSION_LOGGING**): exit **0**; machine log **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)** (**Git HEAD** matches **`533892e`** at run time). Use **`QA_SKIP_LOG=1`** for a no-file quick pass.
 
 ## QA pointers
 

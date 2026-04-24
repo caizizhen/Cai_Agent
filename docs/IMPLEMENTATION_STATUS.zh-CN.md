@@ -33,7 +33,7 @@
 - **日期**：2026-04-24（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
 - **`pytest cai-agent/tests`**：**641 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
-- **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（含 compileall、unittest discover、`smoke_new_features` 及 CLI 子集）；**未**新建 `docs/qa/runs/regression-*.md`（与 **QA_REGRESSION_LOGGING** 中 `QA_SKIP_LOG` 约定一致）。
+- **`python scripts/run_regression.py`**（默认写日志，见 **QA_REGRESSION_LOGGING**）：退出码 **0**；机器记录 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**（**Git HEAD** 与当时 **`533892e`** 一致）。快速无文件模式仍可用 **`QA_SKIP_LOG=1`**。
 
 ## QA 提示
 
