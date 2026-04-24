@@ -11,6 +11,7 @@
 
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
+| **最小 HTTP API（HM-02b）** | **`cai-agent api serve`**（默认 **`CAI_API_PORT`**=**8788**；**`CAI_API_TOKEN`** 可选 Bearer）；**`GET /healthz`**、**`/v1/status`**（**`api_status_v1`**）、**`/v1/doctor/summary`**（**`api_doctor_summary_v1`**）、**`POST /v1/tasks/run-due`**（仅 **dry_run**） | **`api_http_server.py`**、**`doctor.build_api_doctor_summary_v1`**、**`test_api_http_server.py`** |
 | **Recall / 记忆策略** | **`recall --evaluate`** 无需 **`--query`**；**`recall_evaluation_v1`**；**`doctor`** 文本 **`[memory.policy]`**；**`release-ga --with-memory-policy`** | **`recall_audit.py`**、**`doctor.py`**、**`__main__.py`**、**`smoke_new_features`** |
 | **成本 / compact** | **`cost report --json`** 嵌 **`compact_policy_explain_v1`**；**`cost report`** 文本摘要 | **`cost_aggregate.py`** |
 | **路线图设计** | **HM-02a** / **CC-03b** RFC | **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**、**`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** |

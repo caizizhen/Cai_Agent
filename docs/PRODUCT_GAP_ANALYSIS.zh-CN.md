@@ -24,7 +24,7 @@
    - 安装 / 更新 / `/bug` 等用户体验仍偏工程化
 
 2. **P1 - Hermes 产品化缺口**
-   - profiles 契约与 CLI 已显著收口；**最小 HTTP API** 仍以 RFC（**`HM-02a`**）与 backlog **`HM-02b`** 跟踪，尚未落地实现
+   - profiles 契约与 CLI 已显著收口；**最小 HTTP API**（**`api serve`**，**`HM-02b`**）已落地 v0，后续可扩路由与鉴权策略
    - gateway 仅 Telegram full、Discord/Slack mvp，距离 Hermes 的多平台覆盖仍有差距
    - voice、dashboard 高级交互、memory providers、更多 runtime backends 仍未收口
    - recall 评估（**`recall --evaluate`**）与 memory policy（**`doctor` / `release-ga`**）已有机读与文本入口；负样本审计见 **`recall_audit`**

@@ -5457,6 +5457,28 @@ def main(argv: list[str] | None = None) -> int:
     )
     cost_report.add_argument("--json", action="store_true", dest="json_output")
 
+    api_p = sub.add_parser(
+        "api",
+        help="最小只读 HTTP JSON API（HM-02b）；默认端口 CAI_API_PORT 或 8788，鉴权 CAI_API_TOKEN",
+    )
+    api_sub = api_p.add_subparsers(dest="api_action", required=True)
+    api_serve = api_sub.add_parser("serve", help="启动 api HTTP 服务（阻塞）")
+    api_serve.add_argument("--host", default="127.0.0.1")
+    api_serve.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        dest="api_port",
+        help="监听端口（默认读环境变量 CAI_API_PORT，未设置则为 8788）",
+    )
+    api_serve.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="api_workspace",
+        help="工作区根目录（默认当前目录）",
+    )
+
     feedback_p = sub.add_parser("feedback", help="用户反馈：写入 .cai/feedback.jsonl（可选 webhook）")
     feedback_sub = feedback_p.add_subparsers(dest="feedback_action", required=True)
     feedback_submit = feedback_sub.add_parser("submit", help="追加一条文本反馈")
@@ -10196,6 +10218,28 @@ def main(argv: list[str] | None = None) -> int:
                 success=(rc_cost == 0),
             )
             return rc_cost
+
+    if args.command == "api":
+        aa = str(getattr(args, "api_action", "") or "").strip()
+        if aa != "serve":
+            print("api: 未知子命令", file=sys.stderr)
+            return 2
+        from cai_agent.api_http_server import run_agent_api_server
+
+        port_raw = getattr(args, "api_port", None)
+        if isinstance(port_raw, int):
+            bind_port = int(port_raw)
+        else:
+            bind_port = int((os.environ.get("CAI_API_PORT") or "8788").strip() or "8788")
+        ws_arg = getattr(args, "api_workspace", None)
+        ws = Path(str(ws_arg).strip()).expanduser().resolve() if isinstance(ws_arg, str) and str(ws_arg).strip() else Path.cwd().resolve()
+        return int(
+            run_agent_api_server(
+                host=str(getattr(args, "host", "127.0.0.1") or "127.0.0.1"),
+                port=int(bind_port),
+                workspace=ws,
+            ),
+        )
 
     if args.command == "feedback":
         from cai_agent.feedback import append_feedback, export_feedback_jsonl, feedback_stats, list_feedback

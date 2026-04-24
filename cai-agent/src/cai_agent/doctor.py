@@ -243,6 +243,30 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
     }
 
 
+def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
+    """HTTP ``GET /v1/doctor/summary`` 白名单视图：不含 ``base_url`` / ``model`` / 未打码密钥等。"""
+    p = build_doctor_payload(settings)
+    return {
+        "schema_version": "api_doctor_summary_v1",
+        "generated_at": p.get("generated_at"),
+        "cai_agent_version": p.get("cai_agent_version"),
+        "workspace": p.get("workspace"),
+        "mock": p.get("mock"),
+        "config_loaded_from": p.get("config_loaded_from"),
+        "active_profile_id": p.get("active_profile_id"),
+        "profiles_count": p.get("profiles_count"),
+        "subagent_profile_id": p.get("subagent_profile_id"),
+        "planner_profile_id": p.get("planner_profile_id"),
+        "profile_contract": p.get("profile_contract"),
+        "memory_policy": p.get("memory_policy"),
+        "model_routing_enabled": p.get("model_routing_enabled"),
+        "model_routing_rules_count": p.get("model_routing_rules_count"),
+        "models_profile_routes_count": p.get("models_profile_routes_count"),
+        "cai_dir_health": p.get("cai_dir_health"),
+        "installation_guidance": p.get("installation_guidance"),
+    }
+
+
 def run_doctor(
     settings: Settings,
     *,

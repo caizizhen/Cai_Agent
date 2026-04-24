@@ -463,6 +463,19 @@
 
 ---
 
+## `api serve` HTTP（HM-02b）
+
+| 路径 | `schema_version` / 说明 |
+|------|--------------------------|
+| `GET /healthz` | 无 schema；**`{"ok": true}`**；**不设** **`CAI_API_TOKEN`** 时全员可访问；设 token 时仍**免检** |
+| `GET /v1/status` | **`api_status_v1`**；嵌 **`gateway_summary_v1`** 与 **`gateway_lifecycle`** 摘要字段 |
+| `GET /v1/doctor/summary` | **`api_doctor_summary_v1`**（白名单：无 **`base_url`** / **`model`** 明文） |
+| `POST /v1/tasks/run-due` | **`api_tasks_run_due_v1`**；默认 **`dry_run`**；**`dry_run:false`** → **HTTP 403**（请用 CLI **`schedule run-due --execute`**） |
+
+默认端口 **`CAI_API_PORT`**（未设置则 **8788**）；可选 **`CAI_API_TOKEN`**（**`Authorization: Bearer`**）。契约：**`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**。
+
+---
+
 ## `recall` / `recall-index` JSON 摘要
 
 | 命令场景 | `schema_version` 或备注 |

@@ -96,7 +96,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-24** 全量回归：**641 passed**，**3 subtests passed**（Windows / Python 3.13）；含 Gateway Slash/Maps、`models routing-test`、`plugins --with-compat-matrix`、`memory user-model export`、ops HTML refresh 等） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-25** 全量回归：**672 passed**，**3 subtests passed**（Windows / Python 3.13）；含 **`api serve`** 契约测试、Gateway、`models routing-test`、`plugins --with-compat-matrix`、memory、ops 等） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | `PYTHONPATH=cai-agent/src` + `python -m cai_agent`；`docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测计划 | 文档 | **已写** | [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
@@ -118,7 +118,7 @@
 |------|----------|---------------------------|
 | **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 100%**（22完成 + 1定案 + 1持续演进 + 2MVP完成 = **26** → **26/26=100%**） |
 | **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
-| **T1** | pytest 全绿 | 同 §三 T1（**641** cases + **3** subtests，见上表证据列） |
+| **T1** | pytest 全绿 | 同 §三 T1（**672** cases + **3** subtests，见上表证据列） |
 
 ### 3.1 §二 状态计数
 
@@ -135,7 +135,7 @@
 | 项 | 说明 |
 |----|------|
 | **Claude Code 线** | WebSearch / Notebook 的产品化路径、安装 / 更新体验、CLI/TUI 交互统一；**CC-03b** 见 RFC **`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** |
-| **Hermes 线** | Profiles、**`HM-02b` 最小 HTTP API**（契约见 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**）、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
+| **Hermes 线** | Profiles、**`HM-02b` 最小 HTTP API**（**`cai-agent api serve`**，契约 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**）、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
 | **ECC 线** | rules / skills / hooks 的资产化、`model-route`、**`cost report` + compact 策略说明**、插件与跨 harness 深化 |
 | **共享项** | 中英文文档同步、反馈闭环、发布闭环、OOS / MCP 备案机制 |
 | **明确 OOS** | 依赖封闭企业能力的官方专属特性、默认多 CLI 套件模式 |

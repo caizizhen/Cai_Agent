@@ -11,6 +11,7 @@ The following landed on **`main`** around the **0.7.0** window (see **CHANGELOG 
 
 | Area | What shipped | Where to look |
 |------|----------------|---------------|
+| **Minimal HTTP API (HM-02b)** | **`cai-agent api serve`** on **`CAI_API_PORT`** (default **8788**); optional **`CAI_API_TOKEN`** (**Bearer**; **`/healthz`** exempt); **`GET /v1/status`**, **`GET /v1/doctor/summary`**, **`POST /v1/tasks/run-due`** (dry-run only) | `cai_agent/api_http_server.py`, `doctor.build_api_doctor_summary_v1`, `test_api_http_server.py`, RFC [`rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`](rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md) |
 | **Ops / observability** | **`cai-agent ops dashboard`** JSON/text/html; **`--html-refresh-seconds`** for HTML auto-refresh; **`cai-agent ops serve`** read-only HTTP (**`/v1/ops/dashboard`**, **`/v1/ops/dashboard.html`**); optional **`CAI_OPS_API_TOKEN`** | [`OPS_DYNAMIC_WEB_API.md`](OPS_DYNAMIC_WEB_API.md), `cai_agent/ops_dashboard.py`, `cai_agent/ops_http_server.py` |
 | **Memory / user model** | **`cai-agent memory user-model export`** → **`user_model_bundle_v1`** (wraps **`memory_user_model_v1`** overview) | `cai_agent/user_model.py`, RFC [`rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
 | **ECC / routing & budget** | **`models routing-test`** text/JSON with bilingual **`explain`**; **`cost budget`** embeds **`cost_budget_explain_v1`** (**ECC-02a**) | `cai_agent/model_routing.py`, `cai_agent/cost_aggregate.py`, [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) |

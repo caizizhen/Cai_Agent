@@ -197,7 +197,7 @@
 | `HM-01a` | `Done` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
 | `HM-01b` | `Done` | `HM-01` | 落地 profile 管理命令与测试夹具 | `models add/edit/rm/use/route/list` + `profile_contract_v1` + fixture / smoke 回归 | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Done` | `HM-02` | 设计最小 API / server 契约 | RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md` | — | RFC 合入 |
-| `HM-02b` | `Ready` | `HM-02` | 实现最小只读或任务触发型 API 面 | 最小 server 主路径与文档 | `HM-02a` | integration smoke |
+| `HM-02b` | `Done` | `HM-02` | 实现最小只读或任务触发型 API 面 | **`cai-agent api serve`**；**`GET /healthz`**、**`/v1/status`**、**`/v1/doctor/summary`**、**`POST /v1/tasks/run-due`**（仅 **dry_run**） | `HM-02a` | pytest + smoke --help |
 | `HM-03a` | `Done` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
 | `HM-03b` | `Done` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | `gateway slack health`、Slash/Interactivity form 分发、mapping 元数据与 `--execute-on-slash` 收口 | — | gateway smoke + doctor |
 | `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |

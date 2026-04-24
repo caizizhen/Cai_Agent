@@ -1,6 +1,6 @@
 # RFC：Hermes 最小只读 HTTP API（HM-02a 契约草案）
 
-> 状态：**设计草案**（实现见 backlog **`HM-02b`**）。与 **`ops serve`** 不同：本契约面向「外部驱动 Agent / 自动化」的通用 JSON API，而非仅运营看板。
+> 状态：**已实现 v0**（**`cai-agent api serve`**，仓库 **`cai_agent.api_http_server`**）。与 **`ops serve`** 不同：本契约面向「外部驱动 Agent / 自动化」的通用 JSON API，而非仅运营看板。
 
 ## 1. 目标与边界
 
@@ -27,7 +27,8 @@
 - 响应头 **`X-Cai-Agent-Api-Version: 0`**。
 - 错误体 **`{ "ok": false, "error": "<code>", "message": "…" }`**；鉴权失败 **401**，未知路径 **404**。
 
-## 5. 验收（契约评审）
+## 5. 验收
 
-- 安全：无 token 时不得暴露 **`api_key`** 或原始 **`base_url`** 凭据。
-- 与 **`ROADMAP_EXECUTION`** §10 **`HM-02b`** 对齐后再冻结路由表并落地实现。
+- 安全：**`/v1/doctor/summary`** 使用 **`api_doctor_summary_v1`** 白名单字段；不得返回未打码 **`api_key`** 或 **`base_url`** / **`model`** 明文。
+- **`POST /v1/tasks/run-due`**：HTTP 面仅 **dry_run**；真实执行请走 CLI **`schedule run-due --execute`**。
+- 自动化：**`cai-agent/tests/test_api_http_server.py`**。

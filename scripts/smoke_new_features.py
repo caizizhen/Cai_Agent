@@ -11,6 +11,7 @@ init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
+``api serve --help``（HM-02b 子命令存在），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
@@ -1198,6 +1199,10 @@ def main() -> int:
                 errs.append(f"memory export-entries entries_count {xo.get('entries_count')!r}")
         if not (Path(m2) / "bundle.json").is_file():
             errs.append("memory export-entries bundle.json missing")
+
+    p_api = _run([*cli, "api", "serve", "--help"])
+    if p_api.returncode != 0:
+        errs.append(f"api serve --help exit {p_api.returncode} stderr={p_api.stderr!r}")
 
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)

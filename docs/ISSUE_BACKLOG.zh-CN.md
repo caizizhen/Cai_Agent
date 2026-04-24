@@ -161,5 +161,5 @@
 
 如果继续往下开单，建议下一批是：
 
-- **`HM-02b`**：最小只读 HTTP API（依赖 **`HM-02a`** RFC）
-- **`HM-03c`** / **`ECC-03a`**：Explore 调研项（见 **`ROADMAP_EXECUTION`** §10）
+- **`HM-03c`** / **`ECC-03a`** / **`HM-06a`** / **`HM-07a`**：Explore 调研项（见 **`ROADMAP_EXECUTION`** §10）
+- **`api serve` 扩展**（若产品需要）：OpenAPI 文档、更多只读路由、与 **`ops serve`** 的统一鉴权配置

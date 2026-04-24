@@ -4,6 +4,7 @@
 
 ### Unreleased
 
+- **Minimal read-only HTTP API (HM-02b)**: New **`cai-agent api serve`** backed by **`cai_agent.api_http_server`** — **`GET /healthz`**, **`GET /v1/status`** (**`api_status_v1`** + **`gateway_summary_v1`**), **`GET /v1/doctor/summary`** (**`api_doctor_summary_v1`**, no raw **`base_url`/`model`**), **`POST /v1/tasks/run-due`** (**`api_tasks_run_due_v1`**, **`dry_run` only**; execute returns **403**). Env: **`CAI_API_PORT`** (default **8788**), optional **`CAI_API_TOKEN`** (**Bearer**; **`/healthz`** exempt). Tests: **`test_api_http_server.py`**; smoke runs **`api serve --help`**.
 - **Recall evaluation polish (HM-05b)**: `recall --evaluate` no longer requires `--query`; JSON **`recall_evaluation_v1`** unchanged. Smoke covers **`recall --evaluate --json`**.
 - **Memory policy visibility (HM-05c)**: Text **`doctor`** prints **`[memory.policy]`** lines; **`release-ga --with-memory-policy`** covered by tests (**`memory_policy_entries`** gate).
 - **ECC install/export/share narrative (ECC-01b)**: **`CROSS_HARNESS_COMPATIBILITY*.md`** adds a numbered install → ECC layout → export → share flow.

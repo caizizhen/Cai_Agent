@@ -95,12 +95,13 @@
 - [x] `ECC-02b`：成本视图与 compact 策略解释
 - [x] `HM-02a`：最小 API / server 契约设计（RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`）
 - [x] `CC-03b`：模型切换与 `/status` 提示统一（RFC：`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`）
+- [x] `HM-02b`：最小只读 HTTP API（**`cai-agent api serve`**）
 
 执行规则：
 
 1. 先从 `Ready` 项开始，`Design` 只做契约，不直接扩实现。
 2. 每次只把一个 issue 做到 `Done`，包含代码、测试、文档、状态回写。
-3. **本批 checklist 已全部收口**；下一默认实现项为 **`HM-02b`**（依赖 **`HM-02a`** RFC 评审后可开干）。
+3. **本批 checklist 已全部收口**（含 **`HM-02b`** **`api serve`**）；下一批以 **`ROADMAP_EXECUTION`** §10 中 **`Explore`** / 新立项为准。
 
 ---
 
@@ -147,7 +148,7 @@
 | `HM-01a` | `Done` | `HM-01` | profile schema、迁移与默认项 | — | schema review |
 | `HM-01b` | `Done` | `HM-01` | **`models add/edit/rm/use/route/list`** 闭环、`profile_contract_v1`、CLI fixture 与 smoke 回归 | `HM-01a` | pytest + smoke |
 | `HM-02a` | `Done` | `HM-02` | 最小 API/server 契约 | — | RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md` |
-| `HM-02b` | `Ready` | `HM-02` | 最小只读或任务触发型 API | `HM-02a` | integration smoke |
+| `HM-02b` | `Done` | `HM-02` | 最小只读或任务触发型 API | **`api serve`**、**`api_http_server`**、**`CAI_API_PORT`/`CAI_API_TOKEN`** | `HM-02a` | pytest + smoke |
 | `HM-03a` | `Done` | `HM-03` | Discord 生产路径 | — | gateway smoke + `doctor` |
 | `HM-03b` | `Done` | `HM-03` | Slack 生产路径收口 | `gateway slack health`、form Slash/Interactivity 分发、`bind --team-id/--label`、`serve-webhook --execute-on-slash`、测试与文档同步 | gateway smoke + `doctor` |
 | `HM-03c` | `Explore` | `HM-03` | 下一批 gateway 平台评估 | `HM-03a` `HM-03b` | 评估文档 |
@@ -179,7 +180,7 @@
 
 **波次 2 — API 实现**
 
-- `HM-02b`（须在 `HM-02a` 评审通过后）
+- ~~`HM-02b`~~（Done：**`api serve`**）
 
 **波次 3 — 依赖链尾部**
 
@@ -192,7 +193,7 @@
 | 演进主题 | 主要覆盖 Issue |
 |---|---|
 | Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
-| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~ / ~~`HM-05b`~~ / ~~`HM-05c`~~（Done）；**`HM-02b`**（Ready，API 实现）；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
+| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~ / ~~`HM-05b`~~ / ~~`HM-05c`~~ / ~~`HM-02b`~~（Done）；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
 | ECC 线 | ~~`ECC-01b`~~ / ~~`ECC-02b`~~（Done）；Explore：`ECC-03a` |
 | 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 
@@ -204,7 +205,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **667 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **672 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 

@@ -53,6 +53,7 @@
 | 跨工具导出 | ECC | `Done` | `export --target cursor|codex|opencode`；`export --ecc-diff`（`export_ecc_dir_diff_v1` 对比 vs `.cursor/cai-agent-export`）；`skills hub install`（按 manifest 选择性拷贝技能包）；见 [CROSS_HARNESS_COMPATIBILITY.zh-CN.md](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
 | 插件兼容矩阵（机读） | ECC / 多 harness | `Done` | **`plugin_compat_matrix_v1`**：`plugins --json --with-compat-matrix`；**`doctor --json`** 内 **`plugins`** 捆绑；说明 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](PLUGIN_COMPAT_MATRIX.md)；Schema `cai-agent/src/cai_agent/schemas/plugin_compat_matrix_v1.schema.json` |
 | 可视化运营面板 | ECC | `Done` / `Next` | **已对齐**：CLI **`ops dashboard`**（JSON/text/html，**`--html-refresh-seconds`**）；**`ops serve`** 只读 HTTP（**`/v1/ops/dashboard`** / **`dashboard.html`**，**`CAI_OPS_API_TOKEN`** 可选），见 [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)。**仍为 Next**：Phase C（SSE、拖拽队列、RBAC、多租户路由等） |
+| 最小只读 HTTP API（外部驱动 / CI） | Hermes | `Done` / `Next` | **已对齐 v0**：**`cai-agent api serve`**（**`CAI_API_PORT`** / **`CAI_API_TOKEN`**）；**`GET /healthz`**、**`/v1/status`**（**`api_status_v1`**）、**`/v1/doctor/summary`**、**`POST /v1/tasks/run-due`**（仅 dry_run）；RFC [`HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`](rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md)。**仍为 Next**：OpenAPI、更多只读路由、与 **`ops serve`** 统一网关 |
 | 云运行后端（Modal / Daytona 等按需沙箱） | Hermes / 平台化 | `OOS` | 默认交付为本机 **`cai-agent`** 进程；安全与范围理由、替代路径见 [CLOUD_RUNTIME_OOS.zh-CN.md](CLOUD_RUNTIME_OOS.zh-CN.md) |
 | 大规模社区技能库本体 | ECC | `MCP` / `Next` | 以导出格式与外部包渐进吸收，不阻塞核心发版 |
 

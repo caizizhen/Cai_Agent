@@ -32,7 +32,7 @@ Status vocabulary:
 | `CC-02` | `Done` | **`CC-02b` Done** — `feedback bug` + `feedback_bug_report_v1` | `ROADMAP_EXECUTION` §10 |
 | `CC-03` | `Done` | **`CC-03a`/`CC-03b` Done**（`tui_session_strip` + RFC **CC-03b**） | `ROADMAP_EXECUTION` §10 |
 | `HM-01` | `Done` | **`HM-01a`/`HM-01b` Done** — profile contract + management CLI/fixture/smoke | `ROADMAP_EXECUTION` §10 |
-| `HM-02` | `Ready` | **`HM-02a` Done**（RFC）；**`HM-02b`** 最小 API 实现仍 Ready | `ROADMAP_EXECUTION` §10 |
+| `HM-02` | `Done` | **`HM-02a`/`HM-02b` Done**（RFC + **`api serve`**） | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Done` | **`HM-03a` / `HM-03b` Done**: Discord + Slack production path closed for current cycle | `ROADMAP_EXECUTION` §10 |
 | `HM-04` | `Done` | **`HM-04a`/`HM-04b` Done**: shared gateway summary + dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
 | `HM-05` | `Done` | **`HM-05a`/`HM-05b`/`HM-05c` Done**（recall 评估、doctor/release policy） | `ROADMAP_EXECUTION` §10 |

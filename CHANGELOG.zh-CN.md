@@ -6,6 +6,7 @@
 
 ### Unreleased
 
+- **最小只读 HTTP API（HM-02b）**：新增 **`cai-agent api serve`**（**`cai_agent.api_http_server`**）：**`GET /healthz`**、**`GET /v1/status`**（**`api_status_v1`** + **`gateway_summary_v1`**）、**`GET /v1/doctor/summary`**（**`api_doctor_summary_v1`**，不含明文 **`base_url`/`model`**）、**`POST /v1/tasks/run-due`**（**`api_tasks_run_due_v1`**，仅 **dry_run**；真实执行返回 **403**）。环境变量：**`CAI_API_PORT`**（默认 **8788**）、可选 **`CAI_API_TOKEN`**（**Bearer**，**`/healthz`** 免检）。测试：**`test_api_http_server.py`**；smoke 含 **`api serve --help`**。
 - **Recall 评估收口（HM-05b）**：**`recall --evaluate`** 不再强制 **`--query`**；**`recall_evaluation_v1`** 语义不变；**`smoke_new_features`** 覆盖 **`recall --evaluate --json`**。
 - **Memory policy 可见性（HM-05c）**：文本 **`doctor`** 增加 **`[memory.policy]`** 段落；**`release-ga --with-memory-policy`** 单测覆盖 **`memory_policy_entries`** 门禁。
 - **ECC 安装/导出/共享叙事（ECC-01b）**：**`CROSS_HARNESS_COMPATIBILITY*.md`** 增补编号化流转（init → **`ecc layout`** → **`export`** → 共享约定）。
