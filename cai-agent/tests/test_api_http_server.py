@@ -127,3 +127,127 @@ def test_api_run_due_dry_run_and_execute_forbidden(tmp_path: Path) -> None:
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def _prepare_workspace_with_profile(root: Path) -> str:
+    cfg = root / "cai-agent.toml"
+    cfg.write_text(
+        "\n".join(
+            [
+                "[llm]",
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+                "[agent]",
+                "mock = true",
+                "",
+                "[models]",
+                'active = "p1"',
+                "",
+                "[[models.profile]]",
+                'id = "p1"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    return str(cfg)
+
+
+def test_api_models_summary_whitelist(tmp_path: Path) -> None:
+    import os as _os
+
+    root = tmp_path.resolve()
+    cfg = _prepare_workspace_with_profile(root)
+    prev = _os.environ.get("CAI_CONFIG")
+    try:
+        _os.environ["CAI_CONFIG"] = cfg
+        httpd = _start(root, None)
+        try:
+            with urllib.request.urlopen(_url(httpd, "/v1/models/summary"), timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            assert data.get("schema_version") == "api_models_summary_v1"
+            assert data.get("active_profile_id") == "p1"
+            assert data.get("profiles_count") == 1
+            assert data.get("profile_ids") == ["p1"]
+            contract = data.get("profile_contract") or {}
+            assert contract.get("schema_version") == "profile_contract_v1"
+            assert "base_url" not in data
+            assert "api_key" not in data
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+    finally:
+        if prev is None:
+            _os.environ.pop("CAI_CONFIG", None)
+        else:
+            _os.environ["CAI_CONFIG"] = prev
+
+
+def test_api_plugins_surface_whitelist_and_compat(tmp_path: Path) -> None:
+    import os as _os
+
+    root = tmp_path.resolve()
+    cfg = _prepare_workspace_with_profile(root)
+    prev = _os.environ.get("CAI_CONFIG")
+    try:
+        _os.environ["CAI_CONFIG"] = cfg
+        httpd = _start(root, None)
+        try:
+            with urllib.request.urlopen(_url(httpd, "/v1/plugins/surface"), timeout=5) as resp:
+                base_payload = json.loads(resp.read().decode("utf-8"))
+            assert base_payload.get("schema_version") == "api_plugins_surface_v1"
+            assert "components" in base_payload
+            assert "project_root" not in base_payload
+            assert "compat_matrix" not in base_payload
+
+            with urllib.request.urlopen(
+                _url(httpd, "/v1/plugins/surface?compat=1"),
+                timeout=5,
+            ) as resp:
+                with_compat = json.loads(resp.read().decode("utf-8"))
+            cm = with_compat.get("compat_matrix") or {}
+            assert cm.get("schema_version") == "plugin_compat_matrix_v1"
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+    finally:
+        if prev is None:
+            _os.environ.pop("CAI_CONFIG", None)
+        else:
+            _os.environ["CAI_CONFIG"] = prev
+
+
+def test_api_release_runbook_summary(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, None)
+    try:
+        with urllib.request.urlopen(_url(httpd, "/v1/release/runbook"), timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "api_release_runbook_v1"
+        rb = data.get("release_runbook") or {}
+        assert isinstance(rb.get("runbook_steps"), list)
+        assert "workspace" not in rb
+        assert "repo_root" not in rb
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_api_new_routes_require_bearer(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, "abc")
+    try:
+        for path in ("/v1/models/summary", "/v1/plugins/surface", "/v1/release/runbook"):
+            with pytest.raises(urllib.error.HTTPError) as ei:
+                urllib.request.urlopen(_url(httpd, path), timeout=5)
+            assert ei.value.code == 401
+    finally:
+        httpd.shutdown()
+        httpd.server_close()

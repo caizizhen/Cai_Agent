@@ -11,6 +11,8 @@ The following landed on **`main`** around the **0.7.0** window (see **CHANGELOG 
 
 | Area | What shipped | Where to look |
 |------|----------------|---------------|
+| **Undeveloped-feature P0 batch (HM-02c / CC-03c / ECC-03b)** | Read-only API extensions (**`/v1/models/summary`**, **`/v1/plugins/surface`**, **`/v1/release/runbook`**); TUI **`#context-label`** route/migration hint + shared **`profile_switched: <id>`** one-liner; **`plugins --compat-check`** → **`plugin_compat_matrix_check_v1`** and matrix **`maintenance_checklist`** | `cai_agent/api_http_server.py`, `cai_agent/tui_session_strip.py`, `cai_agent/plugin_registry.py`, `docs/DEVELOPER_TODOS.zh-CN.md` §0.4 |
+| **Explore assessment batch (HM-03c / ECC-03a / HM-06a / HM-07a)** | RFC conclusions under **`docs/rfc/`** (`HM_03C_*`, `ECC_03A_*`, `HM_06A_*`, `HM_07A_*`); roadmap §10 items marked **Done** (document-only deliverables). See **`DEVELOPER_TODOS.zh-CN.md`** §0.3.1 for order. | `docs/DEVELOPER_TODOS.zh-CN.md` |
 | **Minimal HTTP API (HM-02b)** | **`cai-agent api serve`** on **`CAI_API_PORT`** (default **8788**); optional **`CAI_API_TOKEN`** (**Bearer**; **`/healthz`** exempt); **`GET /v1/status`**, **`GET /v1/doctor/summary`**, **`POST /v1/tasks/run-due`** (dry-run only) | `cai_agent/api_http_server.py`, `doctor.build_api_doctor_summary_v1`, `test_api_http_server.py`, RFC [`rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`](rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md) |
 | **Ops / observability** | **`cai-agent ops dashboard`** JSON/text/html; **`--html-refresh-seconds`** for HTML auto-refresh; **`cai-agent ops serve`** read-only HTTP (**`/v1/ops/dashboard`**, **`/v1/ops/dashboard.html`**); optional **`CAI_OPS_API_TOKEN`** | [`OPS_DYNAMIC_WEB_API.md`](OPS_DYNAMIC_WEB_API.md), `cai_agent/ops_dashboard.py`, `cai_agent/ops_http_server.py` |
 | **Memory / user model** | **`cai-agent memory user-model export`** → **`user_model_bundle_v1`** (wraps **`memory_user_model_v1`** overview) | `cai_agent/user_model.py`, RFC [`rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
@@ -31,10 +33,10 @@ High-level only; details live in **`PRODUCT_PLAN.zh-CN.md`** §0.2 / §3.2 and *
 
 ## Latest regression run (QA)
 
-- **Date**: 2026-04-24 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
-- **`pytest cai-agent/tests`**: **641 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
+- **Date**: 2026-04-25 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
+- **`pytest cai-agent/tests`** (from **`cai-agent`**: **`python -m pytest -q tests`**): **688 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
 - **`python scripts/smoke_new_features.py`**: **NEW_FEATURE_CHECKS_OK**.  
-- **`python scripts/run_regression.py`** (default: writes a log per **QA_REGRESSION_LOGGING**): exit **0**; machine log **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)** (**Git HEAD** matches **`533892e`** at run time). Use **`QA_SKIP_LOG=1`** for a no-file quick pass.
+- **`python scripts/run_regression.py`**: exit **0** (after `HM-02c` / `CC-03c` / `ECC-03b` batch; **Git HEAD** matches the batch commit). Latest checked-in machine log remains **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**; unset **`QA_SKIP_LOG=1`** to write a fresh log (see **QA_REGRESSION_LOGGING**).
 
 ## QA pointers
 

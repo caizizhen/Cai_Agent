@@ -11,6 +11,11 @@
     "doc_anchor_en": { "type": "string" },
     "detail_doc": { "type": "string" },
     "detail_doc_en": { "type": "string" },
+    "governance_rfc": { "type": "string" },
+    "maintenance_checklist": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "targets": {
       "type": "array",
       "items": {

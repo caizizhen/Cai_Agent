@@ -3372,6 +3372,10 @@ def _cmd_models(args: argparse.Namespace) -> int:
         f"[models] {action} ok | active={next_active} "
         f"profiles={len(new_profiles)} file={target}",
     )
+    if action == "use" and next_active:
+        from cai_agent.tui_session_strip import build_profile_switched_line
+
+        print(build_profile_switched_line(str(next_active)))
     return 0
 
 
@@ -4026,6 +4030,16 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="plugins_with_compat_matrix",
         help="与 --json 联用：附加 plugin_compat_matrix_v1（跨 harness 兼容矩阵）",
+    )
+    plugins_p.add_argument(
+        "--compat-check",
+        action="store_true",
+        dest="plugins_compat_check",
+        help=(
+            "ECC-03b：附加 plugin_compat_matrix_check_v1 自检结果；"
+            "与 --json 联用时放在 compat_check 字段，否则打印摘要；"
+            "检查失败（missing / mismatches）时 exit 2"
+        ),
     )
     skills_p = sub.add_parser(
         "skills",
@@ -6741,6 +6755,13 @@ def main(argv: list[str] | None = None) -> int:
             from cai_agent.plugin_registry import build_plugin_compat_matrix
 
             surface = {**surface, "compat_matrix": build_plugin_compat_matrix()}
+        compat_check_fail = False
+        if bool(getattr(args, "plugins_compat_check", False)):
+            from cai_agent.plugin_registry import build_plugin_compat_matrix_check_v1
+
+            compat_check = build_plugin_compat_matrix_check_v1()
+            surface = {**surface, "compat_check": compat_check}
+            compat_check_fail = not bool(compat_check.get("ok"))
         plg_tok = 0
         comps_plg = surface.get("components")
         if isinstance(comps_plg, dict):
@@ -6759,25 +6780,45 @@ def main(argv: list[str] | None = None) -> int:
                     exists = bool(meta.get("exists"))
                     files_count = int(meta.get("files_count", 0))
                     print(f"- {name}: exists={exists} files={files_count}")
+            cc = surface.get("compat_check") if isinstance(surface.get("compat_check"), dict) else None
+            if cc is not None:
+                missing_c = cc.get("missing_components") or []
+                missing_t = cc.get("missing_targets") or []
+                mismatches = cc.get("row_mismatches") or []
+                status = "ok" if cc.get("ok") else "fail"
+                print(
+                    f"compat_check={status} "
+                    f"missing_components={len(missing_c)} "
+                    f"missing_targets={len(missing_t)} "
+                    f"row_mismatches={len(mismatches)}",
+                )
+                if missing_c:
+                    print("  missing_components:", ", ".join(str(x) for x in missing_c))
+                if missing_t:
+                    print("  missing_targets:", ", ".join(str(x) for x in missing_t))
+                for rm in mismatches:
+                    if isinstance(rm, dict):
+                        print(
+                            "  mismatch:",
+                            f"component={rm.get('component')!r}",
+                            f"missing_target_keys={rm.get('missing_target_keys')}",
+                        )
         min_h = getattr(args, "fail_on_min_health", None)
+        health_fail = False
         if isinstance(min_h, int):
             hs = int(surface.get("health_score") or 0)
             if hs < int(min_h):
-                _maybe_metrics_cli(
-                    module="plugins",
-                    event="plugins.surface",
-                    latency_ms=(time.perf_counter() - t_plg) * 1000.0,
-                    tokens=plg_tok,
-                    success=False,
-                )
-                return 2
+                health_fail = True
+        failed = health_fail or compat_check_fail
         _maybe_metrics_cli(
             module="plugins",
             event="plugins.surface",
             latency_ms=(time.perf_counter() - t_plg) * 1000.0,
             tokens=plg_tok,
-            success=True,
+            success=not failed,
         )
+        if failed:
+            return 2
         return 0
 
     if args.command == "skills":

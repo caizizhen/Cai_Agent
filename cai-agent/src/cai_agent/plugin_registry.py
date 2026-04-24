@@ -16,6 +16,18 @@ PLUGIN_COMPONENTS = (
 )
 PLUGIN_VERSION = "0.1.0"
 COMPAT_MATRIX_SCHEMA = "plugin_compat_matrix_v1"
+COMPAT_MATRIX_CHECK_SCHEMA = "plugin_compat_matrix_check_v1"
+
+# ECC-03b：治理 checklist 单源。改动 TOOLS_REGISTRY / 内置工具名 / harness 目标目录时需同步
+# 矩阵行 + 相关说明文档，与 `docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md` §2 对齐。
+MATRIX_MAINTENANCE_CHECKLIST: tuple[str, ...] = (
+    "更新 build_plugin_compat_matrix() 内的行并运行 test_plugin_compat_matrix",
+    "同步 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md 与 docs/PLUGIN_COMPAT_MATRIX.md",
+    "同步 docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md / .md 中对应组件条目",
+    "若影响 PARITY_MATRIX 叙事，在 docs/PARITY_MATRIX.zh-CN.md 中加注",
+    "在 CHANGELOG / CHANGELOG.zh-CN 中声明推荐消费的 manifest 下限（若 target 列表变化）",
+    "运行 scripts/smoke_new_features.py 并跑 cai-agent plugins --compat-check",
+)
 
 
 def _project_root(settings: Settings) -> Path:
@@ -130,8 +142,74 @@ def build_plugin_compat_matrix() -> dict[str, object]:
         "doc_anchor_en": "docs/CROSS_HARNESS_COMPATIBILITY.md",
         "detail_doc": "docs/PLUGIN_COMPAT_MATRIX.zh-CN.md",
         "detail_doc_en": "docs/PLUGIN_COMPAT_MATRIX.md",
+        "governance_rfc": "docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md",
         "targets": targets,
         "components_vs_targets": rows,
+        "maintenance_checklist": list(MATRIX_MAINTENANCE_CHECKLIST),
+    }
+
+
+def build_plugin_compat_matrix_check_v1(
+    *,
+    expected_components: tuple[str, ...] | None = None,
+    expected_targets: tuple[str, ...] | None = None,
+) -> dict[str, object]:
+    """ECC-03b：最小可验证入口——校验矩阵行与目标是否与默认白名单一致。
+
+    使用场景：CI 或 `cai-agent plugins --compat-check` 在改 `build_plugin_compat_matrix()`
+    后快速发现未同步的组件 / 目标；返回 `plugin_compat_matrix_check_v1` 载荷。
+    默认白名单：`PLUGIN_COMPONENTS` 中 hooks/rules/skills/commands/agents/mcp-configs；
+    目标：cursor/codex/opencode。
+    """
+    matrix = build_plugin_compat_matrix()
+    expected_comp = tuple(expected_components or PLUGIN_COMPONENTS)
+    expected_tgt = tuple(expected_targets or ("cursor", "codex", "opencode"))
+
+    rows = matrix.get("components_vs_targets") or []
+    present_components = sorted(
+        {
+            str(r.get("component"))
+            for r in rows
+            if isinstance(r, dict) and isinstance(r.get("component"), str)
+        },
+    )
+    missing_components = sorted(set(expected_comp) - set(present_components))
+
+    targets = matrix.get("targets") or []
+    present_targets = sorted(
+        {
+            str(t.get("id"))
+            for t in targets
+            if isinstance(t, dict) and isinstance(t.get("id"), str)
+        },
+    )
+    missing_targets = sorted(set(expected_tgt) - set(present_targets))
+
+    row_mismatches: list[dict[str, object]] = []
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        comp = str(r.get("component") or "")
+        missing_keys = [k for k in expected_tgt if k not in r]
+        if missing_keys:
+            row_mismatches.append(
+                {"component": comp, "missing_target_keys": missing_keys},
+            )
+
+    ok = not missing_components and not missing_targets and not row_mismatches
+
+    return {
+        "schema_version": COMPAT_MATRIX_CHECK_SCHEMA,
+        "ok": ok,
+        "expected_components": list(expected_comp),
+        "present_components": present_components,
+        "missing_components": missing_components,
+        "expected_targets": list(expected_tgt),
+        "present_targets": present_targets,
+        "missing_targets": missing_targets,
+        "row_mismatches": row_mismatches,
+        "matrix_schema_version": str(matrix.get("schema_version") or ""),
+        "governance_rfc": "docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md",
     }
 
 

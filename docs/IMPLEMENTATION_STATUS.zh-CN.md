@@ -11,6 +11,8 @@
 
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
+| **未开发功能批次（HM-02c / CC-03c / ECC-03b）** | API 只读扩展（**`/v1/models/summary`**、**`/v1/plugins/surface`**、**`/v1/release/runbook`**）；TUI **`#context-label`** 路由/迁移提示 + **`profile_switched: <id>`** 单源；**`plugins --compat-check`**（**`plugin_compat_matrix_check_v1`**）与矩阵 **`maintenance_checklist`** | **`api_http_server.py`**、**`tui_session_strip.py`**、**`plugin_registry.py`**、**`DEVELOPER_TODOS`** §0.4 |
+| **Explore 评估四连（HM-03c / ECC-03a / HM-06a / HM-07a）** | 下一批 gateway、插件版本治理、runtime 后端、Voice 边界等 **RFC 结论文档**（**`docs/rfc/HM_03C_*`**、**`ECC_03A_*`**、**`HM_06A_*`**、**`HM_07A_*`**）；路线图 issue 标 **Done**（文档交付） | **`DEVELOPER_TODOS`** §0.3.1 |
 | **最小 HTTP API（HM-02b）** | **`cai-agent api serve`**（默认 **`CAI_API_PORT`**=**8788**；**`CAI_API_TOKEN`** 可选 Bearer）；**`GET /healthz`**、**`/v1/status`**（**`api_status_v1`**）、**`/v1/doctor/summary`**（**`api_doctor_summary_v1`**）、**`POST /v1/tasks/run-due`**（仅 **dry_run**） | **`api_http_server.py`**、**`doctor.build_api_doctor_summary_v1`**、**`test_api_http_server.py`** |
 | **Recall / 记忆策略** | **`recall --evaluate`** 无需 **`--query`**；**`recall_evaluation_v1`**；**`doctor`** 文本 **`[memory.policy]`**；**`release-ga --with-memory-policy`** | **`recall_audit.py`**、**`doctor.py`**、**`__main__.py`**、**`smoke_new_features`** |
 | **成本 / compact** | **`cost report --json`** 嵌 **`compact_policy_explain_v1`**；**`cost report`** 文本摘要 | **`cost_aggregate.py`** |
@@ -35,10 +37,10 @@
 
 ## 最近回归执行记录（QA）
 
-- **日期**：2026-04-24（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**：**641 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
+- **日期**：2026-04-25（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
+- **`pytest cai-agent/tests`**（自 **`cai-agent`** 目录 **`python -m pytest -q tests`**）：**688 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
-- **`python scripts/run_regression.py`**（默认写日志，见 **QA_REGRESSION_LOGGING**）：退出码 **0**；机器记录 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**（**Git HEAD** 与当时 **`533892e`** 一致）。快速无文件模式仍可用 **`QA_SKIP_LOG=1`**。
+- **`python scripts/run_regression.py`**：退出码 **0**（`HM-02c` / `CC-03c` / `ECC-03b` 批次后，**Git HEAD** 见当次提交）。最近一次落盘机器记录仍为 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**；需要新日志时勿设 **`QA_SKIP_LOG=1`** 后重跑（见 **QA_REGRESSION_LOGGING**）。
 
 ## QA 提示
 

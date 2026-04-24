@@ -25,13 +25,13 @@
 
 2. **P1 - Hermes 产品化缺口**
    - profiles 契约与 CLI 已显著收口；**最小 HTTP API**（**`api serve`**，**`HM-02b`**）已落地 v0，后续可扩路由与鉴权策略
-   - gateway 仅 Telegram full、Discord/Slack mvp，距离 Hermes 的多平台覆盖仍有差距
-   - voice、dashboard 高级交互、memory providers、更多 runtime backends 仍未收口
+   - gateway 仅 Telegram full、Discord/Slack mvp；**下一批平台优先级**见 **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`**（**`HM-03c`** 文档已收口）
+   - voice、dashboard 高级交互、memory providers、更多 runtime backends：**Voice 默认 OOS** 见 **`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**；**runtime 优先级**见 **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`**
    - recall 评估（**`recall --evaluate`**）与 memory policy（**`doctor` / `release-ga`**）已有机读与文本入口；负样本审计见 **`recall_audit`**
 
 3. **P1 - ECC 治理生态缺口**
    - rules / skills / hooks 已有 **`ecc layout`** / 导出主路径；**安装→导出→共享** 叙事已收进 **`CROSS_HARNESS_COMPATIBILITY*.md`**（**ECC-01b**）
-   - **成本视图**：**`cost report`** 已带 **`compact_policy_explain_v1`**（**ECC-02b**）；插件版本矩阵等仍偏探索项（**`ECC-03a`**）
+   - **成本视图**：**`cost report`** 已带 **`compact_policy_explain_v1`**（**ECC-02b**）；**插件/版本治理叙事**见 **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`**（**`ECC-03a`** 文档已收口）
 
 4. **P1 - 文档与双语同步缺口**
    - 中文文档长期承担了大部分产品叙述，英文入口落后

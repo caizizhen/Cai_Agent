@@ -28,6 +28,8 @@ from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.mcp_presets import format_tui_mcp_web_notebook_quickstart
 from cai_agent.tui_session_strip import (
+    build_context_label,
+    build_profile_switched_line,
     tui_input_placeholder,
     tui_session_continue_one_liner_rich,
     tui_workbench_cheatsheet_rich,
@@ -565,6 +567,7 @@ class CaiAgentApp(App[None]):
                     f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
                     f"（{prof.provider} / {prof.model}）\n",
                 )
+                log.write(f"[dim]{build_profile_switched_line(prof.id)}[/]\n")
             return
         if isinstance(result, str) and result.strip():
             prof = next((p for p in self._settings.profiles if p.id == result.strip()), None)
@@ -574,6 +577,7 @@ class CaiAgentApp(App[None]):
                     f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
                     f"（{prof.provider} / {prof.model}）\n",
                 )
+                log.write(f"[dim]{build_profile_switched_line(prof.id)}[/]\n")
 
     def _apply_profile_switch(self, prof: Profile) -> None:
         """内存中切换到指定 profile（不写 TOML），并重建 graph / 系统提示。"""
@@ -748,10 +752,21 @@ class CaiAgentApp(App[None]):
             f"{' · 估算' if self._ctx_is_estimate else ''}[/]"
         )
         try:
-            pid = (self._settings.active_profile_id or "?").strip()
-            if len(pid) > 18:
-                pid = pid[:17] + "…"
-            self.query_one("#context-label", Static).update(f"{pid} · 上下文")
+            s = self._settings
+            contract = build_profile_contract_payload(
+                s.profiles,
+                profiles_explicit=bool(getattr(s, "profiles_explicit", False)),
+                active_profile_id=s.active_profile_id,
+                subagent_profile_id=getattr(s, "subagent_profile_id", None),
+                planner_profile_id=getattr(s, "planner_profile_id", None),
+            )
+            label = build_context_label(
+                active_profile_id=s.active_profile_id,
+                subagent_profile_id=getattr(s, "subagent_profile_id", None),
+                planner_profile_id=getattr(s, "planner_profile_id", None),
+                migration_state=str(contract.get("migration_state") or ""),
+            )
+            self.query_one("#context-label", Static).update(label)
             self.query_one("#context-bar-text", Static).update(text)
         except Exception:
             # Widget 在极早期（compose 之前）可能尚未挂载，忽略即可。
@@ -1181,6 +1196,7 @@ class CaiAgentApp(App[None]):
                     f"\n[green]已切换 profile[/] [cyan]{prof.id}[/] "
                     f"（{prof.provider} / {prof.model}）\n",
                 )
+                log.write(f"[dim]{build_profile_switched_line(prof.id)}[/]\n")
             else:
                 self._settings = replace(self._settings, model=arg)
                 self._rebuild_runtime()

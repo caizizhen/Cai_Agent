@@ -1,7 +1,13 @@
-"""最小只读 HTTP API（HM-02b）：``cai-agent api serve``。
+"""最小只读 HTTP API（HM-02b / HM-02c）：``cai-agent api serve``。
 
 契约见仓库 ``docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md``。与 ``ops serve`` 端口分离；
 鉴权环境变量 ``CAI_API_TOKEN``（非空则除 ``/healthz`` 外要求 ``Authorization: Bearer``）。
+
+``HM-02c`` 在 ``HM-02b`` 基础上增加三条只读扩展：
+``GET /v1/models/summary``（``api_models_summary_v1``，仅暴露 ``profile_contract_v1`` 白名单字段），
+``GET /v1/plugins/surface``（``api_plugins_surface_v1``，复用 ``list_plugin_surface``，可选 ``?compat=1`` 附加
+``plugin_compat_matrix_v1``），以及 ``GET /v1/release/runbook``（``api_release_runbook_v1``，复用 release
+runbook 摘要，不含仓库绝对路径）。均不扩大写操作面、不改默认鉴权策略。
 """
 
 from __future__ import annotations
@@ -13,12 +19,104 @@ from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, TextIO
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 from cai_agent.config import Settings
 from cai_agent.doctor import build_api_doctor_summary_v1
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload, build_status_payload
+from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
+from cai_agent.profiles import build_profile_contract_payload
+from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.schedule import compute_due_tasks
+
+
+def build_api_models_summary_v1(settings: Settings) -> dict[str, Any]:
+    """HTTP ``GET /v1/models/summary`` 白名单视图：仅包含 ``profile_contract_v1`` 与 ID 列表。"""
+    contract = build_profile_contract_payload(
+        settings.profiles,
+        profiles_explicit=bool(getattr(settings, "profiles_explicit", False)),
+        active_profile_id=settings.active_profile_id,
+        subagent_profile_id=getattr(settings, "subagent_profile_id", None),
+        planner_profile_id=getattr(settings, "planner_profile_id", None),
+        env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+    )
+    return {
+        "schema_version": "api_models_summary_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "active_profile_id": settings.active_profile_id,
+        "subagent_profile_id": getattr(settings, "subagent_profile_id", None),
+        "planner_profile_id": getattr(settings, "planner_profile_id", None),
+        "profiles_count": len(settings.profiles),
+        "profile_ids": [p.id for p in settings.profiles],
+        "profile_contract": contract,
+    }
+
+
+def _plugins_surface_whitelist(surface: dict[str, Any]) -> dict[str, Any]:
+    comps = surface.get("components") if isinstance(surface.get("components"), dict) else {}
+    safe_components: dict[str, dict[str, Any]] = {}
+    for name, meta in comps.items():
+        if not isinstance(meta, dict):
+            continue
+        safe_components[str(name)] = {
+            "exists": bool(meta.get("exists")),
+            "files_count": int(meta.get("files_count", 0) or 0),
+        }
+    return {
+        "plugin_version": surface.get("plugin_version"),
+        "health_score": int(surface.get("health_score") or 0),
+        "compatibility": surface.get("compatibility"),
+        "components": safe_components,
+    }
+
+
+def build_api_plugins_surface_v1(
+    settings: Settings,
+    *,
+    include_compat_matrix: bool,
+) -> dict[str, Any]:
+    """HTTP ``GET /v1/plugins/surface`` 白名单视图；不暴露 ``project_root`` 绝对路径。"""
+    surface = list_plugin_surface(settings)
+    safe = _plugins_surface_whitelist(surface)
+    payload: dict[str, Any] = {
+        "schema_version": "api_plugins_surface_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        **safe,
+    }
+    if include_compat_matrix:
+        payload["compat_matrix"] = build_plugin_compat_matrix()
+    return payload
+
+
+def _release_runbook_whitelist(payload: dict[str, Any]) -> dict[str, Any]:
+    """裁剪 release runbook 供 HTTP 暴露：去掉仓库绝对路径字段。"""
+    out: dict[str, Any] = {}
+    for key in (
+        "schema_version",
+        "changelog",
+        "feedback",
+        "runbook_steps",
+        "writeback_targets",
+        "docs",
+    ):
+        if key in payload:
+            out[key] = payload[key]
+    return out
+
+
+def build_api_release_runbook_v1(workspace: Path) -> dict[str, Any]:
+    """HTTP ``GET /v1/release/runbook`` 视图；包裹 ``release_runbook_v1`` 白名单字段。"""
+    root = workspace
+    rb = build_release_runbook_payload(
+        repo_root=resolve_release_repo_root(root),
+        workspace=root,
+    )
+    safe = _release_runbook_whitelist(rb if isinstance(rb, dict) else {})
+    return {
+        "schema_version": "api_release_runbook_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "release_runbook": safe,
+    }
 
 
 class AgentApiThreadingServer(ThreadingHTTPServer):
@@ -106,6 +204,26 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                 doc = build_api_doctor_summary_v1(settings)
                 self._send_json(200, doc)
                 return
+            if path == "/v1/models/summary":
+                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                self._send_json(200, build_api_models_summary_v1(settings))
+                return
+            if path == "/v1/plugins/surface":
+                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                qs = parse_qs(parsed.query or "", keep_blank_values=False)
+                compat_raw = (qs.get("compat") or [""])[0].strip().lower()
+                include_compat = compat_raw in ("1", "true", "yes", "on")
+                self._send_json(
+                    200,
+                    build_api_plugins_surface_v1(
+                        settings,
+                        include_compat_matrix=include_compat,
+                    ),
+                )
+                return
+            if path == "/v1/release/runbook":
+                self._send_json(200, build_api_release_runbook_v1(ws))
+                return
         except Exception as e:
             self._send_json(500, {"ok": False, "error": "internal_error", "message": str(e)[:500]})
             return
@@ -182,7 +300,9 @@ def run_agent_api_server(
         f"api serve: listening http://{host}:{port}\n"
         f"  workspace: {root}\n"
         f"  CAI_API_TOKEN: {'set' if api_token else 'unset'}\n"
-        "  GET /healthz | GET /v1/status | GET /v1/doctor/summary | POST /v1/tasks/run-due\n",
+        "  GET /healthz | GET /v1/status | GET /v1/doctor/summary\n"
+        "  GET /v1/models/summary | GET /v1/plugins/surface[?compat=1] | GET /v1/release/runbook\n"
+        "  POST /v1/tasks/run-due (dry_run only)\n",
     )
     try:
         httpd.serve_forever(poll_interval=0.5)

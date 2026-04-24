@@ -85,8 +85,9 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertEqual(sorted(ids), ["p1", "p2"])
 
         # use p2
-        rc, _ = self._cli("models", "--config", str(self.cfg), "use", "p2")
+        rc, out_use = self._cli("models", "--config", str(self.cfg), "use", "p2")
         self.assertEqual(rc, 0)
+        self.assertIn("profile_switched: p2", out_use)
 
         # list again: active should be p2
         rc, out = self._cli("models", "--config", str(self.cfg), "list", "--json")

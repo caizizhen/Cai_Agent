@@ -96,12 +96,64 @@
 - [x] `HM-02a`：最小 API / server 契约设计（RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`）
 - [x] `CC-03b`：模型切换与 `/status` 提示统一（RFC：`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`）
 - [x] `HM-02b`：最小只读 HTTP API（**`cai-agent api serve`**）
+- [x] `HM-03c`：下一批 gateway 平台评估（**`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`**）
+- [x] `ECC-03a`：插件矩阵与版本治理（**`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`**）
+- [x] `HM-06a`：Runtime backend 评估（**`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`**）
+- [x] `HM-07a`：Voice 边界与 OOS（**`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**）
+
+### 0.3.1 Explore 批次顺序（一次性交付用）
+
+| 顺序 | ID | 交付物 |
+|------|-----|--------|
+| 1 | `HM-03c` | **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`** |
+| 2 | `ECC-03a` | **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** |
+| 3 | `HM-06a` | **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** |
+| 4 | `HM-07a` | **`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`** |
 
 执行规则：
 
 1. 先从 `Ready` 项开始，`Design` 只做契约，不直接扩实现。
 2. 每次只把一个 issue 做到 `Done`，包含代码、测试、文档、状态回写。
-3. **本批 checklist 已全部收口**（含 **`HM-02b`** **`api serve`**）；下一批以 **`ROADMAP_EXECUTION`** §10 中 **`Explore`** / 新立项为准。
+3. **本批 checklist 已全部收口**（含 **`HM-02b`** 与 **§0.3.1 Explore 评估四连发**）；下一批以 **`ROADMAP_EXECUTION`** §10 **新立项**或 **实现类 issue**（如 Teams gateway）为准。
+
+---
+
+## 0.4 未开发功能队列（2026-04-25 整理，执行队列）
+
+**来源**：合并 **`ROADMAP_EXECUTION.zh-CN.md`** §10、**`PRODUCT_PLAN.zh-CN.md`** §〇.2 / §三、**`PRODUCT_GAP_ANALYSIS.zh-CN.md`** 中仍未交付的功能；**OOS / 条件立项**项列入但本批不开发，仅保留替代方案指针。
+
+**本轮一次性交付（P0）**：此批次三项已随同本节落地，详见相应 issue ID。
+
+| 优先级 | Issue ID | 标题 | 状态 | 本轮目标 | 代码落点 | 验证 |
+|---|---|---|---|---|---|---|
+| `P0` | `HM-02c` | API 只读扩展（profile / plugins / release runbook） | **`Done`** | 在 **`api serve`** 新增 **`GET /v1/models/summary`**、**`GET /v1/plugins/surface`**、**`GET /v1/release/runbook`**（复用白名单字段，无写操作） | **`api_http_server.py`** + 对应 `build_*_payload` | pytest + smoke |
+| `P0` | `CC-03c` | CC-03b 状态 UX 最小对齐 | **`Done`** | TUI **`#context-label`** 增加 **`· route=sub/pl`** 与迁移警示；**`/models` 切换** 与 CLI **`models use`** 同时输出 **`profile_switched: <id>`** | **`tui.py`**、**`__main__.py`** | pytest |
+| `P0` | `ECC-03b` | 插件治理最小可验证入口 | **`Done`** | **`plugin_compat_matrix_v1`** 增加 **`maintenance_checklist`**；新增 **`build_plugin_compat_matrix_check_v1`** 与 **`plugins --compat-check`** 返回 **`plugins_compat_check_v1`** | **`plugin_registry.py`**、**`__main__.py`**、**`plugin_compat_matrix_v1.schema.json`** | pytest |
+
+**后续批次（P1，按优先顺序开实现类 issue）**：
+
+| 优先级 | 建议 Issue ID | 父 To-do | 标题 | 主要输入 / 替代方案 |
+|---|---|---|---|---|
+| `P1` | `HM-03d-teams` | `HM-03` | Teams Gateway 生产路径（下一批第一顺位） | **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`**；参照 **`gateway_slack.py`** / **`gateway_discord.py`** |
+| `P1` | `HM-06b-docker` | `HM-06` | Runtime **docker** 后端产品化 | **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`**；**`runtime/docker.py`** 扩镜像/卷/限额/`doctor` 诊断 |
+| `P1` | `HM-06c-ssh` | `HM-06` | Runtime **SSH** 后端产品化 | 同上 RFC；密钥、`known_hosts`、超时、审计 |
+| `P1` | `HM-04c` | `HM-04` | Dashboard 高级交互（后续 P2 → 实现） | **`PRODUCT_PLAN`** §〇.2 后续 Sprint：队列拖拽、绑定编辑等；先评估鉴权边界 |
+| `P1` | `HM-03e-prod` | `HM-03` | Gateway 生产化深化（Slash/频道监控/多工作区） | **`PRODUCT_PLAN`** §〇.2 MVP 之后的目标；**`gateway_lifecycle.py`** |
+| `P1` | `ECC-03c` | `ECC-03` | 插件兼容矩阵 CI snapshot | **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** §2；**`ECC-03b`** 产出为基础 |
+| `P1` | `HM-05d` | `HM-05` | Memory providers 扩展 / 用户模型深化 | **`docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`**；先做现状 diff |
+| `P1` | `DOC-01c` | `DOC-01` | 英文对照 & 入口双语持续收敛 | **`PRODUCT_GAP_ANALYSIS.zh-CN.md`**；按 roadmap 新增 issue |
+
+**OOS / 条件立项（本轮不开发，保留替代方案）**：
+
+| 主题 | 边界 | 替代方案 |
+|---|---|---|
+| 语音（**`HM-07`**） | **默认 OOS** | **`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**：**MCP** 接入 STT/TTS |
+| 默认云运行后端（Modal / Daytona 等） | **默认 OOS**（条件立项） | **`docs/CLOUD_RUNTIME_OOS.zh-CN.md`**；运行 local / docker / ssh |
+| 内置 WebSearch / Notebook 重实现 | **OOS** | **`docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`**；走 MCP 优先 |
+| 第三方插件市场 / 签名公证 / 付费分成 | **默认 OOS** | **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** §4 |
+| IRC / 自建 XMPP | **OOS** | **`HM_03C`** 表：优先 MCP / 外部桥 |
+| LINE / 企业微信 | **Explore / 区域** | 同上，按商业驱动再立项 |
+| 多 CLI 套娃 / 封闭企业专属 | **不做** | **`ROADMAP_EXECUTION`** §6 |
 
 ---
 
@@ -151,7 +203,7 @@
 | `HM-02b` | `Done` | `HM-02` | 最小只读或任务触发型 API | **`api serve`**、**`api_http_server`**、**`CAI_API_PORT`/`CAI_API_TOKEN`** | `HM-02a` | pytest + smoke |
 | `HM-03a` | `Done` | `HM-03` | Discord 生产路径 | — | gateway smoke + `doctor` |
 | `HM-03b` | `Done` | `HM-03` | Slack 生产路径收口 | `gateway slack health`、form Slash/Interactivity 分发、`bind --team-id/--label`、`serve-webhook --execute-on-slash`、测试与文档同步 | gateway smoke + `doctor` |
-| `HM-03c` | `Explore` | `HM-03` | 下一批 gateway 平台评估 | `HM-03a` `HM-03b` | 评估文档 |
+| `HM-03c` | `Done` | `HM-03` | 下一批 gateway 平台评估 | RFC **`HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`** | `HM-03a` `HM-03b` | 文档评审 |
 | `HM-04a` | `Done` | `HM-04` | ops/gateway/status 同源聚合 | — | JSON snapshot |
 | `HM-04b` | `Done` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | user-model store/query/learn 闭环 | — | pytest + smoke |
@@ -161,9 +213,12 @@
 | `ECC-01b` | `Done` | `ECC-01` | 导出/安装/共享流转说明统一 | `ECC-01a` | `CROSS_HARNESS_COMPATIBILITY*.md` |
 | `ECC-02a` | `Done` | `ECC-02` | routing-test / cost explain 产品路径 | — | CLI smoke |
 | `ECC-02b` | `Done` | `ECC-02` | 成本视图与 compact 策略解释 | `ECC-02a` | `cost report` + `compact_policy_explain_v1` |
-| `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | — | 设计文档 |
-| `HM-06a` | `Explore` | `HM-06` | Runtime backend 交付边界评估 | — | 评估结论 |
-| `HM-07a` | `Explore` | `HM-07` | Voice 边界与 OOS 评估 | — | 评估结论 |
+| `ECC-03a` | `Done` | `ECC-03` | 插件矩阵与版本治理方案 | RFC **`ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** | — | 文档评审 |
+| `HM-06a` | `Done` | `HM-06` | Runtime backend 交付边界评估 | RFC **`HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** | — | 文档评审 |
+| `HM-07a` | `Done` | `HM-07` | Voice 边界与 OOS 评估 | RFC **`HM_07A_VOICE_BOUNDARY.zh-CN.md`** | — | 文档评审 |
+| `HM-02c` | `Done` | `HM-02` | API 只读扩展（profile / plugins / release） | **`GET /v1/models/summary`**（**`api_models_summary_v1`**）、**`GET /v1/plugins/surface`**（**`api_plugins_surface_v1`**，可选 **`?compat=1`**）、**`GET /v1/release/runbook`**（**`api_release_runbook_v1`**） | `HM-02b` | pytest `test_api_http_server` |
+| `CC-03c` | `Done` | `CC-03` | 模型切换/状态文案最小对齐 | TUI **`#context-label`** 追加 **`· route=sub/pl`** 与迁移警示；**`/models`** 切换与 CLI **`models use`** 同时打印 **`profile_switched: <id>`** | `CC-03b` | pytest `test_tui_context_label` + `test_models_cli` |
+| `ECC-03b` | `Done` | `ECC-03` | 插件治理最小可验证入口 | **`plugin_compat_matrix_v1.maintenance_checklist`** + **`plugins_compat_check_v1`**（**`plugins --compat-check`**） | `ECC-03a` | pytest `test_plugin_compat_matrix` |
 
 ### 0.2.3 建议执行波次（默认交付 = Ready + Design；Explore 单独立项）
 
@@ -186,15 +241,15 @@
 
 - ~~`CC-02b`~~、~~`CC-03a`~~（Done）
 
-**Explore（不进入当前默认排期，立项后再迁入波次）**：`HM-03c`、`ECC-03a`、`HM-06a`、`HM-07a`。
+**Explore 评估文档（已收口，实现另立 issue）**：~~`HM-03c`~~、~~`ECC-03a`~~、~~`HM-06a`~~、~~`HM-07a`~~ → 见 **§0.3.1** RFC 路径。
 
 ### 0.2.4 与 `PRODUCT_PLAN` §三之二「后续演进」的对应关系
 
 | 演进主题 | 主要覆盖 Issue |
 |---|---|
 | Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
-| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~ / ~~`HM-05b`~~ / ~~`HM-05c`~~ / ~~`HM-02b`~~（Done）；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
-| ECC 线 | ~~`ECC-01b`~~ / ~~`ECC-02b`~~（Done）；Explore：`ECC-03a` |
+| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~ / ~~`HM-05b`~~ / ~~`HM-05c`~~ / ~~`HM-02b`~~ / ~~`HM-03c`~~ / ~~`HM-06a`~~ / ~~`HM-07a`~~（Done，评估见 RFC） |
+| ECC 线 | ~~`ECC-01b`~~ / ~~`ECC-02b`~~ / ~~`ECC-03a`~~（Done，评估见 RFC） |
 | 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 
 ---

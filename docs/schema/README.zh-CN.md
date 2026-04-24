@@ -154,9 +154,10 @@
 
 - **实现**：`cai_agent.plugin_registry.list_plugin_surface`；可选 **`build_plugin_compat_matrix`**
 - **`schema_version`**：`plugins_surface_v1`；另含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
-- **`--with-compat-matrix`**（与 **`--json`** 同用）：顶层附加 **`compat_matrix`**，其 **`schema_version`**=`plugin_compat_matrix_v1`（跨 harness 能力表）；人读说明见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](../PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](../PLUGIN_COMPAT_MATRIX.md)；**`compat_matrix`** 内可选 **`doc_anchor`/`doc_anchor_en`、`detail_doc`/`detail_doc_en`** 指向中英文维护页；机器校验见 **`cai-agent/src/cai_agent/schemas/plugin_compat_matrix_v1.schema.json`**。
+- **`--with-compat-matrix`**（与 **`--json`** 同用）：顶层附加 **`compat_matrix`**，其 **`schema_version`**=`plugin_compat_matrix_v1`（跨 harness 能力表）；人读说明见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](../PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](../PLUGIN_COMPAT_MATRIX.md)；**`compat_matrix`** 内可选 **`doc_anchor`/`doc_anchor_en`、`detail_doc`/`detail_doc_en`、`governance_rfc`、`maintenance_checklist`**（ECC-03b 单源 checklist）指向中英文维护页；机器校验见 **`cai-agent/src/cai_agent/schemas/plugin_compat_matrix_v1.schema.json`**。
+- **`--compat-check`**（ECC-03b）：顶层附加 **`compat_check`**（**`schema_version`=`plugin_compat_matrix_check_v1`**；字段含 `ok`、`expected_components`、`present_components`、`missing_components`、`expected_targets`、`present_targets`、`missing_targets`、`row_mismatches`、`matrix_schema_version`、`governance_rfc`）。**Exit**：检查失败（`ok=false`）→ `2`；默认白名单 = `PLUGIN_COMPONENTS`（6 组件）× (`cursor` / `codex` / `opencode`)。用于 CI 快速发现矩阵行与内置组件 / harness 目标的漂移。
 
-**Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`。
+**Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`；`--compat-check` 失败 → `2`。
 
 **冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`plugins --json --with-compat-matrix`**，断言 **`plugins_surface_v1`**、**`components`** 与 **`compat_matrix.schema_version`**。
 

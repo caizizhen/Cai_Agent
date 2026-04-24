@@ -161,5 +161,7 @@
 
 如果继续往下开单，建议下一批是：
 
-- **`HM-03c`** / **`ECC-03a`** / **`HM-06a`** / **`HM-07a`**：Explore 调研项（见 **`ROADMAP_EXECUTION`** §10）
-- **`api serve` 扩展**（若产品需要）：OpenAPI 文档、更多只读路由、与 **`ops serve`** 的统一鉴权配置
+- **Gateway 下一平台实现**（如 **Teams**）：以 **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`** 为输入单独立项
+- **`api serve` 扩展**（若产品需要）：OpenAPI、更多只读路由、与 **`ops serve`** 统一鉴权配置
+- **Runtime**：按 **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** 拆 **docker** / **ssh** 产品化 issue
+- **插件治理落地**：按 **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** 补 CI snapshot（可选）

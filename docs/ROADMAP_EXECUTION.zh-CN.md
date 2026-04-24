@@ -181,6 +181,7 @@
 - `Ready`：边界清晰，可以直接开开发 issue。
 - `Design`：先定契约或数据结构，再开实现 issue。
 - `Explore`：保留调研或预研，不进入当前默认交付。
+- **说明（2026-04-25）**：**`HM-03c` / `ECC-03a` / `HM-06a` / `HM-07a`** 以 **`docs/rfc/*.zh-CN.md`** 结论文档交付并标 **Done**；后续 **实现类**工作需另开 issue（如 Teams gateway）。
 
 | Issue | 状态 | 对应 To-do | 建议标题 | 主要输出 | 依赖 | 验证 |
 |---|---|---|---|---|---|---|
@@ -200,7 +201,7 @@
 | `HM-02b` | `Done` | `HM-02` | 实现最小只读或任务触发型 API 面 | **`cai-agent api serve`**；**`GET /healthz`**、**`/v1/status`**、**`/v1/doctor/summary`**、**`POST /v1/tasks/run-due`**（仅 **dry_run**） | `HM-02a` | pytest + smoke --help |
 | `HM-03a` | `Done` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
 | `HM-03b` | `Done` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | `gateway slack health`、Slash/Interactivity form 分发、mapping 元数据与 `--execute-on-slash` 收口 | — | gateway smoke + doctor |
-| `HM-03c` | `Explore` | `HM-03` | 评估下一批 gateway 平台 | 输出平台优先级与接入边界，不急着实现 | `HM-03a` `HM-03b` | 评估结论文档 |
+| `HM-03c` | `Done` | `HM-03` | 评估下一批 gateway 平台 | 结论文档：**`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`** | `HM-03a` `HM-03b` | 文档评审 |
 | `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
 | `HM-04b` | `Done` | `HM-04` | 增加只读动态 dashboard 能力 | `ops serve` 已暴露 `dashboard/events`，HTML 支持 `live_mode=sse|poll`，继续保持只读 | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
@@ -210,9 +211,20 @@
 | `ECC-01b` | `Done` | `ECC-01` | 收口导出/安装/共享流转 | `CROSS_HARNESS_COMPATIBILITY*.md` 编号化流转 | `ECC-01a` | 文档走查 |
 | `ECC-02a` | `Done` | `ECC-02` | 把 routing/profile/budget 变成稳定产品路径 | `models routing-test`、wizard、默认策略收口 | — | CLI smoke |
 | `ECC-02b` | `Done` | `ECC-02` | 补齐成本视图与 compact 策略解释 | `cost report` 嵌 `compact_policy_explain_v1`、文本摘要 | `ECC-02a` | pytest + smoke |
-| `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | 先输出版本语义和兼容策略 | — | 设计文档 |
-| `HM-06a` | `Explore` | `HM-06` | Runtime backend 产品化评估 | 明确本地/Docker/SSH 优先级与交付边界 | — | 评估结论 |
-| `HM-07a` | `Explore` | `HM-07` | Voice 能力边界评估 | 列清输入输出、平台依赖、是否 OOS | — | 评估结论 |
+| `ECC-03a` | `Done` | `ECC-03` | 插件矩阵与版本治理方案 | 结论文档：**`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** | — | 文档评审 |
+| `HM-06a` | `Done` | `HM-06` | Runtime backend 产品化评估 | 结论文档：**`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** | — | 文档评审 |
+| `HM-07a` | `Done` | `HM-07` | Voice 能力边界评估 | 结论文档：**`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**（默认 **OOS**，**MCP** 替代） | — | 文档评审 |
+| `HM-02c` | `Done` | `HM-02` | API 只读扩展（profile / plugins / release） | **`GET /v1/models/summary`**（`api_models_summary_v1`）、**`GET /v1/plugins/surface`**（`api_plugins_surface_v1`，**可选 `?compat=1`**）、**`GET /v1/release/runbook`**（`api_release_runbook_v1`） | `HM-02b` | pytest |
+| `CC-03c` | `Done` | `CC-03` | 模型切换与状态文案最小对齐 | TUI **`#context-label`** 追加 **`· route=sub/pl`** 与迁移警示；**`/models`** 切换与 CLI **`models use`** 同时打印 **`profile_switched: <id>`** | `CC-03b` | pytest |
+| `ECC-03b` | `Done` | `ECC-03` | 插件治理最小可验证入口 | **`plugin_compat_matrix_v1.maintenance_checklist`** + **`plugins_compat_check_v1`**（**`plugins --compat-check`**） | `ECC-03a` | pytest |
+| `HM-03d-teams` | `Ready` | `HM-03` | Teams Gateway 生产路径（下一批第一顺位） | 代码/测试 + gateway smoke | `HM-03b` `HM-03c` | gateway smoke + `doctor` |
+| `HM-06b-docker` | `Ready` | `HM-06` | Runtime **docker** 后端产品化 | 镜像/卷/限额/`doctor` 诊断 | `HM-06a` | pytest + `runtime test --backend docker` |
+| `HM-06c-ssh` | `Ready` | `HM-06` | Runtime **SSH** 后端产品化 | 密钥、`known_hosts`、超时、审计 | `HM-06a` | pytest + `runtime test --backend ssh` |
+| `HM-04c` | `Design` | `HM-04` | Dashboard 高级交互（队列拖拽等） | 鉴权边界、HTML/SSE 扩展 | `HM-04b` | 浏览器手测 + pytest |
+| `HM-03e-prod` | `Design` | `HM-03` | Gateway 生产化深化（Slash/频道监控/多工作区） | `gateway_lifecycle` 扩展；多工作区联邦 | `HM-03b` | gateway smoke + 压测 |
+| `ECC-03c` | `Ready` | `ECC-03` | 插件兼容矩阵 CI snapshot | 基于 `ECC-03b` 产出；接入 `scripts/gen_*` 检查 | `ECC-03b` | pytest + CI dry-run |
+| `HM-05d` | `Design` | `HM-05` | Memory providers 扩展 / 用户模型深化 | 对齐 **`HONCHO_USER_MODEL_EPIC.zh-CN.md`** | `HM-05a/b/c` | pytest + smoke |
+| `DOC-01c` | `Ready` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 链接检查 + 结构收敛 | — | 手工 + `rg` |
 
 ### 10.1 建议开单顺序
 
