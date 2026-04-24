@@ -1,7 +1,7 @@
 # Sprint 2 QA 测试计划：Memory Loop 2.0（质量治理）
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 2  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S2  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 2
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S2
 > 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_memory_health*.py`
 
 ---

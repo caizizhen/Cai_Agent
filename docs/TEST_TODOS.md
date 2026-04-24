@@ -32,7 +32,7 @@ Validated on 2026-04-25 from the repo root:
 
 ## Usage
 
-Use [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) as the QA companion to [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md). Each task should normally cover at least:
+Use [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) as the QA companion to the active/future queue in [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md). Completed task evidence is archived in [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md). Each new task should normally cover at least:
 
 - pytest
 - smoke or regression

@@ -12,10 +12,13 @@
 - **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run`。
 - **[唯一执行清单](docs/PRODUCT_PLAN.zh-CN.md)**：当前能力、测试进度、开发项状态。
 - **[当前阶段开发计划](docs/ROADMAP_EXECUTION.zh-CN.md)**：下一阶段开发顺序与里程碑。
+- **[未来开发队列](docs/DEVELOPER_TODOS.zh-CN.md)**：只保留未完成项、未来方向与 OOS/条件立项。
+- **[已完成任务归档](docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md)**：已交付任务的归档摘要。
 - **[缺口与边界](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)**：P1/P2 缺口、OOS、发版门禁。
 - **[Parity 矩阵](docs/PARITY_MATRIX.zh-CN.md)**：发版勾选与 `Done/Next/MCP/OOS`。
 - **[一页实现摘要](docs/IMPLEMENTATION_STATUS.zh-CN.md)**：只看近期交付与仍未完成。
 - **[JSON 契约索引](docs/schema/README.zh-CN.md)**：`--json` 输出、`schema_version`、exit 码。
+- **[历史文档归档](docs/archive/README.zh-CN.md)**：旧进度、旧 Hermes parity 与 sprint 记录。
 - **[专题文档目录](docs/README.zh-CN.md)**：Memory、Ops Web、Runtime、MCP、模型路由、兼容矩阵等专题统一从这里进入。
 
 ## 5 分钟跑通（推荐）

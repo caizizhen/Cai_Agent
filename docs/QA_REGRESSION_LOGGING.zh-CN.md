@@ -18,7 +18,7 @@ python scripts/run_regression.py
 
 可通过环境变量 **`QA_LOG_DIR`** 指定报告目录（相对仓库根或绝对路径）。
 
-设置 **`QA_SKIP_LOG=1`** 则**不写** Markdown 文件（仅控制台输出）。**与产品计划对齐**：[`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2**（移交清单）、[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)（研发自测索引）。
+设置 **`QA_SKIP_LOG=1`** 则**不写** Markdown 文件（仅控制台输出）。**与产品计划对齐**：[`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§三之三 · QA-2**（移交清单）、[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](archive/legacy/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)（研发自测索引）。
 
 ## 每次记录里应包含什么（脚本已写入）
 

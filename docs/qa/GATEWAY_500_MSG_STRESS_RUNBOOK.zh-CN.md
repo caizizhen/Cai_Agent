@@ -1,6 +1,6 @@
 # Gateway 500 条消息压测 Runbook（S8-02 AC3）
 
-> **Backlog**：[`docs/HERMES_PARITY_BACKLOG.zh-CN.md`](../HERMES_PARITY_BACKLOG.zh-CN.md) Sprint 8  
+> **Backlog**：[`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md`](../archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md) Sprint 8
 > **GA 计划表**：[`sprint8-ga-testplan.md`](sprint8-ga-testplan.md) 中 **PERF-GA** 与 **gateway 500 消息**行（当前为真机专项 **⬜**）
 
 本项验证：**在真实 Bot / Webhook 环境下，连续收发约 500 条消息（可含轻量命令）进程不崩溃、无静默断连、无未处理异常刷屏**。自动化仓库内已有 **recall / daemon** 压测（`scripts/perf_ga_gate.py`、`tests/test_perf_ga_s8_02.py`），**不替代**本 runbook。

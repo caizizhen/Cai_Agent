@@ -6,14 +6,15 @@ This page is the English docs entrypoint.
 
 | Purpose | Document |
 |---|---|
-| First-run path | [`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md) |
-| Current capabilities and test progress | [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) |
-| Current roadmap / todo list | [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
+| First-run path | [`ONBOARDING.md`](ONBOARDING.md) / [`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md) |
+| Current capabilities and test progress | [`PRODUCT_PLAN.md`](PRODUCT_PLAN.md) / [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) |
+| Current roadmap / todo list | [`ROADMAP_EXECUTION.md`](ROADMAP_EXECUTION.md) / [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
 | Execution issue drafts | [`ISSUE_BACKLOG.md`](ISSUE_BACKLOG.md) / [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md) |
-| Developer start list | [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
+| Developer future queue | [`DEVELOPER_TODOS.md`](DEVELOPER_TODOS.md) / [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
+| Completed task archive | [`COMPLETED_TASKS_ARCHIVE.md`](COMPLETED_TASKS_ARCHIVE.md) / [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md) |
 | Test start list | [`TEST_TODOS.md`](TEST_TODOS.md) / [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) |
-| Gaps, boundaries, release gates | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
-| Release review matrix | [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
+| Gaps, boundaries, release gates | [`PRODUCT_GAP_ANALYSIS.md`](PRODUCT_GAP_ANALYSIS.md) / [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
+| Release review matrix | [`PARITY_MATRIX.md`](PARITY_MATRIX.md) / [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
 | Rolling implementation summary | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) / [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md) |
 | Version history | repo-root `CHANGELOG.md` / `CHANGELOG.zh-CN.md` |
 
@@ -31,18 +32,27 @@ See [`PRODUCT_VISION_FUSION.zh-CN.md`](PRODUCT_VISION_FUSION.zh-CN.md).
 
 | Topic | Document |
 |---|---|
-| Architecture | [`ARCHITECTURE.zh-CN.md`](ARCHITECTURE.zh-CN.md) |
-| JSON schemas / exit conventions | [`schema/README.zh-CN.md`](schema/README.zh-CN.md) |
-| Ops dashboard HTTP contract | [`OPS_DYNAMIC_WEB_API.md`](OPS_DYNAMIC_WEB_API.md) |
-| Model routing | [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) |
-| Runtime backends | [`RUNTIME_BACKENDS.md`](RUNTIME_BACKENDS.md) |
-| Cross-harness export | [`CROSS_HARNESS_COMPATIBILITY.md`](CROSS_HARNESS_COMPATIBILITY.md) |
-| Plugin compatibility | [`PLUGIN_COMPAT_MATRIX.md`](PLUGIN_COMPAT_MATRIX.md); CI snapshot: [`schema/plugin_compat_matrix_v1.snapshot.json`](schema/plugin_compat_matrix_v1.snapshot.json) |
+| Architecture | [`ARCHITECTURE.md`](ARCHITECTURE.md) / [`ARCHITECTURE.zh-CN.md`](ARCHITECTURE.zh-CN.md) |
+| JSON schemas / exit conventions | [`schema/README.md`](schema/README.md) / [`schema/README.zh-CN.md`](schema/README.zh-CN.md) |
+| Ops dashboard HTTP contract | [`OPS_DYNAMIC_WEB_API.md`](OPS_DYNAMIC_WEB_API.md) / [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md) |
+| Model routing | [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) / [`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md) |
+| Runtime backends | [`RUNTIME_BACKENDS.md`](RUNTIME_BACKENDS.md) / [`RUNTIME_BACKENDS.zh-CN.md`](RUNTIME_BACKENDS.zh-CN.md) |
+| Memory policy | [`MEMORY_TTL_CONFIDENCE_POLICY.md`](MEMORY_TTL_CONFIDENCE_POLICY.md) / [`MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md`](MEMORY_TTL_CONFIDENCE_POLICY.zh-CN.md) |
+| MCP Web recipe | [`MCP_WEB_RECIPE.md`](MCP_WEB_RECIPE.md) / [`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md) |
+| Cross-harness export | [`CROSS_HARNESS_COMPATIBILITY.md`](CROSS_HARNESS_COMPATIBILITY.md) / [`CROSS_HARNESS_COMPATIBILITY.zh-CN.md`](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
+| Plugin compatibility | [`PLUGIN_COMPAT_MATRIX.md`](PLUGIN_COMPAT_MATRIX.md) / [`PLUGIN_COMPAT_MATRIX.zh-CN.md`](PLUGIN_COMPAT_MATRIX.zh-CN.md); CI snapshot: [`schema/plugin_compat_matrix_v1.snapshot.json`](schema/plugin_compat_matrix_v1.snapshot.json) |
 
 ## Historical / compatibility docs
 
-These remain mainly for old links and traceability:
+Historical docs now live under [`archive/`](archive/). They remain for traceability and should not be updated as active planning sources:
 
-- [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)
-- [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md)
-- [`HERMES_PARITY_SPRINT_PLAN.zh-CN.md`](HERMES_PARITY_SPRINT_PLAN.zh-CN.md)
+- [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](archive/legacy/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)
+- [`HERMES_PARITY_PROGRESS.zh-CN.md`](archive/legacy/HERMES_PARITY_PROGRESS.zh-CN.md)
+- [`HERMES_PARITY_SPRINT_PLAN.zh-CN.md`](archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md)
+
+## Maintenance Rules
+
+- Keep current docs bilingual. English companion summaries are acceptable for large Chinese-primary planning documents.
+- Keep status in `PRODUCT_PLAN`, `ROADMAP_EXECUTION`, `IMPLEMENTATION_STATUS`, and `CHANGELOG`; avoid adding new status tables elsewhere.
+- Keep completed work in `COMPLETED_TASKS_ARCHIVE`; keep `DEVELOPER_TODOS` focused on unfinished work and future directions.
+- Archived docs are frozen except for link repairs.

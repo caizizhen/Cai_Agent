@@ -1,7 +1,7 @@
 # CAI Agent 产品计划（唯一执行清单）
 
-本文件是 **开发与测试进度的唯一权威表**。  
-**Hermes 冻结阶段 Story 级 AC** 见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md)；**冻结阶段 Story 勾选状态** 见 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md)。
+本文件是 **开发与测试进度的唯一权威表**。
+**Hermes 冻结阶段 Story 级 AC** 见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md)；**冻结阶段 Story 勾选状态** 见 [`HERMES_PARITY_PROGRESS.zh-CN.md`](archive/legacy/HERMES_PARITY_PROGRESS.zh-CN.md)。
 
 **非本表职责**：愿景 [`PRODUCT_VISION_FUSION.zh-CN.md`](PRODUCT_VISION_FUSION.zh-CN.md)、缺口 [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)、矩阵 [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md)、架构 [`ARCHITECTURE.zh-CN.md`](ARCHITECTURE.zh-CN.md)。**近期实现 vs 未完成的一页摘要**（中英）：[`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md) / [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)。
 
@@ -110,14 +110,14 @@
 
 ## 三之二、进度统计与 QA 移交
 
-> **横向索引**：[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)（与本节 QA 说明互链）。
+> **横向索引**：[`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](archive/legacy/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md)（与本节 QA 说明互链）。
 
 ### 3.0 完成度（估算）
 
 | 口径 | 计算方式 | 当前值（与 §二一致时更新） |
 |------|----------|---------------------------|
 | **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 100%**（22完成 + 1定案 + 1持续演进 + 2MVP完成 = **26** → **26/26=100%**） |
-| **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
+| **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](archive/legacy/HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
 | **T1** | pytest 全绿 | 同 §三 T1（**672** cases + **3** subtests，见上表证据列） |
 
 ### 3.1 §二 状态计数
@@ -164,9 +164,9 @@
 
 ## 五、分支策略
 
-- **默认分支**：`main`，经 **PR** 合入。  
-- **少建长期 `cursor/*`**：单功能短分支，合并后删远端。  
-- **Hermes 迭代**：以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 认领 Story。
+- **默认分支**：`main`，经 **PR** 合入。
+- **少建长期 `cursor/*`**：单功能短分支，合并后删远端。
+- **Hermes 迭代**：以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](archive/legacy/HERMES_PARITY_PROGRESS.zh-CN.md) 认领 Story。
 
 ---
 

@@ -4,7 +4,7 @@
 
 ## 结论
 
-截至 **2026-04-24**，以 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) 中定义的 **34 条 Story** 为准：
+截至 **2026-04-24**，以 [`HERMES_PARITY_BACKLOG.zh-CN.md`](archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md) 中定义的 **34 条 Story** 为准：
 
 | 状态 | 数量 |
 |---|---|
@@ -26,7 +26,7 @@
 | 当前能力、测试进度 | [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) |
 | 下一阶段开发计划 | [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
 | 缺口、OOS、发版门禁 | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
-| Hermes 34 Story 定义 | [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) |
+| Hermes 34 Story 定义 | [`HERMES_PARITY_BACKLOG.zh-CN.md`](archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md) |
 
 ## 已经转为后续主题的能力
 

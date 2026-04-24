@@ -1,7 +1,7 @@
 # Sprint 4 QA 测试计划：Scheduler 2.0（生产可用）
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 4  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S4  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 4
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S4
 > 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_schedule*.py`
 
 ---

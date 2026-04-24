@@ -1,8 +1,8 @@
 # Sprint 5 QA 测试计划：Subagents 并行编排
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 5  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S5  
-> 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_workflow*.py`  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 5
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S5
+> 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_workflow*.py`
 > **开发状态（2026-04-23）**：**S5-03**（`on_error`）与 **S5-04**（`budget_max_tokens` + `budget_used`/`budget_limit`/`budget_exceeded` + root **`quality_gate`** 后置门禁）已在 `cai_agent/workflow.py` 落地；自动化见 `cai-agent/tests/test_cli_workflow.py`。
 
 ---

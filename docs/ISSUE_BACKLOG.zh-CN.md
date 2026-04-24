@@ -114,7 +114,7 @@
 | 交付物 | `cai_agent.gateway_teams`、CLI 子命令、gateway 汇总入口、pytest 覆盖、文档回写。 |
 | 验收标准 | 本地可用 CLI 创建/查询 Teams conversation 映射；health 能显示配置存在性；manifest 可输出 Teams app 草案；Activity `ping` / `status` 可同步响应；gateway 汇总能看到 Teams。 |
 | 验证 | `pytest test_gateway_discord_slack_cli.py test_gateway_maps_summarize.py`，全量 pytest，smoke。 |
-| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、`schema/README`、CHANGELOG。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`（未完成时）、`COMPLETED_TASKS_ARCHIVE`（完成后）、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、`schema/README`、CHANGELOG。 |
 | 依赖 | `HM-03b`、`HM-03c`。 |
 
 ## HM-04a 统一 ops/gateway/status 聚合载荷
@@ -160,7 +160,7 @@
 | 交付物 | `runtime/docker.py`、`runtime/registry.py`、`config.py`、runtime 单测、schema/changelog/roadmap 回写。 |
 | 验收标准 | 配置 `image` 时可生成 `docker run --rm` 命令；配置 `container` 时继续走 `docker exec`；doctor JSON 能看到 mode/image/workdir/volumes/limits。 |
 | 验证 | `pytest test_runtime_docker_mock.py test_runtime_tool_dispatch.py test_runtime_local.py`、smoke、全量 pytest。 |
-| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`（未完成时）、`COMPLETED_TASKS_ARCHIVE`（完成后）、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
 | 依赖 | `HM-06a`。 |
 
 ## HM-06c-ssh Runtime SSH 后端产品化
@@ -176,7 +176,7 @@
 | 交付物 | `runtime/ssh.py`、`runtime/registry.py`、`config.py`、SSH 单测、schema/changelog/roadmap 回写。 |
 | 验收标准 | 配置 SSH 后端时 doctor JSON 可诊断 key/known_hosts/audit 状态；执行路径能写入审计 JSONL；默认审计不包含命令明文。 |
 | 验证 | `pytest test_runtime_ssh_mock.py test_runtime_docker_mock.py test_runtime_tool_dispatch.py test_runtime_local.py`、smoke、全量 pytest。 |
-| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`（未完成时）、`COMPLETED_TASKS_ARCHIVE`（完成后）、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
 | 依赖 | `HM-06a`。 |
 
 ## ECC-01a 统一 rules/skills/hooks 资产目录与模板
@@ -222,7 +222,7 @@
 | 交付物 | 生成脚本、snapshot JSON、测试、schema README/changelog/roadmap 回写。 |
 | 验收标准 | 修改矩阵后若未刷新 snapshot，`python scripts/gen_plugin_compat_snapshot.py --check` 退出 `2`；当前仓库 snapshot check 退出 `0`。 |
 | 验证 | `pytest test_plugin_compat_matrix.py`；`python scripts/gen_plugin_compat_snapshot.py --check`；smoke。 |
-| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`（未完成时）、`COMPLETED_TASKS_ARCHIVE`（完成后）、`PARITY_MATRIX`、schema README、CHANGELOG。 |
 | 依赖 | `ECC-03b`。 |
 
 ---

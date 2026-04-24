@@ -1,7 +1,7 @@
 # Sprint 8 QA 测试计划：GA 收敛（性能 + 安全 + 发布）
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 8  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S8  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 8
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S8
 > 注意：本阶段为发布门禁阶段，**所有 P0 必须全部通过**才能进入发布流程。
 
 ---

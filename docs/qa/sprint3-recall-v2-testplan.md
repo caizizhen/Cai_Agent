@@ -1,7 +1,7 @@
 # Sprint 3 QA 测试计划：Recall Loop 2.0（质量 + 可解释性）
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 3  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S3  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 3
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S3
 > 执行命令入口：`python3 -m pytest -q cai-agent/tests/test_recall*.py`
 
 ---

@@ -1,7 +1,7 @@
 # Sprint 6 QA 测试计划：Messaging Gateway（Telegram MVP）
 
-> 对应开发文档：`docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 6  
-> 对应 backlog：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S6  
+> 对应开发文档：`docs/archive/legacy/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` §Sprint 6
+> 对应 backlog：`docs/archive/legacy/HERMES_PARITY_BACKLOG.zh-CN.md` §Epic S6
 > 注意：本计划包含需要真实 Telegram Bot Token 的手工用例，同时定义可 mock 的自动化用例。
 
 ---

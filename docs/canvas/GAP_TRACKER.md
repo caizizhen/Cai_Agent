@@ -41,7 +41,6 @@ Status vocabulary:
 | `ECC-01` | `Done` | **`ECC-01a`/`ECC-01b` Done**（`ecc` CLI + 安装/导出/共享文档） | `ROADMAP_EXECUTION` §10 |
 | `ECC-02` | `Done` | **`ECC-02a`/`ECC-02b` Done**（routing-test / cost report + compact explain） | `ROADMAP_EXECUTION` §10 |
 | `ECC-03` | `Done` | **`ECC-03a`/`ECC-03b`/`ECC-03c` Done**（治理 RFC + compat check + CI snapshot） | `ROADMAP_EXECUTION` §10 |
-| `CC-03` | `Design` | **`CC-03a`/`CC-03b`/`CC-03c` Done**；进一步 TUI 对齐可随需求再立项 | `ROADMAP_EXECUTION` §10 |
 
 ## 3. Usage rule
 
@@ -49,4 +48,5 @@ When a roadmap item changes status:
 
 1. Update [`../ROADMAP_EXECUTION.zh-CN.md`](../ROADMAP_EXECUTION.zh-CN.md) first.
 2. Mirror the status here.
-3. If an old canvas row becomes irrelevant, map it to `OOS` instead of inventing a new parallel bucket.
+3. Move completed task details to [`../COMPLETED_TASKS_ARCHIVE.zh-CN.md`](../COMPLETED_TASKS_ARCHIVE.zh-CN.md); keep [`../DEVELOPER_TODOS.zh-CN.md`](../DEVELOPER_TODOS.zh-CN.md) focused on unfinished work and future directions.
+4. If an old canvas row becomes irrelevant, map it to `OOS` instead of inventing a new parallel bucket.

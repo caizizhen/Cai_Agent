@@ -175,7 +175,7 @@
 
 为避免再出现“路线图一份、画布一份、专题文档一份”三套口径，下面这张表就是当前建议的**开 issue 顺序**。规则是：
 
-完整 issue 草案见 [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md)。
+完整 issue 草案见 [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md)。已完成任务的归档摘要见 [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)；[`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 只保留未完成项、未来方向与 OOS/条件立项。
 
 - `Done`：本轮已经收口，不再单独开开发单，只保留回归和维护。
 - `Ready`：边界清晰，可以直接开开发 issue。

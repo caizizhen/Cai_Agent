@@ -7,7 +7,7 @@
 - **执行与测试进度**：看 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md)
 - **下一阶段开发计划**：看 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)
 - **近期已交付 / 仍未完成**：看 [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md)
-- **Hermes 34 Story 历史对齐状态**：看 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md)
+- **Hermes 34 Story 历史对齐状态**：看 [`HERMES_PARITY_PROGRESS.zh-CN.md`](archive/legacy/HERMES_PARITY_PROGRESS.zh-CN.md)
 
 ## 快速结论
 

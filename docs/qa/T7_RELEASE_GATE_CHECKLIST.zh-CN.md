@@ -36,7 +36,7 @@
 
 ## 4. 记录
 
-- 结论可回填：`docs/qa/runs/` 下追加一篇 Markdown，或在 [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](../DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 记一行。
+- 结论可回填：`docs/qa/runs/` 下追加一篇 Markdown，或在 [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](../archive/legacy/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 记一行。
 - **豁免**：某项无法执行时，写明原因、计划补测日期与 owner。
 
 ---

@@ -34,7 +34,7 @@
 
 开始测试或配合开发前，统一遵守：
 
-1. 不单独维护另一套“测试优先级”，一律跟 [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 的第一批任务走。
+1. 不单独维护另一套“测试优先级”，一律跟 [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 中仍未完成或未来立项的任务走；已完成任务证据归档到 [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)。
 2. 每项任务至少补齐下面四层中的两层：
    - pytest 子集
    - smoke / regression 路径

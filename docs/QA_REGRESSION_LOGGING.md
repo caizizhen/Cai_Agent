@@ -18,7 +18,7 @@ On completion, the script writes:
 
 Set **`QA_LOG_DIR`** to override the directory (path relative to repo root or absolute).
 
-Set **`QA_SKIP_LOG=1`** to disable writing the Markdown file (stdout/stderr only). **Product alignment**: [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §3.3 **QA-2** (handoff checklist), [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) (developer index).
+Set **`QA_SKIP_LOG=1`** to disable writing the Markdown file (stdout/stderr only). **Product alignment**: [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §3.3 **QA-2** (handoff checklist), [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](archive/legacy/DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) (developer index).
 
 ## What each log file contains
 
