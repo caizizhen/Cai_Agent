@@ -134,9 +134,9 @@
 
 | 项 | 说明 |
 |----|------|
-| **Claude Code 线** | WebSearch / Notebook 的产品化路径、安装 / 更新体验、CLI/TUI 交互统一 |
-| **Hermes 线** | Profiles、API/server、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
-| **ECC 线** | rules / skills / hooks 的资产化、`model-route`、插件与安装叙事、跨 harness 深化 |
+| **Claude Code 线** | WebSearch / Notebook 的产品化路径、安装 / 更新体验、CLI/TUI 交互统一；**CC-03b** 见 RFC **`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** |
+| **Hermes 线** | Profiles、**`HM-02b` 最小 HTTP API**（契约见 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**）、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
+| **ECC 线** | rules / skills / hooks 的资产化、`model-route`、**`cost report` + compact 策略说明**、插件与跨 harness 深化 |
 | **共享项** | 中英文文档同步、反馈闭环、发布闭环、OOS / MCP 备案机制 |
 | **明确 OOS** | 依赖封闭企业能力的官方专属特性、默认多 CLI 套件模式 |
 
