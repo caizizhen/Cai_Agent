@@ -1,0 +1,33 @@
+---
+description: 按开发计划全自动推进直至收尾；每功能后测试、文档、提交
+alwaysApply: true
+---
+
+# 开发计划驱动：全自动交付循环
+
+## 计划源（唯一执行顺序）
+
+- 以 **`docs/DEVELOPER_TODOS.zh-CN.md`** 为执行面；产品边界以 **`docs/PRODUCT_PLAN.zh-CN.md`**、**`docs/ROADMAP_EXECUTION.zh-CN.md`** §10 为准。
+- backlog 状态变更：**先改 `ROADMAP_EXECUTION.zh-CN.md` §10**，再同步 **`DEVELOPER_TODOS`**、**`docs/canvas/GAP_TRACKER.md`** 等与该 issue 相关的表。
+- 默认不做标记为 **`Explore`** 的项，除非用户明确要求立项。
+
+## 每个功能的标准循环（重复直到计划中无待办或用户喊停）
+
+1. **取下一项**：从 `DEVELOPER_TODOS` / `ROADMAP` §10 中取下一个 **`Ready`**（或已评审的 **`Design`** 实现项）；一次聚焦一条 issue，避免无关重构。
+2. **实现**：改代码；补 **`cai-agent/tests`** 中与该功能相关的用例；必要时更新 **`scripts/smoke_new_features.py`**。
+3. **测试**（在本机执行，不省略）：
+   - `python -m pytest -q cai-agent/tests`（仓库根，`PYTHONPATH` 含 `cai-agent/src` 若环境需要）
+   - `python scripts/smoke_new_features.py`
+   - 改动面大时：`QA_SKIP_LOG=1 python scripts/run_regression.py`
+4. **文档**（合入前至少覆盖与本功能相关的项，避免重复造新文档源）：
+   - **`CHANGELOG.md`** / **`CHANGELOG.zh-CN.md`**
+   - **`docs/PRODUCT_PLAN.zh-CN.md`**、**`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`**、**`docs/PARITY_MATRIX.zh-CN.md`**（若适用）
+   - **`docs/IMPLEMENTATION_STATUS.zh-CN.md`**、**`docs/ISSUE_BACKLOG.zh-CN.md`**（若适用）
+   - 若涉及 JSON 契约：**`docs/schema/README.zh-CN.md`**（或对应 schema 说明）
+5. **提交**：`git add` 相关文件 → **`git commit`** 使用完整句子说明「做了什么、为什么」→ 用户已授权远程时 **`git push origin`** 当前工作分支（默认 **`main`**）。
+
+## 边界与安全
+
+- 不臆造密钥、不提交秘钥；需要凭据时停下来请用户配置。
+- 不擅自扩大范围（例如未在 roadmap 中的新平台、未评审的 API 形态）。
+- Windows：`PYTHONPATH` 用 `;` 分隔路径；PowerShell 设置环境变量示例：`$env:PYTHONPATH="d:\path\cai-agent\src"`。

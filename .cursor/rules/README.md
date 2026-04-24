@@ -1,5 +1,9 @@
 # Rules（约束与建议规则）
 
+## Cursor Agent：全计划自动交付
+
+- 本目录 **`full-plan-autonomous-delivery.mdc`**（`alwaysApply: true`）：按 **`docs/DEVELOPER_TODOS.zh-CN.md`** / **`docs/ROADMAP_EXECUTION.zh-CN.md`** 推进开发；每完成一项即 **pytest → smoke →（必要时）regression → 更新文档 → git commit（+ 已授权则 push）**。
+
 `rules/` 目录用于存放针对不同语言与场景的约束与建议规则，思路参考 Everything Claude Code 的 `rules/`：
 
 - `rules/common/`：与具体语言无关的通用规则，例如：
