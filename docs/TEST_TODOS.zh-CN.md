@@ -18,11 +18,11 @@
 
 ## 1. 当前测试基线
 
-2026-04-24 在仓库根 `D:\gitrepo\Cai_Agent` 实测结果：
+2026-04-25 在仓库根 `D:\gitrepo\Cai_Agent` 实测结果：
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **641 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **658 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 

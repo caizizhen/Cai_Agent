@@ -3307,6 +3307,8 @@ def _cmd_models(args: argparse.Namespace) -> int:
         settings.profiles if settings.profiles_explicit else ()
     )
     base_active = settings.active_profile_id if settings.profiles_explicit else None
+    next_subagent = settings.subagent_profile_id
+    next_planner = settings.planner_profile_id
 
     try:
         if action == "add":
@@ -3327,6 +3329,10 @@ def _cmd_models(args: argparse.Namespace) -> int:
             new_profiles = remove_profile(base_profiles, args.id)
             prefer = None if base_active == args.id else base_active
             next_active = _resolve_active_after_mutation(prefer, new_profiles)
+            if next_subagent == args.id:
+                next_subagent = None
+            if next_planner == args.id:
+                next_planner = None
         elif action == "edit":
             updates: dict[str, Any] = {
                 "provider": args.provider,
@@ -3356,8 +3362,8 @@ def _cmd_models(args: argparse.Namespace) -> int:
             target,
             new_profiles,
             active=next_active,
-            subagent=settings.subagent_profile_id,
-            planner=settings.planner_profile_id,
+            subagent=next_subagent,
+            planner=next_planner,
         )
     except Exception as e:
         print(f"写入 {target} 失败: {e}", file=sys.stderr)
