@@ -64,6 +64,7 @@ from cai_agent.profiles import (
     write_models_to_toml,
 )
 from cai_agent.exporter import build_export_ecc_dir_diff_report, export_target
+from cai_agent.feedback import BUG_REPORT_CATEGORIES, feedback_path
 from cai_agent.memory import (
     annotate_memory_states,
     build_memory_entries_jsonl_validate_report,
@@ -4458,6 +4459,12 @@ def main(argv: list[str] | None = None) -> int:
         "mcp-check",
         parents=[common],
         help="检查 MCP Bridge 连通性并打印可用工具",
+        epilog=(
+            "WebSearch·Notebook 预设：--preset websearch | notebook | websearch/notebook。"
+            " 最短：--preset websearch/notebook --list-only ；"
+            "--preset websearch --print-template 。"
+            " 文档：docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+        ),
     )
     mcp_p.add_argument(
         "--json",
@@ -5451,6 +5458,44 @@ def main(argv: list[str] | None = None) -> int:
     feedback_list = feedback_sub.add_parser("list", help="列出最近反馈行")
     feedback_list.add_argument("--limit", type=int, default=30)
     feedback_list.add_argument("--json", action="store_true", dest="json_output")
+    feedback_stats_p = feedback_sub.add_parser(
+        "stats",
+        help="汇总 .cai/feedback.jsonl（与 doctor --json / release_runbook.feedback 同源）",
+    )
+    feedback_stats_p.add_argument("--json", action="store_true", dest="json_output")
+    feedback_bug = feedback_sub.add_parser(
+        "bug",
+        help="结构化问题反馈（等价 /bug），写入 .cai/feedback.jsonl；正文经脱敏后再落盘",
+    )
+    feedback_bug.add_argument(
+        "bug_summary",
+        nargs="+",
+        metavar="SUMMARY",
+        help="一句话摘要",
+    )
+    feedback_bug.add_argument(
+        "--detail",
+        default="",
+        help="复现步骤或补充说明（写入前脱敏）",
+    )
+    feedback_bug.add_argument(
+        "--detail-file",
+        default="",
+        metavar="PATH",
+        help="从 UTF-8 文件读取 detail（优先于 --detail）",
+    )
+    feedback_bug.add_argument(
+        "--category",
+        choices=BUG_REPORT_CATEGORIES,
+        default="other",
+        help="问题类别（默认 other）",
+    )
+    feedback_bug.add_argument(
+        "--attach-doctor-hint",
+        action="store_true",
+        help="文本模式下提示可附加 cai-agent doctor --json 作为环境摘要",
+    )
+    feedback_bug.add_argument("--json", action="store_true", dest="json_output")
     feedback_export = feedback_sub.add_parser(
         "export",
         help="导出 feedback JSONL 到指定路径（feedback_export_v1）",
@@ -10082,11 +10127,68 @@ def main(argv: list[str] | None = None) -> int:
             return rc_cost
 
     if args.command == "feedback":
-        from cai_agent.feedback import append_feedback, export_feedback_jsonl, list_feedback
+        from cai_agent.feedback import append_feedback, export_feedback_jsonl, feedback_stats, list_feedback
 
         root_fb = Path.cwd().resolve()
         act_fb = str(getattr(args, "feedback_action", "") or "").strip().lower()
         t_fb = time.perf_counter()
+        if act_fb == "stats":
+            st = feedback_stats(root_fb)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(st, ensure_ascii=False))
+            else:
+                print(
+                    "[feedback] stats",
+                    f"total={int(st.get('total') or 0)}",
+                    f"latest_ts={st.get('latest_ts') or '-'}",
+                    f"sources={st.get('sources') or {}}",
+                )
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.stats",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=int(st.get("total") or 0),
+                success=True,
+            )
+            return 0
+        if act_fb == "bug":
+            from cai_agent.feedback import append_bug_report
+
+            summ = " ".join(str(x) for x in (getattr(args, "bug_summary", []) or [])).strip()
+            det_file = str(getattr(args, "detail_file", "") or "").strip()
+            det = str(getattr(args, "detail", "") or "").strip()
+            if det_file:
+                p_df = Path(det_file).expanduser()
+                if not p_df.is_file():
+                    print("detail-file 不存在或不是文件", file=sys.stderr)
+                    return 2
+                det = p_df.read_text(encoding="utf-8", errors="replace")[:200_000]
+            try:
+                row = append_bug_report(
+                    root_fb,
+                    summary=summ,
+                    detail=det,
+                    category=str(getattr(args, "category", "other") or "other"),
+                    cai_agent_version=__version__,
+                )
+            except ValueError as exc:
+                print(str(exc), file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(row, ensure_ascii=False))
+            else:
+                print("[feedback] bug 已记录", row.get("ts"), "→", str(feedback_path(root_fb)))
+                print("  category=", row.get("category"), "summary=", (row.get("summary") or "")[:120])
+                if bool(getattr(args, "attach_doctor_hint", False)):
+                    print("  hint: 附加环境摘要可执行: cai-agent doctor --json")
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.bug",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=len(summ) + len(det),
+                success=True,
+            )
+            return 0
         if act_fb == "submit":
             txt = " ".join(str(x) for x in (getattr(args, "feedback_text", []) or [])).strip()
             if not txt:
@@ -10113,7 +10215,8 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 for r in rows[-20:]:
                     if isinstance(r, dict):
-                        print(f"{r.get('ts')}\t{r.get('text', '')[:120]}")
+                        line = str(r.get("text") or r.get("summary") or "")
+                        print(f"{r.get('ts')}\t{line[:120]}")
             _maybe_metrics_cli(
                 module="feedback",
                 event="feedback.list",

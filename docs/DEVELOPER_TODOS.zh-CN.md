@@ -66,7 +66,7 @@
 当前默认做法：
 
 1. 每次只推进一项主任务，但顺手把相关文档一起回写。
-2. 当前轮优先收完 Sprint A：`REL-01a`、`CC-01a`、`CC-02a`。
+2. **下一批排期**以 **§0.2** 全量看板与 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §10 为准；§0.0 / §0.1 中 Sprint A～C 的 `*a` 项已全部 `Done`。
 3. 当某项从 `Doing` 进入“可回归、可文档化”状态时，再把下一项切到 `Doing`。
 
 本轮同步更新（2026-04-24）：
@@ -79,6 +79,100 @@
 - `HM-01a`：TUI `/status` 现在也会显示 `profile_contract` 来源与迁移状态，CLI/TUI 口径对齐。
 - `HM-04a`：`board` / `ops dashboard` / `gateway status` 现在共享 `gateway_summary_v1`，把 `status / bindings_count / webhook_running / allowlist_enabled` 收成同一套读侧字段。
 - 文档同步：已将 `HM-04a` 在执行看板中的状态统一回写为 `Done`，并把下一批候选项统一标记为 `Ready`，避免 `Ready/Next` 混用造成误读。
+
+---
+
+## 0.2 文档全量开发任务 To-do 看板（与 ROADMAP §10 / §3 对齐）
+
+**规划源**：[`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §3（父级 To-do）、§10（issue 级 backlog）；[`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二（演进方向）；[`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md)（滚动摘要）。
+
+**维护规则**：issue 状态以 **`ROADMAP_EXECUTION` §10** 为准；本表为开发执行翻译，变更时先改 roadmap，再同步本小节。
+
+### 0.2.1 父级 To-do（路线图 §3，里程碑见 ROADMAP §4）
+
+| ID | 优先级 | 能力线 | 本阶段交付（摘要） |
+|---|---|---|---|
+| `DOC-01` | P0 | 共享 | 文档收敛；主入口中英一致；减少重复 backlog |
+| `REL-01` | P0 | 共享 | `release-ga` / `doctor` / `feedback` / CHANGELOG / Parity 固定流程 |
+| `CC-01` | P1 | Claude Code | WebSearch/Notebook **MCP 优先**下的预设、自检、模板与任务入口 |
+| `CC-02` | P1 | Claude Code | 安装/更新/版本提示与反馈体验 |
+| `CC-03` | P1 | Claude Code | CLI/TUI 任务板、继续会话、模型与状态提示统一 |
+| `HM-01` | P1 | Hermes | Profiles 数据模型、切换、持久化与 QA |
+| `HM-02` | P1 | Hermes | 最小 API/server 面，支持外部驱动 |
+| `HM-03` | P1 | Hermes | 多平台 gateway 生产路径（Telegram 外 Discord/Slack 等） |
+| `HM-04` | P1 | Hermes | Dashboard 产品化：同源 schema → 只读动态视图 |
+| `HM-05` | P1 | Hermes | Memory providers / 用户模型 / recall 治理 |
+| `HM-06` | P2 | Hermes | Runtime backends 产品化（云后端条件立项） |
+| `HM-07` | P2 | Hermes | Voice 评估与边界，不默认交付 |
+| `ECC-01` | P1 | ECC | rules/skills/hooks 资产化与安装叙事 |
+| `ECC-02` | P1 | ECC | model-route / 成本与 compact 可解释路径 |
+| `ECC-03` | P2 | ECC | 插件/分发/版本治理 |
+
+### 0.2.2 Issue 级全表（与 ROADMAP §10 一致，2026-04-24）
+
+| Issue ID | 状态 | 父 To-do | 主要输出 | 依赖 | 验证 |
+|---|---|---|---|---|---|
+| `DOC-01a` | `Done` | `DOC-01` | 根 README 与 docs 入口统一 | — | 链接与入口手查 |
+| `DOC-01b` | `Done` | `DOC-01` | 删除重复 roadmap/backlog、清残链 | `DOC-01a` | `rg` 无悬空引用 |
+| `REL-01a` | `Done` | `REL-01` | 发版 runbook / changelog 回写同源 | — | `doctor`、smoke、T7 |
+| `REL-01b` | `Done` | `REL-01` | **`feedback stats`**；**`doctor --json`** 的 **`feedback`** 与 **`release_runbook.feedback`** 同源 | `REL-01a` | pytest + smoke |
+| `CC-01a` | `Done` | `CC-01` | `mcp-check` preset、模板、onboarding | — | preset + 文档 |
+| `CC-01b` | `Done` | `CC-01` | **`/mcp-presets`**；**`format_tui_mcp_web_notebook_quickstart`**；**`mcp-check` epilog** | `CC-01a` | pytest |
+| `CC-02a` | `Done` | `CC-02` | 安装/升级/版本提示/onboarding | — | walkthrough |
+| `CC-02b` | `Done` | `CC-02` | **`cai-agent feedback bug`**；**`feedback_bug_report_v1`**；**`sanitize_feedback_text`** | `REL-01b` | pytest |
+| `CC-03a` | `Done` | `CC-03` | **`tui_session_strip`** 单源文案 + **`#context-label`** profile 前缀 | — | pytest |
+| `CC-03b` | `Design` | `CC-03` | 模型切换与 `/status` 提示与 profile 一致 | `HM-01a` | TUI/CLI 手测 |
+| `HM-01a` | `Done` | `HM-01` | profile schema、迁移与默认项 | — | schema review |
+| `HM-01b` | `Ready` | `HM-01` | profile 管理命令与测试夹具 | `HM-01a` | pytest + smoke |
+| `HM-02a` | `Design` | `HM-02` | 最小 API/server 契约 | — | 契约评审 |
+| `HM-02b` | `Ready` | `HM-02` | 最小只读或任务触发型 API | `HM-02a` | integration smoke |
+| `HM-03a` | `Done` | `HM-03` | Discord 生产路径 | — | gateway smoke + `doctor` |
+| `HM-03b` | `Ready` | `HM-03` | Slack 生产路径收口 | — | gateway smoke + `doctor` |
+| `HM-03c` | `Explore` | `HM-03` | 下一批 gateway 平台评估 | `HM-03a` `HM-03b` | 评估文档 |
+| `HM-04a` | `Done` | `HM-04` | ops/gateway/status 同源聚合 | — | JSON snapshot |
+| `HM-04b` | `Ready` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
+| `HM-05a` | `Done` | `HM-05` | user-model store/query/learn 闭环 | — | pytest + smoke |
+| `HM-05b` | `Ready` | `HM-05` | recall 评估与负样本机制 | `HM-05a` | benchmark/report |
+| `HM-05c` | `Ready` | `HM-05` | memory policy 接入 doctor / release gate | `HM-05a` | `doctor` + `release-ga` |
+| `ECC-01a` | `Done` | `ECC-01` | 资产目录、模板、`ecc layout` | — | 文档 + 样例 |
+| `ECC-01b` | `Ready` | `ECC-01` | 导出/安装/共享流转说明统一 | `ECC-01a` | smoke + docs |
+| `ECC-02a` | `Done` | `ECC-02` | routing-test / cost explain 产品路径 | — | CLI smoke |
+| `ECC-02b` | `Ready` | `ECC-02` | 成本视图与 compact 策略解释 | `ECC-02a` | JSON/text report |
+| `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | — | 设计文档 |
+| `HM-06a` | `Explore` | `HM-06` | Runtime backend 交付边界评估 | — | 评估结论 |
+| `HM-07a` | `Explore` | `HM-07` | Voice 边界与 OOS 评估 | — | 评估结论 |
+
+### 0.2.3 建议执行波次（默认交付 = Ready + Design；Explore 单独立项）
+
+**波次 0 — 契约（Design，可与波次 1 并行由不同人做）**
+
+1. `HM-02a`（阻塞 `HM-02b`）
+2. `CC-03b`（依赖 `HM-01a` 已 Done，可进入设计与评审）
+
+**波次 1 — 高杠杆 Ready（依赖已满足的优先开）**
+
+1. ~~`REL-01b`~~ / ~~`CC-02b`~~ / ~~`CC-01b`~~ / ~~`CC-03a`~~（Done）→ 后续 **`HM-01b`** 等
+2. `HM-01b`、`HM-03b`、`HM-04b`（可与 1 并行，注意 `HM-04b` 依赖 `HM-04a` 已 Done）
+3. `HM-05b`、`HM-05c`、`ECC-01b`、`ECC-02b`（记忆/ECC 线可与 gateway/ops 并行，注意冲突面：`doctor`、`__main__.py`）
+
+**波次 2 — API 实现**
+
+- `HM-02b`（须在 `HM-02a` 评审通过后）
+
+**波次 3 — 依赖链尾部**
+
+- ~~`CC-02b`~~、~~`CC-03a`~~（Done）
+
+**Explore（不进入当前默认排期，立项后再迁入波次）**：`HM-03c`、`ECC-03a`、`HM-06a`、`HM-07a`。
+
+### 0.2.4 与 `PRODUCT_PLAN` §三之二「后续演进」的对应关系
+
+| 演进主题 | 主要覆盖 Issue |
+|---|---|
+| Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
+| Hermes 线 | `HM-01b`、`HM-02a`/`HM-02b`、`HM-03b`、`HM-04b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
+| ECC 线 | `ECC-01b`、`ECC-02b`；Explore：`ECC-03a` |
+| 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 
 ---
 

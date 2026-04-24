@@ -57,6 +57,19 @@ def build_mcp_preset_template(name: str) -> str:
     )
 
 
+def format_tui_mcp_web_notebook_quickstart() -> str:
+    """TUI /help、/mcp-presets、任务看板：WebSearch·Notebook MCP 最短路径（CC-01b）。"""
+    return (
+        "\n[bold]WebSearch · Notebook（MCP）[/]\n"
+        f"[dim]文档[/] [cyan]{_DOC_PATH}[/] [dim]· 入门[/] [cyan]{_ONBOARDING_PATH}[/]\n"
+        "[dim]另开终端自检：[/]\n"
+        "[cyan]cai-agent mcp-check --preset websearch/notebook --list-only[/]\n"
+        "[cyan]cai-agent mcp-check --preset websearch --print-template[/]\n"
+        "[dim]本界面：[/][cyan]/mcp[/][dim] 列工具 →[/] [cyan]/mcp call 工具名 {\"query\":\"…\"}[/]\n"
+        "[dim]随时重看本段：[/][cyan]/mcp-presets[/]"
+    )
+
+
 def build_mcp_preset_report(*, name: str, tool_list: list[str]) -> dict[str, Any]:
     meta = MCP_PRESET_DEFS[name]
     matched_tools: list[str] = []

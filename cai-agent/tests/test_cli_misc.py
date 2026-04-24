@@ -135,6 +135,17 @@ class McpCheckCliTests(unittest.TestCase):
         self.assertIn("cai-agent mcp-check --json --preset websearch --list-only", out)
         self.assertIn("docs=docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md", out)
 
+    def test_mcp_check_help_shows_epilog(self) -> None:
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["mcp-check", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        combined = buf.getvalue() + err.getvalue()
+        self.assertIn("WEBSEARCH_NOTEBOOK_MCP", combined)
+        self.assertIn("websearch/notebook", combined)
+
 
 class PluginsCliTests(unittest.TestCase):
     def test_plugins_json_returns_0(self) -> None:

@@ -82,6 +82,12 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(dsum, dict)
             self.assertIn("bindings_count", dsum)
             self.assertIn("allowlist_enabled", dsum)
+            fb = pl.get("feedback")
+            self.assertIsInstance(fb, dict)
+            self.assertEqual(fb.get("schema_version"), "feedback_stats_v1")
+            rr_fb = (pl.get("release_runbook") or {}).get("feedback")
+            self.assertIsInstance(rr_fb, dict)
+            self.assertEqual(fb, rr_fb)
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

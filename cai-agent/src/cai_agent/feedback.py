@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import urllib.request
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,28 +13,43 @@ from typing import Any
 
 FEEDBACK_REL = ".cai/feedback.jsonl"
 
+_BUG_CATEGORY_SET = frozenset(
+    {"crash", "wrong_result", "ux", "docs", "perf", "security", "other"},
+)
+BUG_REPORT_CATEGORIES: tuple[str, ...] = tuple(sorted(_BUG_CATEGORY_SET))
+
 
 def feedback_path(cwd: str | Path) -> Path:
     return Path(cwd).expanduser().resolve() / FEEDBACK_REL
 
 
-def append_feedback(
-    cwd: str | Path,
-    *,
-    text: str,
-    source: str = "cli",
-    extra: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+def sanitize_feedback_text(text: str, *, max_len: int = 8000) -> str:
+    """Best-effort redaction before persisting or posting feedback (tokens, obvious secrets)."""
+    s = (text or "")[:max_len]
+    s = re.sub(r"(?i)sk-[a-z0-9_-]{10,}", "sk-<redacted>", s)
+    s = re.sub(r"(?i)Bearer\s+[A-Za-z0-9._=-]{8,}", "Bearer <redacted>", s)
+    s = re.sub(
+        r"eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}",
+        "eyJ<redacted>",
+        s,
+    )
+    s = re.sub(r"AKIA[0-9A-Z]{16}", "AKIA<redacted>", s)
+    s = re.sub(r"(?i)gh[pousr]_[A-Za-z0-9]{30,}", "gh_token_<redacted>", s)
+    s = re.sub(
+        r"(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)\s*[:=]\s*"
+        r"['\"]?[A-Za-z0-9_+/=\-]{12,}['\"]?",
+        r"\1=<redacted>",
+        s,
+    )
+    s = re.sub(r"(https?://)[^/\s:@]+:[^/\s@]+@", r"\1<redacted>:<redacted>@", s)
+    s = re.sub(r"(?i)([A-Za-z]:\\Users\\)[^\\]+\\", r"\1<user>\\", s)
+    s = re.sub(r"/Users/[^/\s]+/", "/Users/<user>/", s)
+    return s
+
+
+def _append_feedback_row(cwd: str | Path, row: dict[str, Any]) -> dict[str, Any]:
     p = feedback_path(cwd)
     p.parent.mkdir(parents=True, exist_ok=True)
-    row = {
-        "schema_version": "feedback_event_v1",
-        "ts": datetime.now(UTC).isoformat(),
-        "text": (text or "")[:4000],
-        "source": str(source or "cli")[:80],
-    }
-    if extra:
-        row["extra"] = extra
     with p.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
     hook = str(os.environ.get("CAI_FEEDBACK_WEBHOOK_URL", "") or "").strip()
@@ -52,6 +68,55 @@ def append_feedback(
         else:
             row["webhook_ok"] = True
     return row
+
+
+def append_feedback(
+    cwd: str | Path,
+    *,
+    text: str,
+    source: str = "cli",
+    extra: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    row = {
+        "schema_version": "feedback_event_v1",
+        "ts": datetime.now(UTC).isoformat(),
+        "text": (text or "")[:4000],
+        "source": str(source or "cli")[:80],
+    }
+    if extra:
+        row["extra"] = extra
+    return _append_feedback_row(cwd, row)
+
+
+def append_bug_report(
+    cwd: str | Path,
+    *,
+    summary: str,
+    detail: str = "",
+    category: str = "other",
+    cai_agent_version: str = "",
+) -> dict[str, Any]:
+    """Structured bug-style report → same JSONL as `append_feedback` (TUI `/bug` CLI 等价)."""
+    cat = (category or "other").strip().lower()
+    if cat not in _BUG_CATEGORY_SET:
+        cat = "other"
+    summary_s = sanitize_feedback_text((summary or "").strip())[:800]
+    detail_s = sanitize_feedback_text((detail or "").strip())[:3500]
+    if not summary_s:
+        raise ValueError("bug summary is empty")
+    text = f"[bug:{cat}] {summary_s}"[:4000]
+    row: dict[str, Any] = {
+        "schema_version": "feedback_bug_report_v1",
+        "ts": datetime.now(UTC).isoformat(),
+        "source": "bug",
+        "category": cat,
+        "summary": summary_s,
+        "detail": detail_s,
+        "text": text,
+        "redaction": "sanitize_feedback_text_v1",
+        "cai_agent_version": (cai_agent_version or "")[:48],
+    }
+    return _append_feedback_row(cwd, row)
 
 
 def list_feedback(cwd: str | Path, *, limit: int = 50) -> list[dict[str, Any]]:

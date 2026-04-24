@@ -28,9 +28,9 @@ Status vocabulary:
 |----|--------|----------------------|---------|
 | `DOC-01` | `Done` | Keep entry docs and canonical set stable | `ROADMAP_EXECUTION` §10 |
 | `REL-01` | `Ready` | `REL-01b` feedback / doctor / release summary unification | `ROADMAP_EXECUTION` §10 |
-| `CC-01` | `Ready` | `CC-01b` WebSearch/Notebook entry exposure in CLI/TUI | `ROADMAP_EXECUTION` §10 |
-| `CC-02` | `Ready` | `CC-02b` `/bug`-equivalent feedback entry | `ROADMAP_EXECUTION` §10 |
-| `CC-03` | `Ready` | `CC-03a` board / tasks / session-state UX unification | `ROADMAP_EXECUTION` §10 |
+| `CC-01` | `Done` | **`CC-01b` Done** — `/mcp-presets` + task board/help/status quickstart + `mcp-check` epilog | `ROADMAP_EXECUTION` §10 |
+| `CC-02` | `Done` | **`CC-02b` Done** — `feedback bug` + `feedback_bug_report_v1` | `ROADMAP_EXECUTION` §10 |
+| `CC-03` | `Design` | **`CC-03a` Done**（`tui_session_strip`）；**`CC-03b`** profile/status UX | `ROADMAP_EXECUTION` §10 |
 | `HM-01` | `Ready` | `HM-01b` profile management commands and fixtures | `ROADMAP_EXECUTION` §10 |
 | `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Ready` | `HM-03a` Discord production path | `ROADMAP_EXECUTION` §10 |

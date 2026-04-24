@@ -26,6 +26,12 @@ from cai_agent.models import fetch_models
 from cai_agent.profiles import Profile, build_profile_contract_payload
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
+from cai_agent.mcp_presets import format_tui_mcp_web_notebook_quickstart
+from cai_agent.tui_session_strip import (
+    tui_input_placeholder,
+    tui_session_continue_one_liner_rich,
+    tui_workbench_cheatsheet_rich,
+)
 from cai_agent.tui_model_panel import ModelPanelScreen
 from cai_agent.tui_task_board import TaskBoardScreen
 from cai_agent.tui_path_complete import suggest_path_after_command
@@ -40,6 +46,7 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/mcp refresh",
     "/mcp call ",
     "/mcp",
+    "/mcp-presets",
     "/save",
     "/save ",
     "/sessions",
@@ -71,6 +78,7 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/models refresh",
     "/mcp",
     "/mcp refresh",
+    "/mcp-presets",
     "/save",
     "/load",
     "/load latest",
@@ -687,13 +695,13 @@ class CaiAgentApp(App[None]):
         yield RichLog(id="chat", highlight=True, markup=True, wrap=True, auto_scroll=True)
         with Vertical(id="bottom-stack"):
             with Horizontal(id="context-row"):
-                yield Static("上下文", id="context-label")
+                yield Static("", id="context-label")
                 yield Static("", id="context-bar-text")
             with Horizontal(id="activity-row"):
                 yield LoadingIndicator(id="loader")
                 yield Static("", id="activity-status")
             yield SlashAwareInput(
-                placeholder="输入任务或 /命令 · Tab/→ 补全 · /help · Ctrl+M 聊天模型",
+                placeholder=tui_input_placeholder(),
                 id="user-input",
                 suggester=self._slash_suggester,
             )
@@ -740,6 +748,10 @@ class CaiAgentApp(App[None]):
             f"{' · 估算' if self._ctx_is_estimate else ''}[/]"
         )
         try:
+            pid = (self._settings.active_profile_id or "?").strip()
+            if len(pid) > 18:
+                pid = pid[:17] + "…"
+            self.query_one("#context-label", Static).update(f"{pid} · 上下文")
             self.query_one("#context-bar-text", Static).update(text)
         except Exception:
             # Widget 在极早期（compose 之前）可能尚未挂载，忽略即可。
@@ -765,7 +777,8 @@ class CaiAgentApp(App[None]):
             f"{mock_line}"
             "[dim]Ctrl+M 聊天模型 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
             "[dim]复制：鼠标拖选聊天区 → Ctrl+Shift+C 复制；Ctrl+Shift+A 全选。"
-            "Windows Terminal 里也可按住 Shift 用鼠标拖选走系统原生选择。[/]\n",
+            "Windows Terminal 里也可按住 Shift 用鼠标拖选走系统原生选择。[/]\n"
+            + tui_workbench_cheatsheet_rich(leading_nl=True),
         )
 
     def _format_phase_line(self, p: dict[str, Any]) -> str:
@@ -945,7 +958,7 @@ class CaiAgentApp(App[None]):
         raw = event.value.strip()
         if not raw:
             return
-        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/stop"):
+        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/mcp-presets", "/stop"):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
                 severity="warning",
@@ -966,6 +979,7 @@ class CaiAgentApp(App[None]):
                 "/mcp — 拉取 MCP 工具列表（缓存）\n"
                 "/mcp refresh — 强制刷新 MCP 工具列表\n"
                 "/mcp call <name> <json_args> — 调用 MCP 工具\n"
+                "/mcp-presets — WebSearch·Notebook MCP 文档与自检命令（与任务看板底部同段）\n"
                 "/fix-build — 载入并执行 fix-build 命令模板\n"
                 "/security-scan — 载入并执行 security-scan 命令模板\n"
                 "/save <path> — 保存当前会话为 JSON（不传 path 则自动命名；/save 后可补全已有会话文件）\n"
@@ -977,10 +991,13 @@ class CaiAgentApp(App[None]):
                 "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
                 "其他以 / 开头会提示未知命令。\n"
-                "\n[bold]快捷键[/]\n"
+                + tui_workbench_cheatsheet_rich(leading_nl=True)
+                + "\n[bold]快捷键[/]\n"
                 "[dim]Ctrl+M 聊天模型 · Ctrl+B 任务看板 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
                 "[dim]复制：鼠标拖选聊天区 → Ctrl+Shift+C；Ctrl+Shift+A 全选当前聊天区。[/]\n"
-                "[dim]Windows Terminal：按住 Shift + 鼠标拖选可走系统原生选择并 Ctrl+C 复制。[/]\n",
+                "[dim]Windows Terminal：按住 Shift + 鼠标拖选可走系统原生选择并 Ctrl+C 复制。[/]\n"
+                + format_tui_mcp_web_notebook_quickstart()
+                + "\n",
             )
             return
 
@@ -1019,6 +1036,8 @@ class CaiAgentApp(App[None]):
                 f"配置: [dim]{cfg}[/]\n"
                 f"project_context={s.project_context}  git_context={s.git_context}\n"
                 f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n"
+                + format_tui_mcp_web_notebook_quickstart()
+                + "\n",
             )
             return
 
@@ -1077,6 +1096,10 @@ class CaiAgentApp(App[None]):
 
         if raw == "/models":
             self.action_open_model_panel()
+            return
+
+        if raw == "/mcp-presets":
+            self.query_one("#chat", RichLog).write(format_tui_mcp_web_notebook_quickstart() + "\n")
             return
 
         if raw == "/mcp":
@@ -1243,6 +1266,7 @@ class CaiAgentApp(App[None]):
                 self.query_one("#chat", RichLog).write(
                     f"[dim]最后回答预览: {preview}[/]\n",
                 )
+            self.query_one("#chat", RichLog).write(tui_session_continue_one_liner_rich())
             self._sync_slash_completion_sources()
             return
 
@@ -1257,7 +1281,10 @@ class CaiAgentApp(App[None]):
                 mtime = datetime.fromtimestamp(st.st_mtime).strftime("%m-%d %H:%M")
                 lines.append(f"{i:>2}. {f.name}  {mtime}  {st.st_size:,} B")
             self.query_one("#chat", RichLog).write(
-                "\n[bold]最近会话文件[/]\n" + "\n".join(lines) + "\n",
+                "\n[bold]最近会话文件[/]\n"
+                + "\n".join(lines)
+                + "\n"
+                + tui_workbench_cheatsheet_rich(leading_nl=True),
             )
             return
 
@@ -1304,9 +1331,10 @@ class CaiAgentApp(App[None]):
 
         if raw == "/retry":
             self.notify(
-                "请再次发送同一任务描述，或使用 CLI `cai-agent continue …` 继续会话。",
+                "在 TUI 内可直接再次发送同一任务描述以继续；跨终端请用 CLI "
+                "`cai-agent continue …`。快照请用 /save、/load。",
                 severity="information",
-                timeout=4.0,
+                timeout=4.5,
             )
             return
 

@@ -74,9 +74,11 @@ class RunCommandSecurityPolicyTests(unittest.TestCase):
                 """,
             ),
         )
+        # 使用基名 `python`（符合 run_command 白名单），避免 Windows 上 `pip` 被策略拦截。
         out = tool_run_command(
             s,
-            {"argv": ["pip", "--version"], "cwd": "."},
+            {"argv": ["python", "-c", "print('ok')"], "cwd": "."},
         )
         self.assertIn("exit=0", out)
+        self.assertIn("ok", out)
 

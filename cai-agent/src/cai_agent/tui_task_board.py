@@ -17,6 +17,8 @@ from cai_agent.board_state import (
     load_last_workflow_snapshot,
 )
 from cai_agent.config import Settings
+from cai_agent.mcp_presets import format_tui_mcp_web_notebook_quickstart
+from cai_agent.tui_session_strip import tui_task_board_session_line_rich
 from cai_agent.schedule import enrich_schedule_tasks_for_display, list_schedule_tasks
 
 
@@ -32,6 +34,7 @@ def render_task_board_markup(settings: Settings) -> str:
     ws = (getattr(settings, "workspace", None) or ".").strip() or "."
     lines: list[str] = [
         "[bold]任务看板（只读）[/]",
+        tui_task_board_session_line_rich(),
         f"[dim]工作区:[/] {ws}",
         "",
         "[bold magenta]board 同源（observe · board_v1）[/]",
@@ -180,6 +183,7 @@ def render_task_board_markup(settings: Settings) -> str:
             if len(steps) > 20:
                 lines.append(f"  [dim]… +{len(steps) - 20} 步[/]")
 
+    lines.append(format_tui_mcp_web_notebook_quickstart())
     return "\n".join(lines)
 
 

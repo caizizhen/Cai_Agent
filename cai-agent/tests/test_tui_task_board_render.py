@@ -19,6 +19,8 @@ class TuiTaskBoardRenderTests(unittest.TestCase):
             self.assertIn("observe", out)
             self.assertIn(".cai-schedule", out)
             self.assertIn("last-workflow", out)
+            self.assertIn("mcp-check --preset websearch/notebook", out)
+            self.assertIn("cai-agent continue", out)
 
     def test_schedule_enrich_shows_dependency_fields(self) -> None:
         with tempfile.TemporaryDirectory() as td:

@@ -187,12 +187,12 @@
 | `DOC-01a` | `Done` | `DOC-01` | 统一根 README 与 docs 入口 | 中英文入口统一、主文档收敛 | — | 手工检查 + 链接检查 |
 | `DOC-01b` | `Done` | `DOC-01` | 删除重复 roadmap / backlog 文档 | 删除历史重复页并清理引用 | `DOC-01a` | `rg` 无残链 |
 | `REL-01a` | `Done` | `REL-01` | 收口 release-ga / doctor / changelog 回写流程 | 一条固定发版 runbook，明确输入输出 | — | `doctor` + smoke + checklist |
-| `REL-01b` | `Ready` | `REL-01` | 统一 feedback、doctor 与发布摘要出口 | `feedback`、`doctor --json`、发版摘要字段同源 | `REL-01a` | JSON schema + smoke |
+| `REL-01b` | `Done` | `REL-01` | 统一 feedback、doctor 与发布摘要出口 | `feedback stats` CLI；`doctor --json` 的 **`feedback`** 与 **`release_runbook.feedback`** 同源（单次 runbook 构建） | `REL-01a` | pytest `test_doctor_cli` / `test_feedback_cli` + smoke |
 | `CC-01a` | `Done` | `CC-01` | 收口 MCP 预设与 WebSearch/Notebook 接入入口 | `mcp-check` preset、模板、文档、onboarding 入口统一 | — | 预设探测 + 文档示例 |
-| `CC-01b` | `Ready` | `CC-01` | 在 CLI/TUI 暴露 WebSearch/Notebook 推荐入口 | `/mcp`、`/tasks`、帮助信息中补最短路径 | `CC-01a` | TUI / CLI 手工冒烟 |
+| `CC-01b` | `Done` | `CC-01` | 在 CLI/TUI 暴露 WebSearch/Notebook 推荐入口 | **`/mcp-presets`**；**`/help`**/**`/status`**/**任务看板** 同源 quickstart；**`mcp-check --help`** epilog | `CC-01a` | pytest |
 | `CC-02a` | `Done` | `CC-02` | 梳理安装、更新与版本提示体验 | 安装/升级路径、版本差异提示、常见错误指引 | — | onboarding walkthrough |
-| `CC-02b` | `Ready` | `CC-02` | 设计 /bug 等价反馈入口 | 明确命令、字段、落盘位置、脱敏策略 | `REL-01b` | 命令冒烟 + 文档 |
-| `CC-03a` | `Ready` | `CC-03` | 统一任务板、状态栏与会话继续体验 | `board`、`/tasks`、会话状态模型统一 | — | CLI/TUI 截面检查 |
+| `CC-02b` | `Done` | `CC-02` | 设计 /bug 等价反馈入口 | **`feedback bug`**（**`feedback_bug_report_v1`** + **`sanitize_feedback_text`**）；runbook 步骤说明 | `REL-01b` | pytest `test_feedback_cli` |
+| `CC-03a` | `Done` | `CC-03` | 统一任务板、状态栏与会话继续体验 | **`tui_session_strip`**；**`/help`**/欢迎/**`/sessions`**/**`/load`**/**`/retry`**/placeholder/看板/`#context-label` | — | pytest |
 | `CC-03b` | `Design` | `CC-03` | 收口模型切换与状态提示 | `/models`、`/status`、profile 反馈更一致 | `HM-01a` | TUI/CLI 手测 |
 | `HM-01a` | `Done` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
 | `HM-01b` | `Ready` | `HM-01` | 落地 profile 管理命令与测试夹具 | CLI/TUI profile 增删改查 + fixture | `HM-01a` | pytest + smoke |

@@ -69,6 +69,11 @@ def build_release_runbook_payload(
             "purpose": "run the heavier regression pass when the release scope needs it",
         },
         {
+            "id": "feedback_bug",
+            "command": "cai-agent feedback bug \"<short summary>\" --category ux --json",
+            "purpose": "optional structured /bug-style capture (redacted) into .cai/feedback.jsonl before export",
+        },
+        {
             "id": "feedback_export",
             "command": "cai-agent feedback export --dest dist/feedback-export.jsonl --json",
             "purpose": "archive recent user/operator feedback alongside the release notes",

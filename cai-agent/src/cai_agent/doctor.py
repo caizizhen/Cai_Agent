@@ -232,8 +232,14 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             ),
         },
         "installation_guidance": build_installation_guidance(),
-        "feedback": feedback_stats(settings.workspace),
-        "release_runbook": build_release_runbook_payload(repo_root=release_root, workspace=root),
+        "release_runbook": (
+            release_runbook := build_release_runbook_payload(repo_root=release_root, workspace=root)
+        ),
+        "feedback": (
+            release_runbook.get("feedback")
+            if isinstance(release_runbook.get("feedback"), dict)
+            else feedback_stats(root)
+        ),
     }
 
 
