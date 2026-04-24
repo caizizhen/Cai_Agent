@@ -1,4 +1,4 @@
-"""多工作区网关映射汇总（B3）：统一读取 Telegram / Discord / Slack 的 ``.cai/gateway`` JSON。
+"""多工作区网关映射汇总（B3）：统一读取 Telegram / Discord / Slack / Teams 的 ``.cai/gateway`` JSON。
 
 机读契约：:data:`SUMMARIZE_SCHEMA`。
 """
@@ -146,6 +146,37 @@ def _summarize_slack(root: Path) -> dict[str, Any]:
     }
 
 
+def _summarize_teams(root: Path) -> dict[str, Any]:
+    from cai_agent.gateway_teams import teams_list_bindings
+
+    r = teams_list_bindings(root)
+    binds = r.get("bindings") if isinstance(r.get("bindings"), dict) else {}
+    rows: list[dict[str, Any]] = []
+    for cid, v in sorted(binds.items(), key=lambda x: x[0]):
+        if not isinstance(v, dict):
+            continue
+        rows.append(
+            {
+                "conversation_id": cid,
+                "session_file": v.get("session_file"),
+                "bound_at": v.get("bound_at"),
+                "tenant_id": v.get("tenant_id"),
+                "service_url": v.get("service_url"),
+                "channel_id": v.get("channel_id"),
+                "label": v.get("label"),
+            },
+        )
+    al = r.get("allowed_conversation_ids") if isinstance(r.get("allowed_conversation_ids"), list) else []
+    return {
+        "map_path": r.get("map_path"),
+        "schema_version": r.get("schema_version"),
+        "bindings_count": len(rows),
+        "bindings": rows,
+        "allowed_conversation_ids": [str(x) for x in al if str(x).strip()],
+        "allowlist_enabled": bool(r.get("allowlist_enabled")),
+    }
+
+
 def summarize_gateway_maps(roots: list[Path]) -> dict[str, Any]:
     workspaces: list[dict[str, Any]] = []
     for root in roots:
@@ -155,6 +186,7 @@ def summarize_gateway_maps(roots: list[Path]) -> dict[str, Any]:
                 "telegram": _summarize_telegram(root),
                 "discord": _summarize_discord(root),
                 "slack": _summarize_slack(root),
+                "teams": _summarize_teams(root),
             },
         )
     return {

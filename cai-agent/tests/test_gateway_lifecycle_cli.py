@@ -73,6 +73,44 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             self.assertIs(sp.get("ok"), False)
             self.assertEqual(sp.get("error"), "no_pid_file")
 
+    def test_prod_status_summarizes_multi_platform_contract(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            gdir = root / ".cai" / "gateway"
+            gdir.mkdir(parents=True, exist_ok=True)
+            (gdir / "telegram-session-map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "bindings": {"1:2": {"chat_id": "1", "user_id": "2", "session_file": "s.json"}},
+                        "allowed_chat_ids": ["1"],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            (gdir / "slack-session-map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "gateway_slack_map_v1",
+                        "bindings": {"C1": {"session_file": "slack.json"}},
+                        "allowed_channel_ids": [],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["gateway", "prod-status", "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "gateway_production_summary_v1")
+            self.assertEqual(payload.get("summary", {}).get("platforms_count"), 4)
+            self.assertEqual(payload.get("summary", {}).get("bindings_count"), 2)
+            rows = {r.get("id"): r for r in payload.get("platforms") or []}
+            self.assertEqual(rows["telegram"]["production_state"], "configured")
+            self.assertEqual(rows["slack"]["health"]["bindings_count"], 1)
+
     def test_start_patches_popen(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

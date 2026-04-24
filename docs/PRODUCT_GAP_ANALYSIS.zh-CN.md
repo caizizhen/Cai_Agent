@@ -25,8 +25,8 @@
 
 2. **P1 - Hermes 产品化缺口**
    - profiles 契约与 CLI 已显著收口；**最小 HTTP API**（**`api serve`**，**`HM-02b`**）已落地 v0，后续可扩路由与鉴权策略
-   - gateway 仅 Telegram full、Discord/Slack mvp；**下一批平台优先级**见 **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`**（**`HM-03c`** 文档已收口）
-   - voice、dashboard 高级交互、memory providers、更多 runtime backends：**Voice 默认 OOS** 见 **`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**；**runtime 优先级**见 **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`**
+   - gateway 已有 Telegram full、Discord/Slack/Teams mvp；**下一批平台优先级**见 **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`**（**`HM-03c`** 文档已收口，**`HM-03d-teams`** 已落地），并已通过 **`gateway_production_summary_v1`** 提供本地生产状态摘要；后续重点转向多工作区联邦与频道监控
+   - voice、dashboard 高级交互、memory providers、更多 runtime backends：Dashboard 已先以 **`ops_dashboard_interactions_v1`** dry-run 预览契约限定写入边界；Memory provider 已以 **`memory_provider_contract_v1`** 固定 local entries / user-model SQLite 与外部 adapter 边界；**Voice 默认 OOS** 见 **`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**；**runtime 优先级**见 **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`**，其中 **docker 产品化（HM-06b）** 与 **SSH 产品化（HM-06c）** 已落地，云后端仍按 OOS/条件立项处理
    - recall 评估（**`recall --evaluate`**）与 memory policy（**`doctor` / `release-ga`**）已有机读与文本入口；负样本审计见 **`recall_audit`**
 
 3. **P1 - ECC 治理生态缺口**

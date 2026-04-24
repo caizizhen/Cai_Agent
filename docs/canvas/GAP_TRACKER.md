@@ -26,21 +26,21 @@ Status vocabulary:
 
 | ID | Status | Suggested next issue | Pointer |
 |----|--------|----------------------|---------|
-| `DOC-01` | `Done` | Keep entry docs and canonical set stable | `ROADMAP_EXECUTION` §10 |
+| `DOC-01` | `Done` | **`DOC-01a`/`DOC-01b`/`DOC-01c` Done** — entry docs and bilingual pointers stable | `ROADMAP_EXECUTION` §10 |
 | `REL-01` | `Done` | **`REL-01a`/`REL-01b` Done** — release runbook + feedback 同源 | `ROADMAP_EXECUTION` §10 |
 | `CC-01` | `Done` | **`CC-01b` Done** — `/mcp-presets` + task board/help/status quickstart + `mcp-check` epilog | `ROADMAP_EXECUTION` §10 |
 | `CC-02` | `Done` | **`CC-02b` Done** — `feedback bug` + `feedback_bug_report_v1` | `ROADMAP_EXECUTION` §10 |
 | `CC-03` | `Done` | **`CC-03a`/`CC-03b` Done**（`tui_session_strip` + RFC **CC-03b**） | `ROADMAP_EXECUTION` §10 |
 | `HM-01` | `Done` | **`HM-01a`/`HM-01b` Done** — profile contract + management CLI/fixture/smoke | `ROADMAP_EXECUTION` §10 |
 | `HM-02` | `Done` | **`HM-02a`/`HM-02b`/`HM-02c` Done**（RFC + `api serve` + 只读扩展 `models/plugins/release`） | `ROADMAP_EXECUTION` §10 |
-| `HM-03` | `Ready` | **`HM-03a`/`HM-03b`/`HM-03c` Done**；下一顺位 **`HM-03d-teams`**（Teams Gateway 实现） | `ROADMAP_EXECUTION` §10 |
-| `HM-04` | `Design` | **`HM-04a`/`HM-04b` Done**；下一顺位 **`HM-04c`**（Dashboard 高级交互） | `ROADMAP_EXECUTION` §10 |
-| `HM-05` | `Design` | **`HM-05a`/`HM-05b`/`HM-05c` Done**；下一顺位 **`HM-05d`**（memory providers / 用户模型深化） | `ROADMAP_EXECUTION` §10 |
-| `HM-06` | `Ready` | **`HM-06a` Done**（RFC）；下一顺位 **`HM-06b-docker`** → **`HM-06c-ssh`** | `ROADMAP_EXECUTION` §10 |
+| `HM-03` | `Done` | **`HM-03a`/`HM-03b`/`HM-03c`/`HM-03d-teams`/`HM-03e-prod` Done**；生产状态摘要已收口为 `gateway_production_summary_v1` | `ROADMAP_EXECUTION` §10 |
+| `HM-04` | `Done` | **`HM-04a`/`HM-04b`/`HM-04c` Done**；高级交互先以 `ops_dashboard_interactions_v1` dry-run 预览契约落地 | `ROADMAP_EXECUTION` §10 |
+| `HM-05` | `Done` | **`HM-05a`/`HM-05b`/`HM-05c`/`HM-05d` Done**；provider 边界已收口为 `memory_provider_contract_v1` | `ROADMAP_EXECUTION` §10 |
+| `HM-06` | `Done` | **`HM-06a`/`HM-06b-docker`/`HM-06c-ssh` Done**；云 runtime 仍按 OOS/条件立项处理 | `ROADMAP_EXECUTION` §10 |
 | `HM-07` | `Done` | **`HM-07a` Done**（Voice **OOS** 边界 RFC；默认不实现） | `ROADMAP_EXECUTION` §10 |
 | `ECC-01` | `Done` | **`ECC-01a`/`ECC-01b` Done**（`ecc` CLI + 安装/导出/共享文档） | `ROADMAP_EXECUTION` §10 |
 | `ECC-02` | `Done` | **`ECC-02a`/`ECC-02b` Done**（routing-test / cost report + compact explain） | `ROADMAP_EXECUTION` §10 |
-| `ECC-03` | `Ready` | **`ECC-03a`/`ECC-03b` Done**；下一顺位 **`ECC-03c`**（CI snapshot） | `ROADMAP_EXECUTION` §10 |
+| `ECC-03` | `Done` | **`ECC-03a`/`ECC-03b`/`ECC-03c` Done**（治理 RFC + compat check + CI snapshot） | `ROADMAP_EXECUTION` §10 |
 | `CC-03` | `Design` | **`CC-03a`/`CC-03b`/`CC-03c` Done**；进一步 TUI 对齐可随需求再立项 | `ROADMAP_EXECUTION` §10 |
 
 ## 3. Usage rule

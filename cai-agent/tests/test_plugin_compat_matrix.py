@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import io
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stdout
@@ -136,3 +138,24 @@ class PluginCompatMatrixCheckTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             text = buf.getvalue()
             self.assertIn("compat_check=ok", text)
+
+
+class PluginCompatMatrixSnapshotTests(unittest.TestCase):
+    def test_checked_in_snapshot_matches_generator(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        snapshot = root / "docs" / "schema" / "plugin_compat_matrix_v1.snapshot.json"
+        self.assertTrue(snapshot.is_file())
+        doc = json.loads(snapshot.read_text(encoding="utf-8"))
+        self.assertEqual(doc.get("schema_version"), "plugin_compat_matrix_snapshot_v1")
+        self.assertEqual(doc.get("matrix_schema_version"), "plugin_compat_matrix_v1")
+        self.assertEqual(doc.get("check_schema_version"), "plugin_compat_matrix_check_v1")
+        self.assertTrue(doc.get("ok"))
+
+        proc = subprocess.run(
+            [sys.executable, "scripts/gen_plugin_compat_snapshot.py", "--check"],
+            cwd=str(root),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)

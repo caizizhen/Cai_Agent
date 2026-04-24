@@ -16,7 +16,11 @@ from pathlib import Path
 from typing import TextIO
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
-from cai_agent.ops_dashboard import build_ops_dashboard_html, build_ops_dashboard_payload
+from cai_agent.ops_dashboard import (
+    build_ops_dashboard_html,
+    build_ops_dashboard_interactions_payload,
+    build_ops_dashboard_payload,
+)
 
 
 class OpsApiThreadingServer(ThreadingHTTPServer):
@@ -94,7 +98,12 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
         path = parsed.path or ""
-        if path not in ("/v1/ops/dashboard", "/v1/ops/dashboard.html", "/v1/ops/dashboard/events"):
+        if path not in (
+            "/v1/ops/dashboard",
+            "/v1/ops/dashboard.html",
+            "/v1/ops/dashboard/events",
+            "/v1/ops/dashboard/interactions",
+        ):
             self._send_json(404, {"error": "not_found", "path": path})
             return
         if not self._auth_ok():
@@ -160,6 +169,16 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "io_error", "detail": str(e)})
             return
 
+        if path == "/v1/ops/dashboard/interactions":
+            action = str(one("action") or "").strip()
+            params = {k: v[0] for k, v in q.items() if v and k not in {"workspace", "action"}}
+            interaction = build_ops_dashboard_interactions_payload(
+                cwd=str(workspace),
+                action=action,
+                params=params,
+            )
+            self._send_json(200 if interaction.get("ok") else 400, interaction)
+            return
         if path == "/v1/ops/dashboard":
             self._send_json(200, payload)
             return

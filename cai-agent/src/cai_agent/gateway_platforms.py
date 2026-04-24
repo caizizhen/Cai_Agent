@@ -47,6 +47,19 @@ def build_gateway_platforms_payload(*, workspace: str | Path | None = None) -> d
             "notes": "MVP（§24）：Events API Webhook 接入，`serve-webhook`、会话映射 `bind|get|list|unbind`、白名单 `allow`。",
         },
         {
+            "id": "teams",
+            "label": "Microsoft Teams",
+            "implementation": "mvp",
+            "cli_prefix": ["gateway", "teams"],
+            "env": [
+                "CAI_TEAMS_APP_ID",
+                "CAI_TEAMS_APP_PASSWORD",
+                "CAI_TEAMS_TENANT_ID",
+                "CAI_TEAMS_WEBHOOK_SECRET",
+            ],
+            "notes": "MVP（HM-03d）：Bot Framework Activity Webhook 接入、manifest 模板、会话映射 `bind|get|list|unbind`、白名单 `allow`。",
+        },
+        {
             "id": "whatsapp",
             "label": "WhatsApp",
             "implementation": "planned",

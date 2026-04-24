@@ -7,6 +7,7 @@ from pathlib import Path
 from cai_agent.gateway_discord import discord_bind, discord_list_bindings
 from cai_agent.gateway_maps import parse_workspace_roots, summarize_gateway_maps
 from cai_agent.gateway_slack import slack_bind, slack_list_bindings
+from cai_agent.gateway_teams import teams_bind
 
 
 def test_parse_workspace_roots_dedupes(tmp_path: Path) -> None:
@@ -40,6 +41,7 @@ def test_summarize_two_workspaces(tmp_path: Path) -> None:
     w1.mkdir()
     w2.mkdir()
     discord_bind(w1, "CH1", "s1.json", guild_id="G9", label="dev")
+    teams_bind(w1, "CONV1", "t1.json", tenant_id="TENANT", label="triage")
     slack_bind(w2, "C01", "s2.json", team_id="T1", label="ops")
 
     out = summarize_gateway_maps([w1.resolve(), w2.resolve()])
@@ -48,6 +50,9 @@ def test_summarize_two_workspaces(tmp_path: Path) -> None:
     d0 = out["workspaces"][0]["discord"]["bindings"][0]
     assert d0.get("guild_id") == "G9"
     assert d0.get("label") == "dev"
+    t0 = out["workspaces"][0]["teams"]["bindings"][0]
+    assert t0.get("tenant_id") == "TENANT"
+    assert t0.get("label") == "triage"
     s1 = out["workspaces"][1]["slack"]["bindings"][0]
     assert s1.get("team_id") == "T1"
 

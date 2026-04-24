@@ -12,7 +12,7 @@ Canonical planning sources:
 
 Validated on 2026-04-25 from the repo root:
 
-- `python -m pytest -q cai-agent/tests`: **661 passed**, **3 subtests passed**
+- `python -m pytest -q cai-agent/tests`: **714 passed**, **3 subtests passed**
 - `python scripts/smoke_new_features.py`: **PASS**
 - `QA_SKIP_LOG=1 python scripts/run_regression.py`: **PASS**
 

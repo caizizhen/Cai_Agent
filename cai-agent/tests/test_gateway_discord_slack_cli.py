@@ -42,6 +42,18 @@ from cai_agent.gateway_slack import (
     slack_list_bindings,
     slack_unbind,
 )
+from cai_agent.gateway_teams import (
+    build_teams_manifest_payload,
+    teams_activity_response,
+    teams_allow_add,
+    teams_allow_list,
+    teams_allow_rm,
+    teams_bind,
+    teams_gateway_health,
+    teams_get_binding,
+    teams_list_bindings,
+    teams_unbind,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -136,6 +148,106 @@ def test_slack_map_file_schema(tmp_path: Path) -> None:
     assert map_file.is_file()
     data = json.loads(map_file.read_text(encoding="utf-8"))
     assert data["schema_version"] == "gateway_slack_map_v1"
+
+
+# ---------------------------------------------------------------------------
+# Teams 会话映射 / Activity 响应
+# ---------------------------------------------------------------------------
+
+
+def test_teams_bind_and_get(tmp_path: Path) -> None:
+    r = teams_bind(
+        tmp_path,
+        "conv-1",
+        "session.json",
+        tenant_id="tenant-1",
+        service_url="https://smba.trafficmanager.net/amer/",
+        channel_id="msteams",
+        label="ops",
+    )
+    assert r["ok"] is True
+    r2 = teams_get_binding(tmp_path, "conv-1")
+    assert r2["found"] is True
+    assert r2["binding"]["tenant_id"] == "tenant-1"
+    assert r2["binding"]["label"] == "ops"
+
+
+def test_teams_unbind(tmp_path: Path) -> None:
+    teams_bind(tmp_path, "conv-1", "session.json")
+    r = teams_unbind(tmp_path, "conv-1")
+    assert r["was_bound"] is True
+    assert teams_get_binding(tmp_path, "conv-1")["found"] is False
+
+
+def test_teams_allow_add_rm_list(tmp_path: Path) -> None:
+    teams_allow_add(tmp_path, "conv-1")
+    teams_allow_add(tmp_path, "conv-2")
+    r = teams_allow_list(tmp_path)
+    assert "conv-1" in r["allowed_conversation_ids"]
+    assert r["allowlist_enabled"] is True
+    teams_allow_rm(tmp_path, "conv-1")
+    r2 = teams_allow_list(tmp_path)
+    assert "conv-1" not in r2["allowed_conversation_ids"]
+    assert "conv-2" in r2["allowed_conversation_ids"]
+
+
+def test_teams_map_file_schema(tmp_path: Path) -> None:
+    teams_bind(tmp_path, "conv-9", "x.json")
+    map_file = tmp_path / ".cai" / "gateway" / "teams-session-map.json"
+    assert map_file.is_file()
+    data = json.loads(map_file.read_text(encoding="utf-8"))
+    assert data["schema_version"] == "gateway_teams_map_v1"
+
+
+def test_teams_health_no_secret(tmp_path: Path) -> None:
+    teams_bind(tmp_path, "conv-1", "s.json")
+    r = teams_gateway_health(tmp_path)
+    assert r["schema_version"] == "gateway_teams_health_v1"
+    assert r["bindings_count"] == 1
+    assert r["app_id_configured"] is False
+    assert r["token_check"]["performed"] is False
+
+
+def test_teams_manifest_payload() -> None:
+    r = build_teams_manifest_payload(
+        app_id="app-123",
+        bot_id="bot-456",
+        name="CAI Agent",
+        valid_domains=["example.com"],
+    )
+    assert r["schema_version"] == "gateway_teams_manifest_v1"
+    manifest = r["manifest"]
+    assert manifest["id"] == "app-123"
+    assert manifest["bots"][0]["botId"] == "bot-456"
+    assert manifest["validDomains"] == ["example.com"]
+
+
+def test_teams_activity_response_ping(tmp_path: Path) -> None:
+    teams_bind(tmp_path, "conv-1", "s.json")
+    status, resp, meta = teams_activity_response(
+        root=tmp_path,
+        activity={
+            "type": "message",
+            "text": "ping",
+            "conversation": {"id": "conv-1"},
+            "from": {"id": "user-1"},
+            "channelData": {"tenant": {"id": "tenant-1"}},
+        },
+    )
+    assert status == 200
+    assert resp["text"] == "pong"
+    assert meta["command"] == "ping"
+
+
+def test_teams_activity_response_allowlist_blocks(tmp_path: Path) -> None:
+    teams_allow_add(tmp_path, "allowed")
+    status, resp, meta = teams_activity_response(
+        root=tmp_path,
+        activity={"type": "message", "text": "ping", "conversation": {"id": "blocked"}},
+    )
+    assert status == 200
+    assert "白名单" in resp["text"]
+    assert meta["blocked"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -249,15 +361,91 @@ def test_gateway_slack_health_cli_no_token(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# gateway platforms 目录验证（Discord/Slack 升级为 mvp）
+# CLI 集成测试：gateway teams
 # ---------------------------------------------------------------------------
 
 
-def test_gateway_platforms_shows_discord_slack_mvp() -> None:
+def test_gateway_teams_bind_cli(tmp_path: Path) -> None:
+    result = _cli(
+        "gateway",
+        "teams",
+        "-w",
+        str(tmp_path),
+        "bind",
+        "CONV_TEAMS",
+        "session.json",
+        "--tenant-id",
+        "TENANT",
+        "--service-url",
+        "https://smba.trafficmanager.net/amer/",
+        "--label",
+        "ops",
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+    assert out["binding"]["tenant_id"] == "TENANT"
+    assert out["binding"]["label"] == "ops"
+
+
+def test_gateway_teams_list_cli(tmp_path: Path) -> None:
+    teams_bind(tmp_path, "CONV_X", "sx.json")
+    result = _cli("gateway", "teams", "-w", str(tmp_path), "list", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert "CONV_X" in out["bindings"]
+
+
+def test_gateway_teams_allow_add_cli(tmp_path: Path) -> None:
+    result = _cli("gateway", "teams", "-w", str(tmp_path), "allow", "add", "CONV_ALLOW", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+    assert "CONV_ALLOW" in out["allowed_conversation_ids"]
+
+
+def test_gateway_teams_health_cli_no_secret(tmp_path: Path) -> None:
+    result = _cli("gateway", "teams", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_teams_health_v1"
+    assert out.get("bindings_count") == 0
+    assert out.get("webhook_secret_configured") is False
+    assert (out.get("token_check") or {}).get("performed") is False
+
+
+def test_gateway_teams_manifest_cli() -> None:
+    result = _cli(
+        "gateway",
+        "teams",
+        "manifest",
+        "--app-id",
+        "APP",
+        "--bot-id",
+        "BOT",
+        "--valid-domain",
+        "example.com",
+        "--json",
+    )
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["schema_version"] == "gateway_teams_manifest_v1"
+    assert out["manifest"]["id"] == "APP"
+    assert out["manifest"]["bots"][0]["botId"] == "BOT"
+
+
+# ---------------------------------------------------------------------------
+# gateway platforms 目录验证（Discord/Slack/Teams 升级为 mvp）
+# ---------------------------------------------------------------------------
+
+
+def test_gateway_platforms_shows_discord_slack_teams_mvp() -> None:
     from cai_agent.gateway_platforms import build_gateway_platforms_payload
 
     p = build_gateway_platforms_payload()
     plat_map = {pl["id"]: pl for pl in p["platforms"]}
     assert plat_map["discord"]["implementation"] == "mvp"
     assert plat_map["slack"]["implementation"] == "mvp"
+    assert plat_map["teams"]["implementation"] == "mvp"
     assert plat_map["telegram"]["implementation"] == "full"

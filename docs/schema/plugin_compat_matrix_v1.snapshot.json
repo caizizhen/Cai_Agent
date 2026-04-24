@@ -1,0 +1,118 @@
+{
+  "check_schema_version": "plugin_compat_matrix_check_v1",
+  "compat_check": {
+    "expected_components": [
+      "skills",
+      "commands",
+      "agents",
+      "hooks",
+      "rules",
+      "mcp-configs"
+    ],
+    "expected_targets": [
+      "cursor",
+      "codex",
+      "opencode"
+    ],
+    "governance_rfc": "docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md",
+    "matrix_schema_version": "plugin_compat_matrix_v1",
+    "missing_components": [],
+    "missing_targets": [],
+    "ok": true,
+    "present_components": [
+      "agents",
+      "commands",
+      "hooks",
+      "mcp-configs",
+      "rules",
+      "skills"
+    ],
+    "present_targets": [
+      "codex",
+      "cursor",
+      "opencode"
+    ],
+    "row_mismatches": [],
+    "schema_version": "plugin_compat_matrix_check_v1"
+  },
+  "matrix": {
+    "components_vs_targets": [
+      {
+        "codex": "partial",
+        "component": "rules",
+        "cursor": "supported",
+        "notes": "统一源 rules/；导出见 export manifest",
+        "opencode": "partial"
+      },
+      {
+        "codex": "partial",
+        "component": "skills",
+        "cursor": "partial",
+        "notes": "Markdown 技能；hub install / export 分流",
+        "opencode": "partial"
+      },
+      {
+        "codex": "partial",
+        "component": "commands",
+        "cursor": "supported",
+        "notes": "commands/ 与 CLI 子命令同源",
+        "opencode": "partial"
+      },
+      {
+        "codex": "supported",
+        "component": "agents",
+        "cursor": "supported",
+        "notes": "agents/*.md 模板",
+        "opencode": "supported"
+      },
+      {
+        "codex": "absent",
+        "component": "hooks",
+        "cursor": "supported",
+        "notes": "Codex 侧弱；可降级为 quality-gate 包装",
+        "opencode": "supported"
+      },
+      {
+        "codex": "supported",
+        "component": "mcp-configs",
+        "cursor": "supported",
+        "notes": "mcp-configs/ 与 MCP Bridge 工具",
+        "opencode": "supported"
+      }
+    ],
+    "detail_doc": "docs/PLUGIN_COMPAT_MATRIX.zh-CN.md",
+    "detail_doc_en": "docs/PLUGIN_COMPAT_MATRIX.md",
+    "doc_anchor": "docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md",
+    "doc_anchor_en": "docs/CROSS_HARNESS_COMPATIBILITY.md",
+    "governance_rfc": "docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md",
+    "maintenance_checklist": [
+      "更新 build_plugin_compat_matrix() 内的行并运行 test_plugin_compat_matrix",
+      "同步 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md 与 docs/PLUGIN_COMPAT_MATRIX.md",
+      "同步 docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md / .md 中对应组件条目",
+      "若影响 PARITY_MATRIX 叙事，在 docs/PARITY_MATRIX.zh-CN.md 中加注",
+      "在 CHANGELOG / CHANGELOG.zh-CN 中声明推荐消费的 manifest 下限（若 target 列表变化）",
+      "运行 scripts/smoke_new_features.py 并跑 cai-agent plugins --compat-check"
+    ],
+    "schema_version": "plugin_compat_matrix_v1",
+    "targets": [
+      {
+        "export_command": "cai-agent export --target cursor",
+        "id": "cursor",
+        "label": "Cursor"
+      },
+      {
+        "export_command": "cai-agent export --target codex",
+        "id": "codex",
+        "label": "OpenAI Codex CLI"
+      },
+      {
+        "export_command": "cai-agent export --target opencode",
+        "id": "opencode",
+        "label": "OpenCode"
+      }
+    ]
+  },
+  "matrix_schema_version": "plugin_compat_matrix_v1",
+  "ok": true,
+  "schema_version": "plugin_compat_matrix_snapshot_v1"
+}

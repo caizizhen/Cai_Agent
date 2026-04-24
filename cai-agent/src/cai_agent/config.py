@@ -279,6 +279,9 @@ class Settings:
     # [runtime]：命令执行后端（H1-RT）；工具层可读取并派发 run_command。
     runtime_backend: str
     runtime_docker_container: str
+    runtime_docker_image: str
+    runtime_docker_workdir: str
+    runtime_docker_volume_mounts: tuple[str, ...]
     runtime_docker_exec_options: tuple[str, ...]
     runtime_docker_cpus: str | None
     runtime_docker_memory: str | None
@@ -288,6 +291,9 @@ class Settings:
     runtime_ssh_strict_host_key: bool
     runtime_ssh_known_hosts_path: str | None
     runtime_ssh_connect_timeout_sec: float
+    runtime_ssh_audit_log_path: str | None
+    runtime_ssh_audit_label: str | None
+    runtime_ssh_audit_include_command: bool
     runtime_modal_app_name: str
     runtime_modal_hibernate_idle_seconds: int | None
     runtime_singularity_sif_path: str
@@ -733,6 +739,15 @@ class Settings:
         runtime_docker_container = str(
             runtime_docker.get("container_name") or runtime_docker.get("container") or "",
         ).strip()
+        runtime_docker_image = str(runtime_docker.get("image") or "").strip()
+        runtime_docker_workdir = str(runtime_docker.get("workdir") or "/workspace").strip() or "/workspace"
+        raw_dvm = runtime_docker.get("volume_mounts")
+        if isinstance(raw_dvm, list):
+            runtime_docker_volume_mounts = tuple(
+                str(x).strip() for x in raw_dvm if isinstance(x, str | int | float) and str(x).strip()
+            )
+        else:
+            runtime_docker_volume_mounts = ()
         raw_deo = runtime_docker.get("exec_options")
         if isinstance(raw_deo, list):
             runtime_docker_exec_options = tuple(
@@ -764,6 +779,15 @@ class Settings:
             runtime_ssh_connect_timeout_sec = float(max(1.0, min(120.0, float(raw_ct))))
         else:
             runtime_ssh_connect_timeout_sec = 15.0
+        _audit_path = runtime_ssh.get("audit_log_path")
+        runtime_ssh_audit_log_path = (
+            str(_audit_path).strip() if isinstance(_audit_path, str) and str(_audit_path).strip() else None
+        )
+        _audit_label = runtime_ssh.get("audit_label")
+        runtime_ssh_audit_label = (
+            str(_audit_label).strip() if isinstance(_audit_label, str) and str(_audit_label).strip() else None
+        )
+        runtime_ssh_audit_include_command = bool(runtime_ssh.get("audit_include_command", False) is True)
         runtime_modal_app_name = str(runtime_modal.get("app_name") or "").strip()
         raw_hib = runtime_modal.get("hibernate_idle_seconds")
         if isinstance(raw_hib, int) and not isinstance(raw_hib, bool) and raw_hib > 0:
@@ -1018,6 +1042,9 @@ class Settings:
             config_loaded_from=config_loaded_from,
             runtime_backend=runtime_backend,
             runtime_docker_container=runtime_docker_container,
+            runtime_docker_image=runtime_docker_image,
+            runtime_docker_workdir=runtime_docker_workdir,
+            runtime_docker_volume_mounts=runtime_docker_volume_mounts,
             runtime_docker_exec_options=runtime_docker_exec_options,
             runtime_docker_cpus=runtime_docker_cpus,
             runtime_docker_memory=runtime_docker_memory,
@@ -1027,6 +1054,9 @@ class Settings:
             runtime_ssh_strict_host_key=runtime_ssh_strict_host_key,
             runtime_ssh_known_hosts_path=runtime_ssh_known_hosts_path,
             runtime_ssh_connect_timeout_sec=runtime_ssh_connect_timeout_sec,
+            runtime_ssh_audit_log_path=runtime_ssh_audit_log_path,
+            runtime_ssh_audit_label=runtime_ssh_audit_label,
+            runtime_ssh_audit_include_command=runtime_ssh_audit_include_command,
             runtime_modal_app_name=runtime_modal_app_name,
             runtime_modal_hibernate_idle_seconds=runtime_modal_hibernate_idle_seconds,
             runtime_singularity_sif_path=runtime_singularity_sif_path,

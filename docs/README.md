@@ -14,6 +14,7 @@ This page is the English docs entrypoint.
 | Test start list | [`TEST_TODOS.md`](TEST_TODOS.md) / [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) |
 | Gaps, boundaries, release gates | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
 | Release review matrix | [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
+| Rolling implementation summary | [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) / [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md) |
 | Version history | repo-root `CHANGELOG.md` / `CHANGELOG.zh-CN.md` |
 
 ## Product target
@@ -36,7 +37,7 @@ See [`PRODUCT_VISION_FUSION.zh-CN.md`](PRODUCT_VISION_FUSION.zh-CN.md).
 | Model routing | [`MODEL_ROUTING_RULES.md`](MODEL_ROUTING_RULES.md) |
 | Runtime backends | [`RUNTIME_BACKENDS.md`](RUNTIME_BACKENDS.md) |
 | Cross-harness export | [`CROSS_HARNESS_COMPATIBILITY.md`](CROSS_HARNESS_COMPATIBILITY.md) |
-| Plugin compatibility | [`PLUGIN_COMPAT_MATRIX.md`](PLUGIN_COMPAT_MATRIX.md) |
+| Plugin compatibility | [`PLUGIN_COMPAT_MATRIX.md`](PLUGIN_COMPAT_MATRIX.md); CI snapshot: [`schema/plugin_compat_matrix_v1.snapshot.json`](schema/plugin_compat_matrix_v1.snapshot.json) |
 
 ## Historical / compatibility docs
 

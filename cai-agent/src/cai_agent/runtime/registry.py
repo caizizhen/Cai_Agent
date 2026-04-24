@@ -34,10 +34,17 @@ def get_runtime_backend(
         return LocalRuntime()
     if key == "docker":
         container = ""
+        image = ""
+        workdir = "/workspace"
+        volume_mounts: tuple[str, ...] = ()
         exec_opts: tuple[str, ...] = ()
         cpus = mem = None
         if settings is not None:
             container = str(getattr(settings, "runtime_docker_container", "") or "").strip()
+            image = str(getattr(settings, "runtime_docker_image", "") or "").strip()
+            workdir = str(getattr(settings, "runtime_docker_workdir", "/workspace") or "/workspace").strip()
+            vm = getattr(settings, "runtime_docker_volume_mounts", ()) or ()
+            volume_mounts = tuple(str(x) for x in vm if str(x).strip())
             eo = getattr(settings, "runtime_docker_exec_options", ()) or ()
             exec_opts = tuple(str(x) for x in eo if str(x).strip())
             cpus = getattr(settings, "runtime_docker_cpus", None)
@@ -46,6 +53,9 @@ def get_runtime_backend(
             mem = str(mem).strip() if mem else None
         return DockerRuntime(
             container=container,
+            image=image,
+            workdir=workdir,
+            volume_mounts=volume_mounts,
             exec_options=exec_opts,
             cpus=cpus,
             memory=mem,
@@ -56,6 +66,9 @@ def get_runtime_backend(
         strict = True
         khosts = None
         ct = 15.0
+        audit_log_path = None
+        audit_label = None
+        audit_include_command = False
         if settings is not None:
             host = str(getattr(settings, "runtime_ssh_host", "") or "")
             user = str(getattr(settings, "runtime_ssh_user", "") or "")
@@ -65,6 +78,11 @@ def get_runtime_backend(
             kh = getattr(settings, "runtime_ssh_known_hosts_path", None)
             khosts = str(kh).strip() if kh else None
             ct = float(getattr(settings, "runtime_ssh_connect_timeout_sec", 15.0) or 15.0)
+            ap = getattr(settings, "runtime_ssh_audit_log_path", None)
+            audit_log_path = str(ap).strip() if ap else None
+            al = getattr(settings, "runtime_ssh_audit_label", None)
+            audit_label = str(al).strip() if al else None
+            audit_include_command = bool(getattr(settings, "runtime_ssh_audit_include_command", False))
         return SSHRuntime(
             host=host,
             user=user,
@@ -72,6 +90,9 @@ def get_runtime_backend(
             strict_host_key=strict,
             known_hosts_path=khosts,
             connect_timeout_sec=ct,
+            audit_log_path=audit_log_path,
+            audit_label=audit_label,
+            audit_include_command=audit_include_command,
         )
     if key == "modal":
         app = ""

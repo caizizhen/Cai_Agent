@@ -242,6 +242,81 @@ def build_memory_entries_jsonl_validate_report(root: str | Path) -> dict[str, An
     }
 
 
+def build_memory_provider_contract_payload(root: str | Path) -> dict[str, Any]:
+    """Describe the local memory provider surface without initializing stores."""
+    base = Path(root).expanduser().resolve()
+    entries_path = _entries_file_readonly(base)
+    entries_report = build_memory_entries_jsonl_validate_report(base)
+    valid_entries = int(entries_report.get("valid_lines") or 0)
+    invalid_entries = len(entries_report.get("invalid_lines") or [])
+    from cai_agent.user_model_store import list_recent_beliefs, user_model_store_path
+
+    store_path = user_model_store_path(base)
+    beliefs_count = 0
+    store_ok = True
+    store_error: str | None = None
+    if store_path.is_file():
+        try:
+            beliefs_count = len(list_recent_beliefs(base, limit=500))
+        except Exception as e:  # pragma: no cover - defensive around corrupt local sqlite
+            store_ok = False
+            store_error = str(e)[:300]
+    providers = [
+        {
+            "id": "local_entries_jsonl",
+            "kind": "memory_entries",
+            "status": "active",
+            "default": True,
+            "path": str(entries_path),
+            "exists": entries_path.is_file(),
+            "schema_version": "memory_entry_v1",
+            "read_surface": ["memory health", "memory state", "memory export-entries"],
+            "write_surface": ["memory add", "memory import-entries"],
+            "counts": {
+                "valid_entries": valid_entries,
+                "invalid_entries": invalid_entries,
+            },
+        },
+        {
+            "id": "local_user_model_sqlite",
+            "kind": "user_model_store",
+            "status": "active" if store_path.is_file() else "available",
+            "default": True,
+            "path": str(store_path),
+            "exists": store_path.is_file(),
+            "schema_version": "user_model_store_snapshot_v1",
+            "read_surface": ["memory user-model", "memory user-model store list", "memory user-model query"],
+            "write_surface": ["memory user-model store init", "memory user-model learn"],
+            "counts": {
+                "beliefs": beliefs_count,
+            },
+            "ok": store_ok,
+            "error": store_error,
+        },
+    ]
+    return {
+        "schema_version": "memory_provider_contract_v1",
+        "workspace": str(base),
+        "default_provider": "local_entries_jsonl",
+        "providers": providers,
+        "external_adapters": [
+            {
+                "id": "honcho_external",
+                "status": "future_adapter",
+                "requires_credentials": True,
+                "network_enabled_by_default": False,
+            },
+        ],
+        "user_model_provider_coverage": {
+            "behavior_overview": "local_sessions",
+            "belief_store": "local_user_model_sqlite",
+            "memory_entries": "local_entries_jsonl",
+            "external_graph": None,
+        },
+        "ok": bool(entries_report.get("ok")) and store_ok,
+    }
+
+
 def fix_memory_entries_jsonl(
     root: str | Path,
     *,

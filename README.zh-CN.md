@@ -832,7 +832,19 @@ cai-agent workflow path/to/workflow.json --json
 - `gateway slack serve-webhook`：同一 HTTP 服务既收 **Events API**（`application/json`），也收 **Slash Commands / Interactivity**（`application/x-www-form-urlencoded`），均可用 **`X-Slack-Signature`** + `CAI_SLACK_SIGNING_SECRET` 校验
 - `--execute-on-event`：频道消息走 `graph`；**`--execute-on-slash`**：`/cai <goal>` 同源执行
 - Slash 帮助使用 **Block Kit**（`blocks`）；配置说明见 [`docs/GATEWAY_SLACK_SLASH_BLOCKKIT.zh-CN.md`](docs/GATEWAY_SLACK_SLASH_BLOCKKIT.zh-CN.md)
-- **`gateway maps summarize`**：跨多个工作区根输出 Telegram/Discord/Slack 绑定列表（`gateway_maps_summarize_v1`）；可选绑定元数据见 [`docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md`](docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md)
+- **`gateway maps summarize`**：跨多个工作区根输出 Telegram/Discord/Slack/Teams 绑定列表（`gateway_maps_summarize_v1`）；可选绑定元数据见 [`docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md`](docs/GATEWAY_WORKSPACES_AND_MAPS.zh-CN.md)
+
+### Gateway（Teams）
+
+- `gateway teams bind|get|list|unbind` / `allow`：按 Teams `conversation_id` 管理会话映射与白名单
+- `gateway teams health`：输出 app/tenant/webhook secret 与本地映射诊断（`gateway_teams_health_v1`）
+- `gateway teams manifest`：生成 Teams app manifest 草案；`serve-webhook` 接收 Bot Framework Activity JSON（轻量本地接收器，不引入 SDK）
+
+### Runtime 后端
+
+- `runtime list --json`：列出 local/docker/ssh/modal/daytona/singularity 等后端
+- `[runtime] backend = "docker"`：支持 container/image 双模式、`volume_mounts`、`cpus`、`memory`，并在 `doctor --json.runtime.describe` 暴露诊断
+- `[runtime] backend = "ssh"`：支持 key/known_hosts/timeout 诊断与可选 `runtime_ssh_audit_v1` JSONL 审计
 
 ### Memory（状态机治理）
 

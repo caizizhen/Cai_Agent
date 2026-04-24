@@ -183,6 +183,102 @@ def test_ops_dashboard_html_live_mode_sse_injects_script(tmp_path: Path) -> None
         httpd.server_close()
 
 
+def test_ops_dashboard_interactions_schedule_reorder_preview(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    (root / ".cai-schedule.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.1",
+                "tasks": [
+                    {"id": "task-a", "goal": "a"},
+                    {"id": "task-b", "goal": "b"},
+                    {"id": "task-c", "goal": "c"},
+                ],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "action": "schedule_reorder_preview",
+                "task_id": "task-c",
+                "before_task_id": "task-a",
+            },
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["schema_version"] == "ops_dashboard_interactions_v1"
+        assert payload["dry_run"] is True
+        assert payload["applied"] is False
+        assert payload["preview_order"] == ["task-c", "task-a", "task-b"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_dashboard_interactions_gateway_bind_edit_preview(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    gdir = root / ".cai" / "gateway"
+    gdir.mkdir(parents=True)
+    (gdir / "slack-session-map.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "gateway_slack_map_v1",
+                "bindings": {"C1": {"session_file": "old.json", "label": "old"}},
+                "allowed_channel_ids": [],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "action": "gateway_bind_edit_preview",
+                "platform": "slack",
+                "binding_id": "C1",
+                "session_file": "new.json",
+                "label": "new",
+            },
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["ok"] is True
+        assert payload["binding_found"] is True
+        assert payload["preview_binding"]["session_file"] == "new.json"
+        assert payload["summary"]["changed_fields"] == ["label", "session_file"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_dashboard_interactions_rejects_unknown_action(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {"workspace": str(root), "action": "write_everything"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(url, timeout=5)
+        assert ei.value.code == 400
+        payload = json.loads(ei.value.read().decode("utf-8"))
+        assert payload["error"] == "unsupported_action"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_ops_not_found(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start_server(frozenset({root}), None)

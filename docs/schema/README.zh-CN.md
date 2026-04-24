@@ -156,6 +156,7 @@
 - **`schema_version`**：`plugins_surface_v1`；另含 **`plugin_version`**（当前 **`0.1.0`**，与 `PLUGIN_VERSION` 常量一致）、`project_root`、`health_score`（0~100）、`compatibility`、`components`（`skills` / `commands` / `agents` / `hooks` / `rules` / `mcp-configs` 各含 `exists`、`path`、`files_count`）。
 - **`--with-compat-matrix`**（与 **`--json`** 同用）：顶层附加 **`compat_matrix`**，其 **`schema_version`**=`plugin_compat_matrix_v1`（跨 harness 能力表）；人读说明见 [PLUGIN_COMPAT_MATRIX.zh-CN.md](../PLUGIN_COMPAT_MATRIX.zh-CN.md) / [PLUGIN_COMPAT_MATRIX.md](../PLUGIN_COMPAT_MATRIX.md)；**`compat_matrix`** 内可选 **`doc_anchor`/`doc_anchor_en`、`detail_doc`/`detail_doc_en`、`governance_rfc`、`maintenance_checklist`**（ECC-03b 单源 checklist）指向中英文维护页；机器校验见 **`cai-agent/src/cai_agent/schemas/plugin_compat_matrix_v1.schema.json`**。
 - **`--compat-check`**（ECC-03b）：顶层附加 **`compat_check`**（**`schema_version`=`plugin_compat_matrix_check_v1`**；字段含 `ok`、`expected_components`、`present_components`、`missing_components`、`expected_targets`、`present_targets`、`missing_targets`、`row_mismatches`、`matrix_schema_version`、`governance_rfc`）。**Exit**：检查失败（`ok=false`）→ `2`；默认白名单 = `PLUGIN_COMPONENTS`（6 组件）× (`cursor` / `codex` / `opencode`)。用于 CI 快速发现矩阵行与内置组件 / harness 目标的漂移。
+- **CI snapshot（ECC-03c）**：**`scripts/gen_plugin_compat_snapshot.py`** 写入/校验 **`docs/schema/plugin_compat_matrix_v1.snapshot.json`**；snapshot 根 **`schema_version`**=`plugin_compat_matrix_snapshot_v1`，内嵌 **`matrix`**（`plugin_compat_matrix_v1`）与 **`compat_check`**（`plugin_compat_matrix_check_v1`），并提供根级 **`ok`** / **`matrix_schema_version`** / **`check_schema_version`**。`--check` 用于 CI dry-run，快照漂移 → exit `2`。
 
 **Exit**：默认 `0`；配置缺失等 `2`。`--fail-on-min-health SCORE`：`health_score < SCORE` → `2`；`--compat-check` 失败 → `2`。
 
@@ -293,9 +294,14 @@
 - **`gateway setup`**：写入 **`.cai/gateway/telegram-config.json`**（**`schema_version`=`gateway_telegram_config_v1`**），可选 **`serve_webhook`** 字段（与 **`gateway telegram serve-webhook`** 对齐的开关/模板）；**`--allow-chat-id`** 可重复，合并进 **`telegram-session-map.json`** 的 **`allowed_chat_ids`**。stdout **`--json`** 含 **`ok`**、**`config_path`**、**`workspace`** 等。
 - **`gateway start`**：按配置文件组装 **`python -m cai_agent gateway telegram serve-webhook …`** 后台进程，写 **`.cai/gateway/telegram-webhook.pid`**（**`gateway_telegram_pid_v1`**）。stdout **`gateway_lifecycle_start_v1`**（**`ok`** / **`pid`** / **`pid_file`** / 日志路径等）。
 - **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等），并内嵌 **`gateway_summary`**（`gateway_summary_v1`）供 `board` / `ops dashboard` 复用。
+- **`gateway prod-status`（HM-03e）**：stdout **`gateway_production_summary_v1`**；统一汇总 Telegram / Discord / Slack / Teams 的本地 **`map`**、**`health`**、**`env_present`** 与 **`run_state`**，顶层 **`summary`** 含 `platforms_count` / `configured_count` / `running_count` / `bindings_count`。不调用外部平台 API，仅使用本地 map、env presence、Telegram PID/config 状态。
 - **`gateway slack health --json`**：stdout **`gateway_slack_health_v1`**；顶层含 **`workspace`**、**`map_path`**、**`map_schema_version`**、**`bindings_count`**、**`allowlist_enabled`**、**`allowed_channel_ids_count`**、**`signing_secret_configured`** 与 **`token_check`**。未提供 token 时 **`token_check.performed=false`**；提供后走 Slack `auth.test`，成功时返回 `team` / `team_id` / `user` / `user_id` / `bot_id`。
 - **`gateway slack bind`**：stdout 仍为 **`gateway_slack_map_v1`** 生态中的绑定对象，但单个 **`binding`** 现可带 **`team_id`** 与 **`label`**，用于多 workspace / 多 team 运维映射。
 - **`gateway slack serve-webhook`**：除 Events API JSON 外，还支持 **`application/x-www-form-urlencoded`** 的 Slash / Interactivity 请求；`--execute-on-slash` 打开后，`/cai <goal>` 可复用与 Events 同源的执行链。
+- **`gateway teams bind|get|list|unbind|allow`**：stdout 属于 **`gateway_teams_map_v1`** 生态；默认映射文件 **`.cai/gateway/teams-session-map.json`**。绑定键为 **`conversation_id`**，单个 **`binding`** 可带 **`tenant_id`**、**`service_url`**、**`channel_id`**、**`label`** 与 **`session_file`**。白名单字段为 **`allowed_conversation_ids`**。
+- **`gateway teams health --json`**：stdout **`gateway_teams_health_v1`**；顶层含 **`workspace`**、**`map_path`**、**`bindings_count`**、**`allowlist_enabled`**、**`app_id_configured`**、**`app_password_configured`**、**`tenant_id_configured`**、**`webhook_secret_configured`** 与 **`token_check`**。轻量接收器不在本地校验 Bot Framework JWT，`token_check.performed=false`，部署侧可用 **`--webhook-secret`** / **`CAI_TEAMS_WEBHOOK_SECRET`** 保护入口。
+- **`gateway teams manifest --json`**：stdout **`gateway_teams_manifest_v1`**，内嵌 Teams app manifest 草案（`manifestVersion=1.17`、`bots[].commandLists[]`、`validDomains[]`），用于应用注册前检查。
+- **`gateway teams serve-webhook`**：stdout **`gateway_teams_webhook_v1`**；接收 Bot Framework Activity JSON，支持 `help` / `ping` / `status` / `new` 的同步 message 响应，可选事件 JSONL 日志与 `--max-events` 测试退出。
 - **`gateway stop`**：读 PID 文件并结束进程；stdout **`gateway_lifecycle_stop_v1`**。**无 PID 文件**时 **`ok:false`**、**`error`=`no_pid_file`**（CLI **exit `0`**，幂等）；**`stop_failed`** 等 → **exit `2`**。**`start`** 在配置缺失时 **exit `2`**。
 
 ---
@@ -303,9 +309,23 @@
 ## `gateway platforms list`（`--json`）
 
 - **实现**：`cai_agent.gateway_platforms.build_gateway_platforms_payload`；`cai-agent gateway platforms list --json`。
-- **`schema_version`**：**`gateway_platforms_v1`**；含 **`workspace`**、**`telegram_map_exists`**、**`telegram_session_map_path`**、**`telegram_webhook_pid_path`** / **`telegram_webhook_pid_exists`**（生命周期 PID 文件是否落盘）、**`telegram_bot_token_env_present`**（是否检测到 **`CAI_TELEGRAM_BOT_TOKEN`** 或 **`TELEGRAM_BOT_TOKEN`** 已配置，**不输出**具体值）、**`platforms[]`**（各 **`id`** / **`implementation`**（`full`|`stub`|`planned`）/ **`cli_prefix`** / **`env`** / **`notes`**；stub 平台另含 **`env_present`**：各文档化环境变量是否**已非空配置**）。
+- **`schema_version`**：**`gateway_platforms_v1`**；含 **`workspace`**、**`telegram_map_exists`**、**`telegram_session_map_path`**、**`telegram_webhook_pid_path`** / **`telegram_webhook_pid_exists`**（生命周期 PID 文件是否落盘）、**`telegram_bot_token_env_present`**（是否检测到 **`CAI_TELEGRAM_BOT_TOKEN`** 或 **`TELEGRAM_BOT_TOKEN`** 已配置，**不输出**具体值）、**`platforms[]`**（各 **`id`** / **`implementation`**（`full`|`mvp`|`stub`|`planned`）/ **`cli_prefix`** / **`env`** / **`notes`**；配置了 **`env`** 的平台另含 **`env_present`**：各文档化环境变量是否**已非空配置**）。Teams 行使用 **`id=teams`**、**`implementation=mvp`**。
 
 **Exit**：成功 → **`0`**。
+
+---
+
+## `runtime list` / `runtime test` / `doctor.runtime`（`--json`）
+
+- **实现**：`cai_agent.runtime.registry`、`cai_agent.runtime.docker`；CLI 在 **`__main__.py`** 的 **`runtime`** 分支分发，`doctor --json` 内嵌 **`runtime`**。
+- **`runtime list --json`**：stdout **`runtime_registry_v1`**；顶层含 **`backends[]`**（如 `local` / `docker` / `ssh` / `modal` / `daytona` / `singularity`）。
+- **`runtime test --backend docker --json`**：stdout **`runtime_test_v1`**；顶层含 **`backend`**、**`returncode`**、**`stdout`**、**`stderr`**、**`error_kind`**、**`exists`**。
+- **`doctor --json.runtime`**：内嵌 **`doctor_runtime_v1`**；顶层含 **`configured_backend`**、**`resolved_backend`**、**`reachable`**、**`describe`**。
+- **Docker describe（HM-06b）**：`describe` 对 docker 后端暴露 **`mode`**（`exec` / `run` / `unconfigured`）、**`container`**、**`image`**、**`workdir`**、**`volume_mounts_count`**、**`volume_mounts`**、**`cpus`**、**`memory`**、**`exec_options_count`**。配置入口为 **`[runtime.docker]`**：`container_name` / `container`、`image`、`workdir`、`volume_mounts`、`exec_options`、`cpus`、`memory`。
+- **SSH describe（HM-06c）**：`describe` 对 SSH 后端暴露 **`ssh_binary_present`**、**`host`**、**`user`**、**`key_path_configured`**、**`key_path_exists`**、**`strict_host_key`**、**`known_hosts_path`**、**`known_hosts_exists`**、**`connect_timeout_sec`**、**`audit_enabled`**、**`audit_log_path`**、**`audit_label`**、**`audit_include_command`**。配置入口为 **`[runtime.ssh]`**：`host`、`user`、`key_path`、`known_hosts_path`、`strict_host_key_checking`、`connect_timeout_sec`、`audit_log_path`、`audit_label`、`audit_include_command`。
+- **`runtime_ssh_audit_v1`**：当 **`[runtime.ssh].audit_log_path`** 非空时追加 JSONL；字段含 **`started_at`**、**`finished_at`**、**`backend`**、**`host`**、**`user`**、**`cwd`**、**`returncode`**、**`error_kind`**、**`timeout_sec`**、**`label`**、**`command_kind`**、**`argv_count`**。默认不记录 **`command_preview`**；仅在 **`audit_include_command=true`** 时写入最长 200 字符预览。
+
+**Exit**：`runtime list` 成功 → **`0`**；`runtime test` 成功 → **`0`**，后端执行失败 → **`2`**。
 
 ---
 
@@ -314,6 +334,7 @@
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
 - **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens`，以及 `gateway_status` / `gateway_bindings_count` / `gateway_webhook_running`）与 **`board`** / **`gateway_summary`** / **`schedule_stats`** / **`cost_aggregate`**。
 - **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`** / **`dashboard/events`**（HTML 路由可选 query **`html_refresh_seconds`**、`live_mode=sse|poll`、`live_interval_seconds`；SSE 路由支持 `max_events`），载荷与上表同源。
+- **高级交互预览（HM-04c）**：**`GET /v1/ops/dashboard/interactions`** 返回 **`ops_dashboard_interactions_v1`**，当前支持 **`schedule_reorder_preview`** 与 **`gateway_bind_edit_preview`**。该契约固定 **`dry_run=true`**、**`applied=false`**，只做查询验证和 preview，不执行不可逆写入。
 
 **Exit**：成功 → **`0`**。
 
@@ -447,6 +468,7 @@
 | `memory health` | 健康负载 | **`1.0`**（S2-01）；`--fail-on-grade` → exit `2` |
 | `memory nudge` | nudge 负载 | `--fail-on-severity` → exit `2` |
 | `memory nudge-report` | 报表 | **`schema_version`=`1.2`**；含 `health_score` 等 |
+| `memory provider` | **`memory_provider_contract_v1`**：列出默认 **`local_entries_jsonl`** 与 **`local_user_model_sqlite`** provider、路径、存在性、读/写 surface、计数，以及 **`user_model_provider_coverage`**；外部 Honcho/provider 仅作为 **`future_adapter`** 描述，不启用网络或凭据 | HM-05d，只读；空工作区不会初始化 SQLite store |
 | `memory user-model` | **`memory_user_model_v1`**（**`--json`**）：`sessions_total` / `sessions_recent_in_window` / 可选 **`.cai/user-model.json`** 合并为 **`user_declared`**；**`honcho_parity`** 为 **`stub`** 或 **`behavior_extract`** | 根级 **`--days`** 控制会话 mtime 窗口（默认 14） |
 | `memory user-model export` | **`user_model_bundle_v1`**：含 **`exported_at`**、**`bundle_kind`**（**`behavior_overview`**）、嵌套 **`overview`**（同 **`memory_user_model_v1`**）；可选 **`--with-store`** → 附加 **`user_model_store`**（**`user_model_store_snapshot_v1`**） | **`export` 子命令后的 `--days`** 控制窗口；**恒为 JSON stdout** |
 | `memory user-model store init` | **`memory_user_model_store_init_v1`**：`ok`、`store_path` | |
@@ -460,7 +482,7 @@
 | `cost report --json` | **`cost_by_profile_v1`**：嵌 **`compact_policy_explain_v1`**（与 **`graph`** 中 compact / 成本提示阈值对齐的说明行） | 无 **`--json`** 时输出文本摘要（profile 前若干行 + policy 行），**exit `0`** |
 | `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
 
-**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory user-model --json`**（**`memory_user_model_v1`**）、**`memory user-model export`**（**`user_model_bundle_v1`**），以及 **`memory user-model store init/list`**、**`learn`**/**`query`** 与 **`export --with-store`** 最小闭环。
+**冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory provider --json`**（**`memory_provider_contract_v1`**）、**`memory user-model --json`**（**`memory_user_model_v1`**）、**`memory user-model export`**（**`user_model_bundle_v1`**），以及 **`memory user-model store init/list`**、**`learn`**/**`query`** 与 **`export --with-store`** 最小闭环。
 
 ---
 

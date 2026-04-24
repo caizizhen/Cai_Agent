@@ -10,7 +10,9 @@ from typing import Any
 
 from cai_agent.board_state import attach_failed_summary, attach_status_summary, build_board_payload
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload
+from cai_agent.gateway_maps import summarize_gateway_maps
 from cai_agent.schedule import compute_schedule_stats_from_audit
+from cai_agent.schedule import list_schedule_tasks
 from cai_agent.session import aggregate_sessions
 
 
@@ -70,6 +72,99 @@ def build_ops_dashboard_payload(
         "gateway_summary": gateway_summary,
         "schedule_stats": schedule_stats,
         "cost_aggregate": cost_agg,
+    }
+
+
+def build_ops_dashboard_interactions_payload(
+    *,
+    cwd: str | Path | None = None,
+    action: str,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Preview-only dashboard interaction contract.
+
+    HM-04c keeps the first advanced-interaction surface read-only: clients can
+    validate user intent and render a confirmation UI without mutating schedule
+    or gateway state.
+    """
+    base = Path(cwd or ".").expanduser().resolve()
+    act = str(action or "").strip()
+    p = dict(params or {})
+    supported = ("schedule_reorder_preview", "gateway_bind_edit_preview")
+    result: dict[str, Any] = {
+        "schema_version": "ops_dashboard_interactions_v1",
+        "workspace": str(base),
+        "action": act,
+        "dry_run": True,
+        "applied": False,
+        "supported_actions": list(supported),
+    }
+    if act not in supported:
+        return {
+            **result,
+            "ok": False,
+            "error": "unsupported_action",
+        }
+
+    if act == "schedule_reorder_preview":
+        tasks = list_schedule_tasks(str(base))
+        task_ids = [str(t.get("id") or "").strip() for t in tasks if isinstance(t, dict)]
+        task_ids = [x for x in task_ids if x]
+        task_id = str(p.get("task_id") or "").strip()
+        before_task_id = str(p.get("before_task_id") or "").strip()
+        if not task_id:
+            return {**result, "ok": False, "error": "missing_task_id", "current_order": task_ids}
+        if task_id not in task_ids:
+            return {**result, "ok": False, "error": "task_not_found", "current_order": task_ids}
+        if before_task_id and before_task_id not in task_ids:
+            return {**result, "ok": False, "error": "before_task_not_found", "current_order": task_ids}
+        next_order = [x for x in task_ids if x != task_id]
+        if before_task_id:
+            idx = next_order.index(before_task_id)
+            next_order.insert(idx, task_id)
+        else:
+            next_order.append(task_id)
+        return {
+            **result,
+            "ok": True,
+            "current_order": task_ids,
+            "preview_order": next_order,
+            "summary": {
+                "task_id": task_id,
+                "before_task_id": before_task_id or None,
+                "position_changed": task_ids != next_order,
+            },
+        }
+
+    platform = str(p.get("platform") or "").strip().lower()
+    binding_id = str(p.get("binding_id") or "").strip()
+    if platform not in ("telegram", "discord", "slack", "teams"):
+        return {**result, "ok": False, "error": "unsupported_platform"}
+    if not binding_id:
+        return {**result, "ok": False, "error": "missing_binding_id"}
+    maps = summarize_gateway_maps([base])
+    workspace_rows = maps.get("workspaces") if isinstance(maps.get("workspaces"), list) else []
+    ws = workspace_rows[0] if workspace_rows and isinstance(workspace_rows[0], dict) else {}
+    plat = ws.get(platform) if isinstance(ws.get(platform), dict) else {}
+    rows = plat.get("bindings") if isinstance(plat.get("bindings"), list) else []
+    key_name = "conversation_id" if platform == "teams" else "channel_id" if platform in ("discord", "slack") else "binding_key"
+    current = next((r for r in rows if isinstance(r, dict) and str(r.get(key_name) or "") == binding_id), None)
+    patch: dict[str, Any] = {}
+    for key in ("session_file", "label"):
+        if key in p and str(p.get(key) or "").strip():
+            patch[key] = str(p.get(key)).strip()
+    return {
+        **result,
+        "ok": True,
+        "platform": platform,
+        "binding_id": binding_id,
+        "binding_found": current is not None,
+        "current_binding": current,
+        "preview_binding": {**(current or {key_name: binding_id}), **patch},
+        "summary": {
+            "changed_fields": sorted(patch.keys()),
+            "requires_apply_endpoint": True,
+        },
     }
 
 

@@ -26,7 +26,7 @@
 | **调度** | `schedule` CRUD、`daemon`、`run-due`、依赖与环检测、审计 JSONL（S4-04 七种事件）、跨轮次重试退避、并发上限、`schedule stats`（SLA） |
 | **Hooks** | `hooks` CLI、`hooks list`、`hooks run-event`（**`--dry-run`** / 实跑 JSON **`hooks_run_event_result_v1`**）；**`hooks.json`** 支持 **`script`**（`.py`/`.sh`/`.ps1`/…）与 **`command[]`**，路径逃逸防护；与 runner 对齐 |
 | **LLM 健壮性** | HTTP 重试、`max_http_retries`、Transport / 畸形 JSON 等重试路径；**`compact_hint`** 与 **`cost_budget_max_tokens`** 联动（约 **85%** 预算时追加成本提示） |
-| **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway discord`** Bot Polling MVP（`serve-polling` + bind/allow）；**`gateway slack`** Events API Webhook MVP（`serve-webhook` + bind/allow）；**`gateway platforms list --json`**（Discord/Slack 状态升级为 `mvp`）；**`gateway status --json`** |
+| **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway discord`** Bot Polling MVP（`serve-polling` + bind/allow）；**`gateway slack`** Events API Webhook MVP（`serve-webhook` + bind/allow）；**`gateway teams`** Bot Framework Activity Webhook MVP（映射 / allow / health / manifest / serve-webhook）；**`gateway platforms list --json`**（Discord/Slack/Teams 状态为 `mvp`）；**`gateway status --json`**；**`gateway prod-status --json`**（`gateway_production_summary_v1`） |
 | **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest）；**`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**，源目录 vs **`.cursor/cai-agent-export`** 差异报告，不写盘） |
 | **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
 | **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)） |
@@ -37,9 +37,9 @@
 
 | 领域 | 说明 | 对应 §二 |
 |------|------|----------|
-| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；**动态 Web 可视化**（队列拖拽、实时刷新等）仍为 P2 | **26（后续）** |
-| **Gateway 全量** | Discord/Slack 已有 MVP；Slash Commands、频道监控、多工作区等**生产级特性**仍为后续 Sprint | **24（后续）** |
-| **运行后端（P2）** | Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
+| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；动态 HTTP 已支持只读 JSON/HTML/SSE；高级交互先收口为 `ops_dashboard_interactions_v1` dry-run 预览契约，真实写操作仍需后续鉴权/应用边界 | **26（后续）** |
+| **Gateway 全量** | Discord/Slack/Teams 已有 MVP；`gateway_production_summary_v1` 已提供本地生产状态摘要；Slash Commands 深化、频道监控、多工作区联邦仍为后续 Sprint | **24（后续）** |
+| **运行后端（P2）** | Docker 已产品化（`image` / `volume_mounts` / limits / doctor）；SSH 已产品化（key / known_hosts / timeout / audit）；Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
 
 ---
@@ -86,9 +86,9 @@
 | 21 | **`task_id` 贯通** + **`ops dashboard` JSON** | **完成** | `run`/`continue`/`workflow`/`sessions`/`observe` |
 | 22 | 敏感扫描、高危命令二次确认 | **完成** | `security-scan --json`（密钥扫描）+ **`pii-scan`**（`pii_scan_result_v1`，覆盖信用卡/身份证/手机号/JWT/SSN）+ `run_command_approval_mode` 高危二次确认；`test_pii_scan.py`（11 cases） |
 | 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算 + root **`quality_gate`** / **`post_gate`**（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
-| 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack 升级 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；bind/unbind/get/list/allow 完整映射管理；`test_gateway_discord_slack_cli.py`（19 cases） |
+| 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack/Teams 为 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；**`gateway teams serve-webhook`**（Bot Framework Activity Webhook + manifest）；bind/unbind/get/list/allow 完整映射管理；**`gateway prod-status --json`** 输出 `gateway_production_summary_v1`；`test_gateway_discord_slack_cli.py` / `test_gateway_lifecycle_cli.py` |
 | 25 | 技能自进化 / Hub | **完成** | `skills_hub_manifest_v1` + `skills_evolution_suggest_v1` + **`skills hub install`**；**`auto_extract_skill_after_task`**；**`skills hub serve`**；**`CAI_SKILLS_AUTO_SUGGEST`**；`test_skills_auto_extract_hub_serve.py`（8 cases） |
-| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘（KPI 卡片 + 调度 SLA 表 + Top 工具表）；**`-o FILE`** 落盘；`test_ops_dashboard_html.py`（10 cases） |
+| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘；**`ops serve`** 只读 JSON/HTML/SSE；**`ops_dashboard_interactions_v1`** 支持 schedule reorder / gateway bind-edit dry-run 预览；`test_ops_dashboard_html.py` / `test_ops_http_server.py` |
 
 ---
 
@@ -96,7 +96,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-25** 全量回归：**672 passed**，**3 subtests passed**（Windows / Python 3.13）；含 **`api serve`** 契约测试、Gateway、`models routing-test`、`plugins --with-compat-matrix`、memory、ops 等） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-25** 全量回归：**714 passed**，**3 subtests passed**（Windows / Python 3.13）；含 **`api serve`** 契约测试、Gateway（含 Teams / prod-status）、Runtime docker/SSH、插件兼容 snapshot、`models routing-test`、memory provider、ops dashboard interactions 等） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | `PYTHONPATH=cai-agent/src` + `python -m cai_agent`；`docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测计划 | 文档 | **已写** | [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
@@ -135,7 +135,7 @@
 | 项 | 说明 |
 |----|------|
 | **Claude Code 线** | WebSearch / Notebook 的产品化路径、安装 / 更新体验、CLI/TUI 交互统一；**CC-03b** 见 RFC **`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** |
-| **Hermes 线** | Profiles、**`HM-02b` 最小 HTTP API**（**`cai-agent api serve`**，契约 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**）、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
+| **Hermes 线** | Profiles、**`HM-02b` 最小 HTTP API**（**`cai-agent api serve`**，契约 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**）、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends（docker/SSH 已产品化，云后端仍 OOS/条件立项） |
 | **ECC 线** | rules / skills / hooks 的资产化、`model-route`、**`cost report` + compact 策略说明**、插件与跨 harness 深化 |
 | **共享项** | 中英文文档同步、反馈闭环、发布闭环、OOS / MCP 备案机制 |
 | **明确 OOS** | 依赖封闭企业能力的官方专属特性、默认多 CLI 套件模式 |

@@ -17,10 +17,14 @@
 | `CC-02a` | 梳理安装、更新与版本提示体验 | `M2` | `P1` |
 | `HM-01a` | 定义 profile 数据模型与持久化结构 | `M3` | `P1` |
 | `HM-03a` | 把 Discord 从 MVP 推到生产路径 | `M3` | `P1` |
+| `HM-03d-teams` | Teams Gateway 生产路径 | `M3` | `P1` |
 | `HM-04a` | 统一 ops/gateway/status 聚合载荷 | `M3` | `P1` |
 | `HM-05a` | 补齐 user-model store/query/learn 主链路 | `M3` | `P1` |
+| `HM-06b-docker` | Runtime docker 后端产品化 | `M5` | `P1` |
+| `HM-06c-ssh` | Runtime SSH 后端产品化 | `M5` | `P1` |
 | `ECC-01a` | 统一 rules/skills/hooks 资产目录与模板 | `M4` | `P1` |
 | `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | `M4` | `P1` |
+| `ECC-03c` | 插件兼容矩阵 CI snapshot | `M5` | `P1` |
 
 ## REL-01a 收口 release-ga / doctor / changelog 回写流程
 
@@ -97,6 +101,22 @@
 | 回写 | `PRODUCT_PLAN`、`PARITY_MATRIX`、gateway 相关文档、CHANGELOG。 |
 | 依赖 | 无。 |
 
+## HM-03d-teams Teams Gateway 生产路径
+
+| 字段 | 内容 |
+|---|---|
+| 建议标签 | `type:feature` `area:gateway` `source:hermes` `priority:p1` |
+| 状态 | `Done`（2026-04-25） |
+| 背景 | `HM-03c` 已将 Microsoft Teams 评为下一批企业协作平台第一顺位；现有 Slack / Discord gateway 已形成可复用的本地映射、白名单、健康检查与 webhook 模式。 |
+| 目标 | 在不引入 Bot Framework SDK 的前提下，先落地 Teams Gateway 的仓内最小生产路径，支持应用注册前 manifest 检查、本地会话映射、Activity webhook 收发与运维自检。 |
+| In scope | `gateway teams bind/get/list/unbind`、`allow`、`health`、`manifest`、`serve-webhook`；`gateway_teams_map_v1` / `gateway_teams_health_v1` / `gateway_teams_manifest_v1`；纳入 `gateway platforms` 与 `gateway maps`。 |
+| Out of scope | 不内置 Bot Framework JWT 完整校验 SDK；真实云部署的反向代理、AAD 应用注册与 Secret 轮换由部署侧完成，本仓仅提供 manifest 与本地接收器。 |
+| 交付物 | `cai_agent.gateway_teams`、CLI 子命令、gateway 汇总入口、pytest 覆盖、文档回写。 |
+| 验收标准 | 本地可用 CLI 创建/查询 Teams conversation 映射；health 能显示配置存在性；manifest 可输出 Teams app 草案；Activity `ping` / `status` 可同步响应；gateway 汇总能看到 Teams。 |
+| 验证 | `pytest test_gateway_discord_slack_cli.py test_gateway_maps_summarize.py`，全量 pytest，smoke。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、`schema/README`、CHANGELOG。 |
+| 依赖 | `HM-03b`、`HM-03c`。 |
+
 ## HM-04a 统一 ops/gateway/status 聚合载荷
 
 | 字段 | 内容 |
@@ -126,6 +146,38 @@
 | 验证 | pytest、smoke、JSON 输出检查。 |
 | 回写 | `PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`MEMORY_TTL_CONFIDENCE_POLICY`、CHANGELOG。 |
 | 依赖 | 无。 |
+
+## HM-06b-docker Runtime docker 后端产品化
+
+| 字段 | 内容 |
+|---|---|
+| 建议标签 | `type:feature` `area:runtime` `priority:p1` |
+| 状态 | `Done`（2026-04-25） |
+| 背景 | `HM-06a` 将 docker 列为本地之后的第一优先 runtime 后端；原实现已有 `docker exec` MVP，但镜像、卷挂载、资源限制与 doctor 诊断口径不够完整。 |
+| 目标 | 让 docker 后端可用于团队 CI / 可复现构建的最小产品路径，同时继续避免默认云后端。 |
+| In scope | `[runtime.docker] image` / `workdir` / `volume_mounts`；保留 `container` 模式；`cpus` / `memory` 限额；`doctor_runtime_v1.describe` 诊断字段；pytest 与 smoke。 |
+| Out of scope | 不提供托管云 runtime，不内置镜像构建流水线，不保证本机无 Docker 时可真实执行 docker 后端。 |
+| 交付物 | `runtime/docker.py`、`runtime/registry.py`、`config.py`、runtime 单测、schema/changelog/roadmap 回写。 |
+| 验收标准 | 配置 `image` 时可生成 `docker run --rm` 命令；配置 `container` 时继续走 `docker exec`；doctor JSON 能看到 mode/image/workdir/volumes/limits。 |
+| 验证 | `pytest test_runtime_docker_mock.py test_runtime_tool_dispatch.py test_runtime_local.py`、smoke、全量 pytest。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 依赖 | `HM-06a`。 |
+
+## HM-06c-ssh Runtime SSH 后端产品化
+
+| 字段 | 内容 |
+|---|---|
+| 建议标签 | `type:feature` `area:runtime` `priority:p1` |
+| 状态 | `Done`（2026-04-25） |
+| 背景 | `HM-06a` 将 SSH 列为 docker 之后的第二个默认产品化 runtime 后端；原实现已有 system `ssh` 执行路径，但 key、known_hosts、超时与审计可见性不足。 |
+| 目标 | 补齐 SSH runtime 的运维诊断与可选审计，让远程开发/跳板机场景具备可排障入口。 |
+| In scope | `doctor_runtime_v1.describe` 暴露 `ssh_binary_present`、key/known_hosts 存在性、严格 host key、连接超时；新增 `runtime_ssh_audit_v1` JSONL 审计，默认不记录命令明文。 |
+| Out of scope | 不做真实远端集群编排、不自动分发密钥、不放宽 host key 默认安全策略。 |
+| 交付物 | `runtime/ssh.py`、`runtime/registry.py`、`config.py`、SSH 单测、schema/changelog/roadmap 回写。 |
+| 验收标准 | 配置 SSH 后端时 doctor JSON 可诊断 key/known_hosts/audit 状态；执行路径能写入审计 JSONL；默认审计不包含命令明文。 |
+| 验证 | `pytest test_runtime_ssh_mock.py test_runtime_docker_mock.py test_runtime_tool_dispatch.py test_runtime_local.py`、smoke、全量 pytest。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PRODUCT_PLAN`、`PRODUCT_GAP_ANALYSIS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 依赖 | `HM-06a`。 |
 
 ## ECC-01a 统一 rules/skills/hooks 资产目录与模板
 
@@ -157,11 +209,26 @@
 | 回写 | `MODEL_ROUTING_RULES`、`PRODUCT_PLAN`、`PARITY_MATRIX`、CHANGELOG。 |
 | 依赖 | 无。 |
 
+## ECC-03c 插件兼容矩阵 CI snapshot
+
+| 字段 | 内容 |
+|---|---|
+| 建议标签 | `type:feature` `area:ecosystem` `area:ci` `priority:p1` |
+| 状态 | `Done`（2026-04-25） |
+| 背景 | `ECC-03b` 已提供 `plugin_compat_matrix_check_v1`，但缺少可纳入 CI 的稳定快照文件与 `--check` 入口。 |
+| 目标 | 将插件兼容矩阵治理门禁变成可版本化、可 dry-run 的 snapshot 检查。 |
+| In scope | `scripts/gen_plugin_compat_snapshot.py` 写入/校验 `docs/schema/plugin_compat_matrix_v1.snapshot.json`；snapshot 内嵌 `plugin_compat_matrix_v1` 与 `plugin_compat_matrix_check_v1`；pytest 与 smoke 覆盖 `--check`。 |
+| Out of scope | 不引入第三方 CI 平台配置，不做插件市场/签名/付费分发。 |
+| 交付物 | 生成脚本、snapshot JSON、测试、schema README/changelog/roadmap 回写。 |
+| 验收标准 | 修改矩阵后若未刷新 snapshot，`python scripts/gen_plugin_compat_snapshot.py --check` 退出 `2`；当前仓库 snapshot check 退出 `0`。 |
+| 验证 | `pytest test_plugin_compat_matrix.py`；`python scripts/gen_plugin_compat_snapshot.py --check`；smoke。 |
+| 回写 | `ROADMAP_EXECUTION`、`DEVELOPER_TODOS`、`PARITY_MATRIX`、schema README、CHANGELOG。 |
+| 依赖 | `ECC-03b`。 |
+
 ---
 
 如果继续往下开单，建议下一批是：
 
-- **Gateway 下一平台实现**（如 **Teams**）：以 **`docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md`** 为输入单独立项
+- **Gateway 生产化深化**（Slash/频道监控/多工作区）：以 **`HM-03e-prod`** 为输入单独立项
 - **`api serve` 扩展**（若产品需要）：OpenAPI、更多只读路由、与 **`ops serve`** 统一鉴权配置
-- **Runtime**：按 **`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** 拆 **docker** / **ssh** 产品化 issue
-- **插件治理落地**：按 **`docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md`** 补 CI snapshot（可选）
+- **Runtime 云后端**：继续按 OOS/条件立项处理，默认本机 / docker / ssh

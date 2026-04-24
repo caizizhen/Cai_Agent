@@ -5203,6 +5203,11 @@ def main(argv: list[str] | None = None) -> int:
         help="与 memory health 一致：计算 freshness 的创建时间窗口天数（默认 14）",
     )
     memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
+    memory_provider = memory_sub.add_parser(
+        "provider",
+        help="输出 memory provider / user-model provider 覆盖只读契约（HM-05d）",
+    )
+    memory_provider.add_argument("--json", action="store_true", dest="json_output")
     memory_user_model = memory_sub.add_parser(
         "user-model",
         help="用户建模：会话行为概览（v1/v2/v3）+ SQLite store 的 init/list、learn、query、export（见子命令）",
@@ -5915,6 +5920,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     gw_stat.add_argument("--json", action="store_true", dest="json_output")
 
+    gw_prod = gateway_sub.add_parser("prod-status", help="多平台 Gateway 生产状态只读摘要（HM-03e）")
+    gw_prod.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
+    )
+    gw_prod.add_argument("--json", action="store_true", dest="json_output")
+
     gw_stop = gateway_sub.add_parser("stop", help="停止 start 写入 PID 的 webhook 子进程")
     gw_stop.add_argument(
         "-w",
@@ -6215,6 +6230,60 @@ def main(argv: list[str] | None = None) -> int:
     gw_sl_serve.add_argument("--reply-on-execution", action="store_true", default=False)
     gw_sl_serve.add_argument("--log-file", default=None)
     gw_sl_serve.add_argument("--json", action="store_true", dest="json_output")
+
+    # ---- Microsoft Teams Gateway（HM-03d）----
+    gw_tm = gateway_sub.add_parser("teams", help="Microsoft Teams Gateway — Bot Framework Activity Webhook 接入")
+    gw_tm.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_tm_sub = gw_tm.add_subparsers(dest="gateway_teams_action", required=True)
+
+    gw_tm_bind = gw_tm_sub.add_parser("bind", help="绑定 conversation_id → session_file")
+    gw_tm_bind.add_argument("conversation_id")
+    gw_tm_bind.add_argument("session_file")
+    gw_tm_bind.add_argument("--tenant-id", default=None, dest="teams_tenant_id")
+    gw_tm_bind.add_argument("--service-url", default=None, dest="teams_service_url")
+    gw_tm_bind.add_argument("--channel-id", default=None, dest="teams_channel_id")
+    gw_tm_bind.add_argument("--label", default=None)
+    gw_tm_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_unbind = gw_tm_sub.add_parser("unbind", help="解绑 conversation_id")
+    gw_tm_unbind.add_argument("conversation_id")
+    gw_tm_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_get = gw_tm_sub.add_parser("get", help="查询 conversation_id 绑定")
+    gw_tm_get.add_argument("conversation_id")
+    gw_tm_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_list = gw_tm_sub.add_parser("list", help="列出所有绑定与白名单")
+    gw_tm_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_health = gw_tm_sub.add_parser("health", help="检查 Teams gateway 映射与应用配置状态")
+    gw_tm_health.add_argument("--app-id", default=None, dest="teams_app_id", help="Teams/Azure Bot App ID（或 CAI_TEAMS_APP_ID）")
+    gw_tm_health.add_argument("--app-password", default=None, dest="teams_app_password", help="App password/secret（或 CAI_TEAMS_APP_PASSWORD）")
+    gw_tm_health.add_argument("--tenant-id", default=None, dest="teams_tenant_id", help="Tenant ID（或 CAI_TEAMS_TENANT_ID）")
+    gw_tm_health.add_argument("--webhook-secret", default=None, dest="teams_webhook_secret", help="本地接收器共享密钥（或 CAI_TEAMS_WEBHOOK_SECRET）")
+    gw_tm_health.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_manifest = gw_tm_sub.add_parser("manifest", help="输出 Teams app manifest 模板（不写文件）")
+    gw_tm_manifest.add_argument("--app-id", required=True, dest="teams_app_id")
+    gw_tm_manifest.add_argument("--bot-id", default=None, dest="teams_bot_id")
+    gw_tm_manifest.add_argument("--name", default="CAI Agent", dest="teams_manifest_name")
+    gw_tm_manifest.add_argument("--valid-domain", action="append", default=[], dest="teams_valid_domains")
+    gw_tm_manifest.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_allow = gw_tm_sub.add_parser("allow", help="白名单管理")
+    gw_tm_allow_sub = gw_tm_allow.add_subparsers(dest="teams_allow_action", required=True)
+    gw_tm_allow_add = gw_tm_allow_sub.add_parser("add"); gw_tm_allow_add.add_argument("conversation_id"); gw_tm_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_tm_allow_rm = gw_tm_allow_sub.add_parser("rm"); gw_tm_allow_rm.add_argument("conversation_id"); gw_tm_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_tm_allow_list = gw_tm_allow_sub.add_parser("list"); gw_tm_allow_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_tm_serve = gw_tm_sub.add_parser("serve-webhook", help="启动 Teams Bot Framework Activity Webhook 服务")
+    gw_tm_serve.add_argument("--webhook-secret", default=None, dest="teams_webhook_secret", help="本地共享密钥（或 CAI_TEAMS_WEBHOOK_SECRET）")
+    gw_tm_serve.add_argument("--host", default="0.0.0.0")
+    gw_tm_serve.add_argument("--port", type=int, default=7893)
+    gw_tm_serve.add_argument("--max-events", type=int, default=0)
+    gw_tm_serve.add_argument("--execute-on-message", action="store_true", default=False)
+    gw_tm_serve.add_argument("--log-file", default=None)
+    gw_tm_serve.add_argument("--json", action="store_true", dest="json_output")
 
     wf_p = sub.add_parser(
         "workflow",
@@ -6679,10 +6748,11 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings_rt = replace(settings_rt, model=str(args.model).strip())
-        if args.workspace:
+        workspace_rt = getattr(args, "workspace", None)
+        if workspace_rt:
             settings_rt = replace(
                 settings_rt,
-                workspace=os.path.abspath(args.workspace),
+                workspace=os.path.abspath(workspace_rt),
             )
         act_rt = str(getattr(args, "runtime_action", "") or "").strip()
         t_rt = time.perf_counter()
@@ -9227,6 +9297,27 @@ def main(argv: list[str] | None = None) -> int:
                     )
                     print(f"history_file={payload.get('history_file')}")
                 return 0
+            if args.memory_action == "provider":
+                t_mpv = time.perf_counter()
+                from cai_agent.memory import build_memory_provider_contract_payload
+
+                payload = build_memory_provider_contract_payload(root)
+                _maybe_metrics_cli(
+                    module="memory",
+                    event="memory.provider",
+                    latency_ms=(time.perf_counter() - t_mpv) * 1000.0,
+                    tokens=len(payload.get("providers") or []),
+                    success=bool(payload.get("ok")),
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(payload, ensure_ascii=False))
+                else:
+                    providers = payload.get("providers") if isinstance(payload.get("providers"), list) else []
+                    print(
+                        f"[memory provider] providers={len(providers)} "
+                        f"default={payload.get('default_provider')} ok={payload.get('ok')}",
+                    )
+                return 0
             if args.memory_action == "user-model":
                 t_mum = time.perf_counter()
                 from cai_agent.user_model import (
@@ -10992,7 +11083,7 @@ def main(argv: list[str] | None = None) -> int:
             root = Path.cwd().resolve()
 
         ga = getattr(args, "gateway_action", None)
-        if ga in {"setup", "start", "status", "stop"}:
+        if ga in {"setup", "start", "status", "prod-status", "stop"}:
             from cai_agent import gateway_lifecycle
 
             if ga == "setup":
@@ -11074,6 +11165,20 @@ def main(argv: list[str] | None = None) -> int:
                         f"[gateway status] config_exists={out_st.get('config_exists')} "
                         f"webhook_running={out_st.get('webhook_running')} "
                         f"webhook_pid={out_st.get('webhook_pid')} allowlist={out_st.get('allowlist_enabled')}",
+                    )
+                return 0
+            if ga == "prod-status":
+                from cai_agent.gateway_production import build_gateway_production_summary_payload
+
+                out_st = build_gateway_production_summary_payload(root)
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    sm = out_st.get("summary") if isinstance(out_st.get("summary"), dict) else {}
+                    print(
+                        "[gateway prod-status] "
+                        f"platforms={sm.get('platforms_count')} configured={sm.get('configured_count')} "
+                        f"running={sm.get('running_count')} bindings={sm.get('bindings_count')}",
                     )
                 return 0
             if ga == "stop":
@@ -11745,6 +11850,113 @@ def main(argv: list[str] | None = None) -> int:
                         f"token_checked={tc3.get('performed')} token_ok={tc3.get('ok')}",
                     )
                 else:
+                    print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
+        # ---- Microsoft Teams Gateway（HM-03d）----
+        if _gw_act == "teams":
+            from cai_agent.gateway_teams import (
+                build_teams_manifest_payload,
+                serve_teams_webhook,
+                teams_allow_add,
+                teams_allow_list,
+                teams_allow_rm,
+                teams_bind,
+                teams_gateway_health,
+                teams_get_binding,
+                teams_list_bindings,
+                teams_unbind,
+            )
+
+            tm_ws_raw = getattr(args, "workspace", None)
+            tm_root = Path(os.path.abspath(tm_ws_raw)).resolve() if tm_ws_raw else Path.cwd().resolve()
+            tm_act = str(getattr(args, "gateway_teams_action", "") or "").strip()
+            json_out_tm = bool(getattr(args, "json_output", False))
+            if tm_act == "bind":
+                r = teams_bind(
+                    tm_root,
+                    args.conversation_id,
+                    args.session_file,
+                    tenant_id=getattr(args, "teams_tenant_id", None),
+                    service_url=getattr(args, "teams_service_url", None),
+                    channel_id=getattr(args, "teams_channel_id", None),
+                    label=getattr(args, "label", None),
+                )
+            elif tm_act == "unbind":
+                r = teams_unbind(tm_root, args.conversation_id)
+            elif tm_act == "get":
+                r = teams_get_binding(tm_root, args.conversation_id)
+            elif tm_act == "list":
+                r = teams_list_bindings(tm_root)
+            elif tm_act == "health":
+                app_id_tm = str(getattr(args, "teams_app_id", None) or os.environ.get("CAI_TEAMS_APP_ID", "") or "")
+                app_pw_tm = str(
+                    getattr(args, "teams_app_password", None) or os.environ.get("CAI_TEAMS_APP_PASSWORD", "") or "",
+                )
+                tenant_tm = str(getattr(args, "teams_tenant_id", None) or os.environ.get("CAI_TEAMS_TENANT_ID", "") or "")
+                secret_tm = str(
+                    getattr(args, "teams_webhook_secret", None) or os.environ.get("CAI_TEAMS_WEBHOOK_SECRET", "") or "",
+                )
+                r = teams_gateway_health(
+                    tm_root,
+                    app_id=app_id_tm or None,
+                    app_password=app_pw_tm or None,
+                    tenant_id=tenant_tm or None,
+                    webhook_secret=secret_tm or None,
+                )
+            elif tm_act == "manifest":
+                r = build_teams_manifest_payload(
+                    app_id=str(getattr(args, "teams_app_id", "") or ""),
+                    bot_id=getattr(args, "teams_bot_id", None),
+                    name=str(getattr(args, "teams_manifest_name", "CAI Agent") or "CAI Agent"),
+                    valid_domains=list(getattr(args, "teams_valid_domains", []) or []),
+                )
+                if not r.get("ok"):
+                    return 2
+            elif tm_act == "allow":
+                al_act = str(getattr(args, "teams_allow_action", "") or "")
+                if al_act == "add":
+                    r = teams_allow_add(tm_root, args.conversation_id)
+                elif al_act == "rm":
+                    r = teams_allow_rm(tm_root, args.conversation_id)
+                else:
+                    r = teams_allow_list(tm_root)
+            elif tm_act == "serve-webhook":
+                secret_tm = str(
+                    getattr(args, "teams_webhook_secret", None) or os.environ.get("CAI_TEAMS_WEBHOOK_SECRET", "") or "",
+                )
+                tm_host = str(getattr(args, "host", "0.0.0.0") or "0.0.0.0")
+                tm_port = int(getattr(args, "port", 7893))
+                if not json_out_tm:
+                    print(f"Teams Webhook 服务启动中 http://{tm_host}:{tm_port} — Ctrl+C 停止")
+                r = serve_teams_webhook(
+                    root=tm_root,
+                    webhook_secret=secret_tm,
+                    host=tm_host,
+                    port=tm_port,
+                    execute_on_message=bool(getattr(args, "execute_on_message", False)),
+                    log_file=getattr(args, "log_file", None),
+                    max_events=int(getattr(args, "max_events", 0)),
+                )
+            else:
+                print(f"unknown teams action: {tm_act}", file=sys.stderr)
+                return 2
+            if json_out_tm:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                if tm_act == "health":
+                    tc4 = r.get("token_check") if isinstance(r.get("token_check"), dict) else {}
+                    print(
+                        f"Teams health: bindings={r.get('bindings_count')} "
+                        f"allowlist={r.get('allowlist_enabled')} "
+                        f"app_id={r.get('app_id_configured')} "
+                        f"tenant_id={r.get('tenant_id_configured')} "
+                        f"secret={r.get('webhook_secret_configured')} "
+                        f"token_checked={tc4.get('performed')}",
+                    )
+                elif tm_act == "manifest":
+                    print(json.dumps(r.get("manifest") or {}, ensure_ascii=False, indent=2))
+                elif tm_act != "serve-webhook":
                     print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
             return 0
 

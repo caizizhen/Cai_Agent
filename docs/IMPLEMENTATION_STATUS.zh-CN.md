@@ -11,6 +11,11 @@
 
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
+| **Design backlog 契约（HM-04c / HM-03e / HM-05d）** | 新增 **`ops_dashboard_interactions_v1`**（Dashboard dry-run 预览）、**`gateway prod-status --json`** 输出 **`gateway_production_summary_v1`**、**`memory provider --json`** 输出 **`memory_provider_contract_v1`**；均为本地只读/预览契约，不依赖外部服务 | **`ops_dashboard.py`**、**`ops_http_server.py`**、**`gateway_production.py`**、**`memory.py`**、**`test_ops_http_server.py`**、**`test_gateway_lifecycle_cli.py`**、**`test_memory_provider_contract_cli.py`** |
+| **插件兼容矩阵 CI snapshot（ECC-03c）** | 新增 **`scripts/gen_plugin_compat_snapshot.py`**，可生成/校验 **`docs/schema/plugin_compat_matrix_v1.snapshot.json`**；snapshot 内嵌 **`plugin_compat_matrix_v1`** 与 **`plugin_compat_matrix_check_v1`**，smoke 执行 `--check` | **`scripts/gen_plugin_compat_snapshot.py`**、**`plugin_compat_matrix_v1.snapshot.json`**、**`test_plugin_compat_matrix.py`** |
+| **SSH Runtime（HM-06c）** | **`runtime.ssh`** 诊断补齐 `ssh_binary_present`、key/known_hosts 存在性、严格 host key 与连接超时；新增可选 **`runtime_ssh_audit_v1`** JSONL 审计（默认不记录命令明文，可用 `audit_include_command=true` 显式打开） | **`runtime/ssh.py`**、**`runtime/registry.py`**、**`config.py`**、**`test_runtime_ssh_mock.py`** |
+| **Docker Runtime（HM-06b）** | **`runtime.docker`** 支持既有 `container` / `docker exec` 模式与新增 `image` / `docker run --rm` 模式；新增 **`workdir`**、**`volume_mounts`**、**`cpus`**、**`memory`** 配置，**`doctor_runtime_v1.describe`** 暴露 mode/image/workdir/volumes/limits | **`runtime/docker.py`**、**`runtime/registry.py`**、**`config.py`**、**`test_runtime_docker_mock.py`** |
+| **Teams Gateway（HM-03d）** | **`gateway teams`** 新增会话映射（`bind/get/list/unbind`）、allowlist、`health`、Teams app `manifest` 模板与 Bot Framework Activity **`serve-webhook`**；`gateway platforms` / `gateway maps` 已纳入 Teams；机读载荷含 **`gateway_teams_map_v1`**、**`gateway_teams_health_v1`**、**`gateway_teams_manifest_v1`** | **`gateway_teams.py`**、**`gateway_platforms.py`**、**`gateway_maps.py`**、**`test_gateway_discord_slack_cli.py`** |
 | **未开发功能批次（HM-02c / CC-03c / ECC-03b）** | API 只读扩展（**`/v1/models/summary`**、**`/v1/plugins/surface`**、**`/v1/release/runbook`**）；TUI **`#context-label`** 路由/迁移提示 + **`profile_switched: <id>`** 单源；**`plugins --compat-check`**（**`plugin_compat_matrix_check_v1`**）与矩阵 **`maintenance_checklist`** | **`api_http_server.py`**、**`tui_session_strip.py`**、**`plugin_registry.py`**、**`DEVELOPER_TODOS`** §0.4 |
 | **Explore 评估四连（HM-03c / ECC-03a / HM-06a / HM-07a）** | 下一批 gateway、插件版本治理、runtime 后端、Voice 边界等 **RFC 结论文档**（**`docs/rfc/HM_03C_*`**、**`ECC_03A_*`**、**`HM_06A_*`**、**`HM_07A_*`**）；路线图 issue 标 **Done**（文档交付） | **`DEVELOPER_TODOS`** §0.3.1 |
 | **最小 HTTP API（HM-02b）** | **`cai-agent api serve`**（默认 **`CAI_API_PORT`**=**8788**；**`CAI_API_TOKEN`** 可选 Bearer）；**`GET /healthz`**、**`/v1/status`**（**`api_status_v1`**）、**`/v1/doctor/summary`**（**`api_doctor_summary_v1`**）、**`POST /v1/tasks/run-due`**（仅 **dry_run**） | **`api_http_server.py`**、**`doctor.build_api_doctor_summary_v1`**、**`test_api_http_server.py`** |
@@ -38,9 +43,9 @@
 ## 最近回归执行记录（QA）
 
 - **日期**：2026-04-25（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**（自 **`cai-agent`** 目录 **`python -m pytest -q tests`**）：**688 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
+- **`pytest cai-agent/tests`**（自 **`cai-agent`** 目录 **`python -m pytest -q tests`**）：**714 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
-- **`python scripts/run_regression.py`**：退出码 **0**（`HM-02c` / `CC-03c` / `ECC-03b` 批次后，**Git HEAD** 见当次提交）。最近一次落盘机器记录仍为 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**；需要新日志时勿设 **`QA_SKIP_LOG=1`** 后重跑（见 **QA_REGRESSION_LOGGING**）。
+- **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（HM-04c / HM-03e / HM-05d 后）。最近一次落盘机器记录仍为 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**；需要新日志时勿设 **`QA_SKIP_LOG=1`** 后重跑（见 **QA_REGRESSION_LOGGING**）。
 
 ## QA 提示
 

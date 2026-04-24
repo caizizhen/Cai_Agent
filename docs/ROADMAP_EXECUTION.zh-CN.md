@@ -217,14 +217,14 @@
 | `HM-02c` | `Done` | `HM-02` | API 只读扩展（profile / plugins / release） | **`GET /v1/models/summary`**（`api_models_summary_v1`）、**`GET /v1/plugins/surface`**（`api_plugins_surface_v1`，**可选 `?compat=1`**）、**`GET /v1/release/runbook`**（`api_release_runbook_v1`） | `HM-02b` | pytest |
 | `CC-03c` | `Done` | `CC-03` | 模型切换与状态文案最小对齐 | TUI **`#context-label`** 追加 **`· route=sub/pl`** 与迁移警示；**`/models`** 切换与 CLI **`models use`** 同时打印 **`profile_switched: <id>`** | `CC-03b` | pytest |
 | `ECC-03b` | `Done` | `ECC-03` | 插件治理最小可验证入口 | **`plugin_compat_matrix_v1.maintenance_checklist`** + **`plugins_compat_check_v1`**（**`plugins --compat-check`**） | `ECC-03a` | pytest |
-| `HM-03d-teams` | `Ready` | `HM-03` | Teams Gateway 生产路径（下一批第一顺位） | 代码/测试 + gateway smoke | `HM-03b` `HM-03c` | gateway smoke + `doctor` |
-| `HM-06b-docker` | `Ready` | `HM-06` | Runtime **docker** 后端产品化 | 镜像/卷/限额/`doctor` 诊断 | `HM-06a` | pytest + `runtime test --backend docker` |
-| `HM-06c-ssh` | `Ready` | `HM-06` | Runtime **SSH** 后端产品化 | 密钥、`known_hosts`、超时、审计 | `HM-06a` | pytest + `runtime test --backend ssh` |
-| `HM-04c` | `Design` | `HM-04` | Dashboard 高级交互（队列拖拽等） | 鉴权边界、HTML/SSE 扩展 | `HM-04b` | 浏览器手测 + pytest |
-| `HM-03e-prod` | `Design` | `HM-03` | Gateway 生产化深化（Slash/频道监控/多工作区） | `gateway_lifecycle` 扩展；多工作区联邦 | `HM-03b` | gateway smoke + 压测 |
-| `ECC-03c` | `Ready` | `ECC-03` | 插件兼容矩阵 CI snapshot | 基于 `ECC-03b` 产出；接入 `scripts/gen_*` 检查 | `ECC-03b` | pytest + CI dry-run |
-| `HM-05d` | `Design` | `HM-05` | Memory providers 扩展 / 用户模型深化 | 对齐 **`HONCHO_USER_MODEL_EPIC.zh-CN.md`** | `HM-05a/b/c` | pytest + smoke |
-| `DOC-01c` | `Ready` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 链接检查 + 结构收敛 | — | 手工 + `rg` |
+| `HM-03d-teams` | `Done` | `HM-03` | Teams Gateway 生产路径（下一批第一顺位） | **`gateway teams`**（`bind/get/list/unbind`、`allow`、`health`、`manifest`、`serve-webhook`）；**`gateway_teams_map_v1`** / **`gateway_teams_health_v1`** / **`gateway_teams_manifest_v1`**；`gateway platforms` 与 `gateway maps` 纳入 Teams | `HM-03b` `HM-03c` | pytest `test_gateway_discord_slack_cli` + `test_gateway_maps_summarize` |
+| `HM-06b-docker` | `Done` | `HM-06` | Runtime **docker** 后端产品化 | **`runtime.docker`** 支持 `container` / `image` 双模式、`workdir`、`volume_mounts`、`cpus`、`memory`；**`doctor_runtime_v1.describe`** 暴露 mode/image/workdir/volumes/limits | `HM-06a` | pytest `test_runtime_docker_mock` + smoke |
+| `HM-06c-ssh` | `Done` | `HM-06` | Runtime **SSH** 后端产品化 | **`runtime.ssh`** 诊断补齐 `ssh_binary_present`、key/known_hosts 存在性、连接超时；新增可选 **`runtime_ssh_audit_v1`** JSONL 审计（默认不记录命令明文） | `HM-06a` | pytest `test_runtime_ssh_mock` + smoke |
+| `HM-04c` | `Done` | `HM-04` | Dashboard 高级交互预览契约 | **`ops_dashboard_interactions_v1`**；`GET /v1/ops/dashboard/interactions` 支持 `schedule_reorder_preview` / `gateway_bind_edit_preview`，固定 dry-run、无写入 | `HM-04b` | pytest `test_ops_http_server` |
+| `HM-03e-prod` | `Done` | `HM-03` | Gateway 生产化状态摘要 | **`gateway prod-status --json`** 输出 **`gateway_production_summary_v1`**，汇总 Telegram/Discord/Slack/Teams map/health/env/run-state，本地只读无外部 API | `HM-03b` | pytest `test_gateway_lifecycle_cli` + smoke |
+| `ECC-03c` | `Done` | `ECC-03` | 插件兼容矩阵 CI snapshot | **`scripts/gen_plugin_compat_snapshot.py`** 生成/校验 **`docs/schema/plugin_compat_matrix_v1.snapshot.json`**；snapshot 内嵌 `plugin_compat_matrix_v1` 与 `plugin_compat_matrix_check_v1` | `ECC-03b` | pytest `test_plugin_compat_matrix` + smoke `--check` |
+| `HM-05d` | `Done` | `HM-05` | Memory providers 扩展 / 用户模型深化 | **`memory provider --json`** 输出 **`memory_provider_contract_v1`**，描述 local entries / user-model SQLite provider 与 future external adapter 边界 | `HM-05a/b/c` | pytest `test_memory_provider_contract_cli` + smoke |
+| `DOC-01c` | `Done` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 根 README 与 docs README 补 Teams/runtime/plugin snapshot 入口；中英入口互指实现摘要、测试清单与 snapshot | — | 手工 + `rg` |
 
 ### 10.1 建议开单顺序
 

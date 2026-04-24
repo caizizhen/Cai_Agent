@@ -5,13 +5,13 @@ Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
 ``plugins --json --with-compat-matrix``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
-``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory user-model --json`` + ``memory user-model export``
+``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory provider --json`` + ``memory user-model --json`` + ``memory user-model export``
 + ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
---json, gateway discord list/health --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
+--json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
-``api serve --help``（HM-02b 子命令存在），
+``runtime list --json``（含 docker/ssh 后端）、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
@@ -228,6 +228,21 @@ def main() -> int:
             errs.append(f"agents json schema_version {o.get('schema_version')!r}")
         if "agents" not in o or not isinstance(o.get("agents"), list):
             errs.append(f"agents json envelope: {o!r}")
+
+    prt = _run([*cli, "runtime", "list", "--json"])
+    if prt.returncode != 0:
+        errs.append(f"runtime list json exit {prt.returncode} stderr={prt.stderr!r}")
+    else:
+        ro = json.loads((prt.stdout or "").strip())
+        if ro.get("schema_version") != "runtime_registry_v1":
+            errs.append(f"runtime list schema_version {ro.get('schema_version')!r}")
+        backends = ro.get("backends")
+        if not isinstance(backends, list) or "docker" not in backends or "ssh" not in backends:
+            errs.append(f"runtime list backends {backends!r}")
+
+    psnap = _run([sys.executable, "scripts/gen_plugin_compat_snapshot.py", "--check"], cwd=str(root))
+    if psnap.returncode != 0:
+        errs.append(f"plugin compat snapshot check exit {psnap.returncode} stderr={psnap.stderr!r}")
 
     cfg_repo = root / "cai-agent.toml"
     if not cfg_repo.is_file():
@@ -627,6 +642,15 @@ def main() -> int:
                 errs.append(f"memory user-model schema_version {um.get('schema_version')!r}")
             if um.get("honcho_parity") not in ("stub", "behavior_extract"):
                 errs.append(f"memory user-model honcho_parity {um.get('honcho_parity')!r}")
+        pmp = _run([*cli, "memory", "provider", "--json"], cwd=mh_td)
+        if pmp.returncode != 0:
+            errs.append(f"memory provider json exit {pmp.returncode} stderr={pmp.stderr!r}")
+        else:
+            mp = json.loads((pmp.stdout or "").strip())
+            if mp.get("schema_version") != "memory_provider_contract_v1":
+                errs.append(f"memory provider schema_version {mp.get('schema_version')!r}")
+            if not isinstance(mp.get("providers"), list):
+                errs.append("memory provider providers not list")
         pume = _run([*cli, "memory", "user-model", "export", "--days", "7"], cwd=mh_td)
         if pume.returncode != 0:
             errs.append(f"memory user-model export exit {pume.returncode} stderr={pume.stderr!r}")
@@ -955,6 +979,62 @@ def main() -> int:
                 errs.append("gateway slack health missing token_check")
             if sho.get("bindings_count") != 1:
                 errs.append(f"gateway slack health bindings_count {sho.get('bindings_count')!r}")
+        gtb = _run(
+            [
+                *cli,
+                "gateway",
+                "teams",
+                "bind",
+                "CONV_SMOKE",
+                "sessions/teams-smoke.json",
+                "--tenant-id",
+                "TENANT_SMOKE",
+                "--label",
+                "smoke",
+                "--json",
+            ],
+            cwd=gw_td,
+        )
+        if gtb.returncode != 0:
+            errs.append(f"gateway teams bind exit {gtb.returncode} stderr={gtb.stderr!r}")
+        else:
+            tbo = json.loads((gtb.stdout or "").strip())
+            tbinding = tbo.get("binding") if isinstance(tbo.get("binding"), dict) else {}
+            if tbinding.get("tenant_id") != "TENANT_SMOKE" or tbinding.get("label") != "smoke":
+                errs.append(f"gateway teams bind metadata {tbinding!r}")
+        gth = _run([*cli, "gateway", "teams", "health", "--json"], cwd=gw_td)
+        if gth.returncode != 0:
+            errs.append(f"gateway teams health exit {gth.returncode} stderr={gth.stderr!r}")
+        else:
+            tho = json.loads((gth.stdout or "").strip())
+            if tho.get("schema_version") != "gateway_teams_health_v1":
+                errs.append(f"gateway teams health schema {tho.get('schema_version')!r}")
+            if "token_check" not in tho:
+                errs.append("gateway teams health missing token_check")
+            if tho.get("bindings_count") != 1:
+                errs.append(f"gateway teams health bindings_count {tho.get('bindings_count')!r}")
+        gtm = _run(
+            [
+                *cli,
+                "gateway",
+                "teams",
+                "manifest",
+                "--app-id",
+                "APP_SMOKE",
+                "--bot-id",
+                "BOT_SMOKE",
+                "--valid-domain",
+                "example.com",
+                "--json",
+            ],
+            cwd=gw_td,
+        )
+        if gtm.returncode != 0:
+            errs.append(f"gateway teams manifest exit {gtm.returncode} stderr={gtm.stderr!r}")
+        else:
+            tmo = json.loads((gtm.stdout or "").strip())
+            if tmo.get("schema_version") != "gateway_teams_manifest_v1":
+                errs.append(f"gateway teams manifest schema {tmo.get('schema_version')!r}")
         gdh = _run([*cli, "gateway", "discord", "health", "--json"], cwd=gw_td)
         if gdh.returncode != 0:
             errs.append(f"gateway discord health exit {gdh.returncode} stderr={gdh.stderr!r}")
@@ -985,6 +1065,16 @@ def main() -> int:
             gsum = gso.get("gateway_summary")
             if not isinstance(gsum, dict) or gsum.get("schema_version") != "gateway_summary_v1":
                 errs.append("gateway status missing gateway_summary")
+        gps = _run([*cli, "gateway", "prod-status", "--json"], cwd=gw_td)
+        if gps.returncode != 0:
+            errs.append(f"gateway prod-status exit {gps.returncode} stderr={gps.stderr!r}")
+        else:
+            gpo = json.loads((gps.stdout or "").strip())
+            if gpo.get("schema_version") != "gateway_production_summary_v1":
+                errs.append(f"gateway prod-status schema {gpo.get('schema_version')!r}")
+            gsm = gpo.get("summary") if isinstance(gpo.get("summary"), dict) else {}
+            if int(gsm.get("platforms_count") or 0) < 4:
+                errs.append(f"gateway prod-status platforms_count {gsm!r}")
         gch = _run([*cli, "gateway", "telegram", "continue-hint", "--json"], cwd=gw_td)
         if gch.returncode != 0:
             errs.append(f"gateway continue-hint exit {gch.returncode} stderr={gch.stderr!r}")
@@ -1041,6 +1131,9 @@ def main() -> int:
             drow = next((x for x in pl2 if isinstance(x, dict) and x.get("id") == "discord"), None)
             if not isinstance(drow, dict) or "env_present" not in drow:
                 errs.append("gateway platforms discord missing env_present")
+            trow = next((x for x in pl2 if isinstance(x, dict) and x.get("id") == "teams"), None)
+            if not isinstance(trow, dict) or trow.get("implementation") != "mvp":
+                errs.append("gateway platforms teams missing/misclassified")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-") as rec_td:
         pr = _run(

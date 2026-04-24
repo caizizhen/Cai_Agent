@@ -17,6 +17,7 @@
 | 测试起步清单 | [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) / [`TEST_TODOS.md`](TEST_TODOS.md) |
 | 缺口、边界、发版门禁 | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
 | 发版评审勾选 | [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md) |
+| 一页实现摘要 | [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md) / [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md) |
 | 版本变更 | 根目录 `CHANGELOG.md` / `CHANGELOG.zh-CN.md` |
 
 当前产品目标：在一个统一运行时里集成 `Claude Code + Hermes Agent + Everything Claude Code`。详见 [`PRODUCT_VISION_FUSION.zh-CN.md`](PRODUCT_VISION_FUSION.zh-CN.md)。
@@ -33,7 +34,7 @@
 | MCP Web 配方 | [`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md) |
 | Runtime 后端 | [`RUNTIME_BACKENDS.zh-CN.md`](RUNTIME_BACKENDS.zh-CN.md) |
 | 跨 harness 导出 | [`CROSS_HARNESS_COMPATIBILITY.zh-CN.md`](CROSS_HARNESS_COMPATIBILITY.zh-CN.md) |
-| 插件兼容矩阵 | [`PLUGIN_COMPAT_MATRIX.zh-CN.md`](PLUGIN_COMPAT_MATRIX.zh-CN.md) |
+| 插件兼容矩阵 | [`PLUGIN_COMPAT_MATRIX.zh-CN.md`](PLUGIN_COMPAT_MATRIX.zh-CN.md)；CI snapshot：[`schema/plugin_compat_matrix_v1.snapshot.json`](schema/plugin_compat_matrix_v1.snapshot.json) |
 
 ## 3. 一页摘要
 

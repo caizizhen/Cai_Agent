@@ -35,13 +35,14 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Security scan | `cai-agent security-scan --json` (`[security_scan]` `exclude_globs`, `rule_overrides`) |
 | Memory | `cai-agent memory extract` → `memory/entries.jsonl` (stdout JSON **`memory_extract_v1`**); **`memory list --json`** → **`memory_list_v1`** with **`entries`**; **`memory search --json`** → **`memory_search_v1`**; instinct paths via **`memory instincts --json`** (**`memory_instincts_list_v1`**); **`memory export --json`** / **`export-entries --json`** → **`memory_instincts_export_v1`** / **`memory_entries_export_result_v1`** (optional; default stdout is still the output path); `memory prune`; **`memory health --json`** (Hermes parity: `health_score`, `grade`, `freshness` / `coverage` / `conflict_rate`, `--fail-on-grade`, `--max-conflict-compare-entries`); health nudges via `memory nudge --json` (`--write-file`, `--fail-on-severity`); historical trend via `memory nudge-report --json` (`schema_version=1.2`, `health_score`, `freshness`, `--freshness-days`, `severity_jumps`); **`memory user-model --json`** → **`memory_user_model_v1`** (`honcho_parity: behavior_extract`); **`memory user-model export`** → **`user_model_bundle_v1`** (archival bundle); one-step schedule preset via `schedule add-memory-nudge` |
 | Memory state machine | `cai-agent memory state --json` → `active/stale/expired` distribution; `memory list --json` includes per-entry `state` / `state_reason`; `memory prune --drop-non-active` (optional `--state-stale-after-days`, `--state-min-active-confidence`) |
-| Gateway Telegram MVP | `cai-agent gateway telegram bind|get|list|unbind`; `resolve-update`; `serve-webhook --execute-on-update --reply-on-execution --telegram-bot-token ...` |
+| Gateways | `cai-agent gateway telegram ...`; Discord / Slack / Teams MVPs: `gateway discord serve-polling`, `gateway slack serve-webhook`, `gateway teams bind|get|list|unbind|allow|health|manifest|serve-webhook`; platform summary: `gateway platforms list --json` |
+| Runtime backends | `cai-agent runtime list --json`; `[runtime] backend = "docker"` supports container/image modes, volumes and limits; `[runtime] backend = "ssh"` supports key/known_hosts/timeout diagnostics and optional audit JSONL |
 | Release gate matrix | `cai-agent release-ga --json --with-memory-state --memory-max-stale-ratio 0.5 --memory-max-expired-ratio 0.1` (+ existing `--with-doctor`, `--with-memory-nudge`) |
 | Cost budget | `cai-agent cost budget --check` (session `total_tokens`; default cap `[cost] budget_max_tokens`; override `--max-tokens`) |
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
 | Ops dashboard | `cai-agent ops dashboard --format json|text|html` ( **`ops_dashboard_v1`** ); HTML supports **`--html-refresh-seconds`** ( **`meta refresh`** ); **`cai-agent ops serve`** exposes **`GET /v1/ops/dashboard`** and **`GET /v1/ops/dashboard.html`** (read-only HTTP sidecar; optional **`CAI_OPS_API_TOKEN`** ); see **`docs/OPS_DYNAMIC_WEB_API.md`** |
 | Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.md` and `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
-| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic); **`--with-compat-matrix`** emits **`plugin_compat_matrix_v1`** — human notes: `docs/PLUGIN_COMPAT_MATRIX.md` / `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` |
+| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic); **`--with-compat-matrix`** emits **`plugin_compat_matrix_v1`**; **`plugins --compat-check`** and `python scripts/gen_plugin_compat_snapshot.py --check` provide the CI gate/snapshot |
 
 ### Permissions (tools)
 
@@ -66,6 +67,8 @@ Do not commit real API keys.
 | [`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md) | Gaps and release gates |
 | [`docs/PARITY_MATRIX.zh-CN.md`](docs/PARITY_MATRIX.zh-CN.md) | Release review matrix |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Rolling one-page summary |
+| [`docs/ISSUE_BACKLOG.md`](docs/ISSUE_BACKLOG.md) / [`docs/ISSUE_BACKLOG.zh-CN.md`](docs/ISSUE_BACKLOG.zh-CN.md) | Issue drafts and recently closed implementation tickets |
+| [`docs/TEST_TODOS.md`](docs/TEST_TODOS.md) / [`docs/TEST_TODOS.zh-CN.md`](docs/TEST_TODOS.zh-CN.md) | Current QA baseline and focused testing queue |
 | [`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md) | Ops dashboard HTTP contract |
 | [`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) | JSON schema index |
 
