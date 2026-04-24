@@ -24,13 +24,14 @@
    - 安装 / 更新 / `/bug` 等用户体验仍偏工程化
 
 2. **P1 - Hermes 产品化缺口**
-   - profiles、多实例配置与 API/server 面仍未形成稳定产品面
+   - profiles 契约与 CLI 已显著收口；**最小 HTTP API** 仍以 RFC（**`HM-02a`**）与 backlog **`HM-02b`** 跟踪，尚未落地实现
    - gateway 仅 Telegram full、Discord/Slack mvp，距离 Hermes 的多平台覆盖仍有差距
    - voice、dashboard 高级交互、memory providers、更多 runtime backends 仍未收口
+   - recall 评估（**`recall --evaluate`**）与 memory policy（**`doctor` / `release-ga`**）已有机读与文本入口；负样本审计见 **`recall_audit`**
 
 3. **P1 - ECC 治理生态缺口**
-   - rules / skills / hooks 已有基础，但仍未形成完整的资产打包、安装、共享和版本治理链路
-   - `model-route` / hook profile / dashboard 运营视角仍是部分对齐
+   - rules / skills / hooks 已有 **`ecc layout`** / 导出主路径；**安装→导出→共享** 叙事已收进 **`CROSS_HARNESS_COMPATIBILITY*.md`**（**ECC-01b**）
+   - **成本视图**：**`cost report`** 已带 **`compact_policy_explain_v1`**（**ECC-02b**）；插件版本矩阵等仍偏探索项（**`ECC-03a`**）
 
 4. **P1 - 文档与双语同步缺口**
    - 中文文档长期承担了大部分产品叙述，英文入口落后

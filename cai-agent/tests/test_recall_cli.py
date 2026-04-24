@@ -250,6 +250,29 @@ class RecallCliTests(unittest.TestCase):
             self.assertNotEqual(order_recent[0], order_density[0])
             self.assertTrue(order_density[0].endswith("dense.json"))
 
+    def test_recall_evaluate_json_without_query(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall", "--evaluate", "--json", "--evaluate-days", "3"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "recall_evaluation_v1")
+            self.assertEqual(int(payload.get("window_days") or 0), 3)
+            self.assertIn("negative_queries_top", payload)
+            self.assertIn("audit_file", payload)
+
+    def test_recall_missing_query_errors(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["recall", "--json", "--days", "1", "--limit", "1"])
+            self.assertEqual(rc, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,14 @@
 
 > Version history for `cai-agent`. **This file (`CHANGELOG.md`) is the default English changelog.** For the full Chinese log see **`CHANGELOG.zh-CN.md`**. The root **`README.md`** is English by default; **`README.zh-CN.md`** is the full Chinese readme.
 
+### Unreleased
+
+- **Recall evaluation polish (HM-05b)**: `recall --evaluate` no longer requires `--query`; JSON **`recall_evaluation_v1`** unchanged. Smoke covers **`recall --evaluate --json`**.
+- **Memory policy visibility (HM-05c)**: Text **`doctor`** prints **`[memory.policy]`** lines; **`release-ga --with-memory-policy`** covered by tests (**`memory_policy_entries`** gate).
+- **ECC install/export/share narrative (ECC-01b)**: **`CROSS_HARNESS_COMPATIBILITY*.md`** adds a numbered install → ECC layout → export → share flow.
+- **Cost report + compact policy explain (ECC-02b)**: **`cost report --json`** now embeds **`compact_policy_explain_v1`** (aligned with **`graph`** compact / ~85% budget hint thresholds). **`cost report`** without **`--json`** prints a text summary instead of erroring.
+- **Design RFCs**: **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** (**HM-02a**), **`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** (**CC-03b**).
+
 ### 0.7.0 (2026-04-23)
 
 - **TUI task/status/session UX (CC-03a)**: New **`cai_agent.tui_session_strip`** shared copy for **`/help`**, welcome, **`/sessions`**, post-**`/load`** hints, **`/retry`**, input placeholder, **`/tasks`** task-board header, and **`#context-label`** (`<profile> · 上下文`) so task board, context bar, and “continue” guidance stay aligned.

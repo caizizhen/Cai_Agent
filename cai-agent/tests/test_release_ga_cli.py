@@ -171,6 +171,39 @@ class ReleaseGaCliTests(unittest.TestCase):
         self.assertIn("[release-ga] writeback targets:", out)
         self.assertIn("CHANGELOG.md", out)
 
+    def test_release_ga_with_memory_policy_gate(self) -> None:
+        with (
+            patch("cai_agent.__main__.run_quality_gate", return_value={"ok": True, "failed_count": 0}),
+            patch("cai_agent.__main__.aggregate_sessions", return_value={"failure_rate": 0.0, "total_tokens": 10}),
+            patch(
+                "cai_agent.memory.build_memory_entries_jsonl_validate_report",
+                return_value={
+                    "exists": True,
+                    "ok": True,
+                    "valid_lines": 3,
+                    "invalid_lines": [],
+                    "entries_file": "/tmp/x",
+                },
+            ),
+        ):
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "release-ga",
+                        "--json",
+                        "--with-memory-policy",
+                        "--max-failure-rate",
+                        "0.2",
+                        "--max-tokens",
+                        "100",
+                    ],
+                )
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue().strip())
+        names = [c.get("name") for c in (payload.get("checks") or []) if isinstance(c, dict)]
+        self.assertIn("memory_policy_entries", names)
+
 
 if __name__ == "__main__":
     unittest.main()

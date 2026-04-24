@@ -193,10 +193,10 @@
 | `CC-02a` | `Done` | `CC-02` | 梳理安装、更新与版本提示体验 | 安装/升级路径、版本差异提示、常见错误指引 | — | onboarding walkthrough |
 | `CC-02b` | `Done` | `CC-02` | 设计 /bug 等价反馈入口 | **`feedback bug`**（**`feedback_bug_report_v1`** + **`sanitize_feedback_text`**）；runbook 步骤说明 | `REL-01b` | pytest `test_feedback_cli` |
 | `CC-03a` | `Done` | `CC-03` | 统一任务板、状态栏与会话继续体验 | **`tui_session_strip`**；**`/help`**/欢迎/**`/sessions`**/**`/load`**/**`/retry`**/placeholder/看板/`#context-label` | — | pytest |
-| `CC-03b` | `Design` | `CC-03` | 收口模型切换与状态提示 | `/models`、`/status`、profile 反馈更一致 | `HM-01a` | TUI/CLI 手测 |
+| `CC-03b` | `Done` | `CC-03` | 收口模型切换与状态提示 | RFC：`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md` | `HM-01a` | RFC 评审 + 后续 UI 对齐 |
 | `HM-01a` | `Done` | `HM-01` | 定义 profile 数据模型与持久化结构 | profile schema、切换规则、默认项、迁移策略 | — | schema review |
 | `HM-01b` | `Done` | `HM-01` | 落地 profile 管理命令与测试夹具 | `models add/edit/rm/use/route/list` + `profile_contract_v1` + fixture / smoke 回归 | `HM-01a` | pytest + smoke |
-| `HM-02a` | `Design` | `HM-02` | 设计最小 API / server 契约 | 路由、鉴权、输入输出 schema、版本策略 | — | 契约评审 |
+| `HM-02a` | `Done` | `HM-02` | 设计最小 API / server 契约 | RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md` | — | RFC 合入 |
 | `HM-02b` | `Ready` | `HM-02` | 实现最小只读或任务触发型 API 面 | 最小 server 主路径与文档 | `HM-02a` | integration smoke |
 | `HM-03a` | `Done` | `HM-03` | 把 Discord 从 MVP 推到生产路径 | slash / mapping / health / 故障排查收口 | — | gateway smoke + doctor |
 | `HM-03b` | `Done` | `HM-03` | 把 Slack 从 MVP 推到生产路径 | `gateway slack health`、Slash/Interactivity form 分发、mapping 元数据与 `--execute-on-slash` 收口 | — | gateway smoke + doctor |
@@ -204,12 +204,12 @@
 | `HM-04a` | `Done` | `HM-04` | 统一 ops/gateway/status 聚合载荷 | `board` / `observe` / `ops` 同源字段收口 | — | JSON snapshot |
 | `HM-04b` | `Done` | `HM-04` | 增加只读动态 dashboard 能力 | `ops serve` 已暴露 `dashboard/events`，HTML 支持 `live_mode=sse|poll`，继续保持只读 | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | 补齐 user-model store/query/learn 主链路 | 从 `behavior_extract/export` 推到闭环 | — | pytest + smoke |
-| `HM-05b` | `Ready` | `HM-05` | 建 recall 评估与负样本机制 | `recall --evaluate`、负样本、报告 schema | `HM-05a` | benchmark/report |
-| `HM-05c` | `Ready` | `HM-05` | 把 memory policy 接进 doctor / release gate | policy、TTL、修复命令、发版门禁一致 | `HM-05a` | doctor + release-ga |
+| `HM-05b` | `Done` | `HM-05` | 建 recall 评估与负样本机制 | `recall --evaluate`、负样本审计、`recall_evaluation_v1` | `HM-05a` | pytest + smoke |
+| `HM-05c` | `Done` | `HM-05` | 把 memory policy 接进 doctor / release gate | 文本 doctor、`--with-memory-policy` | `HM-05a` | doctor + release-ga pytest |
 | `ECC-01a` | `Done` | `ECC-01` | 统一 rules/skills/hooks 资产目录与模板 | 目录约定、模板、安装说明 | — | 文档 + sample asset |
-| `ECC-01b` | `Ready` | `ECC-01` | 收口导出/安装/共享流转 | install/export/share/compatibility 说明统一 | `ECC-01a` | smoke + docs |
+| `ECC-01b` | `Done` | `ECC-01` | 收口导出/安装/共享流转 | `CROSS_HARNESS_COMPATIBILITY*.md` 编号化流转 | `ECC-01a` | 文档走查 |
 | `ECC-02a` | `Done` | `ECC-02` | 把 routing/profile/budget 变成稳定产品路径 | `models routing-test`、wizard、默认策略收口 | — | CLI smoke |
-| `ECC-02b` | `Ready` | `ECC-02` | 补齐成本视图与 compact 策略解释 | cost report / profile rollup / compact 触发说明 | `ECC-02a` | JSON/text report |
+| `ECC-02b` | `Done` | `ECC-02` | 补齐成本视图与 compact 策略解释 | `cost report` 嵌 `compact_policy_explain_v1`、文本摘要 | `ECC-02a` | pytest + smoke |
 | `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | 先输出版本语义和兼容策略 | — | 设计文档 |
 | `HM-06a` | `Explore` | `HM-06` | Runtime backend 产品化评估 | 明确本地/Docker/SSH 优先级与交付边界 | — | 评估结论 |
 | `HM-07a` | `Explore` | `HM-07` | Voice 能力边界评估 | 列清输入输出、平台依赖、是否 OOS | — | 评估结论 |

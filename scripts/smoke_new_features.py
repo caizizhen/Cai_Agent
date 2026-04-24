@@ -10,6 +10,7 @@ platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-r
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
+``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
@@ -1071,6 +1072,22 @@ def main() -> int:
                 errs.append(f"recall no_hit_reason missing: {ro!r}")
             if not isinstance(ro.get("results"), list):
                 errs.append("recall results not list")
+        pev = _run(
+            [*cli, "recall", "--evaluate", "--json", "--evaluate-days", "7"],
+            cwd=rec_td,
+        )
+        if pev.returncode != 0:
+            errs.append(f"recall evaluate json exit {pev.returncode} stderr={pev.stderr!r}")
+        else:
+            try:
+                evo = json.loads((pev.stdout or "").strip())
+            except json.JSONDecodeError as e:
+                errs.append(f"recall evaluate json parse: {e}")
+            else:
+                if evo.get("schema_version") != "recall_evaluation_v1":
+                    errs.append(f"recall evaluate schema {evo.get('schema_version')!r}")
+                if "negative_queries_top" not in evo:
+                    errs.append("recall evaluate missing negative_queries_top")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-recall-idx-doc-") as rid_td:
         prd = _run(

@@ -7,10 +7,14 @@
 
 ## 近期已交付（面向开发/集成）
 
-以下能力已在 **`main`** 落地（**0.7.0** 窗口及紧随补丁；完整列表见 **CHANGELOG §0.7.0**）：
+以下能力已在 **`main`** 落地（**0.7.0** 窗口及紧随补丁；完整列表见 **CHANGELOG §0.7.0**；**Unreleased** 见 CHANGELOG 顶部）：
 
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
+| **Recall / 记忆策略** | **`recall --evaluate`** 无需 **`--query`**；**`recall_evaluation_v1`**；**`doctor`** 文本 **`[memory.policy]`**；**`release-ga --with-memory-policy`** | **`recall_audit.py`**、**`doctor.py`**、**`__main__.py`**、**`smoke_new_features`** |
+| **成本 / compact** | **`cost report --json`** 嵌 **`compact_policy_explain_v1`**；**`cost report`** 文本摘要 | **`cost_aggregate.py`** |
+| **路线图设计** | **HM-02a** / **CC-03b** RFC | **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**、**`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`** |
+| **ECC 流转文档** | 安装 → **`ecc layout`** → **`export`** → 共享 | **`CROSS_HARNESS_COMPATIBILITY*.md`** |
 | **运营 / 可观测** | **`cai-agent ops dashboard`**（json/text/html）；**`--html-refresh-seconds`**（HTML **`meta refresh`**）；**`cai-agent ops serve`** 只读 HTTP（**`/v1/ops/dashboard`**、**`/v1/ops/dashboard.html`**）；可选 **`CAI_OPS_API_TOKEN`** | [`OPS_DYNAMIC_WEB_API.zh-CN.md`](OPS_DYNAMIC_WEB_API.zh-CN.md)、**`cai_agent/ops_dashboard.py`**、**`cai_agent/ops_http_server.py`** |
 | **记忆 / 用户模型** | **`memory user-model export`**（可选 **`--with-store`**）；**`store init`/`list`**、**`learn`**、**`query`** 与 SQLite **`.cai/user_model_store.sqlite3`** 最小闭环（**HM-05a**） | **`user_model.py`**、**`user_model_store.py`**、RFC [`docs/rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md`](rfc/HONCHO_USER_MODEL_EPIC.zh-CN.md) |
 | **ECC / 路由与预算** | **`models routing-test`** 文本/JSON 双语 **`explain`**；**`cost budget`** 嵌 **`cost_budget_explain_v1`**（**ECC-02a**） | **`model_routing.py`**、**`cost_aggregate.py`**、[`MODEL_ROUTING_RULES.zh-CN.md`](MODEL_ROUTING_RULES.zh-CN.md) |

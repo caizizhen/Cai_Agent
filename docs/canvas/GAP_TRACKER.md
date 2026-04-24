@@ -30,16 +30,16 @@ Status vocabulary:
 | `REL-01` | `Ready` | `REL-01b` feedback / doctor / release summary unification | `ROADMAP_EXECUTION` §10 |
 | `CC-01` | `Done` | **`CC-01b` Done** — `/mcp-presets` + task board/help/status quickstart + `mcp-check` epilog | `ROADMAP_EXECUTION` §10 |
 | `CC-02` | `Done` | **`CC-02b` Done** — `feedback bug` + `feedback_bug_report_v1` | `ROADMAP_EXECUTION` §10 |
-| `CC-03` | `Design` | **`CC-03a` Done**（`tui_session_strip`）；**`CC-03b`** profile/status UX | `ROADMAP_EXECUTION` §10 |
+| `CC-03` | `Done` | **`CC-03a`/`CC-03b` Done**（`tui_session_strip` + RFC **CC-03b**） | `ROADMAP_EXECUTION` §10 |
 | `HM-01` | `Done` | **`HM-01a`/`HM-01b` Done** — profile contract + management CLI/fixture/smoke | `ROADMAP_EXECUTION` §10 |
-| `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
+| `HM-02` | `Ready` | **`HM-02a` Done**（RFC）；**`HM-02b`** 最小 API 实现仍 Ready | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Done` | **`HM-03a` / `HM-03b` Done**: Discord + Slack production path closed for current cycle | `ROADMAP_EXECUTION` §10 |
 | `HM-04` | `Done` | **`HM-04a`/`HM-04b` Done**: shared gateway summary + dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
-| `HM-05` | `Ready` | **`HM-05a` Done**（store/query/learn + export `--with-store`）；**`HM-05b`/`HM-05c`** 仍 Ready | `ROADMAP_EXECUTION` §10 |
+| `HM-05` | `Done` | **`HM-05a`/`HM-05b`/`HM-05c` Done**（recall 评估、doctor/release policy） | `ROADMAP_EXECUTION` §10 |
 | `HM-06` | `Explore` | `HM-06a` backend productization evaluation | `ROADMAP_EXECUTION` §10 |
 | `HM-07` | `Explore` | `HM-07a` voice boundary evaluation | `ROADMAP_EXECUTION` §10 |
-| `ECC-01` | `Ready` | **`ECC-01a` Done**（`ecc` CLI + `ecc_layout`）；**`ECC-01b`** install/export 流转仍 Ready | `ROADMAP_EXECUTION` §10 |
-| `ECC-02` | `Ready` | **`ECC-02a` Done**（routing-test / cost budget explain）；**`ECC-02b`** 成本视图仍 Ready | `ROADMAP_EXECUTION` §10 |
+| `ECC-01` | `Done` | **`ECC-01a`/`ECC-01b` Done**（`ecc` CLI + 安装/导出/共享文档） | `ROADMAP_EXECUTION` §10 |
+| `ECC-02` | `Done` | **`ECC-02a`/`ECC-02b` Done**（routing-test / cost report + compact explain） | `ROADMAP_EXECUTION` §10 |
 | `ECC-03` | `Explore` | `ECC-03a` plugin/version governance design | `ROADMAP_EXECUTION` §10 |
 
 ## 3. Usage rule

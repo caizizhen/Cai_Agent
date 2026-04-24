@@ -60,6 +60,16 @@
 
 **导出**：`cai-agent export --target cursor|codex|opencode` 与 **`export_ecc_dir_diff`** 仍以仓库根 `rules/`、`skills/` 等为源；详见上文 Manifest 与 [PLUGIN_COMPAT_MATRIX.zh-CN.md](PLUGIN_COMPAT_MATRIX.zh-CN.md)。
 
+## 安装 / 导出 / 共享流转（ECC-01b）
+
+统一叙事，避免「能导出但不知道装到哪、和谁共享」：
+
+1. **本地初始化**：`cai-agent init`（或 **`init --preset starter`**）→ 得到根 **`cai-agent.toml`**；首次能力自检 **`cai-agent doctor`**。
+2. **ECC 资产就位**：在仓库根执行 **`cai-agent ecc -w . layout --json`** 查看 **`ecc_asset_layout_v1`**；缺省时用 **`ecc scaffold`** 生成最小 **`skills/`** / **`hooks/hooks.json`** 示例（不覆盖已有文件）。
+3. **导出到其它 harness**：**`cai-agent export --target cursor|codex|opencode`** → 目标目录 **`.cursor/`**、**`.codex/`**、**`.opencode/`**；发 PR 前可用 **`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**）只做差异报告。
+4. **共享给同事**：共享 **Git 仓库** + **`cai-agent.toml` 中不含密钥**（用 **`api_key_env`**）；对方 **`doctor --json`** 核对 **`plugin_compat_matrix`** 与 **`installation_guidance`**。
+5. **机读兼容**：**`plugins --json --with-compat-matrix`** 与 **`doctor --json.plugins.compat_matrix`** 同源，消费方按目标 harness 列降级即可。
+
 ## 验收条件（P2）
 
 - 同一仓库可导出至少两种 harness 配置

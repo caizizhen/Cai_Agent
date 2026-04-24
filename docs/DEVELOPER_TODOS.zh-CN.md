@@ -89,18 +89,18 @@
 - [x] `HM-01b`：profile 管理命令与测试夹具
 - [x] `HM-03b`：Slack 生产路径收口
 - [x] `HM-04b`：只读动态 dashboard（SSE 或轮询）
-- [ ] `HM-05b`：recall 评估与负样本机制
-- [ ] `HM-05c`：memory policy 接入 `doctor` / `release-ga`
-- [ ] `ECC-01b`：导出 / 安装 / 共享流转说明统一
-- [ ] `ECC-02b`：成本视图与 compact 策略解释
-- [ ] `HM-02a`：最小 API / server 契约设计
-- [ ] `CC-03b`：模型切换与 `/status` 提示统一
+- [x] `HM-05b`：recall 评估与负样本机制
+- [x] `HM-05c`：memory policy 接入 `doctor` / `release-ga`
+- [x] `ECC-01b`：导出 / 安装 / 共享流转说明统一
+- [x] `ECC-02b`：成本视图与 compact 策略解释
+- [x] `HM-02a`：最小 API / server 契约设计（RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`）
+- [x] `CC-03b`：模型切换与 `/status` 提示统一（RFC：`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`）
 
 执行规则：
 
 1. 先从 `Ready` 项开始，`Design` 只做契约，不直接扩实现。
 2. 每次只把一个 issue 做到 `Done`，包含代码、测试、文档、状态回写。
-3. 当前默认顺序：`HM-05b` → `HM-05c` → `ECC-01b` → `ECC-02b` → `HM-02a`。
+3. **本批 checklist 已全部收口**；下一默认实现项为 **`HM-02b`**（依赖 **`HM-02a`** RFC 评审后可开干）。
 
 ---
 
@@ -143,10 +143,10 @@
 | `CC-02a` | `Done` | `CC-02` | 安装/升级/版本提示/onboarding | — | walkthrough |
 | `CC-02b` | `Done` | `CC-02` | **`cai-agent feedback bug`**；**`feedback_bug_report_v1`**；**`sanitize_feedback_text`** | `REL-01b` | pytest |
 | `CC-03a` | `Done` | `CC-03` | **`tui_session_strip`** 单源文案 + **`#context-label`** profile 前缀 | — | pytest |
-| `CC-03b` | `Design` | `CC-03` | 模型切换与 `/status` 提示与 profile 一致 | `HM-01a` | TUI/CLI 手测 |
+| `CC-03b` | `Done` | `CC-03` | 模型切换与 `/status` 提示与 profile 一致 | `HM-01a` | RFC + 后续 TUI 对齐实现 |
 | `HM-01a` | `Done` | `HM-01` | profile schema、迁移与默认项 | — | schema review |
 | `HM-01b` | `Done` | `HM-01` | **`models add/edit/rm/use/route/list`** 闭环、`profile_contract_v1`、CLI fixture 与 smoke 回归 | `HM-01a` | pytest + smoke |
-| `HM-02a` | `Design` | `HM-02` | 最小 API/server 契约 | — | 契约评审 |
+| `HM-02a` | `Done` | `HM-02` | 最小 API/server 契约 | — | RFC：`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md` |
 | `HM-02b` | `Ready` | `HM-02` | 最小只读或任务触发型 API | `HM-02a` | integration smoke |
 | `HM-03a` | `Done` | `HM-03` | Discord 生产路径 | — | gateway smoke + `doctor` |
 | `HM-03b` | `Done` | `HM-03` | Slack 生产路径收口 | `gateway slack health`、form Slash/Interactivity 分发、`bind --team-id/--label`、`serve-webhook --execute-on-slash`、测试与文档同步 | gateway smoke + `doctor` |
@@ -154,12 +154,12 @@
 | `HM-04a` | `Done` | `HM-04` | ops/gateway/status 同源聚合 | — | JSON snapshot |
 | `HM-04b` | `Done` | `HM-04` | 只读动态 dashboard（SSE 或轮询） | `HM-04a` | 浏览器手测 |
 | `HM-05a` | `Done` | `HM-05` | user-model store/query/learn 闭环 | — | pytest + smoke |
-| `HM-05b` | `Ready` | `HM-05` | recall 评估与负样本机制 | `HM-05a` | benchmark/report |
-| `HM-05c` | `Ready` | `HM-05` | memory policy 接入 doctor / release gate | `HM-05a` | `doctor` + `release-ga` |
+| `HM-05b` | `Done` | `HM-05` | recall 评估与负样本机制 | `HM-05a` | pytest + smoke + `recall --evaluate` |
+| `HM-05c` | `Done` | `HM-05` | memory policy 接入 doctor / release gate | `HM-05a` | `doctor` 文本 + `release-ga --with-memory-policy` |
 | `ECC-01a` | `Done` | `ECC-01` | 资产目录、模板、`ecc layout` | — | 文档 + 样例 |
-| `ECC-01b` | `Ready` | `ECC-01` | 导出/安装/共享流转说明统一 | `ECC-01a` | smoke + docs |
+| `ECC-01b` | `Done` | `ECC-01` | 导出/安装/共享流转说明统一 | `ECC-01a` | `CROSS_HARNESS_COMPATIBILITY*.md` |
 | `ECC-02a` | `Done` | `ECC-02` | routing-test / cost explain 产品路径 | — | CLI smoke |
-| `ECC-02b` | `Ready` | `ECC-02` | 成本视图与 compact 策略解释 | `ECC-02a` | JSON/text report |
+| `ECC-02b` | `Done` | `ECC-02` | 成本视图与 compact 策略解释 | `ECC-02a` | `cost report` + `compact_policy_explain_v1` |
 | `ECC-03a` | `Explore` | `ECC-03` | 插件矩阵与版本治理方案 | — | 设计文档 |
 | `HM-06a` | `Explore` | `HM-06` | Runtime backend 交付边界评估 | — | 评估结论 |
 | `HM-07a` | `Explore` | `HM-07` | Voice 边界与 OOS 评估 | — | 评估结论 |
@@ -168,14 +168,14 @@
 
 **波次 0 — 契约（Design，可与波次 1 并行由不同人做）**
 
-1. `HM-02a`（阻塞 `HM-02b`）
-2. `CC-03b`（依赖 `HM-01a` 已 Done，可进入设计与评审）
+1. ~~`HM-02a`~~（RFC 已合入；实现见 **`HM-02b`**）
+2. ~~`CC-03b`~~（RFC 已合入；TUI 对齐可随 **`HM-02b`** 或独立小 PR）
 
 **波次 1 — 高杠杆 Ready（依赖已满足的优先开）**
 
 1. ~~`REL-01b`~~ / ~~`CC-02b`~~ / ~~`CC-01b`~~ / ~~`CC-03a`~~ / ~~`HM-01b`~~ / ~~`HM-03b`~~（Done）
-2. `HM-04b`（依赖 `HM-04a` 已 Done），随后 `HM-05b` / `HM-05c`
-3. `HM-05b`、`HM-05c`、`ECC-01b`、`ECC-02b`（记忆/ECC 线可与 gateway/ops 并行，注意冲突面：`doctor`、`__main__.py`）
+2. ~~`HM-04b`~~、~~`HM-05b`~~ / ~~`HM-05c`~~（Done）
+3. ~~`HM-05b`、`HM-05c`、`ECC-01b`、`ECC-02b`~~（Done）
 
 **波次 2 — API 实现**
 
@@ -192,8 +192,8 @@
 | 演进主题 | 主要覆盖 Issue |
 |---|---|
 | Claude Code 线 | **`CC-03b`**（Design；**`CC-03a`** 已 Done） |
-| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~（Done）、`HM-02a`/`HM-02b`、`HM-05b`、`HM-05c`；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
-| ECC 线 | `ECC-01b`、`ECC-02b`；Explore：`ECC-03a` |
+| Hermes 线 | ~~`HM-01b`~~ / ~~`HM-03b`~~ / ~~`HM-04b`~~ / ~~`HM-05b`~~ / ~~`HM-05c`~~（Done）；**`HM-02b`**（Ready，API 实现）；Explore：`HM-03c`、`HM-06a`、`HM-07a` |
+| ECC 线 | ~~`ECC-01b`~~ / ~~`ECC-02b`~~（Done）；Explore：`ECC-03a` |
 | 共享 | `REL-01b`；文档持续收敛见父级 `DOC-01`（`DOC-01a/b` 已 Done，后续以 ROADMAP 新增 issue 为准） |
 
 ---
@@ -204,7 +204,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **661 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **667 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 

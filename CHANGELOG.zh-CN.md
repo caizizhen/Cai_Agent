@@ -4,6 +4,14 @@
 
 > 根目录 **`README.md`** 为默认英文说明，**`README.zh-CN.md`** 为完整中文说明；**`CHANGELOG.md`** 为默认英文变更记录，**`CHANGELOG.zh-CN.md`** 为完整中文变更记录。
 
+### Unreleased
+
+- **Recall 评估收口（HM-05b）**：**`recall --evaluate`** 不再强制 **`--query`**；**`recall_evaluation_v1`** 语义不变；**`smoke_new_features`** 覆盖 **`recall --evaluate --json`**。
+- **Memory policy 可见性（HM-05c）**：文本 **`doctor`** 增加 **`[memory.policy]`** 段落；**`release-ga --with-memory-policy`** 单测覆盖 **`memory_policy_entries`** 门禁。
+- **ECC 安装/导出/共享叙事（ECC-01b）**：**`CROSS_HARNESS_COMPATIBILITY*.md`** 增补编号化流转（init → **`ecc layout`** → **`export`** → 共享约定）。
+- **成本视图与 compact 解释（ECC-02b）**：**`cost report --json`** 嵌 **`compact_policy_explain_v1`**（与 **`graph`** 中 compact / 约 **85%** 预算提示阈值对齐）；无 **`--json`** 时输出文本摘要而非报错。
+- **设计 RFC**：**`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**（**HM-02a**）、**`docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md`**（**CC-03b**）。
+
 ### 0.7.0（2026-04-23）
 
 - **TUI 任务/状态/会话体验统一（CC-03a）**：新增 **`cai_agent.tui_session_strip`**，**`/help`**、欢迎页、**`/sessions`**、**`/load`** 后提示、**`/retry`**、输入框 placeholder、**`/tasks`** 看板首行与 **`#context-label`**（**`<profile> · 上下文`**）共用同一套「任务看板 / 上下文条 / 继续会话」口径。

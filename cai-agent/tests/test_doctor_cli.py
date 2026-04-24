@@ -88,6 +88,11 @@ class DoctorCliTests(unittest.TestCase):
             rr_fb = (pl.get("release_runbook") or {}).get("feedback")
             self.assertIsInstance(rr_fb, dict)
             self.assertEqual(fb, rr_fb)
+            mp = pl.get("memory_policy")
+            self.assertIsInstance(mp, dict)
+            self.assertIn("max_entries_per_day", mp)
+            self.assertIn("default_ttl_days", mp)
+            self.assertIn("recall_negative_audit", mp)
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

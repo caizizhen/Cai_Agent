@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from cai_agent.cost_aggregate import build_cost_by_profile_v1
+from cai_agent.cost_aggregate import build_compact_policy_explain_v1, build_cost_by_profile_v1
 
 
 def test_cost_by_profile_empty_workspace(tmp_path: Path) -> None:
@@ -61,3 +61,18 @@ def test_cost_by_tenant_and_per_day(tmp_path: Path) -> None:
     assert any(isinstance(x, dict) and x.get("tenant_id") == "tenant-a" for x in bt)
     days = doc.get("by_calendar_day") or {}
     assert days.get("2026-04-24", 0) >= 50
+
+
+def test_compact_policy_explain_v1() -> None:
+    doc = build_compact_policy_explain_v1(
+        cost_budget_max_tokens=1000,
+        context_compact_after_iterations=4,
+        context_compact_min_messages=12,
+        context_compact_on_tool_error=True,
+        context_compact_after_tool_calls=6,
+    )
+    assert doc.get("schema_version") == "compact_policy_explain_v1"
+    assert doc.get("cost_hint_ratio") == 0.85
+    lines = doc.get("lines_zh") or []
+    assert isinstance(lines, list) and len(lines) >= 3
+    assert any("850" in str(x) or "0.85" in str(x) for x in lines)

@@ -161,9 +161,5 @@
 
 如果继续往下开单，建议下一批是：
 
-- `REL-01b`
-- `CC-01b`
-- `HM-01b`
-- `HM-03b`
-- `HM-05b`
-- `HM-05c`
+- **`HM-02b`**：最小只读 HTTP API（依赖 **`HM-02a`** RFC）
+- **`HM-03c`** / **`ECC-03a`**：Explore 调研项（见 **`ROADMAP_EXECUTION`** §10）

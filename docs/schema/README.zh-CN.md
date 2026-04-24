@@ -456,6 +456,7 @@
 | `ecc scaffold` | **`ecc_scaffold_result_v1`**：`created[]`、`skipped[]`；**`--dry-run`** 不写盘 | 同上 **`-w`** 顺序 |
 | `models routing-test` | **`models_routing_test_v1`**（**`--json`**）；嵌 **`explain`**（**`routing_explain_v1`**）；无 **`--json`** 时仅文本摘要 | **`--goal`** / **`--role`** / **`--total-tokens-used`** |
 | `cost budget` | **`cost_budget_v1`**：含 **`explain`**（**`cost_budget_explain_v1`**）、**`active_profile_id`** | 读 **`[cost].budget_max_tokens`** 与会话聚合 |
+| `cost report --json` | **`cost_by_profile_v1`**：嵌 **`compact_policy_explain_v1`**（与 **`graph`** 中 compact / 成本提示阈值对齐的说明行） | 无 **`--json`** 时输出文本摘要（profile 前若干行 + policy 行），**exit `0`** |
 | `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
 
 **冒烟**：`scripts/smoke_new_features.py` 在空临时工作区执行 **`memory health --json`**（**`schema_version`=`1.0`**、**`grade`**、**`health_score`**）、**`memory state --json`**（**`memory_state_eval_v1`**、**`counts`** 对象）、**`memory user-model --json`**（**`memory_user_model_v1`**）、**`memory user-model export`**（**`user_model_bundle_v1`**），以及 **`memory user-model store init/list`**、**`learn`**/**`query`** 与 **`export --with-store`** 最小闭环。
@@ -467,6 +468,7 @@
 | 命令场景 | `schema_version` 或备注 |
 |----------|---------------------------|
 | `recall --json`（扫描） | **`1.3`**；含 `no_hit_reason`、`sort`、`ranking` 等 |
+| `recall --evaluate --json` | **`recall_evaluation_v1`**：审计窗口命中率、**`negative_queries_top`**、**`negative_events_total`**；无需 **`--query`** |
 | `recall-index search` / `benchmark` | 负载内含 `recall_index_schema_version`（索引文件 **`1.1`**） |
 | `recall-index doctor --json` | **`recall_index_doctor_v1`**；不健康 exit `2` |
 | `recall-index info --json` | 轻量对象：**`ok`**（bool）、**`index_file`**；无索引时 **`ok`=`false`**、**`error`=`index_not_found`**，**exit `0`**（与 doctor 的「不健康即 2」区分） |

@@ -54,6 +54,16 @@ Default resolution order (shared with `cai_agent.ecc_layout` and `doctor`):
 
 **Scaffold**: `cai-agent ecc -w <root> scaffold` creates minimal README / sample skill / empty `hooks.json` without overwriting existing files. **Machine-readable index**: `cai-agent ecc -w <root> layout --json` → **`ecc_asset_layout_v1`** (pass `-w` before the subcommand).
 
+## Install / export / share flow (ECC-01b)
+
+Single story so teams know where assets land and how to hand off a repo:
+
+1. **Bootstrap**: `cai-agent init` (or `init --preset starter`) → root `cai-agent.toml`; first sanity check `cai-agent doctor`.
+2. **ECC assets**: `cai-agent ecc -w . layout --json` → `ecc_asset_layout_v1`; if empty, `ecc scaffold` adds minimal `skills/` + `hooks/hooks.json` samples (no overwrites).
+3. **Export**: `cai-agent export --target cursor|codex|opencode` → `.cursor/`, `.codex/`, `.opencode/`; use `export --ecc-diff` (`export_ecc_dir_diff_v1`) for a no-write diff report before PRs.
+4. **Share**: Prefer a **Git repo** + **secrets-free TOML** (`api_key_env`); peers verify `doctor --json` → `installation_guidance` + `plugins.compat_matrix`.
+5. **Machine-readable matrix**: `plugins --json --with-compat-matrix` matches `doctor --json.plugins.compat_matrix`.
+
 ## Acceptance (P2)
 
 - One repo can export at least two harness configurations.

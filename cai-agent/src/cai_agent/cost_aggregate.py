@@ -144,6 +144,59 @@ def build_cost_by_profile_v1(
     return out
 
 
+def build_compact_policy_explain_v1(
+    *,
+    cost_budget_max_tokens: int,
+    context_compact_after_iterations: int,
+    context_compact_min_messages: int,
+    context_compact_on_tool_error: bool,
+    context_compact_after_tool_calls: int,
+) -> dict[str, Any]:
+    """与 ``graph`` 中注入 compact / 成本提示的阈值对齐，供 ``cost report`` 机读与人读。"""
+    budget = max(0, int(cost_budget_max_tokens))
+    ratio = 0.85
+    lines_zh: list[str] = [
+        f"context_compact_after_iterations={int(context_compact_after_iterations)}，"
+        f"context_compact_min_messages={int(context_compact_min_messages)}："
+        "达到轮次且非 system 消息数足够时，可能注入「对话已较长」类提示。",
+        f"context_compact_after_tool_calls={int(context_compact_after_tool_calls)}："
+        "工具调用达到阈值时可触发里程碑压缩提示。",
+        f"context_compact_on_tool_error={'开' if context_compact_on_tool_error else '关'}："
+        "工具错误时是否追加压缩类提示。",
+    ]
+    lines_en: list[str] = [
+        f"When iteration >= {int(context_compact_after_iterations)} and "
+        f"non-system messages >= {int(context_compact_min_messages)}, "
+        "the runtime may inject a length / finish hint (see graph compact path).",
+        f"After {int(context_compact_after_tool_calls)} tool calls, milestone compact hints may apply.",
+        f"context_compact_on_tool_error={bool(context_compact_on_tool_error)}.",
+    ]
+    if budget > 0:
+        lines_zh.append(
+            f"[cost] budget_max_tokens={budget}：当轮次累计 tokens > {int(budget * ratio)} "
+            f"（≈{ratio:.0%} 预算）且已触发 compact 分支时，可能追加「成本提示」消息。",
+        )
+        lines_en.append(
+            f"[cost] budget_max_tokens={budget}: when compact branch runs and "
+            f"cumulative tokens > {int(budget * ratio)} (~{ratio:.0%}), a cost hint may be injected.",
+        )
+    else:
+        lines_zh.append("[cost] budget_max_tokens=0：未启用基于预算的成本提示（仍可触发迭代类 compact）。")
+        lines_en.append("[cost] budget_max_tokens=0: budget-based cost hints disabled.")
+    return {
+        "schema_version": "compact_policy_explain_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "cost_budget_max_tokens": budget,
+        "cost_hint_ratio": ratio if budget > 0 else None,
+        "context_compact_after_iterations": int(context_compact_after_iterations),
+        "context_compact_min_messages": int(context_compact_min_messages),
+        "context_compact_on_tool_error": bool(context_compact_on_tool_error),
+        "context_compact_after_tool_calls": int(context_compact_after_tool_calls),
+        "lines_zh": lines_zh,
+        "lines_en": lines_en,
+    }
+
+
 def build_cost_budget_explain_v1(
     *,
     state: str,

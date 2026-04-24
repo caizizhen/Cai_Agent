@@ -4615,8 +4615,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     recall_p.add_argument(
         "--query",
-        required=True,
-        help="检索关键词（默认子串匹配）或正则表达式（--regex）",
+        default="",
+        metavar="TEXT",
+        help="检索关键词（默认子串匹配）或正则表达式（--regex）；与 --evaluate 同用时可为空",
     )
     recall_p.add_argument(
         "--regex",
@@ -7722,6 +7723,9 @@ def main(argv: list[str] | None = None) -> int:
                         if isinstance(row, dict):
                             print(f"  {row.get('count')}x  {row.get('query')!s}")
             return 0
+        if not str(getattr(args, "query", "") or "").strip():
+            print("recall: 请提供 --query，或使用 --evaluate 查看审计窗口统计", file=sys.stderr)
+            return 2
         idx_arg = getattr(args, "index_path", None)
         idx_path = (
             str(idx_arg).strip()
@@ -10076,7 +10080,10 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "cost":
         if args.cost_action == "report":
-            from cai_agent.cost_aggregate import build_cost_by_profile_v1
+            from cai_agent.cost_aggregate import (
+                build_compact_policy_explain_v1,
+                build_cost_by_profile_v1,
+            )
 
             t_cr = time.perf_counter()
             doc_cr = build_cost_by_profile_v1(
@@ -10084,9 +10091,48 @@ def main(argv: list[str] | None = None) -> int:
                 include_by_tenant=bool(getattr(args, "cost_include_tenant", False)),
                 include_by_calendar_day=bool(getattr(args, "cost_per_day", False)),
             )
+            st_rep = Settings.from_env(config_path=None, workspace_hint=os.getcwd())
+            doc_cr["compact_policy_explain_v1"] = build_compact_policy_explain_v1(
+                cost_budget_max_tokens=int(getattr(st_rep, "cost_budget_max_tokens", 0) or 0),
+                context_compact_after_iterations=int(
+                    getattr(st_rep, "context_compact_after_iterations", 0) or 0,
+                ),
+                context_compact_min_messages=int(getattr(st_rep, "context_compact_min_messages", 0) or 0),
+                context_compact_on_tool_error=bool(getattr(st_rep, "context_compact_on_tool_error", False)),
+                context_compact_after_tool_calls=int(
+                    getattr(st_rep, "context_compact_after_tool_calls", 0) or 0,
+                ),
+            )
             if not bool(getattr(args, "json_output", False)):
-                print("cost report 需使用 --json", file=sys.stderr)
-                return 2
+                print("[cost report] text summary（完整 JSON 含 cost_by_profile_v1 + compact_policy_explain_v1）：")
+                profs = doc_cr.get("profiles") or []
+                if isinstance(profs, list) and profs:
+                    for row in profs[:12]:
+                        if not isinstance(row, dict):
+                            continue
+                        print(
+                            f"  profile={row.get('id')!s}\t"
+                            f"tokens={int(row.get('total_tokens') or 0)}\t"
+                            f"events={int(row.get('events') or 0)}",
+                        )
+                else:
+                    print("  (no profile rows; metrics/sessions may be empty)")
+                cpe = doc_cr.get("compact_policy_explain_v1") or {}
+                lines = cpe.get("lines_zh") if isinstance(cpe, dict) else None
+                if isinstance(lines, list) and lines:
+                    print("compact / budget policy:")
+                    for ln in lines:
+                        if isinstance(ln, str) and ln.strip():
+                            print(f"  {ln}")
+                print("机读: cai-agent cost report --json")
+                _maybe_metrics_cli(
+                    module="cost",
+                    event="cost.report",
+                    latency_ms=(time.perf_counter() - t_cr) * 1000.0,
+                    tokens=len(doc_cr.get("profiles") or []),
+                    success=True,
+                )
+                return 0
             print(json.dumps(doc_cr, ensure_ascii=False))
             _maybe_metrics_cli(
                 module="cost",

@@ -402,6 +402,15 @@ def run_doctor(
         "说明见 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md（英文: docs/PLUGIN_COMPAT_MATRIX.md）",
     )
     print()
+    mepd = int(getattr(settings, "memory_policy_max_entries_per_day", 10_000) or 0)
+    mtd = getattr(settings, "memory_policy_default_ttl_days", None)
+    rna = bool(getattr(settings, "memory_policy_recall_negative_audit", True))
+    print("记忆策略 [memory.policy]:")
+    print(f"  max_entries_per_day={mepd}")
+    print(f"  default_ttl_days={mtd!r}")
+    print(f"  recall_negative_audit={'开' if rna else '关'}（零命中 recall 写负样本审计）")
+    print("  机读: doctor --json -> memory_policy")
+    print()
     rel = build_release_runbook_payload(repo_root=resolve_release_repo_root(root), workspace=root)
     rel_changelog = rel.get("changelog") if isinstance(rel.get("changelog"), dict) else {}
     rel_bilingual = rel_changelog.get("bilingual") if isinstance(rel_changelog.get("bilingual"), dict) else {}

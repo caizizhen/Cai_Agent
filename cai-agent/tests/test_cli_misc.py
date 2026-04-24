@@ -300,6 +300,60 @@ class CostBudgetCliTests(unittest.TestCase):
             self.assertEqual(ex.get("schema_version"), "cost_budget_explain_v1")
             self.assertIn("summary_zh", ex)
 
+    def test_cost_report_json_includes_compact_policy_explain(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://x/v1"\nmodel = "m"\napi_key = "k"\n'
+                "[cost]\nbudget_max_tokens = 2000\n",
+                encoding="utf-8",
+            )
+            prev = os.environ.get("CAI_CONFIG")
+            try:
+                os.environ["CAI_CONFIG"] = str(cfg)
+                buf = io.StringIO()
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(["cost", "report", "--json"])
+            finally:
+                if prev is None:
+                    os.environ.pop("CAI_CONFIG", None)
+                else:
+                    os.environ["CAI_CONFIG"] = prev
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "cost_by_profile_v1")
+            cpe = payload.get("compact_policy_explain_v1")
+            self.assertIsInstance(cpe, dict)
+            self.assertEqual(cpe.get("schema_version"), "compact_policy_explain_v1")
+            self.assertEqual(cpe.get("cost_budget_max_tokens"), 2000)
+
+    def test_cost_report_text_ok(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://x/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            prev = os.environ.get("CAI_CONFIG")
+            try:
+                os.environ["CAI_CONFIG"] = str(cfg)
+                buf = io.StringIO()
+                with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                    with redirect_stdout(buf):
+                        rc = main(["cost", "report"])
+            finally:
+                if prev is None:
+                    os.environ.pop("CAI_CONFIG", None)
+                else:
+                    os.environ["CAI_CONFIG"] = prev
+            self.assertEqual(rc, 0)
+            out = buf.getvalue()
+            self.assertIn("cost report", out.lower())
+            self.assertIn("--json", out)
+
 
 class ExportCliTests(unittest.TestCase):
     def test_export_cursor_json_has_schema_version(self) -> None:
