@@ -8,28 +8,15 @@
 ## 文档导航
 
 - **[English README（默认）](README.md)**：仓库根目录英文说明。
-- **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run` 与流水线权限说明。
-- **[试点用户说明](docs/PILOT_USERS.zh-CN.md)**：小范围试用目标、清单、安全与反馈方式。
-- **[上下文压缩与成本](docs/CONTEXT_AND_COMPACT.zh-CN.md)**：`[context]` 压缩提示与 `observe` / `cost` 联动建议。
-- **快速上手**：先看“环境要求”+“安装”+“5 分钟跑通”。
-- **产品愿景（完全体）**：[docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)（三源融合、统一运行时、L1/L2/L3 验收）。
-- **Parity 矩阵**：[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)（发版勾选与 MCP/OOS 约定）。
-- **能力边界与缺口**：[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)（含发布门禁）；另见“与 Claude Code / Everything Claude Code 的功能对齐”+“工具与安全说明”。
-- **唯一产品计划（开发顺序 + Hermes 对比 + 测试进度）**：[docs/PRODUCT_PLAN.zh-CN.md](docs/PRODUCT_PLAN.zh-CN.md)（**排期以此为准**；与 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 差异摘要、已合并 `memory health` 分支说明见内文）。
-- **Hermes 对齐（Story / 进度 / Sprint）**：[docs/HERMES_PARITY_BACKLOG.zh-CN.md](docs/HERMES_PARITY_BACKLOG.zh-CN.md)（34 条可导入 backlog）、[docs/HERMES_PARITY_PROGRESS.zh-CN.md](docs/HERMES_PARITY_PROGRESS.zh-CN.md)、[docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md](docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md)；总测计划 [docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md](docs/qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md)。
-- **对标双参考源（Claude Code + ECC）**：[docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md)。
-- **模型切换功能包（细节）**：[docs/MODEL_SWITCHER_BACKLOG.zh-CN.md](docs/MODEL_SWITCHER_BACKLOG.zh-CN.md)、[docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md](docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md)（§4 Sprint 3 DoD）；声明式路由 **[docs/MODEL_ROUTING_RULES.zh-CN.md](docs/MODEL_ROUTING_RULES.zh-CN.md)** / **[docs/MODEL_ROUTING_RULES.md](docs/MODEL_ROUTING_RULES.md)**（**`[models.routing]`**、**`models routing-test`**）。
-- **WebSearch / Notebook（P1 定案）**：[docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md](docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)。
-- **对标 Claude Code / ECC 优化同步**：[docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md)。
-- **QA：S3 TUI 模型面板手工用例计划**：[docs/qa/s3-tui-model-panel-testplan.md](docs/qa/s3-tui-model-panel-testplan.md)（40 条：add/edit/rm/ping/switch 五子动作 + **上下文进度条 UC-CTX-*** + 空态 + 跨 provider `/compact` 提示；冻结日前一天起执行）。
-- **补齐总册与 MCP Web**：[docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md](docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)、[docs/MCP_WEB_RECIPE.zh-CN.md](docs/MCP_WEB_RECIPE.zh-CN.md)。
-- **配置细节**：看“配置文件”+“环境变量（覆盖配置文件）”。
-- **运行命令**：看“用法”+“内置斜杠命令（UI）”。
-- **演进历史**：**[CHANGELOG.md](CHANGELOG.md)**（默认英文）、**[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)**（中文全文）。
-- **近期实现与未完成摘要**：[docs/IMPLEMENTATION_STATUS.zh-CN.md](docs/IMPLEMENTATION_STATUS.zh-CN.md)（英文：[docs/IMPLEMENTATION_STATUS.md](docs/IMPLEMENTATION_STATUS.md)）。
-- **动态运营 Web（HTTP 契约）**：[docs/OPS_DYNAMIC_WEB_API.zh-CN.md](docs/OPS_DYNAMIC_WEB_API.zh-CN.md)（英文：[docs/OPS_DYNAMIC_WEB_API.md](docs/OPS_DYNAMIC_WEB_API.md)）。
-- **升级与破坏性变更（0.5.x → 0.6.x）**：[docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)（英文步骤清单；Hermes **S8-04**）。
-- **QA 回归记录**：每次跑 `python scripts/run_regression.py` 会在 `docs/qa/runs/` 生成带时间戳的 Markdown 报告；策略与变量见 **[docs/QA_REGRESSION_LOGGING.zh-CN.md](docs/QA_REGRESSION_LOGGING.zh-CN.md)**（英文镜像：[docs/QA_REGRESSION_LOGGING.md](docs/QA_REGRESSION_LOGGING.md)）。
+- **[文档总览（推荐入口）](docs/README.zh-CN.md)**：先看这页，了解哪些文档是权威、哪些只是历史留档。
+- **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run`。
+- **[唯一执行清单](docs/PRODUCT_PLAN.zh-CN.md)**：当前能力、测试进度、开发项状态。
+- **[当前阶段开发计划](docs/ROADMAP_EXECUTION.zh-CN.md)**：下一阶段开发顺序与里程碑。
+- **[缺口与边界](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)**：P1/P2 缺口、OOS、发版门禁。
+- **[Parity 矩阵](docs/PARITY_MATRIX.zh-CN.md)**：发版勾选与 `Done/Next/MCP/OOS`。
+- **[一页实现摘要](docs/IMPLEMENTATION_STATUS.zh-CN.md)**：只看近期交付与仍未完成。
+- **[JSON 契约索引](docs/schema/README.zh-CN.md)**：`--json` 输出、`schema_version`、exit 码。
+- **[专题文档目录](docs/README.zh-CN.md)**：Memory、Ops Web、Runtime、MCP、模型路由、兼容矩阵等专题统一从这里进入。
 
 ## 5 分钟跑通（推荐）
 
@@ -121,39 +108,21 @@ cai-agent workflow workflow.json --json
 
 workflow root 也支持 `quality_gate: true | {...}`。当 workflow 本身先成功结束时，CAI 会自动补跑一次后置 `quality-gate`，并在结果中返回 `quality_gate` 摘要与可选 `post_gate`（`quality_gate_result_v1`）；如果 gate 失败，workflow 会整体失败。
 
-## 与 Claude Code / Everything Claude Code 的功能对齐
+## 产品定位
 
-- **北极星（完全体）**：在 **单一运行时**（本仓库的 Python / LangGraph / OpenAI 兼容路径）内融合三类参考——官方 `anthropics/claude-code` 的能力环、`ComeOnOliver/claude-code-analysis` 的架构子系统清单、`affaan-m/everything-claude-code` 的治理与跨 harness 资产；不复制官方 TS/Bun/Ink 栈，默认也不采用「多 CLI 套件」编排。详见 [docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)、[docs/PARITY_MATRIX.zh-CN.md](docs/PARITY_MATRIX.zh-CN.md)、[docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)。
-- **整体定位**：`cai-agent` 对标官方 `anthropics/claude-code` 的「终端内智能代码 Agent」，并参考 `affaan-m/everything-claude-code` 的「性能优化 + 安全护栏 + 规则/技能」设计思路。
-- **当前已对齐的子系统**（概念层级）：
-  - **工具系统（Tools）**：`cai_agent.tools` 提供只读/写入/搜索/Git/MCP、可选 **`fetch_url`（HTTPS 白名单）** 等工具，并通过沙箱 `cai_agent.sandbox` 实现工作区越界防护和命令白名单，类似 Claude Code 的 Tool + 权限模型。
-  - **会话与编排（Query/Tasks）**：`cai_agent.graph` 使用 LangGraph 状态机驱动「LLM ↔ 工具」循环，与 Claude Code 的 QueryEngine 思路一致；CLI 的 `run` / `continue` + `sessions` 子命令承担最小会话/任务管理角色。
-  - **终端 UI（TUI）**：`cai_agent.tui` 使用 Textual 提供类似 Claude Code REPL 的对话界面和内置斜杠命令（`/status`、`/models`、`/mcp`、`/save`、`/load` 等）。
-  - **安全模型（Sandbox & MCP）**：`cai_agent.sandbox` + `run_command` 白名单 + Git 只读工具 + MCP Bridge 的超时/鉴权，与 Everything Claude Code 中的 Agent 安全与沙箱策略保持同类防护思路。
-- **已补充的规则与技能库**（内容层级）：
-  - **Rules**：`rules/common` 与 `rules/python` 已补充命名/结构、日志/错误、安全/敏感信息、Git/提交、文档/注释、性能/资源、上下文/记忆、MCP/外部工具、Hook 自动化、子代理协作、验证评估、research-first、prompt hygiene、类型风格、测试/CI、依赖/打包、CLI/TUI、配置演进、并发模型、HTTP 调用与重试等主题。
-  - **Skills**：`skills/` 已补充 plan-then-execute、search-first、TDD、verification loop、单模块/多模块重构、新功能+测试、调试诊断、轻量安全扫描、安全加固、性能评估、依赖升级、API 集成、规则维护、Hook 设计、子代理编排、记忆提炼、代码评审、测试覆盖审计、发布前检查、workflow 编写、迁移规划、故障复盘、文档同步等可复用工作流。
-  - **运行层骨架**：已新增 `commands/`（斜杠命令兼容层）、`agents/`（核心子代理定义）、`hooks/`（自动化配置骨架），用于逐步对齐 ECC 的插件化运行体系。
-- **规划中的增强能力**（逐步对齐中）：
-  - **计划模式（Plan Mode）**：在执行前生成只读实现方案，风格对齐 Claude Code 的 Plan 模式与 Everything Claude Code 的 “research-first / plan-then-execute”。
-  - **规则与技能（Rules / Skills）**：在仓库中提供 `rules/`、`skills/` 目录，结合 CLI/TUI 命令为常见语言和场景提供约束与可复用工作流（参考 ECC 的 `rules/`、`skills/` 结构）。
-  - **统计与诊断（Stats）**：在现有 `run --json` / `continue --json` 输出基础上，逐步加入模型调用耗时、token 使用等诊断信息，对齐 Claude Code / ECC 的成本与性能视角。
+`cai-agent` 当前明确定位为：在 **一个统一运行时** 里整合三条上游产品线，而不是分别包装三套 CLI。
 
-完整架构说明与后续 Roadmap 见：
+- [`anthropics/claude-code`](https://github.com/anthropics/claude-code)：终端 Agent 的官方体验基线
+- [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent)：profiles、API/server、gateway、dashboard、voice、runtime backend、memory provider 等产品化能力
+- [`affaan-m/everything-claude-code`](https://github.com/affaan-m/everything-claude-code)：rules / skills / hooks / model-route / 跨 harness 导出等治理与生态能力
 
-- `docs/ARCHITECTURE.zh-CN.md`
-- `docs/PRODUCT_VISION_FUSION.zh-CN.md`（三源融合愿景与 L1/L2/L3）
-- `docs/PARITY_MATRIX.zh-CN.md`（子系统 parity 与发版约定）
-- `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`（能力对比、缺口与发布门禁）
-- `docs/PRODUCT_PLAN.zh-CN.md`（唯一执行清单：Hermes 对比 + 开发项 + 测试进度）
-- `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`（记忆与成本治理方案）
-- `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` / [`docs/CROSS_HARNESS_COMPATIBILITY.md`](docs/CROSS_HARNESS_COMPATIBILITY.md)（跨工具兼容映射）
-- `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` / [`docs/PLUGIN_COMPAT_MATRIX.md`](docs/PLUGIN_COMPAT_MATRIX.md)（插件机读兼容矩阵说明）
-- `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`（补齐总册 backlog）
-- `docs/MCP_WEB_RECIPE.zh-CN.md`（Web 能力 MCP 配方）
-- `docs/schema/README.zh-CN.md`（**JSON 输出契约索引**：`schema_version`、主要字段、exit 约定 S1-02）
-- `docs/IMPLEMENTATION_STATUS.zh-CN.md` / [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md)（**近期已交付 vs 仍开放**滚动摘要）
-- `docs/OPS_DYNAMIC_WEB_API.zh-CN.md` / [`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md)（**`ops serve`** / Phase A–C 契约）
+目标是“**集成成一个产品**”，不是复制官方 TS/Bun/Ink 栈，也不是做成多 CLI 套件。详细定位、缺口和路线图见：
+
+- [docs/PRODUCT_VISION_FUSION.zh-CN.md](docs/PRODUCT_VISION_FUSION.zh-CN.md)
+- [docs/PRODUCT_GAP_ANALYSIS.zh-CN.md](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)
+- [docs/PRODUCT_PLAN.zh-CN.md](docs/PRODUCT_PLAN.zh-CN.md)
+- [docs/ROADMAP_EXECUTION.zh-CN.md](docs/ROADMAP_EXECUTION.zh-CN.md)
+- [docs/README.zh-CN.md](docs/README.zh-CN.md)
 
 ## 高层架构示意
 

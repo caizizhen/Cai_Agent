@@ -1,7 +1,7 @@
 # CAI Agent 产品计划（唯一执行清单）
 
 本文件是 **开发与测试进度的唯一权威表**。  
-**Story 级 AC** 见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md)；**Story 勾选状态** 见 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md)。
+**Hermes 冻结阶段 Story 级 AC** 见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md)；**冻结阶段 Story 勾选状态** 见 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md)。
 
 **非本表职责**：愿景 [`PRODUCT_VISION_FUSION.zh-CN.md`](PRODUCT_VISION_FUSION.zh-CN.md)、缺口 [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)、矩阵 [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md)、架构 [`ARCHITECTURE.zh-CN.md`](ARCHITECTURE.zh-CN.md)。**近期实现 vs 未完成的一页摘要**（中英）：[`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md) / [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)。
 
@@ -44,19 +44,18 @@
 
 ---
 
-## 一、与 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 的能力差（摘要）
+## 一、与三上游仓库的能力差（摘要）
 
-| 维度 | Hermes（上游） | 本仓 | 本表状态 |
-|------|----------------|------|----------|
-| 多平台网关 | 全渠道统一 gateway | Telegram **full** + Discord/Slack **mvp** + `gateway platforms` 目录 | **完成（MVP）** → **§二 24** |
-| 技能自进化 | 自动生成 / 改进 skills、Hub | manifest + suggest + **auto_extract** + **hub serve** | **完成** → **§二 25** |
-| 定时与投递 | cron + 多平台投递 | `schedule` 系 **已对齐 MVP** | **完成** |
-| 跨会话检索 | FTS5 + LLM 摘要等 | `recall` / `recall-index` / `insights` | **完成** |
-| 记忆治理 | nudge、健康度、用户建模 | health / nudge / **`memory user-model`** 行为偏好抽取（**`behavior_extract`**，非完整 Honcho 引擎） | **部分完成** → **§二 9–10** |
-| 子代理 / 并行 | 隔离子 agent、RPC | `workflow` 并行组 + `subagent_io` + 错误策略 + 预算 + **RPC IO TypedDict** + **内置模板** | **完成** → **§二 23** |
-| 安全 / PII | secret 扫描 + PII 防泄漏 | `security-scan` + **`pii-scan`**（PII 专项） | **完成** → **§二 22** |
-| 运行后端 | Modal / Daytona 等 | 本机 + 配置为主 | **未开始（P2）** |
-| 语音 / Bridge | 产品化 | **OOS / MCP** | **定案** |
+| 来源 | 目标能力 | 本仓当前状态 | 结论 |
+|------|----------|--------------|------|
+| `anthropics/claude-code` | 官方终端 Agent 的主体验：计划→执行→继续、工具、权限、MCP、TUI | 主链路已具备，WebSearch / Notebook / 安装体验仍有差距 | **部分完成** |
+| `NousResearch/hermes-agent` | Profiles、API/server、gateway、voice、dashboard、memory providers、runtime backends | Hermes 34 Story 冻结版已收口，但新一轮产品化能力仍明显落后 | **部分完成** |
+| `affaan-m/everything-claude-code` | rules / skills / hooks / model-route / cross-harness / 生态资产治理 | 规则、技能、导出与兼容矩阵已有基础，资产化与安装叙事仍不足 | **部分完成** |
+
+**说明**：
+
+- `HERMES_PARITY_PROGRESS` 中的 **34/34** 代表“冻结版 Hermes 第一阶段完成”，不代表“当前最新 Hermes 产品面已全部同步”。
+- 当前产品目标不再是单独对齐 Hermes，而是把这三条上游能力线整合成一个统一产品。
 
 ---
 
@@ -97,7 +96,7 @@
 
 | 顺序 | 测试范围 | 类型 | 进度 | 证据 / 下一步 |
 |------|----------|------|------|----------------|
-| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-24** 全量回归：**564 passed**，**3 subtests passed**（Windows / Python 3.13）；含 Gateway Slash/Maps、`models routing-test`、`plugins --with-compat-matrix`、`memory user-model export`、ops HTML refresh 等） |
+| T1 | `pytest cai-agent/tests` | 自动化 | **完成** | **2026-04-24** 全量回归：**620 passed**，**3 subtests passed**（Windows / Python 3.13）；含 Gateway Slash/Maps、`models routing-test`、`plugins --with-compat-matrix`、`memory user-model export`、ops HTML refresh 等） |
 | T2 | `python scripts/run_regression.py` | 自动化 | **完成** | `PYTHONPATH=cai-agent/src` + `python -m cai_agent`；`docs/qa/runs/regression-*.md` |
 | T3 | Hermes 总测计划 | 文档 | **已写** | [`HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md`](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) |
 | T4 | Sprint2 memory health | 混合 | **已覆盖** | [`sprint2-memory-health-testplan.md`](qa/sprint2-memory-health-testplan.md) |
@@ -119,7 +118,7 @@
 |------|----------|---------------------------|
 | **§二 1–26 加权** | 「完成」「定案」「持续演进」各权 **1**；「部分完成」各 **0.5**；÷26 | **约 100%**（22完成 + 1定案 + 1持续演进 + 2MVP完成 = **26** → **26/26=100%**） |
 | **Hermes 34 Story** | ✅ 数 ÷ 34 | 以 [`HERMES_PARITY_PROGRESS.zh-CN.md`](HERMES_PARITY_PROGRESS.zh-CN.md) 首页表为准 |
-| **T1** | pytest 全绿 | 同 §三 T1（**564** cases + **3** subtests，见上表证据列） |
+| **T1** | pytest 全绿 | 同 §三 T1（**620** cases + **3** subtests，见上表证据列） |
 
 ### 3.1 §二 状态计数
 
@@ -131,13 +130,15 @@
 | **部分完成** | **0** | — |
 | **未开始** | **0** | — |
 
-### 3.2 后续演进方向（P2，非阻断发布）
+### 3.2 后续演进方向（当前 To-dos）
 
 | 项 | 说明 |
 |----|------|
-| **24 后续** | Discord/Slack Slash Commands、频道监控、多工作区等生产级特性 |
-| **26 后续** | 动态 Web 运营 UI（实时刷新、队列可视化） |
-| **§一 P2** | Modal/Daytona 类后端（若立项） |
+| **Claude Code 线** | WebSearch / Notebook 的产品化路径、安装 / 更新体验、CLI/TUI 交互统一 |
+| **Hermes 线** | Profiles、API/server、多平台 gateway、voice、dashboard 高级交互、memory providers、runtime backends |
+| **ECC 线** | rules / skills / hooks 的资产化、`model-route`、插件与安装叙事、跨 harness 深化 |
+| **共享项** | 中英文文档同步、反馈闭环、发布闭环、OOS / MCP 备案机制 |
+| **明确 OOS** | 依赖封闭企业能力的官方专属特性、默认多 CLI 套件模式 |
 
 ### 3.3 QA 移交顺序
 
@@ -169,4 +170,4 @@
 
 ---
 
-*文档版本：2026-04-23 — 在 A 部分（§22–§26）已合入基础上，同步 **0.7.0** 能力：`run_schema_version`/`run_events_envelope_v1`、TUI `/tasks`、`hooks` **`script`**、**`memory validate-entries`/`extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康** 等；**`CHANGELOG.md` §0.7.0** 为英文权威条目，本表与 **`PARITY_MATRIX`** / **`NEXT_IMPLEMENTATION_BUNDLE`** 对齐；**发行 tarball 版本号** 以 **`cai-agent/pyproject.toml`** / **`cai_agent.__version__`** 为准（若尚未 bump 至 0.7.0，以仓库实际为准）。*
+*文档版本：2026-04-24 — 在 A 部分（§22–§26）已合入基础上，同步 **0.7.0** 能力：`run_schema_version`/`run_events_envelope_v1`、TUI `/tasks`、`hooks` **`script`**、**`memory validate-entries`/`extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`models suggest`**、**`security-scan --badge`**、**`subagent_io_schema_version`=`1.1`**、**`progress_ring`**、**`doctor` `.cai/` 健康** 等；**`CHANGELOG.md` §0.7.0** 为英文权威条目，本表与 **`PARITY_MATRIX`** / **`ROADMAP_EXECUTION`** 对齐；**发行 tarball 版本号** 以 **`cai-agent/pyproject.toml`** / **`cai_agent.__version__`** 为准（若尚未 bump 至 0.7.0，以仓库实际为准）。*

@@ -3,6 +3,8 @@
 > **中文**说明；英文对照见 [`IMPLEMENTATION_STATUS.md`](IMPLEMENTATION_STATUS.md)。  
 > **唯一执行清单**仍以 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) 为准；逐条变更以根目录 **`CHANGELOG.md`** / **`CHANGELOG.zh-CN.md`** 为准。
 
+当前产品目标：在一个统一运行时里集成 **Claude Code + Hermes Agent + Everything Claude Code**。规划细节见 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) 与 [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)。
+
 ## 近期已交付（面向开发/集成）
 
 以下能力已在 **`main`** 落地（**0.7.0** 窗口及紧随补丁；完整列表见 **CHANGELOG §0.7.0**）：
@@ -19,17 +21,16 @@
 
 | 主题 | 说明 |
 |------|------|
-| **运营 Web Phase C** | SSE、队列拖拽、RBAC、多 workspace 产品化路由等 |
-| **Gateway 生产级** | Discord/Slack **MVP** 之外的频道监控、更深 Slash、多租户式能力等 |
-| **Honcho 用户模型全量** | **`user_model_store_v1`** 持久化、在线学习、**`memory user-model query`**、图谱 **E4** 等（当前仅有 **`export`** 归档切片） |
-| **P1 缺口** | 内置 WebSearch/Notebook 与 **MCP 定案**并行；**真实 recall 命中率**统计（与 **`insights --cross-domain`** 已标注的 index 探测区分） |
-| **OOS** | Modal/Daytona 云沙箱（**PARITY_MATRIX** 与 **`CLOUD_RUNTIME_OOS`**）、语音/官方 Bridge 等 |
-| **P2 产品与生态** | 官方安装器级分发、`/bug` 统一反馈等（**`PRODUCT_GAP`** §关键缺口-4） |
+| **Claude Code 体验线** | 安装/更新/反馈流程、MCP 优先的 WebSearch/Notebook 入口、任务与状态交互还在收口 |
+| **Hermes 产品化线** | profiles、API/server、多平台 gateway、动态 dashboard、memory providers、runtime backends 仍待补齐 |
+| **ECC 治理线** | rules / skills / hooks 资产化、模型路由与成本治理、插件/分发叙事仍待产品化 |
+| **共享发布闭环** | feedback、语义 changelog、Parity 回写、发版门禁已进入显式 roadmap，不再依赖手工补洞 |
+| **OOS / 条件立项** | 内置重实现 WebSearch/Notebook、默认云后端、封闭企业专属特性继续保持 OOS 或条件立项 |
 
 ## 最近回归执行记录（QA）
 
 - **日期**：2026-04-24（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**：**564 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
+- **`pytest cai-agent/tests`**：**620 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。  
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（含 compileall、unittest discover、`smoke_new_features` 及 CLI 子集）；**未**新建 `docs/qa/runs/regression-*.md`（与 **QA_REGRESSION_LOGGING** 中 `QA_SKIP_LOG` 约定一致）。
 

@@ -1,52 +1,76 @@
-# 产品愿景：三源融合的「完全体」（统一栈）
+# 产品愿景：集成 Claude Code / Hermes Agent / Everything Claude Code
 
 ## 一句话
 
-在 **单一运行时** 内融合三类参考面：以 **Python + LangGraph + OpenAI 兼容 API** 为唯一编排内核，向 **官方 Claude Code 的能力与体验**、**claude-code-analysis 所归纳的架构完备度**、**Everything Claude Code 的治理与跨 harness 资产** 收敛；**不**以复制官方 TS/Bun/Ink 技术栈为目标，**不**采用「官方 CLI + ECC + Cai_Agent」多产品套件编排作为默认交付形态。
+`cai-agent` 的产品目标是：以 **Python + LangGraph + OpenAI 兼容 API** 为统一运行时，把以下三个上游仓库的优势整合成 **一个** 可交付的 Agent 产品：
 
-## 三类参考面分别解决什么问题
+- [`anthropics/claude-code`](https://github.com/anthropics/claude-code)
+- [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent)
+- [`affaan-m/everything-claude-code`](https://github.com/affaan-m/everything-claude-code)
 
-| 参考 | 用途 |
-|------|------|
-| [anthropics/claude-code](https://github.com/anthropics/claude-code) | **用户可感知的「能干活」**：工具类别与深度、计划/执行、子 Agent、MCP、权限与交互习惯。 |
-| [ComeOnOliver/claude-code-analysis](https://github.com/ComeOnOliver/claude-code-analysis/blob/main/DOCUMENTATION.zh-CN.md) | **工程验收骨架**：Query 循环、工具表、状态、任务、服务（compact/cost/MCP）、钩子与扩展边界——用于模块是否齐全，而非栈名一致。 |
-| [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code) | **治理与资产**：记忆/本能、安全与验证闭环、跨工具导出与安装叙事；海量技能库以 **兼容导出 + 生态包** 渐进吸收，避免拖死核心版本。 |
+目标是“**整合**”，不是复制某个上游的技术栈，也不是把多个 CLI 拼成套件。
 
-## 三层验收（L1 / L2 / L3）
+## 三个上游分别提供什么
 
-### L1 — 官方能力环（体验基线）
+| 上游 | 在本产品中的定位 |
+|---|---|
+| `anthropics/claude-code` | **体验基线**：终端交互、计划→执行→继续、MCP、权限、slash 命令习惯、安装体验 |
+| `NousResearch/hermes-agent` | **产品化能力**：profiles、API/server、dashboard、gateway、voice、runtime backends、memory providers |
+| `affaan-m/everything-claude-code` | **治理与生态**：rules、skills、hooks、model-route、跨 harness 导出、资产打包与安装叙事 |
 
-目标：用户主观感受接近「官方终端 Agent 能覆盖的日常开发闭环」。
+补充说明：`claude-code-analysis` 仍可作为架构分析参考，但**不再是顶层产品定位的一部分**。
 
-- 工具：文件、搜索、Shell（受限）、Git、MCP；对 Web/Notebook 等 **要么内置补齐，要么提供经文档认证的 MCP 等价路径**（见 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)）。
-- 编排：计划 → 执行 → 会话延续；多步 `workflow` 与子 Agent 能力持续加强。
-- 缺口从「文档里接受没有」升级为 **版本里程碑上必须关闭或等价替代**（见 [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md) 发布门禁）。
+## 三层集成目标
 
-### L2 — 架构完备度（可演进）
+### L1：Claude Code 体验层
 
-目标：主循环与周边子系统可对照 analysis 文档做 **结构化复盘**，便于加工具、加策略、加观测而不推翻重写。
+目标：用户在终端内获得接近官方 coding agent 的主观体验。
 
-- 主循环：`cai_agent.graph` 与工具分发、权限、重试与上限。
-- 状态与会话：统一任务 ID、状态流、结构化事件（与 `observe` / CI 消费对齐）。
-- 上下文与成本：压缩提示、token 统计、预算策略（见 [CONTEXT_AND_COMPACT.zh-CN.md](CONTEXT_AND_COMPACT.zh-CN.md)、[MEMORY_AND_COST_GOVERNANCE.zh-CN.md](MEMORY_AND_COST_GOVERNANCE.zh-CN.md)）。
+- 计划 → 执行 → 会话延续
+- 文件 / 搜索 / Shell / Git / MCP
+- 清晰的权限与审批体验
+- TUI / slash 命令 / 使用习惯统一
 
-### L3 — ECC 式治理与运营（可审计、可迁移）
+### L2：Hermes 产品化层
 
-目标：团队与流水线能 **依赖同一套命令与 schema** 做质量、安全、成本与导出。
+目标：产品不只“能跑”，还具备多入口、多通道、多后端和可运营能力。
 
-- 已有入口：`quality-gate`、`security-scan`、`cost`、`export`、`memory`、`observe` 等——向 **策略与 schema 完整** 演进（记忆 TTL/置信度、报告目录、跨 harness manifest 版本等）。
-- 可视化运营面板（类 ECC Dashboard）列为 **P2+ 可选**，不阻塞 L1。
+- 多 profile / 多实例配置
+- API / server 对外接口
+- 本地或 Web dashboard
+- 多平台 gateway 与 voice
+- runtime backends 与 memory providers
 
-## 明确不在默认「完全体」内或需单独立项的能力
+### L3：ECC 治理生态层
 
-以下多依赖 **商业授权、封闭服务或独立产品形态**，默认不纳入「开源统一栈完全体」的必达项；若在 parity 矩阵中出现，须标注 **OutOfScope** 或 **需外部服务**。
+目标：团队和生态可以复用、扩展、迁移和治理这套 Agent。
 
-- 官方企业特性示例：部分 Bridge / 语音 / Kairos 等门控能力（以官方仓库实际暴露为准）。
-- 「捆绑多个 CLI 成一个安装包」的套件模式：非当前默认愿景（见本文首段）。
+- rules / skills / hooks
+- model-route 与成本策略
+- cross-harness export / compatibility
+- 插件与资产打包、安装、状态管理
+
+## 非目标
+
+以下能力默认不作为“必须跟齐”的目标，除非单独立项：
+
+- 复制官方 TS / Bun / Ink 技术栈
+- 把多个上游 CLI 原样封装成一套 launcher
+- 依赖封闭企业能力的官方专属功能
+
+## 对当前仓库的直接要求
+
+这一定义意味着：
+
+1. 所有产品文档都应围绕这三个上游重写，而不是只围绕 Hermes 或只围绕 Claude Code。
+2. `PRODUCT_PLAN` 维护“当前已集成到什么程度”。
+3. `ROADMAP_EXECUTION` 维护“下一批按哪个上游能力桶推进”。
+4. `PRODUCT_GAP_ANALYSIS` 维护“还差什么、哪些 OOS、哪些用 MCP 替代”。
 
 ## 相关文档
 
-- 维度级缺口与发布门禁：[PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md)
-- 子系统级勾选矩阵（维护中）：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)
-- 执行阶段清单（唯一）：[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)
-- 仓库入口说明：[README.zh-CN.md](../README.zh-CN.md)、[README.md](../README.md)
+- 缺口与发版门禁：[PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md)
+- 当前执行清单：[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)
+- 当前阶段路线图：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md)
+- 发版勾选矩阵：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)
+- 文档总入口：[README.zh-CN.md](README.zh-CN.md) / [README.md](../README.md)

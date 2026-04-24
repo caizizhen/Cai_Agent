@@ -3,6 +3,8 @@
 > **English** (default for this file). Chinese: [`IMPLEMENTATION_STATUS.zh-CN.md`](IMPLEMENTATION_STATUS.zh-CN.md).  
 > Authoritative execution checklist: [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md). Detailed changes: root **`CHANGELOG.md`** / **`CHANGELOG.zh-CN.md`**.
 
+Current product target: integrate **Claude Code + Hermes Agent + Everything Claude Code** in one runtime. Planning details live in [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) and [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md).
+
 ## Recently shipped (developer-facing)
 
 The following landed on **`main`** around the **0.7.0** window (see **CHANGELOG §0.7.0** for the full list):
@@ -19,17 +21,16 @@ High-level only; details live in **`PRODUCT_PLAN.zh-CN.md`** §0.2 / §3.2 and *
 
 | Theme | Status |
 |-------|--------|
-| **Ops web Phase C** | SSE / drag-drop queues / RBAC / multi-workspace product routing — **future** |
-| **Gateway beyond MVP** | Discord/Slack production-grade features (monitoring, deeper slash, etc.) — **follow-up sprints** |
-| **Honcho user-model full epic** | Persistent **`user_model_store_v1`**, online learning, **`memory user-model query`**, graph layer — **RFC E1–E4** beyond current **`export`** slice |
-| **P1 gaps** | Built-in WebSearch/Notebook vs **MCP-first** decision; **true recall hit-rate** stats (vs index-probe metrics already labeled in **`insights --cross-domain`**) |
-| **OOS** | Modal/Daytona cloud sandboxes (**`PARITY_MATRIX`** + **`CLOUD_RUNTIME_OOS`**); voice / official bridge — **out of scope** |
-| **P2 product / ecosystem** | Installer-style distribution, unified feedback channels ( **`PRODUCT_GAP`** §4 ) |
+| **Claude Code experience line** | Install/update/feedback flow, MCP-first WebSearch/Notebook entrypoints, task/status UX are still being tightened |
+| **Hermes productization line** | Profiles, API/server, more gateway platforms, dynamic dashboard, memory providers, runtime backends are still open |
+| **ECC governance line** | Rules/skills/hooks assetization, model-route/cost governance, plugin/distribution story still need productization |
+| **Shared release loop** | Feedback, semantic changelog, parity write-back, and release gating are now explicit roadmap work rather than ad-hoc follow-up |
+| **OOS / conditional** | Native WebSearch/Notebook reimplementation, default cloud backends, and closed enterprise-only features remain out of scope or conditional |
 
 ## Latest regression run (QA)
 
 - **Date**: 2026-04-24 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
-- **`pytest cai-agent/tests`**: **564 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
+- **`pytest cai-agent/tests`**: **620 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.  
 - **`python scripts/smoke_new_features.py`**: **NEW_FEATURE_CHECKS_OK**.  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**: exit **0** (compileall, unittest discover, smoke, CLI subset); **no** new `docs/qa/runs/regression-*.md` (per **QA_REGRESSION_LOGGING** `QA_SKIP_LOG` policy).
 

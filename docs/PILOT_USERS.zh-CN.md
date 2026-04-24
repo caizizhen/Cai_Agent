@@ -81,7 +81,7 @@ cai-agent init
 - **操作系统**与 Python 版本  
 - **`cai-agent doctor` 输出**（删除或替换 `api_key` 等敏感字段）  
 - **复现步骤**与**期望 vs 实际**  
-- 若与对标能力相关，可注明对照 [REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md](REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md) 中的哪一类场景
+- 若与目标能力相关，可注明对应 [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md) 或 [ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) 中的哪一类场景
 
 ---
 

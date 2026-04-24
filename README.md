@@ -7,7 +7,8 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 ## Documentation map
 
 - **Quick start**: Requirements → Install → Five-minute path.
-- **Design / parity**: Three-source fusion vision (Chinese PRD) + parity matrix + gap analysis; Claude Code & ECC alignment in implementation (sections below).
+- **Docs entrypoint**: [`docs/README.md`](docs/README.md).
+- **Core product docs**: `PRODUCT_PLAN`, `ROADMAP_EXECUTION`, `PRODUCT_GAP_ANALYSIS`, `PARITY_MATRIX`.
 - **Configuration**: TOML keys, env overrides, sample config.
 - **CLI & TUI**: Command reference and slash commands.
 - **Changelog**: `CHANGELOG.md` (English default); `CHANGELOG.zh-CN.md` (Chinese).
@@ -58,38 +59,15 @@ Do not commit real API keys.
 
 | File | Topic |
 |------|--------|
-| `docs/ARCHITECTURE.zh-CN.md` | Architecture |
-| `docs/ONBOARDING.zh-CN.md` | First-run path and CI (`init` → `doctor` → `run`) |
-| `docs/PILOT_USERS.zh-CN.md` | Pilot user guide (scope, checklist, safety, feedback) |
-| `docs/CONTEXT_AND_COMPACT.zh-CN.md` | Context compact hints vs cost / observe |
-| `docs/PRODUCT_VISION_FUSION.zh-CN.md` | Product vision: fused “full stack” on unified runtime (L1/L2/L3) |
-| `docs/PARITY_MATRIX.zh-CN.md` | Subsystem parity matrix and release checklist |
-| `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md` | Gap vs Claude ecosystem + release gates |
-| `docs/PRODUCT_PLAN.zh-CN.md` | **Single execution plan**: Hermes gap summary, ordered dev items, test progress |
-| `docs/IMPLEMENTATION_STATUS.md` | Rolling “what shipped / what is open” (EN); Chinese: `docs/IMPLEMENTATION_STATUS.zh-CN.md` |
-| `docs/OPS_DYNAMIC_WEB_API.md` | Dynamic ops web: HTTP contract + Phase A–C scope (EN); Chinese: `docs/OPS_DYNAMIC_WEB_API.zh-CN.md` |
-| `docs/schema/README.zh-CN.md` | JSON `--json` schema index (`schema_version`, fields, exit conventions; S1-02) |
-| `docs/HERMES_PARITY_BACKLOG.zh-CN.md` | Hermes-aligned story backlog (importable IDs + AC) |
-| `docs/HERMES_PARITY_PROGRESS.zh-CN.md` | Hermes parity progress rollup vs backlog |
-| `docs/REFERENCE_PARITY_BACKLOG_2026-04-17.zh-CN.md` | Reference parity backlog (claude-code + ECC): Dev / QA / user sync |
-| `docs/MODEL_SWITCHER_BACKLOG.zh-CN.md` | Feature pack: in-UI model switcher + profile management + routing |
-| `docs/MODEL_ROUTING_RULES.md` / `docs/MODEL_ROUTING_RULES.zh-CN.md` | Declarative `[models.routing]` + `models routing-test` |
-| `docs/MODEL_SWITCHER_DEVPLAN.zh-CN.md` | Sprint plan for the model switcher feature (S1–S3, Alpha/Beta/GA); Sprint 3 acceptance is §4 |
-| `docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md` | P1 decision: MCP-first WebSearch/Notebook + how `board --json` aligns with `observe` |
-| `docs/OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md` | Optimization backlog vs claude-code + ECC; Dev/QA sync |
-| `docs/HERMES_PARITY_SPRINT_PLAN.zh-CN.md` | Hermes parity sprint plan (companion to PRODUCT_PLAN) |
-| `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md` | Memory and cost |
-| `docs/CROSS_HARNESS_COMPATIBILITY.md` / `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md` | Cursor / Codex / other harnesses |
-| `docs/PLUGIN_COMPAT_MATRIX.md` / `docs/PLUGIN_COMPAT_MATRIX.zh-CN.md` | Machine-readable plugin ↔ harness matrix (`plugin_compat_matrix_v1`) |
-| `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md` | Long-form backlog vs fusion vision |
-| `docs/MCP_WEB_RECIPE.zh-CN.md` | MCP-only web/search alternative to `fetch_url` |
-| `docs/QA_REGRESSION_LOGGING.md` | QA: where regression Markdown logs go; `QA_LOG_DIR` / `QA_SKIP_LOG` |
-| `docs/qa/runs/` | Auto-generated per-run reports (`regression-YYYYMMDD-HHmmss.md`) |
-| `docs/qa/s3-tui-model-panel-testplan.md` | QA: Sprint 3 TUI model-panel manual test plan (40 cases: add/edit/rm/ping/switch + context-bar UC-CTX-* + empty state + `/compact` prompt) |
-| `CHANGELOG.zh-CN.md` | Chinese changelog (default log: `CHANGELOG.md`) |
-| [`docs/MIGRATION_GUIDE.md`](docs/MIGRATION_GUIDE.md) | **0.5.x → 0.6.x** upgrade: JSON `--json` envelopes, exit codes, schedule audit, recall (Hermes **S8-04**) |
-| [`scripts/perf_ga_gate.py`](scripts/perf_ga_gate.py) | **S8-02** GA perf gate (recall 200 thresholds; optional `--pytest-daemon`) |
-| [`scripts/security_ga_gate.py`](scripts/security_ga_gate.py) | **S8-03** GA security gate (`run_security_scan` on `cai-agent/src` + quoted `sk-` probe) |
+| [`docs/README.md`](docs/README.md) | Curated docs entrypoint |
+| [`docs/PRODUCT_VISION_FUSION.zh-CN.md`](docs/PRODUCT_VISION_FUSION.zh-CN.md) | Product target: integrate Claude Code + Hermes Agent + ECC |
+| [`docs/PRODUCT_PLAN.zh-CN.md`](docs/PRODUCT_PLAN.zh-CN.md) | Single execution plan |
+| [`docs/ROADMAP_EXECUTION.zh-CN.md`](docs/ROADMAP_EXECUTION.zh-CN.md) | Current roadmap / todo list |
+| [`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md) | Gaps and release gates |
+| [`docs/PARITY_MATRIX.zh-CN.md`](docs/PARITY_MATRIX.zh-CN.md) | Release review matrix |
+| [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Rolling one-page summary |
+| [`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md) | Ops dashboard HTTP contract |
+| [`docs/schema/README.zh-CN.md`](docs/schema/README.zh-CN.md) | JSON schema index |
 
 ---
 
@@ -182,18 +160,15 @@ cai-agent workflow workflow.json --json
 
 The workflow JSON root also accepts `quality_gate: true | {...}`. When the workflow itself finishes successfully, CAI runs one post `quality-gate`, returns a `quality_gate` summary plus optional `post_gate` (`quality_gate_result_v1`), and fails the workflow if that gate fails.
 
-## Alignment with Claude Code / Everything Claude Code
+## Product positioning
 
-- **North star**: A **fused “full product”** on a **single runtime** (this repo): maximize parity with `anthropics/claude-code` and harness governance patterns from `affaan-m/everything-claude-code`, using `ComeOnOliver/claude-code-analysis` as an **architecture checklist**—without adopting the official TS/Bun/Ink stack and without multi-CLI suite orchestration as the default. See `docs/PRODUCT_VISION_FUSION.zh-CN.md`, `docs/PARITY_MATRIX.zh-CN.md`, and `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`.
-- **Positioning**: Terminal agent similar in spirit to `anthropics/claude-code`, with rules/skills/safety influenced by harness-style workflows (e.g. Everything Claude Code).
-- **Subsystems**:
-  - **Tools** (`cai_agent.tools`): read/write/search/git/MCP; optional gated **`fetch_url`** (HTTPS GET + host allowlist); workspace sandbox in `cai_agent.sandbox` and allowlisted `run_command`.
-  - **Orchestration** (`cai_agent.graph`): LangGraph loop; `run` / `continue` / `sessions` for minimal session management.
-  - **TUI** (`cai_agent.tui`): Textual REPL with `/status`, `/models`, `/mcp`, `/save`, `/load`, etc.
-  - **Safety**: path confinement, command allowlist, read-only git tools, MCP timeouts/auth.
-- **Content**: `rules/common`, `rules/python`, `skills/`, plus `commands/`, `agents/`, `hooks/` as the extensibility surface.
+CAI Agent is positioned as a **single integrated runtime** that combines three upstream product lines:
 
-See also: `docs/ARCHITECTURE.zh-CN.md`, `docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`, `docs/PRODUCT_PLAN.zh-CN.md`, `docs/MEMORY_AND_COST_GOVERNANCE.zh-CN.md`, `docs/CROSS_HARNESS_COMPATIBILITY.md`, `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`, `docs/PLUGIN_COMPAT_MATRIX.md`, `docs/NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`, `docs/MCP_WEB_RECIPE.zh-CN.md`.
+- [`anthropics/claude-code`](https://github.com/anthropics/claude-code): terminal-agent UX baseline
+- [`NousResearch/hermes-agent`](https://github.com/NousResearch/hermes-agent): profiles, dashboards, gateways, API/server, backends, memory providers
+- [`affaan-m/everything-claude-code`](https://github.com/affaan-m/everything-claude-code): rules, skills, hooks, model routing, cross-harness export, governance patterns
+
+The goal is **integration**, not a wrapper suite of multiple CLIs and not a clone of the upstream TS/Bun/Ink internals. See [`docs/PRODUCT_VISION_FUSION.zh-CN.md`](docs/PRODUCT_VISION_FUSION.zh-CN.md), [`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md), and [`docs/ROADMAP_EXECUTION.zh-CN.md`](docs/ROADMAP_EXECUTION.zh-CN.md).
 
 ## Architecture (high level)
 

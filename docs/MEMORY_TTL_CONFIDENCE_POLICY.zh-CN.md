@@ -49,4 +49,4 @@ CLI 参数对应（节选）：
 
 ---
 
-*维护：变更 `memory prune` 默认行为或 schema 时，请同步更新本页与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) / [`NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md`](NEXT_IMPLEMENTATION_BUNDLE.zh-CN.md)。*
+*维护：变更 `memory prune` 默认行为或 schema 时，请同步更新本页与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) / [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) 中 `HM-05` 相关表述。*

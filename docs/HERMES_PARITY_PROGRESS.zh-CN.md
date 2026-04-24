@@ -1,233 +1,46 @@
-# Hermes 对齐开发进度状态表
+# Hermes 对齐进度（精简版）
 
-> 生成时间：2026-04-23（**发行包 `cai-agent` `0.6.18`**；**S7-01 AC2** 已扩 **`CAI_METRICS_JSONL`**（含 **`0.6.11`–`0.6.15`** 既有路径，及 **`0.6.16`** **`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`** 等；**`0.6.17`** **`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**；**`0.6.18`** **`gateway platforms`/`skills hub suggest`/`memory user-model`**）；**`CHANGELOG` §0.7.0** 记 **run 事件信封（`run_schema_version`=`1.1`）**、**TUI `/tasks`**、**`hooks` `script`**、**`memory validate-entries`/`extract --structured`**、**`user_model` `behavior_extract`**、**`export --ecc-diff`**、**`skills hub install`**、**`security-scan --badge`** 等；**S8-02/S8-03**（**`0.6.10`** **`perf_ga_gate`/`security_ga_gate`**）；**S8-04**（**`0.6.9`**）；**S7-04**（**`0.6.8`**）；**S7-02/S7-03**（**`0.6.6`–`0.6.7`**）；**S6-04** **`gateway telegram continue-hint`**；**§二 22–26** A 部分全部补齐（**pii-scan / workflow RPC+模板 / gateway discord+slack MVP / skills auto_extract+hub serve / ops dashboard html**，**2026-04-23**，**+59 cases**）；**§二 24–26** CLI **MVP**（**`0.6.1`**）；Hermes **34 Story ✅ 34/34**；T1 **`pytest`** 含 A 部分与 **0.7.0** 增量共 **505 passed** + **`smoke_new_features`**；T2 回归日志 [`docs/qa/runs/regression-20260423-091003.md`](qa/runs/regression-20260423-091003.md) **PASS**；**`QA_SKIP_LOG=1`** **`run_regression.py`** **本日复跑 PASS**（**不写** `docs/qa/runs/` 新文件））  
-> 基准版本：main 分支（含已合并 memory/recall/schedule 基础能力）  
-> 分析依据：`docs/HERMES_PARITY_BACKLOG.zh-CN.md` 的 34 条 Story  
->
-> 说明：**开发和 QA 以本文件为当前起点**，开发按"待开发"列表依序认领，QA 按"待测试"列表在开发完成后介入。产品级 **已完成 vs 未完成** 总览以 **`PRODUCT_PLAN.zh-CN.md` §〇** 为准；**进度百分比与 QA 移交** 以 **同文件 §三之二** 为准（与 [`DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md`](DEVELOPMENT_PROGRESS_TRACKER.zh-CN.md) 互链 **QA-2 / `QA_SKIP_LOG`**，自测可不写新 **`runs/`** 回归文件）。
+本文件保留的是 **冻结版 Hermes 34 Story** 的历史对齐结论，不再维护逐 Story 长表。
 
----
+## 结论
 
-## 总体进度
+截至 **2026-04-24**，以 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) 中定义的 **34 条 Story** 为准：
 
+| 状态 | 数量 |
+|---|---|
+| 已完成 | 34 |
+| 部分完成 | 0 |
+| 未开发 | 0 |
 
-| 状态           | 数量     | 占比       |
-| ------------ | ------ | -------- |
-| ✅ 已完成        | 34     | 100%     |
-| ⚠️ 部分完成（需补齐） | 0      | 0%       |
-| ❌ 未开发        | 0      | 0%       |
-| **合计**       | **34** | **100%** |
+即：**34/34 = 100%**。
 
-**完成度快照（与 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) §三之二 · 3.0 对齐）**：仅计 ✅ 为 **34/34 = 100%**（**>20%** 同步基线之上；与 §三之二 **3.0** Hermes 行一致）。**S7-01 AC2** 主要 CLI 路径已覆盖（**`0.6.15`–`0.6.18`** 含 **`hooks`/`mcp-check`/`serve-webhook`**、**`sessions`/`stats`/`insights`/`plan`/`smoke` 常见面**、**`init`/`models`/`workflow`/`release-ga`/`ui`**、**`gateway platforms`/`skills hub suggest`/`memory user-model`** 等）；长尾按需扩展，见 backlog **S7-01 交付注**。
+## 这个结论代表什么
 
----
+- 代表 `cai-agent` 已完成仓库内定义的 **Hermes 对齐第一阶段**。
+- 不代表已经与 **当前最新 upstream Hermes 产品面** 完全同步。
 
-## ✅ 已完成（开发不需要再动，QA 已有测试覆盖）
+## 当前应该看哪里
 
+| 问题 | 文档 |
+|---|---|
+| 当前能力、测试进度 | [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) |
+| 下一阶段开发计划 | [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
+| 缺口、OOS、发版门禁 | [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
+| Hermes 34 Story 定义 | [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) |
 
-| Story ID    | 标题               | 说明                                                              |
-| ----------- | ---------------- | --------------------------------------------------------------- |
-| S1-01       | 命令参数命名一致性        | `--json`/`--days`/`--limit`/`--index-path`/`--history-file` 已统一 |
-| **S1-02**   | JSON schema 契约索引 | `docs/schema/README.zh-CN.md` **§ S1-02/S1-03** 收口；`smoke_new_features` 跨命令抽样；`SCHEDULE_*` 独立长文 |
-| **S1-03**   | 错误码 exit 0/2 / 130 | 见 schema README；主流失败路径 **exit `2`**；`run` 族 Ctrl+C **exit `130`** |
-| S1-04       | Parity Matrix 基础 | `docs/PARITY_MATRIX.zh-CN.md` 已有，需按新格式补充 Gap 列                  |
-| **S8-01**   | 回归与冒烟套件 | `scripts/run_regression.py` + `scripts/smoke_new_features.py`（`PYTHONPATH` + `python -m cai_agent`）；随 Sprint 扩充 |
-| **S8-02**   | **关键路径压测门禁** | **`scripts/perf_ga_gate.py`**（recall **200** 与 **`perf_recall_bench`** 阈值一致；可选 **`--pytest-daemon`**）；**`test_perf_ga_s8_02.py`**（**PERF-GA-001/002/003** 自动化；daemon **mock** 执行 **100** 轮）。**AC3**（gateway **500** 条真机压测）仍为 **专项/真机**，未纳入本脚本 |
-| **S8-03**   | **安全审计门禁** | **`scripts/security_ga_gate.py`**（**`run_security_scan`** 扫 **`cai-agent/src`** + 引号内长 **`sk-`** 探测）；**`test_sec_ga_s8_03.py`**；**SEC-GA-004** 见 **`test_gateway_telegram_cli`** **`not_allowed`** |
-| **S8-04**   | **发布说明与迁移指南** | **[`docs/MIGRATION_GUIDE.md`](MIGRATION_GUIDE.md)**（**0.5.x → 0.6.x**）；**`CHANGELOG` §0.6.0** 增加 **破坏性变更 / 新 CLI / 废弃说明**；**`README`** 版本要求；**`docs/schema/README.zh-CN.md`** 互链；**`test_migration_guide_present.py`** |
-| **S2-01**   | `memory health` 统一评分 | `cai-agent memory health --json`（`schema_version`=`1.0`）、`--fail-on-grade` exit 0/2；实现见 `memory.build_memory_health_payload` + `tests/test_memory_health_cli.py` |
-| **S2-02**   | freshness 指标 | `compute_memory_freshness_metrics` 与 `memory health` 共用；`memory nudge-report --json` 输出 `freshness` / `freshness_days` / `since_freshness` / `fresh_entries`；CLI `--freshness-days` |
-| **S2-05**   | nudge-report health_score | `nudge-report --json` 升级为 `schema_version`=`1.2`，含 `health_score` 与 `health_grade`（与当前工作区 `memory health` 一致） |
-| **S2-03**   | conflict_rate 指标 | `memory health --json`：`conflict_pair_count`、`conflict_compared_entries`、`conflict_max_compare_entries`、`conflict_similarity_metric`；`--max-conflict-compare-entries` 可调采样规模 |
-| **S2-04**   | coverage 指标 | `coverage` 分母为 `--days` 窗口内 **可评估会话**（goal≥8 且解析成功）；`counts.sessions_considered_for_coverage` 与跳过计数可观测 |
-| **S3-01**   | recall `--sort` 策略 | `recall` / `recall-index search|benchmark`：`--sort recent|density|combined`；`ranking` 随策略变化；JSON `schema_version` 演进见 S3-02 |
-| **S3-02**   | recall 无命中解释 | 0 命中时 JSON `no_hit_reason`：`window_too_narrow` / `pattern_no_match` / `index_empty` / `all_skipped`；`schema_version=1.3`；文本模式打印可读提示 |
-| **S3-03**   | `recall-index doctor` | `recall-index doctor [--fix] [--json]`：`schema_version=recall_index_doctor_v1`，`is_healthy` / `issues` / `stale_paths` / `missing_files` / `schema_version_ok`；`--fix` 剔除缺失与相对索引窗口过旧条目；健康 exit 0、有问题 exit 2 |
-| **S3-04**   | recall 性能基准 | `scripts/perf_recall_bench.py`：生成会话并测 scan / index_build / index_search（可选 `--include-refresh`）；Markdown 默认落 `docs/qa/runs/`；`tests/test_perf_recall_bench.py` 冒烟 |
-| **S4-01**   | 调度失败跨轮次重试与指数退避 | `.cai-schedule.json`：`max_retries`（默认 3）/`retry_count`/`next_retry_at`；失败写入 `last_status=retrying`，超限 `failed_exhausted`；退避 `schedule_retry_backoff_seconds` = `60*2^(retry_count-1)` 秒；`compute_due_tasks` 对 `retrying` 仅当 `now>=next_retry_at`（或缺失时间戳）时到期；成功清零 `retry_count`；CLI `schedule add --max-retries`；`run-due --execute` / `daemon --execute` 的 JSON 与审计行携带持久化 `status`/`retry_count`/`next_retry_at`；`tests/test_schedule_retry_backoff.py`、`test_schedule_run_due_retry_json.py` |
-| **S4-02**   | `schedule daemon` 并发上限 | `schedule daemon --max-concurrent <N>`（默认 1，`0` 视为 1）；每轮仅执行前 N 个 `due` 任务，其余本跳过、下轮再判；`.cai-schedule-audit.jsonl` 与可选 `--jsonl-log` 写入 **`skipped_due_to_concurrency`**；JSON 汇总含 `max_concurrent`、`total_skipped_due_to_concurrency`、每轮 `skipped_due_to_concurrency`；`tests/test_schedule_daemon_cli.py` |
-| **S4-03**   | 任务依赖链与环检测 | `add_schedule_task` 写入前检测 `depends_on` 有向环（含自环），拒绝并 `ValueError`；`schedule add` 失败 **exit 2**，`--json` 输出 `schedule_add_invalid`；`schedule list` 文本列 **`deps` / `dep_blocked` / `dependents` / `dep_chain`**；`--json` 每行增加 **`depends_on_status`**、**`dependency_blocked`**、**`dependents`**、**`depends_on_chain`**（不落盘）；`tests/test_schedule_depends_s4_03.py` |
-| **S4-04**   | 调度审计 JSONL 统一 schema | `.cai-schedule-audit.jsonl` 与 `daemon --jsonl-log` **同行结构**：`schema_version=1.0`、`event` ∈ `task.started` / `task.completed` / `task.failed` / `task.retrying` / `task.skipped` / `daemon.cycle` / `daemon.started`，以及 `task_id`、`goal_preview`、`elapsed_ms`、`error`、`status`、`action`、`details`；`run-due --execute` 增加 **task.started**；文档 **`docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`**；`tests/test_schedule_audit_schema_s4_04.py` |
-| **S4-05**   | `schedule stats` SLA 聚合 | **`cai-agent schedule stats [--days N] [--audit-file PATH] [--json]`**；`schema_version=schedule_stats_v1`；每任务 **`run_count`** / **`success_count`** / **`fail_count`** / **`success_rate`** / **`avg_elapsed_ms`** / **`p95_elapsed_ms`**；兼容无 `event` 的旧审计行；文档 **`docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`**；`tests/test_schedule_stats_cli.py` |
-| **S5-01**   | workflow `parallel_group` 字段 | 同名字符串步骤同批调度；`summary.parallel_groups_count` / `parallel_steps_count`；`tests/test_cli_workflow.py::test_workflow_parallel_group_emits_group_summary` |
-| **S5-02**   | fan-out/fan-in 结果聚合 | `subagent_io.merge`（`decision` / `confidence` / `conflicts` 等）、`merge_confidence`；与并行组摘要同源；`test_cli_workflow.py` |
-| **S5-03**   | fail-fast / continue-on-error | 根级 **`on_error`**（`fail_fast` 默认 / `continue-on-error` 别名 → `continue_on_error`）；`summary.on_error`、`steps_skipped`、`merge_steps_considered`；事件 **`workflow.step.skipped`**；`tests/test_cli_workflow.py` |
-| **S5-04**   | 预算与 token 门禁 | 根级 **`budget_max_tokens`**；批间 **`total_tokens`** 累计 ≥ 预算则 **`skipped`/`budget_exceeded`**；`summary` 与 **`workflow.finished`** 含 **`budget_used`** / **`budget_limit`** / **`budget_exceeded`**；`task.error` **`workflow_budget_exceeded`**；`tests/test_cli_workflow.py` |
-| **S6-01**   | **`gateway setup|start|status|stop` 生命周期** | **`cai_agent.gateway_lifecycle`**；**`telegram-config.json`**（**`gateway_telegram_config_v1`**）+ **PID**；**`start`** 拉起 **`serve-webhook`**；**`-w/--workspace`**；`tests/test_gateway_lifecycle_cli.py`；**`smoke_new_features`** **`gateway status --json`** |
-| **S6-02**   | Telegram **`serve-webhook` 执行与回发** | **`_execute_gateway_telegram_goal`**：绑定 **`session_file`** 与 **`run`/`continue`** 同源加载/写回；**`_telegram_send_text_chunked`**；slash **`/ping`** / **`/status`** / **`/help`** / **`/start`** / **`/new`** / **`/stop`**（默认 **`gateway stop`** 提示，可选 env 远程 **`stop_webhook`**）；**`test_gateway_telegram_execute_goal.py`**。**真机**媒体/附件等仍为 **GTW-TG** 扩展 |
-| **S6-03**   | Telegram **`allowed_chat_ids` 白名单** | 映射 JSON 根级 **`allowed_chat_ids`**；**`gateway telegram allow add|list|rm`**；**`resolve-update`** / **`serve-webhook`** 路径 **`not_allowed`**；**`list --json`** 含 **`allowed_chat_ids`** / **`allowlist_enabled`**；可选 **`serve-webhook --reply-on-deny`**；`tests/test_gateway_telegram_cli.py` |
-| **S6-04**   | **跨端会话连续性（CLI ↔ Telegram）** | **`gateway telegram continue-hint`**（**`gateway_telegram_continue_hint_v1`**）；slash **`/help`**/**`/new`** 引导；**`docs/qa/sprint6-gateway-telegram-testplan.md`** **GTW-CONT-001~003**；**`test_gateway_telegram_cli.py`** |
-| **S7-01**   | 统一指标模型 **`metrics_schema_v1`** | **`cai_agent.metrics`**、**`_maybe_metrics_cli`**、**`CAI_METRICS_JSONL`**：**`observe.summary`/`report`/`export`**；**`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**（**`0.6.11`**）；**`recall_index.build`/`refresh`/`search`**、**`schedule.list`**、**`schedule.add`**、**`gateway.telegram.list`**、**`run.invoke`/`continue.invoke`**（**`0.6.12`**）；**`command`/`agent`/`fix-build`·`invoke`**、**`memory.state`/`nudge`/`nudge_report`**、**`recall_index.benchmark`/`info`/`clear`/`doctor`**、**`schedule.rm`/`run_due`/`daemon`**、**`gateway.telegram`** **`bind`/`get`/`unbind`/`continue_hint`/`allow_*`**（**`0.6.13`**）；**`memory.extract`/`list`/…/`import_entries`**、**`quality_gate.run`**、**`security_scan.run`**、**`gateway.telegram.resolve_update`**、**`schedule.add_memory_nudge`**（**`0.6.14`**）；**`hooks.run_event`**、**`gateway.telegram.serve_webhook`**、**`mcp.check`**（**`0.6.15`**）；**`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`**（**`0.6.16`**）；**`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**（**`0.6.17`**）；**`docs/schema/METRICS_JSON.zh-CN.md`**；**`test_metrics_jsonl.py`**。长尾子命令仍为 **按需增量**，见 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) **S7-01 交付注** |
-| **S7-02**   | **`observe report` 运营摘要导出** | **`observe report`**（**`--days`**、**`--format`** `json`/`markdown`、**`-o`**）；**`observe_ops_report_v1`** 顶层 **`schema_version`=`1.0`**；**`cai_agent.observe_ops_report`** + **`build_observe_payload`** 时间窗；**`test_observe_ops_report_cli.py`**；**`smoke_new_features`** 抽样 |
-| **S7-03**   | **跨域关联洞察（按日趋势）** | **`insights --json --cross-domain`** → **`insights_cross_domain_v1`**（嵌 **`insights`=`1.1`**）；**`recall_hit_rate_trend`** / **`memory_health_trend`** / **`schedule_success_trend`**；**`cai_agent.insights_cross_domain`** + **`schedule.aggregate_schedule_audit_by_calendar_day_utc`**；**`memory.build_memory_health_payload`** 会话 **mtime** 窗；**`test_insights_cross_domain.py`**；**`smoke_new_features`** |
-| **S7-04**   | **`observe export` 按日导出** | **`observe export`**（**`--days`**、**`--format` csv|json|markdown**、**`-o`**）；**`observe_export_v1`** / **`rows`**；**`cai_agent.observe_export`**；**`test_observe_export_cli.py`**；**`smoke_new_features`**（**`observe-export.json`**） |
+## 已经转为后续主题的能力
 
+以下主题已不再通过“34 Story 状态表”维护，而转入产品主计划：
 
----
+- Gateway 从 MVP 向生产化推进
+- 动态运营 Web UI
+- Honcho 级用户模型与 recall 真实命中率
+- 成本看板、反馈闭环、发布闭环
+- 与最新 upstream Hermes 新增能力的同步
 
-## ⚠️ 部分完成（开发需补齐，QA 需扩充测试）
+## 保留原因
 
-*（当前 **0** 条 Story 置于此区。真机 **GTW-TG** 媒体/长链路仍以专项计划与手工为主。）*
+此文件保留路径，仅用于：
 
----
-
-## ❌ 未开发（按 Sprint 排序，开发认领后逐步交付）
-
-**Hermes 34 Story** 已全部 **✅**（见上表与 [`HERMES_PARITY_BACKLOG.zh-CN.md`](HERMES_PARITY_BACKLOG.zh-CN.md) 交付注）。下表为 **各 Sprint 收口说明** 与 **非 Story 增量**（如 **S7-01 AC2**、**S8-02 AC3** 真机项）；**产品大颗粒能力** 仍以 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) **§二 / §三之二 · 3.2** 为准。
-
-### Sprint 2：Memory Loop 2.0
-
-**本 Sprint（S2-01 ~ S2-05）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
-
----
-
-### Sprint 3：Recall Loop 2.0
-
-**本 Sprint（S3-01 ~ S3-04）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
-
----
-
-### Sprint 4：Scheduler 2.0
-
-**本 Sprint（S4-01 ~ S4-05）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
-
-
-**开发关键文件**：
-
-- `cai-agent/src/cai_agent/schedule.py`：`schema_version` 1.1；跨轮次重试；`depends_on` 环检测；`enrich_schedule_tasks_for_display`；**`compute_schedule_stats_from_audit`**
-- `__main__.py`：`schedule daemon --max-concurrent`；**`schedule stats`**  
-**QA 等待信号**：S4-01~S4-05：**SCH-RETRY**、**SCH-CONC**、**SCH-DEP**、**SCH-AUDIT**、**SCH-SLA**
-
----
-
-### Sprint 5：Subagents 并行编排
-
-**本 Sprint（S5-01 ~ S5-04）在当前主线能力上已收口**；后续若 backlog 增补新 Story，再从此表续写。
-
-**开发关键文件**：
-
-- `cai_agent/workflow.py`：`parallel_group`、**`on_error`**（S5-03）、**`budget_max_tokens`**（S5-04）、root **`quality_gate`**（后置质量门禁）与 **`subagent_io`** 汇总  
-**QA 等待信号**：编排、预算与 workflow 后置 **`quality-gate`** 自动化见 `docs/qa/sprint5-subagents-testplan.md`。
-
----
-
-### Sprint 6：Messaging Gateway（Telegram MVP）
-
-**Sprint 6 所列 Hermes Story（S6-01～S6-04）已在主线以 CLI MVP 收口**；真机 **GTW-TG** 仍以 Bot Token 手工为主。
-
-**注意**：**S6-01 / S6-02 / S6-03 / S6-04** 已合 **`0.6.1`–`0.6.5`**；手工测仍建议配置 **`allowed_chat_ids`** 与测试 Bot。  
-**开发关键文件**：
-
-- `cai-agent/src/cai_agent/gateway_lifecycle.py`（**S6-01**）
-- `__main__.py`：`gateway` 顶级命令组、**`serve-webhook`** 与 Telegram HTTP 辅助  
-**QA 等待信号**：**GTW-BASE** 随 **S6-01** 自动化；**GTW-TG** 真机与媒体用例仍待测试 Bot Token
-
----
-
-### Sprint 7：Observability Pro
-
-**S7-01～S7-04** 已在主线交付（**`0.6.6`–`0.6.8`**，见上表 **✅**）。**S7-01 AC2** 已覆盖冒烟常见 CLI（**`0.6.16`–`0.6.18`** 见 backlog **S7-01 交付注**）；长尾子命令仍为 **按需增量**。
-
-**开发关键文件**：**`cai_agent.metrics`**、**`observe_ops_report`**、**`observe_export`**、**`insights_cross_domain`**、**`schedule`**（按日聚合）、**`__main__.py`**。
-
-**QA 等待信号**：**OBS-METRICS**（**`observe`/`memory`/`recall`/`schedule`/`gateway`/`recall-index`/`run` 族** 等已多点 **`CAI_METRICS_JSONL`**；**`quality-gate`/`security-scan`/`gateway telegram resolve-update`** 等仍扩展）、**OBS-RPT**、**OBS-CROSS**、**OBS-EXP**（**`test_observe_export_cli`** + **`smoke_new_features`** 已抽样 **export**）。
-
----
-
-### Sprint 8：GA 收敛
-
-**S8-01～S8-04** 均已主线交付（**`0.6.6`–`0.6.10`** 分段，见上表 **✅**）。**S8-02 AC3**（gateway **500** 条连续消息）与 **Sprint 8 §3** 其余 **PERF-GA-004/005** 等仍建议按 [`sprint8-ga-testplan.md`](qa/sprint8-ga-testplan.md) **手工 / 真机** 排期。
-
----
-
-## 给开发的认领顺序建议
-
-**推荐执行顺序（最小依赖链）**：
-
-```
-Sprint 2 全部 → Sprint 3 全部 → Sprint 4（P1 先）
-     ↓                              ↓
-Sprint 5 P1       →         Sprint 7 P1
-     ↓
-Sprint 6（安全优先）
-     ↓
-Sprint 8（GA）
-```
-
-**可并行开发的组合**（互不依赖）：
-
-- S2（memory）可与 S3（recall）并行
-- S4（scheduler）可与 S7（observability）并行
-- S5（subagents）独立，可单独认领
-- S6（gateway）独立，可单独认领（**S6-03** 安全先行；**S6-01** 生命周期已合 **`0.6.3`**）
-
----
-
-## 给 QA 的等待状态
-
-**当前可以开始测试的**：
-
-- ✅ 所有已完成项的回归测试（`python3 -m pytest -q cai-agent/tests/`）
-- ⚠️ 准备好 Sprint 2~8 各阶段手工测试环境与测试数据模板
-
-**等待开发信号后开测**：
-
-
-| Sprint | 开发完成信号                     | QA 开始动作                                           |
-| ------ | -------------------------- | ------------------------------------------------- |
-| S2     | Sprint 2 Memory（health / nudge-report 1.2）待合并 PR | 运行 `python3 -m pytest -q cai-agent/tests/test_memory_*.py` + 手工 [sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) |
-| S3     | Sprint 3 Recall 已收口 | `python3 -m pytest -q tests/test_recall*.py tests/test_perf_recall_bench.py` + [sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) PERF-RCL 手工 |
-| S4     | S4-01~S4-05 已合并主线（PR #18~#22） | `test_schedule*.py` + SCH-RETRY + SCH-CONC + SCH-DEP + SCH-AUDIT + SCH-SLA；故障注入 SCH-FI-001~003 |
-| S5     | S5-01/S5-02 合并             | 运行 `test_workflow*.py` + 并行编排端到端                  |
-| S6     | S6-01～S6-04 合并 | 自动化 **GTW-BASE** + **GTW-SEC** + **`test_gateway_telegram_execute_goal`** + **`test_gateway_telegram_cli`（continue-hint）**；**GTW-TG** 真机待 Bot Token |
-| S7     | **S7-01～S7-04 已合 `0.6.6`–`0.6.8`** | **OBS-EXP/RPT/CROSS** 见 [sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md)；**S7-01 AC2** OBS-METRICS 扩展 |
-| S8     | **S8-01～S8-04** 已合 **`0.6.6`–`0.6.10`** | [sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) **PERF-GA / SEC-GA**；**`perf_ga_gate` / `security_ga_gate`** |
-
-
----
-
-## 文档索引
-
-| 文件 | 用途 |
-|------|------|
-| [HERMES_PARITY_BACKLOG.zh-CN.md](HERMES_PARITY_BACKLOG.zh-CN.md) | 完整 34 条 Story（AC/优先级/依赖/估算），供开发认领 |
-| [HERMES_PARITY_SPRINT_PLAN.zh-CN.md](HERMES_PARITY_SPRINT_PLAN.zh-CN.md) | 8 Sprint 路线图与 DoD |
-| [qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md](qa/HERMES_PARITY_MASTER_TESTPLAN.zh-CN.md) | QA 总策略与回归套件 |
-| [qa/sprint2-memory-health-testplan.md](qa/sprint2-memory-health-testplan.md) | S2 专项测试 |
-| [qa/sprint3-recall-v2-testplan.md](qa/sprint3-recall-v2-testplan.md) | S3 专项测试 |
-| [qa/sprint4-scheduler-v2-testplan.md](qa/sprint4-scheduler-v2-testplan.md) | S4 专项测试 |
-| [schema/SCHEDULE_AUDIT_JSONL.zh-CN.md](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) | S4-04 调度审计 JSONL 字段与 `event` 枚举 |
-| [schema/SCHEDULE_STATS_JSON.zh-CN.md](schema/SCHEDULE_STATS_JSON.zh-CN.md) | S4-05 `schedule stats --json` 输出说明 |
-| [qa/sprint5-subagents-testplan.md](qa/sprint5-subagents-testplan.md) | S5 专项测试 |
-| [qa/sprint6-gateway-telegram-testplan.md](qa/sprint6-gateway-telegram-testplan.md) | S6 专项测试（含安全） |
-| [qa/sprint7-observability-pro-testplan.md](qa/sprint7-observability-pro-testplan.md) | S7 专项测试 |
-| [qa/sprint8-ga-testplan.md](qa/sprint8-ga-testplan.md) | S8 发布门禁 |
-| [MIGRATION_GUIDE.md](MIGRATION_GUIDE.md) | **S8-04**：0.5.x → 0.6.x 升级与破坏性变更摘要 |
-| [`scripts/perf_ga_gate.py`](../scripts/perf_ga_gate.py) / [`scripts/security_ga_gate.py`](../scripts/security_ga_gate.py) | **S8-02 / S8-03**：GA 压测与安全门禁（仓库根执行） |
-
----
-
-## 工程注记（合并记录）
-
-- **2026-04-22 · Sprint 4 Scheduler（S4-01，已合并 PR #18）**：跨轮次失败重试与指数退避（`retrying` / `failed_exhausted`、`schedule add --max-retries`）。
-- **2026-04-22 · Sprint 4 Scheduler（S4-02，已合并 PR #19）**：`schedule daemon --max-concurrent`、审计与 JSONL **`skipped_due_to_concurrency`**、汇总计数。
-- **2026-04-22 · Sprint 4 Scheduler（S4-03，已合并 PR #20）**：`depends_on` 环检测；`schedule list` 依赖链/阻塞/反向依赖展示；`schedule add` 环时 exit 2 + JSON `schedule_add_invalid`。
-- **2026-04-22 · Sprint 4 Scheduler（S4-04，已合并 PR #21）**：审计与 `--jsonl-log` 统一 `schema_version`/`event`/`goal_preview`/`elapsed_ms`；`task.started`；文档 `docs/schema/SCHEDULE_AUDIT_JSONL.zh-CN.md`。
-- **2026-04-22 · Sprint 4 Scheduler（S4-05，已合并 PR #22）**：`schedule stats --json` + `compute_schedule_stats_from_audit`；文档 `docs/schema/SCHEDULE_STATS_JSON.zh-CN.md`。
-- **2026-04-22 · Sprint 5 Hooks**：`enabled_hook_ids` 与 `run_project_hooks` 分类一致；Windows 上 hook `command` argv 路径片段 `Path` 规范化。详见 `HERMES_PARITY_SPRINT_PLAN.zh-CN.md` Sprint 5 完成记录与 [PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) L2。
-- **2026-04-23 · Sprint 6 Gateway（`0.6.3`）**：**`gateway setup|start|status|stop`**（**`gateway_lifecycle.py`**）；**`serve-webhook`** 长文本分块与 slash 快捷回复（**S6-02** 部分）。
-- **2026-04-23 · Sprint 6 Gateway（`0.6.4`）**：**`_execute_gateway_telegram_goal`** 会话写回；**`/stop`** 与 env 门控；**`test_gateway_telegram_execute_goal.py`**。
-- **2026-04-23 · Sprint 6 Gateway（`0.6.5`）**：**`gateway telegram continue-hint`**（**S6-04**）；**`sprint6-gateway-telegram-testplan.md`** **GTW-CONT**。
-- **2026-04-23 · Sprint 7 Observability（`0.6.6`）**：**`metrics_schema_v1`** + **`CAI_METRICS_JSONL`**（**`observe.summary`/`observe.report`**）；**`observe report`**（**`observe_ops_report_v1`**）；**`test_observe_ops_report_cli`/`test_metrics_jsonl`** + **`smoke_new_features`** 抽样。
-- **2026-04-23 · Sprint 7 Observability（`0.6.7`）**：**`insights --json --cross-domain`**（**`insights_cross_domain_v1`**）；**`aggregate_schedule_audit_by_calendar_day_utc`**；**`test_insights_cross_domain`**。
-- **2026-04-23 · Sprint 7 Observability（`0.6.8`）**：**`observe export`**（**`observe_export_v1`**）；**`observe_export.py`**；**`test_observe_export_cli`**。
-- **2026-04-23 · Sprint 8 GA 文档（`0.6.9`）**：**`docs/MIGRATION_GUIDE.md`**；**`CHANGELOG` §0.6.0** 小节；**`test_migration_guide_present`**。
-- **2026-04-23 · Sprint 8 GA 压测/安全（`0.6.10`）**：**`scripts/perf_ga_gate.py`**、**`scripts/security_ga_gate.py`**；**`test_perf_ga_s8_02`**、**`test_sec_ga_s8_03`**。
-- **2026-04-23 · Sprint 7 Observability（`0.6.11`）**：**S7-01 AC2** 扩展 **`CAI_METRICS_JSONL`**（**`memory.health`**、**`recall.query`**、**`schedule.stats`**、**`gateway.status`**）；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.12`）**：**S7-01 AC2** 再扩 **`recall_index.build`/`refresh`/`search`**、**`schedule.list`**、**`schedule.add`**、**`gateway.telegram.list`**、**`run.invoke`/`continue.invoke`**；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.13`）**：**S7-01 AC2** 再扩 **`command`/`agent`/`fix-build`·`invoke`**、**`memory.state`/`nudge`/`nudge_report`**、**`recall_index.benchmark`/`info`/`clear`/`doctor`**、**`schedule.rm`/`run_due`/`daemon`**、**`gateway.telegram`** **`bind`/`get`/`unbind`/`continue_hint`/`allow_*`**；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.14`）**：**S7-01 AC2** 再扩 **`memory`/`quality_gate`/`security_scan`/`gateway.telegram.resolve_update`/`schedule.add_memory_nudge`** 等；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.15`）**：**S7-01 AC2** 再扩 **`hooks.run_event`/`gateway.telegram.serve_webhook`/`mcp.check`**；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.16`）**：**S7-01 AC2** 再扩 **`sessions`/`stats`/`insights`/`plugins`/`skills`·`hub`/`commands`/`agents`/`doctor`/`plan`/`cost`/`export`/`observe-report`/`ops`/`board`/`hooks list`** 等；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · Sprint 7 Observability（`0.6.17`）**：**S7-01 AC2** 再扩 **`init.apply`/`models.*`/`workflow.run`/`release_ga.gate`/`ui.tui`**；**`test_metrics_jsonl`** 增补。
-- **2026-04-23 · 多平台网关 / 技能自进化 / 用户建模占位（`0.6.18`）**：**`gateway platforms_v1`** 运行时信号；**`skills hub suggest`**（**`skills_evolution_suggest_v1`**）；**`memory user-model`**（**`memory_user_model_v1`**）；**`test_gateway_user_model_skills_evolution`**；**`smoke_new_features`** 增补。
+- 兼容历史链接
+- 解释“为什么仓库里会出现 Hermes 100% 与当前 Hermes 仍有差距”这两个口径

@@ -1,6 +1,6 @@
 # WebSearch / Notebook 能力定案（P1）
 
-> 与 [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md) L1 工具深度、[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 中 WebSearch / Notebook 两行、以及 [OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md](OPTIMIZATION_ROADMAP_CLAUDE_ECC.zh-CN.md) 的 P1 条目对齐。
+> 与 [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md) 中 Claude Code 体验缺口、[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 中 WebSearch / Notebook 两行，以及 [ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) 的 `CC-01` 对齐。
 
 ## 结论（本仓库当前策略）
 
