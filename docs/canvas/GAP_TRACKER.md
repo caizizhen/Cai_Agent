@@ -27,14 +27,14 @@ Status vocabulary:
 | ID | Status | Suggested next issue | Pointer |
 |----|--------|----------------------|---------|
 | `DOC-01` | `Done` | Keep entry docs and canonical set stable | `ROADMAP_EXECUTION` §10 |
-| `REL-01` | `Ready` | `REL-01a` release-ga / doctor / changelog flow | `ROADMAP_EXECUTION` §10 |
-| `CC-01` | `Ready` | `CC-01a` MCP preset + WebSearch/Notebook entry unification | `ROADMAP_EXECUTION` §10 |
-| `CC-02` | `Ready` | `CC-02a` install/update/version experience | `ROADMAP_EXECUTION` §10 |
+| `REL-01` | `Ready` | `REL-01b` feedback / doctor / release summary unification | `ROADMAP_EXECUTION` §10 |
+| `CC-01` | `Ready` | `CC-01b` WebSearch/Notebook entry exposure in CLI/TUI | `ROADMAP_EXECUTION` §10 |
+| `CC-02` | `Ready` | `CC-02b` `/bug`-equivalent feedback entry | `ROADMAP_EXECUTION` §10 |
 | `CC-03` | `Ready` | `CC-03a` board / tasks / session-state UX unification | `ROADMAP_EXECUTION` §10 |
-| `HM-01` | `Design` | `HM-01a` profile schema and persistence model | `ROADMAP_EXECUTION` §10 |
+| `HM-01` | `Ready` | `HM-01b` profile management commands and fixtures | `ROADMAP_EXECUTION` §10 |
 | `HM-02` | `Design` | `HM-02a` minimal API/server contract | `ROADMAP_EXECUTION` §10 |
 | `HM-03` | `Ready` | `HM-03a` Discord production path | `ROADMAP_EXECUTION` §10 |
-| `HM-04` | `Ready` | `HM-04a` unify ops / gateway / observe payloads | `ROADMAP_EXECUTION` §10 |
+| `HM-04` | `Ready` | `HM-04b` dynamic read-only dashboard | `ROADMAP_EXECUTION` §10 |
 | `HM-05` | `Ready` | `HM-05a` user-model store/query/learn closure | `ROADMAP_EXECUTION` §10 |
 | `HM-06` | `Explore` | `HM-06a` backend productization evaluation | `ROADMAP_EXECUTION` §10 |
 | `HM-07` | `Explore` | `HM-07a` voice boundary evaluation | `ROADMAP_EXECUTION` §10 |

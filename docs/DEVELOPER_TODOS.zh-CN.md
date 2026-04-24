@@ -34,7 +34,7 @@
 | `Done` | Sprint A | `CC-02a` | 梳理安装、升级、版本差异提示与 onboarding | walkthrough 一遍 onboarding |
 | `Done` | Sprint B | `HM-01a` | 先定 profile schema、默认项、激活规则、迁移口径 | schema review + pytest |
 | `Ready` | Sprint B | `HM-03a` | 把 Discord 主路径、mapping、health、排障文档收口 | gateway smoke + `doctor` |
-| `Ready` | Sprint B | `HM-04a` | 把 `board` / `ops` / gateway 状态字段收成同源 JSON | JSON snapshot + 本地消费检查 |
+| `Done` | Sprint B | `HM-04a` | 把 `board` / `ops` / gateway 状态字段收成同源 JSON | JSON snapshot + 本地消费检查 |
 | `Ready` | Sprint C | `HM-05a` | 补齐 user-model store/query/learn 最小闭环 | pytest + smoke |
 | `Ready` | Sprint C | `ECC-01a` | 统一 rules/skills/hooks 目录、模板、导出说明 | sample asset + 文档走查 |
 | `Ready` | Sprint C | `ECC-02a` | 收口 routing/profile/budget 产品路径与解释性输出 | CLI smoke + JSON 检查 |
@@ -57,11 +57,11 @@
 | `2` | `CC-01a` | `Done` | `mcp-check --preset websearch/notebook`、模板、fallback、quickstart、onboarding 入口已收口 | `DEVELOPER_TODOS`、`WEBSEARCH_NOTEBOOK_MCP`、`ONBOARDING` |
 | `3` | `CC-02a` | `Done` | `init` / `doctor` / README / onboarding 的安装、升级、版本差异提示已串成可走通路径 | `DEVELOPER_TODOS`、README、`ONBOARDING`、schema 文档 |
 | `4` | `HM-01a` | `Done` | `profile_contract_v1` 已进入 `doctor` / `models list` / `/status`，显式/隐式来源与迁移口径固定 | `DEVELOPER_TODOS`、issue backlog、相关 schema 文档 |
-| `5` | `HM-03a` | `Next` | 收口 Discord 主路径、mapping、health、排障文档 | `DEVELOPER_TODOS`、gateway 文档、CHANGELOG |
+| `5` | `HM-03a` | `Ready` | 收口 Discord 主路径、mapping、health、排障文档 | `DEVELOPER_TODOS`、gateway 文档、CHANGELOG |
 | `6` | `HM-04a` | `Done` | `board` / `ops dashboard` / `gateway status` 已共享 `gateway_summary_v1`，状态口径与最小 snapshot 已同源 | `DEVELOPER_TODOS`、`OPS_DYNAMIC_WEB_API` |
-| `7` | `HM-05a` | `Next` | 补齐 user-model store/query/learn 闭环 | `DEVELOPER_TODOS`、memory 文档、CHANGELOG |
-| `8` | `ECC-01a` | `Next` | 统一 rules/skills/hooks 目录、模板、导出说明 | `DEVELOPER_TODOS`、生态专题文档 |
-| `9` | `ECC-02a` | `Next` | 收口 routing/profile/budget 的产品化入口与解释输出 | `DEVELOPER_TODOS`、`MODEL_ROUTING_RULES`、CHANGELOG |
+| `7` | `HM-05a` | `Ready` | 补齐 user-model store/query/learn 闭环 | `DEVELOPER_TODOS`、memory 文档、CHANGELOG |
+| `8` | `ECC-01a` | `Ready` | 统一 rules/skills/hooks 目录、模板、导出说明 | `DEVELOPER_TODOS`、生态专题文档 |
+| `9` | `ECC-02a` | `Ready` | 收口 routing/profile/budget 的产品化入口与解释输出 | `DEVELOPER_TODOS`、`MODEL_ROUTING_RULES`、CHANGELOG |
 
 当前默认做法：
 
@@ -78,6 +78,7 @@
 - `REL-01a`：`release-ga` 文本模式补上 writeback targets，终端里就能继续完成 changelog / parity / plan 回写。
 - `HM-01a`：TUI `/status` 现在也会显示 `profile_contract` 来源与迁移状态，CLI/TUI 口径对齐。
 - `HM-04a`：`board` / `ops dashboard` / `gateway status` 现在共享 `gateway_summary_v1`，把 `status / bindings_count / webhook_running / allowlist_enabled` 收成同一套读侧字段。
+- 文档同步：已将 `HM-04a` 在执行看板中的状态统一回写为 `Done`，并把下一批候选项统一标记为 `Ready`，避免 `Ready/Next` 混用造成误读。
 
 ---
 
