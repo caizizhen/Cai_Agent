@@ -27,6 +27,21 @@ git remote set-url origin git@github.com:caizizhen/Cai_Agent.git
 
 6. Verify: `ssh -T git@github.com` should greet your user; then **`git push origin main`**.
 
+## SourceTree / PuTTY: `FATAL ERROR: No supported authentication methods`
+
+If you see **`FATAL ERROR: No supported authentication methods available (server sent: publickey)`**, Git is often invoking **PuTTY `plink`**, which does **not** automatically use **`%USERPROFILE%\.ssh\id_ed25519`**.
+
+**Option A (recommended)**: In SourceTree, switch to **OpenSSH**: **Tools → Options → Git → SSH Client** → **OpenSSH** (not PuTTY / plink).
+
+**Option B**: Force system OpenSSH for this clone (this repo’s **`.git/config`** may already contain this pattern):
+
+```ini
+[core]
+	sshCommand = C:/Windows/System32/OpenSSH/ssh.exe -i ~/.ssh/id_ed25519 -F ~/.ssh/config -o IdentitiesOnly=yes
+```
+
+If **`C:\Windows\System32\OpenSSH\ssh.exe`** is missing, use Git’s **`C:/Program Files/Git/usr/bin/ssh.exe`** instead.
+
 ## Notes
 
 - Some Windows **`ssh-keyscan`** builds fail KEX negotiation with `ssh.github.com`; first **`ssh -T`** with **`StrictHostKeyChecking=accept-new`** can populate **`known_hosts`** instead.
