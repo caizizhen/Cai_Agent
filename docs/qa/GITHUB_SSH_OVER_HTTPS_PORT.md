@@ -31,7 +31,7 @@ git remote set-url origin git@github.com:caizizhen/Cai_Agent.git
 
 If you see **`FATAL ERROR: No supported authentication methods available (server sent: publickey)`**, Git is often invoking **PuTTY `plink`**, which does **not** automatically use **`%USERPROFILE%\.ssh\id_ed25519`**.
 
-**Option A (recommended)**: In SourceTree, switch to **OpenSSH**: **Tools → Options → Git → SSH Client** → **OpenSSH** (not PuTTY / plink).
+**Option A (recommended)**: In SourceTree, switch to **OpenSSH**: **Tools → Options → General**, find **SSH Client** / **SSH Client Configuration**, choose **OpenSSH** (not **PuTTY / Plink**). This control is **not** on the **Git** tab (that tab only shows embedded Git, ignore lists, etc.). Use **Tools → Options → Authentication** if you need to point SourceTree at a specific key for HTTPS accounts.
 
 **Option B**: Force system OpenSSH for this clone (this repo’s **`.git/config`** may already contain this pattern):
 

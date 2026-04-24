@@ -31,7 +31,7 @@ git remote set-url origin git@github.com:caizizhen/Cai_Agent.git
 
 若日志里是 **`FATAL ERROR: No supported authentication methods available (server sent: publickey)`**，多半是 **Git 调用了 PuTTY 的 `plink`**，不会自动用 **`%USERPROFILE%\.ssh\id_ed25519`**。
 
-**做法 A（推荐）**：在 SourceTree 里改为 **OpenSSH**：**工具 → 选项 → Git → SSH 客户端** 选 **OpenSSH**（不要选 PuTTY / 系统默认指向 plink）。
+**做法 A（推荐）**：在 SourceTree 里改为 **OpenSSH**：**工具 → 选项 → 一般（General）**，找到 **SSH 客户端 / SSH Client**（或 **SSH Client Configuration**），选 **OpenSSH**（不要选 **PuTTY / Plink**）。该选项**不在「Git」选项卡**里；你截图里的 **Git** 页只有嵌入式 Git、忽略列表等，没有 SSH 客户端切换。
 
 **做法 B**：在本仓库强制走系统 OpenSSH（本仓库 **`.git/config`** 已示例，可按需复制到其它 clone）：
 
