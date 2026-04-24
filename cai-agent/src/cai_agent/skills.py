@@ -501,11 +501,13 @@ def fetch_remote_skills_manifest(url: str, *, timeout_sec: float = 30.0) -> dict
     import json as _json
 
     import httpx
+    from cai_agent.http_trust import effective_http_trust_env
 
     u = str(url or "").strip()
     if not u:
         raise ValueError("url_empty")
-    with httpx.Client(timeout=timeout_sec, follow_redirects=True) as client:
+    trust_env = effective_http_trust_env(trust_env=True, request_url=u)
+    with httpx.Client(timeout=timeout_sec, follow_redirects=True, trust_env=trust_env) as client:
         resp = client.get(u)
     resp.raise_for_status()
     doc = resp.json()
@@ -687,7 +689,7 @@ def serve_skills_hub(
     """启动 Skills Hub HTTP 服务（§25 补齐：Hub 运行时分发）。
 
     提供两个端点：
-    - ``GET /manifest`` → skills_hub_manifest_v1 JSON
+    - ``GET /manifest`` → skills_hub_manifest_v2 JSON
     - ``GET /skill/<name>`` → 技能文件内容
 
     Args:
@@ -732,4 +734,3 @@ def serve_skills_hub(
         "workspace": str(base),
         "ok": True,
     }
-

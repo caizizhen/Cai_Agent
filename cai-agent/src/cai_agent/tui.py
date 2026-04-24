@@ -1313,9 +1313,10 @@ class CaiAgentApp(App[None]):
             import os
 
             p = (os.environ.get("CAI_PERSONALITY") or "").strip()
+            default_personality_hint = '(未设置 CAI_PERSONALITY；export CAI_PERSONALITY="…" 后 /reload)'
             self.query_one("#chat", RichLog).write(
                 f"\n[bold]/personality[/]\n"
-                f"{p or '(未设置 CAI_PERSONALITY；export CAI_PERSONALITY=\"…\" 后 /reload)'}\n",
+                f"{p or default_personality_hint}\n",
             )
             return
 

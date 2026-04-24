@@ -3882,7 +3882,7 @@ def main(argv: list[str] | None = None) -> int:
         "--json",
         action="store_true",
         dest="json_output",
-        help="输出 skills_hub_manifest_v1 JSON",
+        help="输出 skills_hub_manifest_v2 JSON",
     )
     skills_hub_suggest_p = skills_hub_sub.add_parser(
         "suggest",
@@ -3973,14 +3973,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     skills_hub_install_p = skills_hub_sub.add_parser(
         "install",
-        help="按 skills_hub_manifest_v1/v2 将条目复制到 .cursor/skills（可选 --only 过滤 name）",
+        help="按 skills_hub_manifest_v2 将条目复制到 .cursor/skills（可选 --only 过滤 name）",
     )
     skills_hub_install_p.add_argument(
         "--manifest",
         required=False,
         default=None,
         metavar="PATH",
-        help="skills_hub_manifest_v1 JSON 文件路径（与 --from 二选一）",
+        help="skills_hub_manifest_v2 JSON 文件路径（与 --from 二选一）",
     )
     skills_hub_install_p.add_argument(
         "--from",

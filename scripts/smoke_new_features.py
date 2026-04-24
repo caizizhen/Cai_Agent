@@ -690,7 +690,7 @@ def main() -> int:
             errs.append(f"skills hub manifest exit {sk.returncode} stderr={sk.stderr!r}")
         else:
             so = json.loads((sk.stdout or "").strip())
-            if so.get("schema_version") != "skills_hub_manifest_v1":
+            if so.get("schema_version") != "skills_hub_manifest_v2":
                 errs.append(f"skills manifest schema {so.get('schema_version')!r}")
         sks = _run(
             [*cli, "skills", "hub", "suggest", "smoke evolution stub", "--json"],
