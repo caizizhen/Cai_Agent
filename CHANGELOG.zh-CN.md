@@ -6,6 +6,7 @@
 
 ### Unreleased
 
+- **文档 backlog 清理（Done 项迁移出 TODO）**：从 **`docs/DEVELOPER_TODOS.zh-CN.md`** 移除已完成的 `MODEL-P0` / `HM-N02` 能力级与原子级条目，使 TODO 仅保留未完成事项；在 **`docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`** 增补迁移说明与索引；并同步更新“推荐开发顺序”，避免继续引用已完成任务。
 - **MODEL-P0 HTTP 机读 schema（OpenAI 与 capabilities）**：为 **`api serve`** 增加 **`api_models_capabilities_v1`**、**`api_openai_models_v1`**、**`api_openai_chat_completion_v1`**、**`api_openai_chat_completion_chunk_v1`** 独立 JSON Schema，与 `GET /v1/models/capabilities`、`GET /v1/models`、`POST /v1/chat/completions`（非流式与 SSE chunk）响应对齐；**`test_api_http_server.py`** 已固定 const。索引见 `docs/schema/README.md` / `README.zh-CN.md`。
 - **MODEL-P0 doctor 模型块 schema**：新增 **`doctor_model_gateway_v1.schema.json`**，与 **`doctor --json`** 中 **`model_gateway`** 嵌套对象一致（capabilities 列表、健康状态枚举、runbook 路径、推荐命令链等）；**`test_doctor_cli.py`** 已固定 const 与必填字段。索引见 `docs/schema/README.md` / `README.zh-CN.md`。
 - **MODEL-P0 路由子契约 schema 独立化**：在 `cai-agent/src/cai_agent/schemas/` 新增 **`model_fallback_candidates_v1.schema.json`** 与 **`routing_explain_v1.schema.json`**，与 `models routing-test --json` 中嵌套对象一一对应，便于单文件校验与文档引用；`test_model_routing.py` 已固定两文件的 `schema_version` 与关键字段。索引见 `docs/schema/README.md` / `README.zh-CN.md`。

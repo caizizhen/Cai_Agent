@@ -4,6 +4,7 @@
 
 ### Unreleased
 
+- **Docs backlog cleanup (Done items moved out of TODO)**: Removed completed MODEL-P0 / HM-N02 entries from **`docs/DEVELOPER_TODOS.zh-CN.md`** so it now tracks unfinished backlog only, and added migration notes in **`docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`**. Also refreshed recommended execution order to exclude completed work.
 - **MODEL-P0 HTTP API schema (OpenAI + capabilities)**: Added **`api_models_capabilities_v1`**, **`api_openai_models_v1`**, **`api_openai_chat_completion_v1`**, and **`api_openai_chat_completion_chunk_v1`** JSON Schemas for `api serve` model routes; tests in **`test_api_http_server.py`**. Indexed in **`docs/schema/README.md`** / **`README.zh-CN.md`**.
 - **MODEL-P0 doctor model-gateway schema**: Added **`doctor_model_gateway_v1.schema.json`** for the nested **`doctor_v1.model_gateway`** object (aligned with `doctor --json`); tests in **`test_doctor_cli.py`**. Indexed in **`docs/schema/README.md`** / **`README.zh-CN.md`**.
 - **MODEL-P0 routing subcontracts as standalone schemas**: Added **`model_fallback_candidates_v1.schema.json`** and **`routing_explain_v1.schema.json`** under **`cai-agent/src/cai_agent/schemas/`**, matching the nested objects in **`models routing-test --json`** for single-file validation and documentation. **`test_model_routing.py`** asserts the `schema_version` consts and key fields. Indexed in **`docs/schema/README.md`** / **`README.zh-CN.md`**.

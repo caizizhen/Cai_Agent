@@ -30,19 +30,11 @@
 
 ## 3. 模型接入最高优先级（MODEL-P0）
 
-从 2026-04-25 起，模型接入优化提升为最高优先级。原因很直接：后续 `Profiles`、OpenAI-compatible API Server、routing/fallback、cost、TUI 模型面板、gateway proxy 都会依赖统一模型层；如果继续在各功能里分散处理 provider 差异，后面会反复返工。
+`MODEL-P0` 已全部完成并归档，不再作为当前 TODO 的在做项。
 
-**MODEL-P0 已收口**：`model_gateway.py` 作为统一契约层，已接入 capabilities、health、chat smoke、routing explain / fallback、`model_response_v1`、OpenAI-compatible API、TUI 与文档；机读 schema 见 `cai-agent/src/cai_agent/schemas/` 下 `model_capabilities_*`、`model_response_v1`、`model_onboarding_flow_v1`、`provider_registry_v1`、`models_routing_test_v1`、`model_fallback_candidates_v1`、`routing_explain_v1`、`doctor_model_gateway_v1`、`api_models_capabilities_v1`、`api_openai_models_v1`、`api_openai_chat_completion_v1` / `api_openai_chat_completion_chunk_v1` 等。
-
-| ID | 状态 | 优先级 | 功能 | 当前差距 | 主要代码入口 | 本轮目标 | 本轮不做 | 完成标准 |
-|---|---|---|---|---|---|---|---|---|
-| `MODEL-P0-01` | `Done` | `P0` | Model Gateway / adapter contract | 已有稳定旁路契约，旧 adapter 行为保持不回退 | `model_gateway.py`、`llm_factory.py`、`llm.py`、`llm_anthropic.py` | 稳定 `ModelAdapter`、`ModelResponse`、capabilities、health status，逐步让上层只依赖 gateway contract | 不重写现有 LLM HTTP 实现 | 新旧路径并存，现有 agent 行为不回退 |
-| `MODEL-P0-02` | `Done` | `P0` | 模型能力元数据 | capabilities 已覆盖 context、max output、streaming、tool、vision、json、reasoning、local/private、cost hint，并由 CLI/API/doctor 复用 | `model_gateway.py`、`provider_registry.py`、`profiles.py` | 覆盖 context、max output、streaming、tool、vision、json、reasoning、local/private、cost hint | 不承诺实时维护所有 provider 的最新价格 | CLI/API/TUI 能读同一份非敏感能力视图 |
-| `MODEL-P0-03` | `Done` | `P0` | 健康检查升级 | `models ping --chat-smoke`、状态分类和 `doctor_model_gateway_v1` 已接入 | `models.py`、`model_gateway.py`、`doctor.py`、`__main__.py` | 区分 env/auth/rate/model/context/network/chat smoke 等失败，并能输出修复建议 | 默认不消耗 token；chat smoke 必须显式启用 | 用户能判断“key 错、模型不存在、base_url 错、上下文过长、被限流” |
-| `MODEL-P0-04` | `Done` | `P0` | 统一 chat/stream response | API server 非流式与 SSE chat 已消费 `model_response_v1`；`llm_factory` 暴露 response wrapper | `model_gateway.py`、`llm_factory.py`、`api_http_server.py` | 让 API server、routing explain、metrics、TUI 逐步消费 `ModelResponse` | 本轮不强行改 graph 核心循环返回类型 | 内容、usage、latency、provider/model/profile 口径统一 |
-| `MODEL-P0-05` | `Done` | `P0` | routing / fallback / cost explain | `routing-test` 已输出 explain、base/effective capabilities、cost 字段与 explain-only fallback candidates | `model_routing.py`、`model_gateway.py`、`__main__.py` | 增加按能力/预算/本地优先的 explain，并设计失败 fallback contract | 不做黑盒自动切模型 | 开发和用户都能看懂“为什么选这个模型，失败后该换谁” |
-| `MODEL-P0-06` | `Done` | `P0` | 模型接入 UX | `models onboarding` 已输出 add -> capabilities -> ping -> chat-smoke -> use -> routing-test 命令链 | `__main__.py`、`tui_model_panel.py`、`provider_registry.py` | 收口 add -> capabilities -> ping -> chat-smoke -> use -> routing-test 一条链 | 不做 GUI 安装器 | 新模型接入可以按一组命令自助完成 |
-| `MODEL-P0-07` | `Done` | `P0` | OpenAI-compatible API Server 建在 Model Gateway 上 | 已通过 `HM-02d-openai` 收口 `/v1/models`、非流式与 SSE `/v1/chat/completions`，并复用 `model_response_v1` | `api_http_server.py`、`model_gateway.py`、`llm_factory.py` | `/v1/models`、`/v1/chat/completions` 直接复用 capabilities / response / auth 口径 | 不在模型层做公网多租户 | API server 不再重复实现 provider 分支 |
+- 交付摘要与验证证据：[`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)（`MODEL-P0a` / `MODEL-P0b` / `MODEL-P0c`）。
+- 里程碑状态源：[`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §10（`MODEL-P0` 系列均为 `Done`）。
+- 当前文档仅保留未完成事项，避免 Done 项反复堆积。
 
 ## 4. Claude Code 线未完成项
 
@@ -61,7 +53,6 @@
 | ID | 状态 | 优先级 | 功能 | 当前差距 | 主要代码入口 | 本轮目标 | 本轮不做 | 完成标准 |
 |---|---|---|---|---|---|---|---|---|
 | `HM-N01` | `Ready` | `P0` | Profiles 独立家目录 + alias command | 当前 `models/profile` 能切模型，但不是完整独立 agent home | `profiles.py`、`__main__.py`、`doctor.py`、`api_http_server.py`、`gateway_maps.py` | 支持 profile home、clone/clone-all、active profile 绑定 session/memory/gateway，生成 alias command | 不做多机 profile 同步 | 不同 profile 间的状态、会话、gateway map 真正隔离 |
-| `HM-N02` | `Done` | `P0` | OpenAI-compatible API server | 已完成 `HM-02d-openai`：`api serve` 提供 `/v1/models`、非流式 `/v1/chat/completions` 与 `stream=true` SSE，且沿用 Bearer auth | `api_http_server.py`、`__main__.py`、`models.py`、`profiles.py` | 新增 `/v1/models`、`/v1/chat/completions`、最小 streaming 与 token auth | 不做公网多租户托管；不一次性铺满全部 OpenAI API | 外部 OpenAI-compatible client 可直接接入本地 CAI Agent |
 | `HM-N03` | `Design` | `P1` | API server 扩路由 / OpenAPI / auth 收口 | 就算有 `HM-N02`，也还缺更完整的文档、路由族和与 `ops serve` 的统一边界 | `api_http_server.py`、`ops_http_server.py`、`doctor.py` | 扩更多只读/状态路由、OpenAPI 草案、统一 auth 配置 | 不一次性铺满所有 OpenAI API | API 面从“能接”升级到“可管理、可文档化、可演进” |
 | `HM-N04` | `Design` | `P1` | Dashboard 安全可写化 | 当前 dashboard 以只读和 dry-run 预览为主，还不是 Hermes 那种可管理界面 | `ops_dashboard.py`、`ops_http_server.py`、`gateway_maps.py`、`doctor.py` | 增加 preview/apply/audit 三段式，先做 2 到 3 个真实写动作 | 不做公网管理台，不做多租户 RBAC | 本机 dashboard 能安全完成有限写操作，并保留审计记录 |
 | `HM-N05` | `Design` | `P1` | Gateway 第一批平台扩展 | 当前 Telegram full；Discord/Slack/Teams 仍偏 MVP；与 Hermes 的平台宽度差距仍大 | 新增 `gateway_signal.py`、`gateway_email.py`、`gateway_matrix.py`；修改 `gateway_platforms.py`、`gateway_production.py`、`__main__.py` | 第一批优先做 `Signal` / `Email` / `Matrix` | 不一次性铺满全部 15+ 平台 | 至少 2 个新平台进入可用路径，并出现在 `gateway prod-status` |
@@ -88,22 +79,9 @@
 
 ### 7.1 模型接入原子任务
 
-| 子任务 ID | 对应能力 | 交付物 | 主要入口 | 验收点 |
-|---|---|---|---|---|
-| `MODEL-P0-D01` | Gateway contract | `ModelAdapter` / `ModelCapabilities` / `ModelResponse` 稳定契约（已完成；`model_response_v1` 有机读 schema） | `model_gateway.py` | 不影响旧 `llm.py` / `llm_anthropic.py` 行为 |
-| `MODEL-P0-D02` | Gateway contract | `llm_factory` 暴露 `chat_completion_response*` 包装函数（已完成） | `llm_factory.py` | 上层可获取 content + usage + latency + provider/profile |
-| `MODEL-P0-D03` | Capabilities | `models capabilities [id] --json` CLI（已完成；`model_capabilities_v1` / `model_capabilities_list_v1` 有机读 schema） | `__main__.py`、`model_gateway.py` | 不暴露 `api_key` / `base_url`，字段稳定 |
-| `MODEL-P0-D04` | Capabilities | `/v1/models/capabilities` 只读 API（已完成；机读 **`api_models_capabilities_v1.schema.json`**） | `api_http_server.py` | 遵守现有 bearer 鉴权 |
-| `MODEL-P0-D05` | Health | `models ping --chat-smoke` 显式真实 chat smoke（已完成） | `__main__.py`、`model_gateway.py` | 默认不消耗 token，显式开启后失败会 exit 2 |
-| `MODEL-P0-D06` | Health | `/models` ping 状态细化：`RATE_LIMIT`、`UNSUPPORTED` 等（已完成） | `models.py` | 常见失败不再都落到 `NET_FAIL` |
-| `MODEL-P0-D07` | Routing explain | `routing-test` 输出 base/effective capabilities（已完成） | `__main__.py`、`model_routing.py` | 选型原因包含能力信息 |
-| `MODEL-P0-D08` | Provider registry | provider preset 的 capabilities hint 持续补齐（已完成：`provider_registry_v1` / readiness 内嵌非敏感 `capabilities_hint`，并有机读 schema） | `provider_registry.py`、`profiles.py` | 新 provider 不需要改多处逻辑 |
-| `MODEL-P0-D09` | Doctor | doctor 汇总 capabilities、ping、chat-smoke 建议（已完成：`doctor_model_gateway_v1`，机读见 **`doctor_model_gateway_v1.schema.json`**） | `doctor.py`、`models.py` | 用户能按建议修复模型接入 |
-| `MODEL-P0-D10` | TUI | 模型面板显示能力、健康、成本、本地/远端提示（已完成：行内复用 `infer_model_capabilities`，`t` ping 后刷新 `health=`） | `tui_model_panel.py` | TUI 和 CLI 口径一致 |
-| `MODEL-P0-D11` | Fallback | 失败 fallback contract：触发条件、候选模型、是否自动切换（已完成：`model_fallback_candidates_v1`，机读见 **`model_fallback_candidates_v1.schema.json`**，与 `routing_explain_v1` 配套） | `model_routing.py`、`model_gateway.py` | 默认 explain，不静默切换 |
-| `MODEL-P0-D12` | API Server | `/v1/models` 与非流式/SSE `/v1/chat/completions` 复用 gateway payload（已完成；机读 **`api_openai_*_v1.schema.json`**） | `api_http_server.py` | 不重复写 provider 分支 |
-| `MODEL-P0-D13` | Metrics | `POST /v1/chat/completions` 记录 provider/model/profile/latency/usage 到统一 metrics（已完成） | `metrics.py`、`api_http_server.py`、`llm_factory.py` | 成本和路由报告可复用 |
-| `MODEL-P0-D14` | Docs | 模型接入 runbook：OpenAI、Anthropic、OpenRouter、本地模型、OpenAI-compatible（已完成；已挂入 docs / onboarding 入口，且 `model_onboarding_flow_v1` 有机读 schema） | `docs/MODEL_ONBOARDING_RUNBOOK.zh-CN.md` | 新用户能按 runbook 接入 |
+`MODEL-P0-D01`～`MODEL-P0-D14` 已全部完成并归档，不再保留在当前 TODO。
+
+- 归档位置：[`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)（`MODEL-P0a/b/c` 及 2026-04-25 迁移说明）。
 
 ### 7.2 Claude Code 线原子任务
 
@@ -141,11 +119,6 @@
 | `HM-N01-D03` | Profiles | active profile 解析链路，覆盖 CLI、TUI、API、gateway | `profiles.py`、`api_http_server.py`、`gateway_maps.py` | 所有入口读取同一个 active profile |
 | `HM-N01-D04` | Profiles | alias command 生成，例如按 profile 输出可复制的启动命令 | `__main__.py`、`profiles.py` | 用户能用 alias 固定进入某个 profile |
 | `HM-N01-D05` | Profiles | profile doctor / migration，识别旧模型 profile 与新 profile home 的关系 | `doctor.py`、`profiles.py` | 老配置可迁移，不丢状态 |
-| `HM-N02-D01` | OpenAI-compatible API | `/v1/models` 返回 OpenAI 风格模型列表（已完成） | `api_http_server.py`、`models.py` | OpenAI-compatible client 能读取模型 |
-| `HM-N02-D02` | OpenAI-compatible API | `/v1/chat/completions` 非流式最小实现（已完成） | `api_http_server.py`、`models.py` | 请求/响应字段兼容主流客户端 |
-| `HM-N02-D03` | OpenAI-compatible API | streaming SSE 最小实现（已完成：单响应分帧 + `[DONE]`） | `api_http_server.py` | 客户端能逐块读取内容并正确结束 |
-| `HM-N02-D04` | OpenAI-compatible API | token auth、localhost 默认安全策略、错误码（已完成，沿用 `CAI_API_TOKEN`） | `api_http_server.py`、`doctor.py` | 未授权请求被拒绝，错误结构稳定 |
-| `HM-N02-D05` | OpenAI-compatible API | profile-aware request，支持按 profile 选择模型/状态（已完成：`model` 可传 profile id 或模型名） | `api_http_server.py`、`profiles.py` | 不同 profile 请求不串上下文 |
 | `HM-N03-D01` | API 扩展 | `/health`、`/v1/status`、`/v1/profiles` 等状态路由 | `api_http_server.py` | ops 和外部工具能读状态 |
 | `HM-N03-D02` | API 扩展 | OpenAPI schema 草案或 machine-readable route manifest | `api_http_server.py`、`docs/` | 路由可文档化、可快照测试 |
 | `HM-N03-D03` | API 扩展 | API 与 `ops serve` auth 配置收口 | `api_http_server.py`、`ops_http_server.py` | 两个 server 的安全边界一致 |
@@ -209,33 +182,25 @@
 
 如果目标是“尽量贴近三上游”，建议按下面顺序推进：
 
-1. `MODEL-P0-01`
-2. `MODEL-P0-02`
-3. `MODEL-P0-03`
-4. `MODEL-P0-04`
-5. `MODEL-P0-05`
-6. `MODEL-P0-06`
-7. `MODEL-P0-07`
-8. `HM-N01`
-9. `HM-N02`
-10. `CC-N01`
-11. `CC-N02`
-12. `HM-N04`
-13. `HM-N05`
-14. `HM-N07`
-15. `CC-N03`
-16. `ECC-N01`
-17. `ECC-N03`
-18. `HM-N09`
-19. `HM-N10`
-20. `CC-N04`
-21. `ECC-N02`
-22. `HM-N08`
+1. `HM-N01`
+2. `CC-N01`
+3. `CC-N02`
+4. `HM-N03`
+5. `HM-N04`
+6. `HM-N05`
+7. `HM-N07`
+8. `CC-N03`
+9. `ECC-N01`
+10. `ECC-N03`
+11. `HM-N09`
+12. `HM-N10`
+13. `CC-N04`
+14. `ECC-N02`
+15. `HM-N08`
 
 解释：
 
-- **MODEL-P0 先补模型地基**：provider contract、capabilities、health、response、routing explain。
-- **P0 再补外部入口**：安装、自修复、profiles、API server。
+- **P0 先补外部入口**：安装、自修复、profiles、API 扩展能力。
 - **P1 再补产品外壳**：dashboard 可写、gateway 扩展、plugin/home sync。
 - **P2 补差异化能力**：voice、external memory provider、tool gateway 等。
 
@@ -243,27 +208,20 @@
 
 第一批建议优先开这些原子任务，它们能最快把“别人怎么安装、怎么接入、怎么隔离状态”补齐：
 
-1. `MODEL-P0-D01`
-2. `MODEL-P0-D02`
-3. `MODEL-P0-D03`
-4. `MODEL-P0-D04`
-5. `MODEL-P0-D05`
-6. `MODEL-P0-D06`
-7. `MODEL-P0-D07`
-8. `CC-N01-D01`
-9. `CC-N01-D02`
-10. `CC-N01-D03`
-11. `CC-N02-D01`
-12. `CC-N02-D03`
-13. `HM-N01-D01`
-14. `HM-N01-D03`
-15. `HM-N02-D01`
-16. `HM-N02-D02`
-17. `HM-N02-D04`
-18. `HM-N04-D01`
-19. `HM-N05-D01`
-20. `ECC-N03-D01`
-21. `ECC-N03-D02`
+1. `CC-N01-D01`
+2. `CC-N01-D02`
+3. `CC-N01-D03`
+4. `CC-N02-D01`
+5. `CC-N02-D03`
+6. `HM-N01-D01`
+7. `HM-N01-D03`
+8. `HM-N03-D01`
+9. `HM-N03-D02`
+10. `HM-N03-D03`
+11. `HM-N04-D01`
+12. `HM-N05-D01`
+13. `ECC-N03-D01`
+14. `ECC-N03-D02`
 
 ## 9. OOS / 条件立项边界
 

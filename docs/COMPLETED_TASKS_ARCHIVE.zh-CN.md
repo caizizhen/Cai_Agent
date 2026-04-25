@@ -4,6 +4,16 @@
 >
 > 当前状态源仍以 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §10 为准；本页只做完成项回溯与交付摘要。
 
+## 2026-04-25 从 TODO 迁移的 Done 项
+
+为保证 `DEVELOPER_TODOS` 只保留未完成事项，以下已完成条目已从 TODO 正文移除并在本页留档：
+
+- `MODEL-P0-01`～`MODEL-P0-07`（能力级）；
+- `MODEL-P0-D01`～`MODEL-P0-D14`（原子级）；
+- `HM-N02`（能力级）与 `HM-N02-D01`～`HM-N02-D05`（原子级）。
+
+对应交付与验证证据见本页 `MODEL-P0a` / `MODEL-P0b` / `MODEL-P0c` / `HM-02d-openai` 等归档条目，以及 `ROADMAP_EXECUTION.zh-CN.md` §10。
+
 ## DOC / REL
 
 | Issue ID | 父 To-do | 交付摘要 | 验证 | 来源 / 备注 |
