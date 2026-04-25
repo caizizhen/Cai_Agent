@@ -15,11 +15,16 @@
    - `cai-agent doctor`：确认工作区、API Key（脱敏）、工具链可发现性。
    - 若已启用 MCP：`cai-agent mcp-check --json --preset websearch/notebook --list-only`，先确认工具列表是否具备目标能力，再做单工具探活。
 
-4. **第一次运行**  
+4. **接入或切换模型**
+   - 先按 [`MODEL_ONBOARDING_RUNBOOK.zh-CN.md`](MODEL_ONBOARDING_RUNBOOK.zh-CN.md) 选择 OpenAI、Anthropic、OpenRouter、本地 OpenAI-compatible 等路径。
+   - 推荐先生成命令链：`cai-agent models onboarding --id my-model --preset openai --model gpt-4o-mini --json`。
+   - 按顺序执行 add → capabilities → ping → chat-smoke → use → routing-test；`chat-smoke` 必须显式启用，`routing-test` 只解释 fallback candidates，不会静默切换模型。
+
+5. **第一次运行**  
    - `cai-agent run "你的目标"`，或使用 `cai-agent ui` 进入 TUI。  
    - 需要规划而不执行工具时：`cai-agent plan "目标" --json`。
 
-5. **深入清单**  
+6. **深入清单**  
    已完成能力以 [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) 为准；当前阶段开发顺序看 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md)；缺口与 OOS 看 [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)。
 
 ## 快速升级路径

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/model_fallback_candidates_v1.schema.json",
+  "title": "ModelFallbackCandidatesV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "mode",
+    "auto_switch",
+    "effective_profile_id",
+    "count",
+    "candidates"
+  ],
+  "properties": {
+    "schema_version": { "const": "model_fallback_candidates_v1" },
+    "mode": { "const": "explain_only" },
+    "auto_switch": { "const": false },
+    "effective_profile_id": { "type": "string" },
+    "count": { "type": "integer", "minimum": 0 },
+    "candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["profile_id", "provider", "model", "score", "reasons", "capabilities"],
+        "properties": {
+          "profile_id": { "type": "string" },
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "score": { "type": "integer" },
+          "reasons": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "capabilities": { "type": "object" }
+        }
+      }
+    }
+  }
+}

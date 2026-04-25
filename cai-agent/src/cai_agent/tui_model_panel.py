@@ -17,6 +17,7 @@ from textual.screen import ModalScreen
 from textual.widgets import Button, Checkbox, Footer, Input, Label, OptionList, Static
 from textual.widgets.option_list import Option
 
+from cai_agent.model_gateway import infer_model_capabilities
 from cai_agent.models import ping_profile
 from cai_agent.profiles import (
     Profile,
@@ -58,14 +59,31 @@ def _short_text(s: str, max_len: int) -> str:
     return t[: max(1, max_len - 1)] + "…"
 
 
-def _profile_row(p: Profile, *, active_id: str) -> str:
-    """``id | model | provider | base_url | notes | [active]``（与 backlog §3.1 对齐）。"""
+def _profile_row(
+    p: Profile,
+    *,
+    active_id: str,
+    health_status: str | None = None,
+    context_window_fallback: int | None = None,
+) -> str:
+    """Render one TUI row using the same non-secret capability view as CLI/API."""
+
     mark = "[active] " if p.id == active_id else ""
     notes = _short_text(p.notes or "", 28)
     base = _short_text(p.base_url or "", 40)
     tail_notes = f" | {notes}" if notes else ""
+    caps = infer_model_capabilities(
+        p,
+        context_window_fallback=context_window_fallback,
+    )
+    ctx = caps.context_window if caps.context_window is not None else "?"
+    health = (health_status or "未测").strip() or "未测"
+    locality = "local" if caps.local_private == "yes" else ("remote" if caps.local_private == "no" else "unknown")
     return (
-        f"{mark}{p.id} | {p.model} | {p.provider} | {base}{tail_notes}"
+        f"{mark}{p.id} | {p.model} | {p.provider} | health={health} "
+        f"| ctx={ctx} stream={caps.streaming} tools={caps.tool_calling} "
+        f"json={caps.json_mode} local={caps.local_private} scope={locality} "
+        f"cost={caps.cost_hint} | {base}{tail_notes}"
     )
 
 
@@ -232,6 +250,21 @@ class ModelPanelScreen(ModalScreen[str | None]):
         super().__init__()
         self._settings = settings
         self._reload_settings = reload_settings
+        self._health_status: dict[str, str] = {}
+
+    def _context_window_fallback(self) -> int | None:
+        return int(getattr(self._settings, "context_window", 0) or 0) or None
+
+    def _profile_option(self, p: Profile) -> Option:
+        return Option(
+            _profile_row(
+                p,
+                active_id=self._settings.active_profile_id,
+                health_status=self._health_status.get(p.id),
+                context_window_fallback=self._context_window_fallback(),
+            ),
+            id=p.id,
+        )
 
     def _header_text(self) -> str:
         s = self._settings
@@ -261,10 +294,7 @@ class ModelPanelScreen(ModalScreen[str | None]):
             id="model-panel-empty",
             markup=True,
         )
-        opts: list[Option] = [
-            Option(_profile_row(p, active_id=self._settings.active_profile_id), id=p.id)
-            for p in profs
-        ]
+        opts: list[Option] = [self._profile_option(p) for p in profs]
         yield OptionList(*opts, id="model-panel-list")
         yield Footer()
 
@@ -298,6 +328,8 @@ class ModelPanelScreen(ModalScreen[str | None]):
 
     def _refresh_after_disk_write(self) -> None:
         self._settings = self._reload_settings()
+        valid_ids = {p.id for p in self._settings.profiles}
+        self._health_status = {k: v for k, v in self._health_status.items() if k in valid_ids}
         try:
             self.query_one("#model-panel-header", Static).update(self._header_text())
         except Exception:
@@ -321,9 +353,7 @@ class ModelPanelScreen(ModalScreen[str | None]):
         ol.display = True
         ol.clear_options()
         for p in self._settings.profiles:
-            ol.add_option(
-                Option(_profile_row(p, active_id=self._settings.active_profile_id), id=p.id),
-            )
+            ol.add_option(self._profile_option(p))
         if ol.option_count == 0:
             ol.display = False
             return
@@ -352,6 +382,18 @@ class ModelPanelScreen(ModalScreen[str | None]):
             timeout_sec=min(15.0, float(self._settings.llm_timeout_sec)),
         )
         status = r.get("status")
+        self._health_status[prof.id] = str(status or "?")
+        try:
+            ol = self.query_one("#model-panel-list", OptionList)
+            highlighted = ol.highlighted
+            ol.clear_options()
+            for p in self._settings.profiles:
+                ol.add_option(self._profile_option(p))
+            if ol.option_count:
+                ol.highlighted = min(max(0, highlighted), ol.option_count - 1)
+                ol.focus()
+        except Exception:
+            pass
         msg = (r.get("message") or "").strip()
         http = r.get("http_status")
         extra = f" http={http}" if http is not None else ""

@@ -12,6 +12,14 @@ from unittest.mock import patch
 from cai_agent.__main__ import main
 from cai_agent.config import Settings
 
+_DOCTOR_MODEL_GATEWAY_SCHEMA = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "cai_agent"
+    / "schemas"
+    / "doctor_model_gateway_v1.schema.json"
+)
+
 _MIN_TOML = """[llm]
 provider = "openai_compatible"
 base_url = "http://127.0.0.1:9/v1"
@@ -34,6 +42,13 @@ api_key = ""
 
 
 class DoctorCliTests(unittest.TestCase):
+    def test_doctor_model_gateway_v1_schema_file(self) -> None:
+        sch = json.loads(_DOCTOR_MODEL_GATEWAY_SCHEMA.read_text(encoding="utf-8"))
+        self.assertEqual(sch["properties"]["schema_version"]["const"], "doctor_model_gateway_v1")
+        self.assertEqual(sch["properties"]["chat_smoke_default"]["const"], "explicit_only")
+        self.assertIn("capabilities", sch.get("required", []))
+        self.assertIn("recommended_flow", sch.get("required", []))
+
     def test_doctor_json_schema(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -60,6 +75,13 @@ class DoctorCliTests(unittest.TestCase):
             self.assertEqual(cm.get("detail_doc_en"), "docs/PLUGIN_COMPAT_MATRIX.md")
             self.assertIn("model_routing_rules_count", pl)
             self.assertIsInstance(pl.get("model_routing_rules_count"), int)
+            mg = pl.get("model_gateway")
+            self.assertIsInstance(mg, dict)
+            self.assertEqual(mg.get("schema_version"), "doctor_model_gateway_v1")
+            self.assertEqual(mg.get("onboarding_runbook"), "docs/MODEL_ONBOARDING_RUNBOOK.zh-CN.md")
+            self.assertIn("AUTH_FAIL", mg.get("known_health_statuses") or [])
+            caps = mg.get("capabilities") or {}
+            self.assertEqual(caps.get("schema_version"), "model_capabilities_list_v1")
             contract = pl.get("profile_contract")
             self.assertIsInstance(contract, dict)
             self.assertEqual(contract.get("schema_version"), "profile_contract_v1")

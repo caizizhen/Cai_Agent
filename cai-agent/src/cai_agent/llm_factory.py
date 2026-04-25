@@ -25,6 +25,11 @@ from typing import Any, Callable
 from cai_agent import llm as _openai_adapter
 from cai_agent import llm_anthropic as _anthropic_adapter
 from cai_agent.llm import get_last_usage, get_usage_counters
+from cai_agent.model_gateway import (
+    ModelResponse,
+    canonical_provider,
+    chat_response as gateway_chat_response,
+)
 from cai_agent.model_routing import (
     first_matching_profile_route,
     first_matching_routing_rule,
@@ -62,22 +67,7 @@ def resolve_provider(settings: Any) -> str:
         getattr(settings, "active_profile_provider", None)
         or getattr(settings, "provider", None)
     )
-    s = str(val or "").strip().lower()
-    if not s:
-        return "openai_compatible"
-    if s == "anthropic" or s == "claude" or s.startswith("claude-"):
-        return "anthropic"
-    if s in {
-        "openai",
-        "openai_compatible",
-        "azure_openai",
-        "copilot",
-        "ollama",
-        "lmstudio",
-        "vllm",
-    }:
-        return s
-    return "openai_compatible"
+    return canonical_provider(str(val or ""))
 
 
 def _adapter_for(provider_canonical: str) -> ChatFn:
@@ -89,6 +79,15 @@ def _adapter_for(provider_canonical: str) -> ChatFn:
 def chat_completion(settings: Any, messages: list[dict[str, Any]]) -> str:
     """按 ``resolve_provider(settings)`` 直接派发到底层适配器，不做 profile 投影。"""
     return _adapter_for(resolve_provider(settings))(settings, messages)
+
+
+def chat_completion_response(
+    settings: Any,
+    messages: list[dict[str, Any]],
+) -> ModelResponse:
+    """Return a normalized ``model_response_v1`` envelope for direct calls."""
+
+    return gateway_chat_response(settings, messages)
 
 
 # ---------------------------------------------------------------------------
@@ -285,11 +284,32 @@ def chat_completion_by_role(
     return _adapter_for(resolve_provider(projected))(projected, messages)
 
 
+def chat_completion_response_by_role(
+    settings: Any,
+    messages: list[dict[str, Any]],
+    *,
+    role: str = "active",
+    route_conversation_phase: str | None = None,
+) -> ModelResponse:
+    """Role-aware variant returning the normalized gateway response envelope."""
+
+    profile = resolve_effective_profile_for_llm(
+        settings,
+        role,
+        messages,
+        route_conversation_phase=route_conversation_phase,
+    )
+    projected = _project_settings_for_profile(settings, profile)
+    return gateway_chat_response(projected, messages)
+
+
 __all__ = [
     "ChatFn",
     "activate_profile_in_memory",
     "chat_completion",
     "chat_completion_by_role",
+    "chat_completion_response",
+    "chat_completion_response_by_role",
     "peek_last_profile_route_decision",
     "resolve_effective_profile_for_llm",
     "resolve_provider",

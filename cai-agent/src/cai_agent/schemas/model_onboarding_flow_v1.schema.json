@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/model_onboarding_flow_v1.schema.json",
+  "title": "ModelOnboardingFlowV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "profile_id",
+    "preset",
+    "set_active",
+    "capabilities_hint",
+    "commands",
+    "boundaries"
+  ],
+  "properties": {
+    "schema_version": { "const": "model_onboarding_flow_v1" },
+    "profile_id": { "type": "string", "minLength": 1 },
+    "preset": { "type": "string", "minLength": 1 },
+    "model": { "type": ["string", "null"] },
+    "set_active": { "type": "boolean" },
+    "capabilities_hint": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version", "profile_id", "provider", "model", "capabilities", "cost_hint"],
+      "properties": {
+        "schema_version": { "const": "model_capabilities_v1" },
+        "profile_id": { "type": "string" },
+        "provider": { "type": "string" },
+        "model": { "type": "string" },
+        "capabilities": { "type": "object" },
+        "cost_hint": { "type": "string" }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["step", "command", "why"],
+        "properties": {
+          "step": { "type": "string" },
+          "command": { "type": "string" },
+          "why": { "type": "string" }
+        }
+      }
+    },
+    "boundaries": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

@@ -2,14 +2,29 @@
 
 > English companion summary. Chinese canonical source: [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md).
 
-This file exists to keep the active documentation set bilingual without duplicating long planning tables. Use the Chinese source for full details and update both files when the document purpose, ownership, or current status changes.
+## Current judgment
 
-## Purpose
+As of 2026-04-25, two statements are both true:
 
-This document summarizes the role of [PRODUCT_GAP_ANALYSIS.zh-CN.md](PRODUCT_GAP_ANALYSIS.zh-CN.md) in the current CAI Agent documentation set. It should stay short and point readers to the canonical Chinese source when the source contains detailed matrices, historical notes, or acceptance criteria.
+- The previously tracked internal roadmap / backlog wave is effectively complete.
+- CAI Agent is still **not fully aligned** with the current public surfaces of `claude-code`, `hermes-agent`, and `everything-claude-code`.
+
+The current gap is no longer about core CLI viability. It is mostly about **product surfaces around the core agent**.
+
+## Main next-wave alignment areas
+
+The Chinese source now treats the remaining gap as a fuller grouped backlog instead of only a short future queue:
+
+- `MODEL-P0`: completed as the model integration foundation, covering a unified model gateway contract, model capability metadata, health/chat-smoke checks, normalized response envelopes, routing explainability, explain-only fallback candidates, and an onboarding command-chain runbook
+- `CC-N*`: unfinished Claude Code-facing surfaces such as install/repair, feedback flow, plugin/home sync, and richer session UX
+- `HM-N*`: unfinished Hermes-facing surfaces such as isolated profile homes, API server management/OpenAPI follow-up, writable dashboard, more gateway platforms, voice, external memory providers, and tool-gateway-like integrations; the minimal OpenAI-compatible `/v1/models` and `/v1/chat/completions` path plus the MODEL-P0 model foundation are now covered in the Chinese source
+- `ECC-N*`: unfinished ECC-facing surfaces such as local catalog/sync, asset pack lifecycle, cross-harness doctor/diff, and broader asset-registry ingestion
+- `*-Dxx`: atomic implementation tasks that developers and testers can use directly for issue breakdown and sprint planning
+
+Use the Chinese source for the full rationale, status, priorities, and boundaries.
 
 ## Maintenance
 
 - Keep this summary aligned with the Chinese source.
-- Do not add independent status tables here.
-- If the Chinese source is archived later, move this companion with it and update the docs map.
+- Use [DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md) and [TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md) for execution detail.
+- Do not add an independent long-form planning matrix here.

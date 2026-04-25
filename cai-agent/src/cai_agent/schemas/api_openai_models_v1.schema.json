@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/api_openai_models_v1.schema.json",
+  "title": "ApiOpenaiModelsV1",
+  "description": "GET /v1/models — OpenAI-compatible list with CAI profile hints.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "object", "data"],
+  "properties": {
+    "schema_version": { "const": "api_openai_models_v1" },
+    "object": { "const": "list" },
+    "data": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "object", "cai_profile_id"],
+        "properties": {
+          "id": { "type": "string" },
+          "object": { "const": "model" },
+          "created": { "type": "integer" },
+          "owned_by": { "type": "string" },
+          "cai_profile_id": { "type": "string" }
+        }
+      }
+    }
+  }
+}

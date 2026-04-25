@@ -8,6 +8,8 @@ This file exists to keep the active documentation set bilingual without duplicat
 
 This document summarizes the role of [ONBOARDING.zh-CN.md](ONBOARDING.zh-CN.md) in the current CAI Agent documentation set. It should stay short and point readers to the canonical Chinese source when the source contains detailed matrices, historical notes, or acceptance criteria.
 
+The current onboarding path includes model setup via the Chinese-only [MODEL_ONBOARDING_RUNBOOK.zh-CN.md](MODEL_ONBOARDING_RUNBOOK.zh-CN.md), including `models onboarding`, `models capabilities`, `models ping --chat-smoke`, `models use`, and `models routing-test`.
+
 ## Maintenance
 
 - Keep this summary aligned with the Chinese source.

@@ -52,6 +52,7 @@
 
 | ID | 优先级 | 来源 | 目标 | 本阶段交付 |
 |---|---|---|---|---|
+| `MODEL-P0` | `P0` | 共享 | 模型接入地基 | Model Gateway、capabilities、health/chat-smoke、response envelope、routing explain，作为后续 Profiles / API Server / TUI / cost 的共同依赖 |
 | `DOC-01` | `P0` | 共享 | 文档收敛 | 统一文档入口；删除重复 backlog / roadmap；中英文入口同步 |
 | `REL-01` | `P0` | 共享 | 发布与反馈闭环 | `release-ga`、`doctor`、`feedback`、CHANGELOG、Parity 回写形成固定流程 |
 | `CC-01` | `P1` | Claude Code | WebSearch / Notebook 产品化入口 | 保持 `MCP 优先`，补齐预设、自检、模板、文档与任务入口 |
@@ -74,7 +75,7 @@
 
 | 里程碑 | 时间窗口 | 目标 | 对应 To-dos |
 |---|---|---|---|
-| `M1` | `2026-04-27` ~ `2026-05-08` | 文档收敛与产品定位统一 | `DOC-01` |
+| `M1` | `2026-04-27` ~ `2026-05-08` | 模型接入地基与文档收敛 | `MODEL-P0` `DOC-01` |
 | `M2` | `2026-05-11` ~ `2026-05-29` | Claude Code 体验线第一阶段收口 | `CC-01` `CC-02` `CC-03` |
 | `M3` | `2026-06-01` ~ `2026-06-26` | Hermes 产品化第一阶段 | `HM-01` `HM-02` `HM-03` `HM-04` `HM-05` |
 | `M4` | `2026-06-29` ~ `2026-07-10` | ECC 治理与生态化第一阶段 | `ECC-01` `ECC-02` |
@@ -84,7 +85,14 @@
 
 ## 5. 每项 To-do 的完成标准
 
-### 5.1 `DOC-01` 文档收敛
+### 5.1 `MODEL-P0` 模型接入地基
+
+- 所有 provider/profile 先落到统一 `Model Gateway` 契约，再被 API Server、TUI、routing、cost 复用。
+- `models capabilities` 与 `/v1/models/capabilities` 只暴露非敏感能力元数据，不泄漏 `api_key`、`base_url`。
+- `models ping` 能区分 env/auth/rate/model/base_url/network 等常见问题；真实 chat smoke 必须显式开启。
+- routing explain 能输出 base/effective profile 的能力信息，后续 fallback 只先 explain，不静默切换模型。
+
+### 5.2 `DOC-01` 文档收敛
 
 - `README.md` / `README.zh-CN.md` / `docs/README.md` / `docs/README.zh-CN.md` 对产品目标表述一致。
 - `PRODUCT_PLAN` 只维护“已完成能力与状态”。
@@ -92,25 +100,25 @@
 - `PRODUCT_GAP_ANALYSIS` 只维护“还差什么、哪些 OOS、哪些用 MCP/文档定案”。
 - 删除至少一批重复历史文档，并清理掉所有悬空引用。
 
-### 5.2 `REL-01` 发布与反馈闭环
+### 5.3 `REL-01` 发布与反馈闭环
 
 - 每次发版前能固定输出：`doctor`、回归、smoke、CHANGELOG、Parity 勾选、反馈摘要。
 - 新增能力后不再允许只改代码不回写产品文档。
 - 反馈入口、导出结构、归档位置有统一说明。
 
-### 5.3 `CC-*` Claude Code 体验线
+### 5.4 `CC-*` Claude Code 体验线
 
 - 用户能够更低成本完成：安装、初始化、自检、开始、继续、反馈。
 - WebSearch / Notebook 保持 `MCP 优先`，但接入体验不再依赖分散文档。
 - TUI / CLI 的任务、模型、会话状态展示更一致。
 
-### 5.4 `HM-*` Hermes 产品化线
+### 5.5 `HM-*` Hermes 产品化线
 
 - profile、gateway、dashboard、memory provider、API/server 都必须有清晰的数据结构与测试入口。
 - Discord / Slack 不再仅是“能跑通”，而要有值班、映射、故障排查说明。
 - Dashboard 优先保证“同源数据 + 运维可读”，避免过早引入重交互和多套状态源。
 
-### 5.5 `ECC-*` 治理与生态线
+### 5.6 `ECC-*` 治理与生态线
 
 - rules / skills / hooks 不再只是散落能力，而是有明确资产目录、模板和安装说明。
 - 成本、模型路由、compact、profile 不再是分散开关，而是产品层可解释能力。
@@ -185,6 +193,9 @@
 
 | Issue | 状态 | 对应 To-do | 建议标题 | 主要输出 | 依赖 | 验证 |
 |---|---|---|---|---|---|---|
+| `MODEL-P0a` | `Done` | `MODEL-P0` | 统一模型接入契约与能力元数据 | `model_gateway.py`、`ModelAdapter` / `ModelCapabilities` / `ModelResponse`、`model_response_v1`、`model_capabilities_list_v1`、CLI/API capabilities；API server 已复用 `model_response_v1` 支撑 `/v1/models` 与非流式/SSE `/v1/chat/completions` | — | pytest `test_model_gateway` / `test_model_profiles_cli` / `test_api_http_server` |
+| `MODEL-P0b` | `Done` | `MODEL-P0` | 模型健康检查与 chat smoke 收口 | `models ping --chat-smoke`、细分健康状态、`doctor_model_gateway_v1` 建议、`MODEL_ONBOARDING_RUNBOOK` | `MODEL-P0a` | pytest `test_model_profiles_cli` / `test_doctor_cli` + smoke |
+| `MODEL-P0c` | `Done` | `MODEL-P0` | routing explain / fallback / cost 对齐 | `routing_explain_v1`、base/effective capabilities、`model_fallback_candidates_v1` explain-only fallback、`api.chat_completions` metrics | `MODEL-P0a` | pytest `test_model_routing` / `test_metrics_jsonl` + smoke |
 | `DOC-01a` | `Done` | `DOC-01` | 统一根 README 与 docs 入口 | 中英文入口统一、主文档收敛 | — | 手工检查 + 链接检查 |
 | `DOC-01b` | `Done` | `DOC-01` | 删除重复 roadmap / backlog 文档 | 删除历史重复页并清理引用 | `DOC-01a` | `rg` 无残链 |
 | `REL-01a` | `Done` | `REL-01` | 收口 release-ga / doctor / changelog 回写流程 | 一条固定发版 runbook，明确输入输出 | — | `doctor` + smoke + checklist |
@@ -215,6 +226,7 @@
 | `HM-06a` | `Done` | `HM-06` | Runtime backend 产品化评估 | 结论文档：**`docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md`** | — | 文档评审 |
 | `HM-07a` | `Done` | `HM-07` | Voice 能力边界评估 | 结论文档：**`docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md`**（默认 **OOS**，**MCP** 替代） | — | 文档评审 |
 | `HM-02c` | `Done` | `HM-02` | API 只读扩展（profile / plugins / release） | **`GET /v1/models/summary`**（`api_models_summary_v1`）、**`GET /v1/plugins/surface`**（`api_plugins_surface_v1`，**可选 `?compat=1`**）、**`GET /v1/release/runbook`**（`api_release_runbook_v1`） | `HM-02b` | pytest |
+| `HM-02d-openai` | `Done` | `HM-02` | OpenAI-compatible API Server 最小闭环 | **`GET /v1/models`**（`api_openai_models_v1`）；**`POST /v1/chat/completions`** 非流式与 **`stream=true` SSE**（`api_openai_chat_completion_v1` / `api_openai_chat_completion_chunk_v1`），复用 **`model_response_v1`**；`CAI_API_TOKEN` Bearer 与既有 API 同源；`CAI_METRICS_JSONL` 记录 **`api.chat_completions`** | `MODEL-P0a` `HM-02c` | pytest `test_api_http_server` + smoke |
 | `CC-03c` | `Done` | `CC-03` | 模型切换与状态文案最小对齐 | TUI **`#context-label`** 追加 **`· route=sub/pl`** 与迁移警示；**`/models`** 切换与 CLI **`models use`** 同时打印 **`profile_switched: <id>`** | `CC-03b` | pytest |
 | `ECC-03b` | `Done` | `ECC-03` | 插件治理最小可验证入口 | **`plugin_compat_matrix_v1.maintenance_checklist`** + **`plugins_compat_check_v1`**（**`plugins --compat-check`**） | `ECC-03a` | pytest |
 | `HM-03d-teams` | `Done` | `HM-03` | Teams Gateway 生产路径（下一批第一顺位） | **`gateway teams`**（`bind/get/list/unbind`、`allow`、`health`、`manifest`、`serve-webhook`）；**`gateway_teams_map_v1`** / **`gateway_teams_health_v1`** / **`gateway_teams_manifest_v1`**；`gateway platforms` 与 `gateway maps` 纳入 Teams | `HM-03b` `HM-03c` | pytest `test_gateway_discord_slack_cli` + `test_gateway_maps_summarize` |

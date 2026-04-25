@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/api_openai_chat_completion_v1.schema.json",
+  "title": "ApiOpenaiChatCompletionV1",
+  "description": "POST /v1/chat/completions (non-streaming) — OpenAI-shaped body plus cai_model_response (model_response_v1).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "id",
+    "object",
+    "created",
+    "model",
+    "choices",
+    "usage",
+    "cai_model_response"
+  ],
+  "properties": {
+    "schema_version": { "const": "api_openai_chat_completion_v1" },
+    "id": { "type": "string" },
+    "object": { "const": "chat.completion" },
+    "created": { "type": "integer" },
+    "model": { "type": "string" },
+    "choices": { "type": "array" },
+    "usage": { "type": "object" },
+    "cai_model_response": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": "model_response_v1" }
+      }
+    }
+  }
+}

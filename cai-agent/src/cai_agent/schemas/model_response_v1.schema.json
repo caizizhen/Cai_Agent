@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/model_response_v1.schema.json",
+  "title": "ModelResponseV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "provider",
+    "model",
+    "profile_id",
+    "content",
+    "usage",
+    "latency_ms",
+    "finish_reason",
+    "raw_provider"
+  ],
+  "properties": {
+    "schema_version": { "const": "model_response_v1" },
+    "provider": { "type": "string" },
+    "model": { "type": "string" },
+    "profile_id": { "type": ["string", "null"] },
+    "content": { "type": "string" },
+    "usage": {
+      "type": "object",
+      "additionalProperties": { "type": "integer" }
+    },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "finish_reason": { "type": ["string", "null"] },
+    "raw_provider": { "type": "string" }
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/provider_registry_v1.schema.json",
+  "title": "ProviderRegistryV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "count", "providers"],
+  "properties": {
+    "schema_version": { "const": "provider_registry_v1" },
+    "count": { "type": "integer", "minimum": 0 },
+    "providers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": [
+          "id",
+          "canonical",
+          "base_url",
+          "api_key_env",
+          "default_model",
+          "auth_style",
+          "notes",
+          "capabilities_hint"
+        ],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "canonical": { "type": "string", "minLength": 1 },
+          "base_url": { "type": "string", "minLength": 1 },
+          "api_key_env": { "type": "string", "minLength": 1 },
+          "default_model": { "type": "string" },
+          "auth_style": { "type": "string" },
+          "notes": { "type": "string" },
+          "capabilities_hint": {
+            "type": "object",
+            "additionalProperties": true,
+            "required": ["schema_version", "profile_id", "provider", "model", "capabilities", "cost_hint"],
+            "properties": {
+              "schema_version": { "const": "model_capabilities_v1" },
+              "profile_id": { "type": "string" },
+              "provider": { "type": "string" },
+              "model": { "type": "string" },
+              "capabilities": { "type": "object" },
+              "cost_hint": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

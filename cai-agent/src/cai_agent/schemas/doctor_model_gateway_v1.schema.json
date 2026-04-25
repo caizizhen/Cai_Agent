@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/doctor_model_gateway_v1.schema.json",
+  "title": "DoctorModelGatewayV1",
+  "description": "Nested object under doctor_v1.model_gateway: model integration summary and onboarding hints.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "capabilities",
+    "known_health_statuses",
+    "onboarding_runbook",
+    "recommended_flow",
+    "chat_smoke_default"
+  ],
+  "properties": {
+    "schema_version": { "const": "doctor_model_gateway_v1" },
+    "capabilities": {
+      "type": "object",
+      "description": "Same contract as model_capabilities_list_v1 (non-secret capability snapshots).",
+      "additionalProperties": true,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": "model_capabilities_list_v1" }
+      }
+    },
+    "known_health_statuses": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "onboarding_runbook": {
+      "type": "string",
+      "description": "Relative path to the onboarding runbook (repo docs)."
+    },
+    "recommended_flow": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Suggested CLI command chain for model setup."
+    },
+    "chat_smoke_default": { "const": "explicit_only" }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/model_capabilities_list_v1.schema.json",
+  "title": "ModelCapabilitiesListV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "active_profile_id", "count", "profiles"],
+  "properties": {
+    "schema_version": { "const": "model_capabilities_list_v1" },
+    "active_profile_id": { "type": ["string", "null"] },
+    "count": { "type": "integer", "minimum": 0 },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["schema_version", "profile_id", "provider", "model", "capabilities", "cost_hint"],
+        "properties": {
+          "schema_version": { "const": "model_capabilities_v1" },
+          "profile_id": { "type": ["string", "null"] },
+          "provider": { "type": "string" },
+          "model": { "type": "string" },
+          "context_window": { "type": "integer", "minimum": 1 },
+          "max_output_tokens": { "type": "integer", "minimum": 1 },
+          "capabilities": { "type": "object" },
+          "cost_hint": { "type": "string" }
+        }
+      }
+    }
+  }
+}

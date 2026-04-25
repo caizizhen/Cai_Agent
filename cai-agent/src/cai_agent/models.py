@@ -5,7 +5,7 @@
 - anthropic：GET `{base_url}/v1/models`，使用 `x-api-key` + `anthropic-version`
 
 返回结构化字典：`{profile_id, status, http_status, message}`，
-`status ∈ {OK, AUTH_FAIL, TIMEOUT, NET_FAIL, ENV_MISSING, UNSUPPORTED}`。
+`status ∈ {OK, AUTH_FAIL, TIMEOUT, RATE_LIMIT, NET_FAIL, ENV_MISSING, UNSUPPORTED}`。
 """
 from __future__ import annotations
 
@@ -117,7 +117,8 @@ def ping_profile(
     - `api_key_env` 已声明但环境未导出 → ``ENV_MISSING``（提示变量名，不泄漏值）；
     - 连接超时 / 读超时 → ``TIMEOUT``；
     - 其它网络错误 → ``NET_FAIL``；
-    - HTTP 401/403 → ``AUTH_FAIL``；HTTP < 400 → ``OK``；其余视为 ``NET_FAIL``。
+    - HTTP 401/403 → ``AUTH_FAIL``；429 → ``RATE_LIMIT``；404 → ``UNSUPPORTED``；
+      HTTP < 400 → ``OK``；其余视为 ``NET_FAIL``。
     """
     pid = profile.id
     if profile.api_key_env and profile.api_key_env_missing():
@@ -174,6 +175,16 @@ def ping_profile(
     if r.status_code in (401, 403):
         return _ping_result(
             pid, "AUTH_FAIL", "HTTP 鉴权失败（检查 api_key 或 api_key_env）",
+            http_status=r.status_code,
+        )
+    if r.status_code == 429:
+        return _ping_result(
+            pid, "RATE_LIMIT", "HTTP 429 rate limited",
+            http_status=r.status_code,
+        )
+    if r.status_code == 404:
+        return _ping_result(
+            pid, "UNSUPPORTED", "HTTP 404：provider 不支持 /models 或 base_url 不正确",
             http_status=r.status_code,
         )
     if r.status_code >= 400:

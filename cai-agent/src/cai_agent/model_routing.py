@@ -344,8 +344,90 @@ def build_routing_explain_v1(
     }
 
 
+def build_model_fallback_candidates_v1(
+    profiles: tuple[Any, ...],
+    *,
+    effective_profile_id: str,
+    cost_budget_remaining: int | None = None,
+    context_window_fallback: int | None = None,
+    limit: int = 5,
+) -> dict[str, Any]:
+    """Explain-only fallback candidates for model routing failures.
+
+    This contract is intentionally non-executing: callers can show what to try
+    next after auth/rate/model/context failures, but no profile is switched
+    silently.
+    """
+
+    from cai_agent.model_gateway import infer_model_capabilities
+
+    rows: list[dict[str, Any]] = []
+    for profile in profiles:
+        pid = str(getattr(profile, "id", "") or "")
+        if not pid or pid == effective_profile_id:
+            continue
+        caps = infer_model_capabilities(
+            profile,
+            context_window_fallback=context_window_fallback,
+        ).to_public_dict()
+        cap_map = caps.get("capabilities") if isinstance(caps.get("capabilities"), dict) else {}
+        reasons: list[str] = []
+        score = 0
+        if cap_map.get("local_private") == "yes":
+            reasons.append("local_private")
+            score += 30
+        if caps.get("cost_hint") == "local":
+            reasons.append("lower_cost")
+            score += 25
+        elif caps.get("cost_hint") == "provider_dependent":
+            reasons.append("cost_provider_dependent")
+            score += 5
+        if cap_map.get("tool_calling") == "yes":
+            reasons.append("tool_calling")
+            score += 10
+        if cap_map.get("json_mode") == "yes":
+            reasons.append("json_mode")
+            score += 8
+        if cap_map.get("vision") == "yes":
+            reasons.append("vision")
+            score += 5
+        ctx = caps.get("context_window")
+        if isinstance(ctx, int) and ctx >= 32_000:
+            reasons.append("large_context")
+            score += 10
+        if cost_budget_remaining is not None and cost_budget_remaining < 2_000:
+            if caps.get("cost_hint") == "local":
+                reasons.append("budget_pressure_prefer_local")
+                score += 20
+            elif caps.get("cost_hint") == "metered":
+                reasons.append("budget_pressure_metered")
+                score -= 5
+        if not reasons:
+            reasons.append("configured_profile")
+        rows.append(
+            {
+                "profile_id": pid,
+                "provider": caps.get("provider"),
+                "model": caps.get("model"),
+                "score": score,
+                "reasons": reasons,
+                "capabilities": caps,
+            },
+        )
+    rows.sort(key=lambda r: (-int(r.get("score") or 0), str(r.get("profile_id") or "")))
+    return {
+        "schema_version": "model_fallback_candidates_v1",
+        "mode": "explain_only",
+        "auto_switch": False,
+        "effective_profile_id": effective_profile_id,
+        "count": min(len(rows), max(0, int(limit))),
+        "candidates": rows[: max(0, int(limit))],
+    }
+
+
 __all__ = [
     "ModelRoutingRule",
+    "build_model_fallback_candidates_v1",
     "build_routing_explain_v1",
     "first_matching_routing_rule",
     "model_routing_enabled",

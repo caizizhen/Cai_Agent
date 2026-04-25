@@ -11,7 +11,8 @@ init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
-``runtime list --json``（含 docker/ssh 后端）、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在），
+``runtime list --json``（含 docker/ssh 后端）、``models onboarding --json`` / ``models routing-test --json`` fallback candidates、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在）与
+``api_http_server`` OpenAI-compatible payload builders（``/v1/models``、非流式与 SSE ``/v1/chat/completions``），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
@@ -1293,9 +1294,146 @@ def main() -> int:
         if not (Path(m2) / "bundle.json").is_file():
             errs.append("memory export-entries bundle.json missing")
 
+    with tempfile.TemporaryDirectory(prefix="cai-smoke-model-p0-") as mp0_td:
+        mp0_root = Path(mp0_td)
+        mp0_cfg = mp0_root / "cai-agent.toml"
+        mp0_cfg.write_text(
+            "\n".join(
+                [
+                    _MINIMAL_LLM_TOML.strip(),
+                    "",
+                    "[agent]",
+                    "mock = true",
+                    "",
+                    "[models]",
+                    'active = "fast"',
+                    "",
+                    "[[models.profile]]",
+                    'id = "fast"',
+                    'provider = "openai_compatible"',
+                    'base_url = "http://127.0.0.1:9/v1"',
+                    'model = "m-fast"',
+                    'api_key = "k"',
+                    "",
+                    "[[models.profile]]",
+                    'id = "local"',
+                    'provider = "openai_compatible"',
+                    'base_url = "http://127.0.0.1:1234/v1"',
+                    'model = "qwen3-coder"',
+                    'api_key = "local"',
+                    "",
+                ],
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        p_on = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(mp0_cfg),
+                "onboarding",
+                "--id",
+                "new-local",
+                "--preset",
+                "lmstudio",
+                "--model",
+                "qwen3-coder",
+                "--json",
+            ],
+            cwd=mp0_td,
+        )
+        if p_on.returncode != 0:
+            errs.append(f"models onboarding exit {p_on.returncode} stderr={p_on.stderr!r}")
+        else:
+            po = json.loads((p_on.stdout or "").strip())
+            if po.get("schema_version") != "model_onboarding_flow_v1":
+                errs.append(f"models onboarding schema {po.get('schema_version')!r}")
+            if not any((r.get("step") == "chat_smoke") for r in (po.get("commands") or []) if isinstance(r, dict)):
+                errs.append("models onboarding missing chat_smoke step")
+        p_rt = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(mp0_cfg),
+                "routing-test",
+                "--goal",
+                "smoke",
+                "--json",
+            ],
+            cwd=mp0_td,
+        )
+        if p_rt.returncode != 0:
+            errs.append(f"models routing-test exit {p_rt.returncode} stderr={p_rt.stderr!r}")
+        else:
+            ro = json.loads((p_rt.stdout or "").strip())
+            fb = ro.get("fallback_candidates") if isinstance(ro.get("fallback_candidates"), dict) else {}
+            if fb.get("schema_version") != "model_fallback_candidates_v1":
+                errs.append(f"models routing-test fallback schema {fb!r}")
+            if fb.get("auto_switch") is not False:
+                errs.append(f"models routing-test fallback auto_switch {fb.get('auto_switch')!r}")
+
     p_api = _run([*cli, "api", "serve", "--help"])
     if p_api.returncode != 0:
         errs.append(f"api serve --help exit {p_api.returncode} stderr={p_api.stderr!r}")
+
+    try:
+        from cai_agent.api_http_server import (
+            build_api_openai_chat_completion_v1,
+            build_api_openai_chat_completion_stream_events_v1,
+            build_api_openai_models_v1,
+        )
+        from cai_agent.config import Settings
+
+        with tempfile.TemporaryDirectory(prefix="cai-smoke-api-") as api_td:
+            api_root = Path(api_td)
+            cfg = api_root / "cai-agent.toml"
+            cfg.write_text(
+                _MINIMAL_LLM_TOML + "\n[agent]\nmock = true\n\n[models]\nactive = \"default\"\n",
+                encoding="utf-8",
+            )
+            prev_cfg = os.environ.get("CAI_CONFIG")
+            os.environ["CAI_CONFIG"] = str(cfg)
+            try:
+                settings_api = Settings.from_env(config_path=None, workspace_hint=str(api_root))
+                models_payload = build_api_openai_models_v1(settings_api)
+                if models_payload.get("schema_version") != "api_openai_models_v1":
+                    errs.append(f"api /v1/models schema {models_payload.get('schema_version')!r}")
+                if not isinstance(models_payload.get("data"), list) or not models_payload.get("data"):
+                    errs.append("api /v1/models data empty")
+                chat_payload = build_api_openai_chat_completion_v1(
+                    settings_api,
+                    {
+                        "model": "m",
+                        "messages": [{"role": "user", "content": "smoke"}],
+                    },
+                )
+                if chat_payload.get("schema_version") != "api_openai_chat_completion_v1":
+                    errs.append(f"api chat schema {chat_payload.get('schema_version')!r}")
+                cai_resp = chat_payload.get("cai_model_response")
+                if not isinstance(cai_resp, dict) or cai_resp.get("schema_version") != "model_response_v1":
+                    errs.append(f"api chat cai_model_response {cai_resp!r}")
+                stream_events = build_api_openai_chat_completion_stream_events_v1(
+                    settings_api,
+                    {
+                        "model": "m",
+                        "messages": [{"role": "user", "content": "smoke stream"}],
+                        "stream": True,
+                    },
+                )
+                if not stream_events or stream_events[0].get("schema_version") != "api_openai_chat_completion_chunk_v1":
+                    errs.append(f"api stream chunk schema {stream_events!r}")
+                if stream_events[-1].get("choices", [{}])[0].get("finish_reason") != "stop":
+                    errs.append(f"api stream final chunk {stream_events[-1]!r}")
+            finally:
+                if prev_cfg is None:
+                    os.environ.pop("CAI_CONFIG", None)
+                else:
+                    os.environ["CAI_CONFIG"] = prev_cfg
+    except Exception as e:
+        errs.append(f"api OpenAI-compatible builders smoke exception: {e!r}")
 
     if errs:
         print("NEW_FEATURE_CHECKS_FAILED:", file=sys.stderr)

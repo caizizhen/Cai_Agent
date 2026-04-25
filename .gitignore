@@ -16,6 +16,7 @@ dist/
 .coverage
 .coverage.*
 htmlcov/
+cai-agent/uv.lock
 
 # --- Editor / OS ---
 .vscode/
@@ -40,6 +41,8 @@ cai-agent/memory/instincts/instincts-*.md
 # QA 临时驱动 / 实验脚本
 .tmp_qa/
 .tmp_qg/
+.tmp-test/
+.tmp-test-*/
 
 # 临时 plan / regression 工件
 .regression-workflow.json

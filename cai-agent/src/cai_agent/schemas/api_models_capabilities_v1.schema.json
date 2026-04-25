@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/api_models_capabilities_v1.schema.json",
+  "title": "ApiModelsCapabilitiesV1",
+  "description": "GET /v1/models/capabilities — wraps model_capabilities_list_v1 with envelope metadata.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "generated_at", "model_capabilities"],
+  "properties": {
+    "schema_version": { "const": "api_models_capabilities_v1" },
+    "generated_at": { "type": "string" },
+    "model_capabilities": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": "model_capabilities_list_v1" }
+      }
+    }
+  }
+}

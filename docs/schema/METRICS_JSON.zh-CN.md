@@ -71,7 +71,8 @@
 - **`cai-agent board`**：**`board.summary`**（**`tokens`** ≈ 内嵌 **`observe.sessions_count`**）。
 - **`cai-agent hooks list`**：**`hooks.list`**（**`tokens`** = 目录 **`hooks`** 条数；**`hooks.json` 缺失/无效** 时 **`success=false`**）。
 - **`cai-agent init`**：**`init.apply`**（**`tokens`** = 成功 **`1`** / 失败 **`0`**；**`success`** 与 exit 一致）。
-- **`cai-agent models`**：**`models.list`** / **`models.fetch`** / **`models.ping`** / **`models.route`** / **`models.routing_test`**（**`routing-test`** 含文本/JSON） / **`models.add`** / **`models.use`** / **`models.rm`** / **`models.edit`**（未映射子命令为 **`models.cli`**；**`tokens`** 为 profile 数、**`fetch`+`--json`** 成功记 **`1`**、变更类成功记 **`1`** 等粗粒度提示）。
+- **`cai-agent models`**：**`models.list`** / **`models.fetch`** / **`models.ping`** / **`models.route`** / **`models.routing_test`**（**`routing-test`** 含文本/JSON） / **`models.onboarding`** / **`models.add`** / **`models.use`** / **`models.rm`** / **`models.edit`**（未映射子命令为 **`models.cli`**；**`tokens`** 为 profile 数、**`fetch`+`--json`** 成功记 **`1`**、变更类成功记 **`1`** 等粗粒度提示）。
+- **`cai-agent api serve`** 的 **`POST /v1/chat/completions`**：**`api.chat_completions`**（**`tokens`** = **`model_response_v1.usage.total_tokens`**；额外字段含 **`provider`**、**`model`**、**`profile_id`**、**`usage`**；异常 / bad request 时 **`success=false`**）。
 - **`cai-agent workflow`**：**`workflow.run`**（**`tokens`** = 汇总 **`budget_used`**；**`success`** = 任务 **`completed`** 且未因 **`--fail-on-step-errors`** 置 **`2`**；**`run_workflow` 抛错** 时 **`success=false`**、**`tokens=0`**）。
 - **`cai-agent release-ga`**：**`release_ga.gate`**（**`tokens`** = **`len(checks)`**；**`success`** = **`state`** 为 **`pass`**）。
 - **`cai-agent ui`**：**`ui.tui`**（**`tokens`**=`0`**；**`success`** = TUI 正常退出；配置缺失等 **`success=false`**）。

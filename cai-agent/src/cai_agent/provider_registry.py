@@ -100,6 +100,18 @@ PROVIDER_REGISTRY: Final[tuple[ProviderRegistryEntry, ...]] = tuple(
 )
 
 
+def _capabilities_hint_for_preset(preset_id: str) -> dict[str, Any]:
+    """Build a non-secret capability hint for a registry preset."""
+
+    from cai_agent.model_gateway import infer_model_capabilities
+    from cai_agent.profiles import build_profile
+
+    raw = dict(EXTRA_PRESETS[preset_id])
+    raw["id"] = preset_id
+    prof = build_profile(raw, hint=f"provider-registry:{preset_id}")
+    return infer_model_capabilities(prof).to_public_dict()
+
+
 def preset_ids() -> tuple[str, ...]:
     """All preset keys including core profiles (``profiles.PRESETS``)."""
     from cai_agent import profiles as _profiles
@@ -108,7 +120,13 @@ def preset_ids() -> tuple[str, ...]:
 
 
 def providers_json_payload() -> dict[str, Any]:
-    rows = [e.__dict__ for e in PROVIDER_REGISTRY]
+    rows = [
+        {
+            **e.__dict__,
+            "capabilities_hint": _capabilities_hint_for_preset(e.id),
+        }
+        for e in PROVIDER_REGISTRY
+    ]
     return {
         "schema_version": "provider_registry_v1",
         "count": len(rows),
@@ -130,6 +148,86 @@ def provider_readiness_snapshot() -> dict[str, Any]:
                 "api_key_env": env,
                 "env_present": present,
                 "base_url": e.base_url,
+                "capabilities_hint": _capabilities_hint_for_preset(e.id),
             },
         )
     return {"schema_version": "provider_readiness_v1", "entries": rows}
+
+
+def build_model_onboarding_flow_v1(
+    *,
+    profile_id: str,
+    preset: str,
+    model: str | None = None,
+    set_active: bool = True,
+) -> dict[str, Any]:
+    """Deterministic command chain for adding and validating a model profile."""
+
+    from cai_agent.model_gateway import infer_model_capabilities
+    from cai_agent.profiles import PRESETS, ProfilesError, apply_preset, build_profile
+
+    pid = str(profile_id or "").strip() or "new-profile"
+    preset_id = str(preset or "").strip() or "openai_compatible"
+    model_s = str(model or "").strip()
+    if preset_id not in PRESETS:
+        known = ", ".join(sorted(PRESETS.keys()))
+        raise ProfilesError(f"未知预设 '{preset_id}'（可用：{known}）")
+    raw = apply_preset({"id": pid, "model": model_s or None}, preset_id)
+    prof = build_profile(raw, hint=f"onboarding:{pid}")
+    capabilities_hint = infer_model_capabilities(prof).to_public_dict()
+    add_cmd = f"cai-agent models add --id {pid} --preset {preset_id}"
+    if model_s:
+        add_cmd += f" --model {model_s}"
+    if set_active:
+        add_cmd += " --set-active"
+    commands = [
+        {
+            "step": "inspect_providers",
+            "command": "cai-agent models list --providers --json",
+            "why": "查看内置 provider preset 与所需 API key 环境变量。",
+        },
+        {
+            "step": "add_profile",
+            "command": add_cmd,
+            "why": "新增 profile；只写非敏感配置，优先通过环境变量提供 key。",
+        },
+        {
+            "step": "capabilities",
+            "command": f"cai-agent models capabilities {pid} --json",
+            "why": "确认 context/tool/vision/json/reasoning/local/cost 等非敏感能力元数据。",
+        },
+        {
+            "step": "ping",
+            "command": f"cai-agent models ping {pid} --json",
+            "why": "先做不消耗 token 的 /models 或等价健康检查。",
+        },
+        {
+            "step": "chat_smoke",
+            "command": f"cai-agent models ping {pid} --chat-smoke --json",
+            "why": "显式启用最小真实 chat smoke；会消耗 token，失败返回稳定状态。",
+        },
+        {
+            "step": "use",
+            "command": f"cai-agent models use {pid}",
+            "why": "把验证过的 profile 设为 active。",
+        },
+        {
+            "step": "routing_test",
+            "command": f'cai-agent models routing-test --role active --goal "smoke test" --json',
+            "why": "查看 routing explain、capabilities 与 fallback candidates，不会静默切换模型。",
+        },
+    ]
+    return {
+        "schema_version": "model_onboarding_flow_v1",
+        "profile_id": pid,
+        "preset": preset_id,
+        "model": model_s or None,
+        "set_active": bool(set_active),
+        "capabilities_hint": capabilities_hint,
+        "commands": commands,
+        "boundaries": [
+            "不提交 API key；优先设置 preset 对应的环境变量。",
+            "chat smoke 必须显式执行，默认 ping 不消耗 token。",
+            "routing-test 只解释候选与原因，不会自动切换模型。",
+        ],
+    }

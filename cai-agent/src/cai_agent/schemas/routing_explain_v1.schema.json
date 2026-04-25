@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/routing_explain_v1.schema.json",
+  "title": "RoutingExplainV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": ["schema_version", "decision", "summary_zh", "summary_en"],
+  "properties": {
+    "schema_version": { "const": "routing_explain_v1" },
+    "decision": {
+      "type": "string",
+      "enum": ["routing_disabled", "matched_rule", "fallback_active"]
+    },
+    "summary_zh": { "type": "string" },
+    "summary_en": { "type": "string" }
+  }
+}

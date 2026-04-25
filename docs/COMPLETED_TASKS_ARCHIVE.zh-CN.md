@@ -30,11 +30,15 @@
 
 | Issue ID | 父 To-do | 交付摘要 | 验证 | 来源 / 备注 |
 |---|---|---|---|---|
+| `MODEL-P0a` | `MODEL-P0` | Model Gateway contract、`ModelResponse`、`model_capabilities_list_v1`、CLI/API capabilities、OpenAI-compatible API 复用 response envelope | pytest `test_model_gateway` / `test_model_profiles_cli` / `test_api_http_server` | 2026-04-25 MODEL-P0 批次 |
+| `MODEL-P0b` | `MODEL-P0` | `models ping --chat-smoke`、健康状态枚举、`doctor_model_gateway_v1`、模型接入 runbook | pytest `test_model_profiles_cli` / `test_doctor_cli` + smoke | 2026-04-25 MODEL-P0 批次 |
+| `MODEL-P0c` | `MODEL-P0` | `routing_explain_v1`、base/effective capabilities、`model_fallback_candidates_v1` explain-only fallback、成本/metrics 口径 | pytest `test_model_routing` + smoke | 2026-04-25 MODEL-P0 批次 |
 | `HM-01a` | `HM-01` | profile schema、切换规则、默认项、迁移策略 | schema review | roadmap §10 |
 | `HM-01b` | `HM-01` | `models add/edit/rm/use/route/list` 闭环、`profile_contract_v1`、fixture / smoke 回归 | pytest + smoke | roadmap §10 |
 | `HM-02a` | `HM-02` | 最小 API / server 契约 RFC | RFC 合入 | `docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md` |
 | `HM-02b` | `HM-02` | `api serve`：`/healthz`、`/v1/status`、`/v1/doctor/summary`、`/v1/tasks/run-due` dry-run | pytest + smoke | roadmap §10 |
 | `HM-02c` | `HM-02` | API 只读扩展：models summary、plugins surface、release runbook | pytest | 2026-04-25 批次 |
+| `HM-02d-openai` | `HM-02` | OpenAI-compatible `/v1/models` 与 `/v1/chat/completions`（非流式 + `stream=true` SSE），复用 `model_response_v1` 并记录 `api.chat_completions` metrics | pytest `test_api_http_server` + smoke | 2026-04-25 MODEL-P0 批次 |
 | `HM-03a` | `HM-03` | Discord gateway 生产路径：mapping、health、排障 | gateway smoke + `doctor` | roadmap §10 |
 | `HM-03b` | `HM-03` | Slack gateway：health、Slash/Interactivity、mapping metadata、`--execute-on-slash` | gateway smoke + `doctor` | roadmap §10 |
 | `HM-03c` | `HM-03` | 下一批 gateway 平台评估 RFC | 文档评审 | `docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md` |
@@ -70,6 +74,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **714 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **742 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |

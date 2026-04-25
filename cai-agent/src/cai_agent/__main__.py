@@ -43,6 +43,11 @@ from cai_agent.hook_runtime import (
 )
 from cai_agent.llm import get_usage_counters, reset_usage_counters
 from cai_agent.llm_factory import chat_completion_by_role
+from cai_agent.model_gateway import (
+    build_model_capabilities_payload,
+    infer_model_capabilities,
+    smoke_chat_profile,
+)
 from cai_agent.models import fetch_models, ping_profile
 from cai_agent.mcp_presets import (
     allowed_mcp_preset_choices,
@@ -2923,7 +2928,14 @@ def _cmd_models_list(settings: Settings, *, json_output: bool, list_providers: b
             for row in payload_pr.get("providers") or []:
                 eid = row.get("id")
                 env = row.get("api_key_env")
-                print(f"  - {eid}  env={env}  url={row.get('base_url')}")
+                hint = row.get("capabilities_hint") if isinstance(row.get("capabilities_hint"), dict) else {}
+                caps = hint.get("capabilities") if isinstance(hint.get("capabilities"), dict) else {}
+                print(
+                    f"  - {eid}  env={env}  url={row.get('base_url')} "
+                    f"ctx={hint.get('context_window', '?')} stream={caps.get('streaming', '?')} "
+                    f"tools={caps.get('tool_calling', '?')} local={caps.get('local_private', '?')} "
+                    f"cost={hint.get('cost_hint', '?')}",
+                )
         return 0
     rows = [profile_to_public_dict(p) for p in settings.profiles]
     active = settings.active_profile_id
@@ -3031,9 +3043,67 @@ def _cmd_models(args: argparse.Namespace) -> int:
                     print(m)
         return 0
 
+    if action == "capabilities":
+        pid = getattr(args, "id", None)
+        targets = (
+            [p for p in settings.profiles if p.id == pid]
+            if pid
+            else list(settings.profiles)
+        )
+        if pid and not targets:
+            print(f"profile 不存在: {pid}", file=sys.stderr)
+            return 2
+        payload_caps = build_model_capabilities_payload(
+            targets,
+            active_profile_id=settings.active_profile_id,
+            context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+        )
+        if getattr(args, "json_output", False):
+            print(json.dumps(payload_caps, ensure_ascii=False))
+        else:
+            print(
+                f"model_capabilities: count={payload_caps.get('count')} "
+                f"active={payload_caps.get('active_profile_id') or '-'}",
+            )
+            for row in payload_caps.get("profiles") or []:
+                caps = row.get("capabilities") if isinstance(row.get("capabilities"), dict) else {}
+                print(
+                    f"  - {row.get('profile_id')}: provider={row.get('provider')} "
+                    f"model={row.get('model')} ctx={row.get('context_window', '?')} "
+                    f"streaming={caps.get('streaming')} tools={caps.get('tool_calling')} "
+                    f"vision={caps.get('vision')} json={caps.get('json_mode')} "
+                    f"local={caps.get('local_private')} cost={row.get('cost_hint')}",
+                )
+        return 0
+
+    if action == "onboarding":
+        from cai_agent.provider_registry import build_model_onboarding_flow_v1
+
+        try:
+            flow = build_model_onboarding_flow_v1(
+                profile_id=str(getattr(args, "onboarding_profile_id", "") or ""),
+                preset=str(getattr(args, "onboarding_preset", "") or ""),
+                model=getattr(args, "onboarding_model", None),
+                set_active=not bool(getattr(args, "onboarding_no_set_active", False)),
+            )
+        except ProfilesError as e:
+            print(f"模型 onboarding 配置错误: {e}", file=sys.stderr)
+            return 2
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(flow, ensure_ascii=False))
+        else:
+            print(f"model onboarding: profile={flow.get('profile_id')} preset={flow.get('preset')}")
+            for row in flow.get("commands") or []:
+                print(f"- {row.get('step')}: {row.get('command')}")
+            print("boundaries:")
+            for item in flow.get("boundaries") or []:
+                print(f"- {item}")
+        return 0
+
     if action == "ping":
         timeout_sec = float(getattr(args, "timeout_sec", 10.0) or 10.0)
         preset = getattr(args, "ping_preset", None)
+        do_chat_smoke = bool(getattr(args, "chat_smoke", False))
         if preset and getattr(args, "id", None):
             print("不能同时指定 profile id 与 --preset", file=sys.stderr)
             return 2
@@ -3052,10 +3122,21 @@ def _cmd_models(args: argparse.Namespace) -> int:
             if pid and not targets:
                 print(f"profile 不存在: {pid}", file=sys.stderr)
                 return 2
-        results = [
-            ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=timeout_sec)
-            for p in targets
-        ]
+        results: list[dict[str, Any]] = []
+        for p in targets:
+            r = ping_profile(p, trust_env=settings.http_trust_env, timeout_sec=timeout_sec)
+            if do_chat_smoke and r.get("status") == "OK":
+                smoke = smoke_chat_profile(
+                    settings,
+                    p,
+                    prompt=str(getattr(args, "chat_smoke_prompt", "") or "Reply with OK."),
+                )
+                r["chat_smoke"] = smoke
+                r["chat_status"] = smoke.get("status")
+                if smoke.get("status") != "OK":
+                    r["status"] = "CHAT_FAIL"
+                    r["message"] = f"chat smoke failed: {smoke.get('message') or smoke.get('status')}"
+            results.append(r)
         if getattr(args, "json_output", False):
             print(
                 json.dumps(
@@ -3073,6 +3154,9 @@ def _cmd_models(args: argparse.Namespace) -> int:
                     extra += f" http={http}"
                 if msg:
                     extra += f" msg={msg}"
+                chat_status = r.get("chat_status")
+                if chat_status:
+                    extra += f" chat={chat_status}"
                 print(f"{r.get('profile_id')}: {status}{extra}")
         fail = any(r.get("status") != "OK" for r in results)
         # Back-compat: `--fail-on-any-error` is a no-op alias (exit rules match default since S1-03).
@@ -3240,7 +3324,11 @@ def _cmd_models(args: argparse.Namespace) -> int:
         role_raw = str(getattr(args, "routing_test_role", "active") or "active").strip().lower()
         goal = str(getattr(args, "routing_test_goal", "") or "").strip()
         total_used = int(getattr(args, "routing_test_total_tokens", 0) or 0)
-        from cai_agent.model_routing import build_routing_explain_v1, first_matching_routing_rule
+        from cai_agent.model_routing import (
+            build_model_fallback_candidates_v1,
+            build_routing_explain_v1,
+            first_matching_routing_rule,
+        )
 
         rules = settings.model_routing_rules
         rout_on = settings.model_routing_enabled
@@ -3268,6 +3356,9 @@ def _cmd_models(args: argparse.Namespace) -> int:
             rem = max(0, int(cost_max) - int(total_used))
         else:
             rem = None
+        profile_by_id = {p.id: p for p in settings.profiles}
+        base_profile = profile_by_id.get(base_id)
+        effective_profile = profile_by_id.get(eff)
         explain = build_routing_explain_v1(
             model_routing_enabled=rout_on,
             matched=matched,
@@ -3293,11 +3384,46 @@ def _cmd_models(args: argparse.Namespace) -> int:
             "matched_rule": mr,
             "explain": explain,
         }
+        out_rt["fallback_candidates"] = build_model_fallback_candidates_v1(
+            tuple(settings.profiles),
+            effective_profile_id=eff,
+            cost_budget_remaining=rem,
+            context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+        )
+        if base_profile is not None:
+            out_rt["base_capabilities"] = infer_model_capabilities(
+                base_profile,
+                context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+            ).to_public_dict()
+        if effective_profile is not None:
+            out_rt["effective_capabilities"] = infer_model_capabilities(
+                effective_profile,
+                context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+            ).to_public_dict()
         if bool(getattr(args, "json_output", False)):
             print(json.dumps(out_rt, ensure_ascii=False))
         else:
             print(f"effective_profile_id={eff}")
             print(explain.get("summary_zh") or "")
+            if effective_profile is not None:
+                caps = infer_model_capabilities(
+                    effective_profile,
+                    context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+                )
+                print(
+                    f"capabilities: streaming={caps.streaming} "
+                    f"tools={caps.tool_calling} vision={caps.vision} "
+                    f"json={caps.json_mode} local={caps.local_private}",
+                )
+            fbc = out_rt.get("fallback_candidates") if isinstance(out_rt.get("fallback_candidates"), dict) else {}
+            cand = fbc.get("candidates") if isinstance(fbc.get("candidates"), list) else []
+            if cand:
+                first = cand[0]
+                print(
+                    "fallback_candidate: "
+                    f"{first.get('profile_id')} reasons={','.join(first.get('reasons') or [])} "
+                    "(explain_only)",
+                )
         return 0
 
     # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
@@ -3806,7 +3932,7 @@ def main(argv: list[str] | None = None) -> int:
     models_p = sub.add_parser(
         "models",
         parents=[models_parent],
-        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/suggest/route/routing-test",
+        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/capabilities/onboarding/suggest/route/routing-test",
     )
     models_sub = models_p.add_subparsers(dest="models_action", required=False)
 
@@ -3872,6 +3998,18 @@ def main(argv: list[str] | None = None) -> int:
     _mp.add_argument("--json", action="store_true", dest="json_output")
     _mp.add_argument("--timeout-sec", type=float, default=10.0, dest="timeout_sec")
     _mp.add_argument(
+        "--chat-smoke",
+        action="store_true",
+        dest="chat_smoke",
+        help="在 /models 探活成功后追加一次最小 chat smoke（会消耗 token；失败时 exit 2）",
+    )
+    _mp.add_argument(
+        "--chat-smoke-prompt",
+        default="Reply with OK.",
+        dest="chat_smoke_prompt",
+        help="--chat-smoke 使用的最小提示词",
+    )
+    _mp.add_argument(
         "--fail-on-any-error",
         action="store_true",
         dest="fail_on_ping_error",
@@ -3883,6 +4021,23 @@ def main(argv: list[str] | None = None) -> int:
         help="调用当前激活 profile 的 /v1/models 端点列出模型（原 `cai-agent models` 行为）",
     )
     _mf.add_argument("--json", action="store_true", dest="json_output")
+
+    _mcaps = models_sub.add_parser(
+        "capabilities",
+        help="输出 profile/model 能力元数据（context/tool/vision/json/reasoning/local/cost）",
+    )
+    _mcaps.add_argument("id", nargs="?", default=None, help="profile id（缺省输出全部）")
+    _mcaps.add_argument("--json", action="store_true", dest="json_output")
+
+    _mon = models_sub.add_parser(
+        "onboarding",
+        help="输出 add -> capabilities -> ping -> chat-smoke -> use -> routing-test 接入命令链",
+    )
+    _mon.add_argument("--id", required=True, dest="onboarding_profile_id", help="要创建/验证的 profile id")
+    _mon.add_argument("--preset", required=True, dest="onboarding_preset", help="provider preset，如 openai/openrouter/lmstudio")
+    _mon.add_argument("--model", default=None, dest="onboarding_model", help="可选模型名")
+    _mon.add_argument("--no-set-active", action="store_true", dest="onboarding_no_set_active")
+    _mon.add_argument("--json", action="store_true", dest="json_output")
 
     _mrs = models_sub.add_parser(
         "suggest",
@@ -6705,6 +6860,7 @@ def main(argv: list[str] | None = None) -> int:
             "route": "models.route",
             "route-wizard": "models.route_wizard",
             "routing-test": "models.routing_test",
+            "onboarding": "models.onboarding",
             "suggest": "models.suggest",
             "add": "models.add",
             "use": "models.use",

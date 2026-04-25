@@ -24,6 +24,20 @@ _SCHEMA_PATH = (
     / "schemas"
     / "models_routing_test_v1.schema.json"
 )
+_FALLBACK_CANDIDATES_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "cai_agent"
+    / "schemas"
+    / "model_fallback_candidates_v1.schema.json"
+)
+_ROUTING_EXPLAIN_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "cai_agent"
+    / "schemas"
+    / "routing_explain_v1.schema.json"
+)
 
 
 class ModelRoutingParseTests(unittest.TestCase):
@@ -32,6 +46,20 @@ class ModelRoutingParseTests(unittest.TestCase):
         sch = json.loads(raw)
         self.assertEqual(sch["properties"]["schema_version"]["const"], "models_routing_test_v1")
         self.assertIn("matched_rule", sch.get("required", []))
+
+    def test_model_fallback_candidates_v1_schema_file(self) -> None:
+        sch = json.loads(_FALLBACK_CANDIDATES_SCHEMA_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(
+            sch["properties"]["schema_version"]["const"],
+            "model_fallback_candidates_v1",
+        )
+        self.assertFalse(sch["properties"]["auto_switch"]["const"])
+        self.assertIn("candidates", sch.get("required", []))
+
+    def test_routing_explain_v1_schema_file(self) -> None:
+        sch = json.loads(_ROUTING_EXPLAIN_SCHEMA_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(sch["properties"]["schema_version"]["const"], "routing_explain_v1")
+        self.assertIn("decision", sch.get("required", []))
 
     def test_parse_rules_and_enabled(self) -> None:
         data = {
@@ -212,6 +240,14 @@ class ModelRoutingCliTests(unittest.TestCase):
             self.assertIsInstance(ex, dict)
             self.assertEqual(ex.get("schema_version"), "routing_explain_v1")
             self.assertEqual(ex.get("decision"), "matched_rule")
+            fb = o.get("fallback_candidates")
+            self.assertIsInstance(fb, dict)
+            self.assertEqual(fb.get("schema_version"), "model_fallback_candidates_v1")
+            self.assertFalse(fb.get("auto_switch"))
+            candidates = fb.get("candidates") or []
+            self.assertTrue(candidates)
+            self.assertEqual(candidates[0].get("profile_id"), "fast")
+            self.assertIn("capabilities", candidates[0])
 
     def test_routing_test_text_summary(self) -> None:
         toml = "\n".join(
@@ -234,6 +270,13 @@ class ModelRoutingCliTests(unittest.TestCase):
                 'base_url = "http://127.0.0.1:9/v1"',
                 'model = "m-fast"',
                 'api_key = "k"',
+                "",
+                "[[models.profile]]",
+                'id = "local"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:1234/v1"',
+                'model = "qwen3-coder"',
+                'api_key = "local"',
                 "",
                 "[models.routing]",
                 "enabled = false",
@@ -263,6 +306,7 @@ class ModelRoutingCliTests(unittest.TestCase):
             out = buf.getvalue()
             self.assertIn("effective_profile_id=fast", out)
             self.assertIn("已关闭", out)
+            self.assertIn("fallback_candidate", out)
 
     def test_routing_test_cost_simulation(self) -> None:
         toml = "\n".join(

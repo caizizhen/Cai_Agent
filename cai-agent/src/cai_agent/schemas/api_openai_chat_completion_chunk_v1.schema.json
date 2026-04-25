@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/api_openai_chat_completion_chunk_v1.schema.json",
+  "title": "ApiOpenaiChatCompletionChunkV1",
+  "description": "SSE data object for stream=true /v1/chat/completions (minimal two-chunk framing).",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "id",
+    "object",
+    "created",
+    "model",
+    "choices",
+    "cai_model_response"
+  ],
+  "properties": {
+    "schema_version": { "const": "api_openai_chat_completion_chunk_v1" },
+    "id": { "type": "string" },
+    "object": { "const": "chat.completion.chunk" },
+    "created": { "type": "integer" },
+    "model": { "type": "string" },
+    "choices": { "type": "array" },
+    "cai_model_response": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": "model_response_v1" }
+      }
+    }
+  }
+}

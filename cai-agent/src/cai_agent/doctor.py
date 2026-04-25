@@ -10,6 +10,7 @@ from typing import Any
 from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
+from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
 from cai_agent.models import ping_profile
 from cai_agent.profiles import build_profile_contract_payload
 from cai_agent.feedback import feedback_stats
@@ -177,6 +178,24 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "model_routing_enabled": bool(getattr(settings, "model_routing_enabled", True)),
         "model_routing_rules_count": len(getattr(settings, "model_routing_rules", ()) or ()),
         "models_profile_routes_count": len(getattr(settings, "models_profile_routes", ()) or ()),
+        "model_gateway": {
+            "schema_version": "doctor_model_gateway_v1",
+            "capabilities": build_model_capabilities_payload(
+                settings.profiles,
+                active_profile_id=settings.active_profile_id,
+                context_window_fallback=int(getattr(settings, "context_window", 0) or 0) or None,
+            ),
+            "known_health_statuses": list(KNOWN_MODEL_HEALTH_STATUSES),
+            "onboarding_runbook": "docs/MODEL_ONBOARDING_RUNBOOK.zh-CN.md",
+            "recommended_flow": [
+                "cai-agent models onboarding --id <id> --preset <preset> --model <model> --json",
+                "cai-agent models capabilities <id> --json",
+                "cai-agent models ping <id> --json",
+                "cai-agent models ping <id> --chat-smoke --json",
+                "cai-agent models routing-test --role active --goal \"smoke test\" --json",
+            ],
+            "chat_smoke_default": "explicit_only",
+        },
         "provider_registry_readiness": provider_readiness_snapshot(),
         "temperature": settings.temperature,
         "llm_timeout_sec": settings.llm_timeout_sec,

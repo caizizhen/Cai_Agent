@@ -19,6 +19,14 @@ import httpx
 from cai_agent import models as cai_models
 from cai_agent.__main__ import main
 
+_ONBOARDING_SCHEMA_PATH = (
+    Path(__file__).resolve().parents[1]
+    / "src"
+    / "cai_agent"
+    / "schemas"
+    / "model_onboarding_flow_v1.schema.json"
+)
+
 
 class ModelsCliEndToEnd(unittest.TestCase):
     def setUp(self) -> None:
@@ -363,6 +371,132 @@ class ModelsCliEndToEnd(unittest.TestCase):
         payload = json.loads(out.strip())
         self.assertEqual(payload.get("schema_version"), "models_fetch_v1")
         self.assertEqual(payload.get("models"), ["alpha", "beta"])
+
+    def test_models_capabilities_json_has_non_secret_metadata(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "cap", "--preset", "lmstudio", "--model", "qwen3-coder",
+            "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        rc2, out = self._cli(
+            "models", "--config", str(self.cfg), "capabilities", "--json",
+        )
+        self.assertEqual(rc2, 0)
+        payload = json.loads(out.strip())
+        self.assertEqual(payload.get("schema_version"), "model_capabilities_list_v1")
+        self.assertEqual(payload.get("active_profile_id"), "cap")
+        row = payload["profiles"][0]
+        self.assertEqual(row["profile_id"], "cap")
+        self.assertEqual(row["provider"], "openai_compatible")
+        self.assertIn("capabilities", row)
+        self.assertNotIn("api_key", row)
+        self.assertNotIn("base_url", row)
+
+    def test_models_ping_chat_smoke_adds_chat_status(self) -> None:
+        rc, _ = self._cli(
+            "models", "--config", str(self.cfg), "add",
+            "--id", "smoke", "--preset", "lmstudio", "--model", "m", "--set-active",
+        )
+        self.assertEqual(rc, 0)
+        with patch(
+            "cai_agent.__main__.ping_profile",
+            return_value={"profile_id": "smoke", "status": "OK", "http_status": 200},
+        ), patch(
+            "cai_agent.__main__.smoke_chat_profile",
+            return_value={
+                "profile_id": "smoke",
+                "status": "OK",
+                "latency_ms": 1,
+                "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            },
+        ):
+            rc2, out = self._cli(
+                "models",
+                "--config",
+                str(self.cfg),
+                "ping",
+                "smoke",
+                "--chat-smoke",
+                "--json",
+            )
+        self.assertEqual(rc2, 0)
+        payload = json.loads(out.strip().splitlines()[-1])
+        row = payload["results"][0]
+        self.assertEqual(row.get("status"), "OK")
+        self.assertEqual(row.get("chat_status"), "OK")
+        self.assertEqual(row.get("chat_smoke", {}).get("status"), "OK")
+
+    def test_models_onboarding_json_outputs_command_chain(self) -> None:
+        rc, out = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "onboarding",
+            "--id",
+            "new-local",
+            "--preset",
+            "lmstudio",
+            "--model",
+            "qwen3-coder",
+            "--json",
+        )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.strip())
+        self.assertEqual(payload.get("schema_version"), "model_onboarding_flow_v1")
+        self.assertEqual(payload.get("profile_id"), "new-local")
+        hint = payload.get("capabilities_hint")
+        self.assertIsInstance(hint, dict)
+        self.assertEqual(hint.get("schema_version"), "model_capabilities_v1")
+        self.assertEqual(hint.get("profile_id"), "new-local")
+        self.assertEqual(hint.get("cost_hint"), "local")
+        self.assertNotIn("api_key", hint)
+        self.assertNotIn("base_url", hint)
+        steps = [row.get("step") for row in payload.get("commands") or []]
+        self.assertEqual(
+            steps,
+            [
+                "inspect_providers",
+                "add_profile",
+                "capabilities",
+                "ping",
+                "chat_smoke",
+                "use",
+                "routing_test",
+            ],
+        )
+        commands = [row.get("command") for row in payload.get("commands") or []]
+        self.assertTrue(any("models add --id new-local --preset lmstudio" in str(c) for c in commands))
+        self.assertTrue(any("--chat-smoke" in str(c) for c in commands))
+        self.assertTrue(any("routing-test" in str(c) for c in commands))
+
+    def test_model_onboarding_flow_v1_schema_file(self) -> None:
+        schema = json.loads(_ONBOARDING_SCHEMA_PATH.read_text(encoding="utf-8"))
+        self.assertEqual(
+            schema["properties"]["schema_version"]["const"],
+            "model_onboarding_flow_v1",
+        )
+        self.assertIn("capabilities_hint", schema.get("required", []))
+        self.assertIn("commands", schema.get("required", []))
+        hint = schema["properties"]["capabilities_hint"]
+        self.assertEqual(hint["properties"]["schema_version"]["const"], "model_capabilities_v1")
+
+    def test_models_onboarding_rejects_unknown_preset_early(self) -> None:
+        rc, out = self._cli(
+            "models",
+            "--config",
+            str(self.cfg),
+            "onboarding",
+            "--id",
+            "bad",
+            "--preset",
+            "missing-preset",
+            "--model",
+            "m",
+            "--json",
+        )
+        self.assertEqual(rc, 2)
+        self.assertEqual(out, "")
 
 
 class PingProfileTests(unittest.TestCase):

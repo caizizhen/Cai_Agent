@@ -14,11 +14,33 @@ def test_profile_row_shows_active_marker() -> None:
         model="m1",
         notes="home",
     )
-    row = _profile_row(p, active_id="local")
+    row = _profile_row(p, active_id="local", health_status="OK")
     assert "[active]" in row
     assert "local" in row
     assert "m1" in row
     assert "openai_compatible" in row
+    assert "health=OK" in row
+    assert "stream=" in row
+    assert "tools=" in row
+    assert "json=" in row
+    assert "cost=" in row
+
+
+def test_profile_row_shows_local_cost_and_scope() -> None:
+    p = Profile(
+        id="local",
+        provider="openai_compatible",
+        base_url="http://127.0.0.1:1234/v1",
+        model="qwen3-coder",
+        notes="local coding model",
+    )
+    row = _profile_row(p, active_id="remote", context_window_fallback=8192)
+    assert "[active]" not in row
+    assert "health=未测" in row
+    assert "ctx=" in row
+    assert "local=yes" in row
+    assert "scope=local" in row
+    assert "cost=local" in row
 
 
 def test_next_active_id_prefer_and_fallback() -> None:

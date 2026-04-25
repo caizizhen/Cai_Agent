@@ -4,7 +4,7 @@
 
 **主入口兜底**：`main()` 若未能分发到已知子命令（仅应出现于内部实现不同步），**exit `2`** 并向 stderr 打印一行诊断（此前兜底为 **`1`** 且无提示）。
 
-**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。**独立 JSON Schema**（机器校验、可入 CI）：`cai-agent/src/cai_agent/schemas/` 下如 **`plugin_compat_matrix_v1.schema.json`**、**`models_routing_test_v1.schema.json`**、**`memory_entry_v1.schema.json`** 等。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
+**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。**独立 JSON Schema**（机器校验、可入 CI）：`cai-agent/src/cai_agent/schemas/` 下如 **`plugin_compat_matrix_v1.schema.json`**、**`models_routing_test_v1.schema.json`**、**`model_fallback_candidates_v1.schema.json`**、**`routing_explain_v1.schema.json`**、**`doctor_model_gateway_v1.schema.json`**、**`api_models_capabilities_v1.schema.json`**、**`api_openai_models_v1.schema.json`**、**`api_openai_chat_completion_v1.schema.json`**、**`api_openai_chat_completion_chunk_v1.schema.json`**、**`memory_entry_v1.schema.json`** 等。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
 
 **从 0.5.x 升级 0.6.x**：破坏性 `--json` 形态与 exit 码摘要见 **[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**（Hermes **S8-04**）。
 
@@ -395,7 +395,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`profile_contract`**（**`profile_contract_v1`**：profile 来源、激活优先级、fallback、迁移状态）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`installation_guidance`**（**`doctor_installation_guidance_v1`**：onboarding、文档入口、升级查看点、推荐命令链）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`profile_contract`**（**`profile_contract_v1`**：profile 来源、激活优先级、fallback、迁移状态）、**`model_gateway`**（**`doctor_model_gateway_v1`**：嵌 `model_capabilities_list_v1`、健康状态枚举、接入 runbook 与推荐命令链）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`installation_guidance`**（**`doctor_installation_guidance_v1`**：onboarding、文档入口、升级查看点、推荐命令链）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 
@@ -418,13 +418,20 @@
 
 | 子命令 | `--json` 形态 | `schema_version` / 说明 |
 |--------|----------------|-------------------------|
-| `models list` | 对象：`active`、`subagent`、`planner`、`profile_contract`、`profiles[]` | **`models_list_v1`**（`profile_contract` 为 **`profile_contract_v1`**，描述显式/隐式 profile 来源、激活优先级、迁移状态） |
+| `models list` | 对象：`active`、`subagent`、`planner`、`profile_contract`、`profiles[]`；带 `--providers` 时输出 **`provider_registry_v1`**，`providers[]` 含 `api_key_env`、`default_model`、`auth_style` 与非敏感 **`capabilities_hint`**（**`model_capabilities_v1`**）；机器校验见 **`cai-agent/src/cai_agent/schemas/provider_registry_v1.schema.json`** | **`models_list_v1`** / **`provider_registry_v1`**（`profile_contract` 为 **`profile_contract_v1`**，描述显式/隐式 profile 来源、激活优先级、迁移状态） |
 | `models fetch` | 对象：`schema_version`=`models_fetch_v1`、`models[]`（排序去重后的模型 id 字符串） | **`models_fetch_v1`** |
-| `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等） | **`models_ping_v1`** |
+| `models capabilities` | 对象：`schema_version`=`model_capabilities_list_v1`、`active_profile_id`、`profiles[]`（仅非敏感能力元数据：`context_window`、`max_output_tokens`、`capabilities`、`cost_hint`）；机器校验见 **`cai-agent/src/cai_agent/schemas/model_capabilities_v1.schema.json`** 与 **`model_capabilities_list_v1.schema.json`** | **`model_capabilities_list_v1`** |
+| `models ping` | 对象：`schema_version`=`models_ping_v1`、`results[]`（`profile_id`、`status`、`http_status?`、`message?` 等；显式 `--chat-smoke` 时附加 `chat_status` / `chat_smoke`） | **`models_ping_v1`** |
+| `models onboarding` | 对象：`schema_version`=`model_onboarding_flow_v1`、`profile_id`、`preset`、`capabilities_hint`（**`model_capabilities_v1`**）、`commands[]`、`boundaries[]`；输出 add → capabilities → ping → chat-smoke → use → routing-test 命令链；未知 preset 会提前 exit `2`；机器校验见 **`cai-agent/src/cai_agent/schemas/model_onboarding_flow_v1.schema.json`** | **`cai-agent models onboarding --id <id> --preset <preset> [--model <model>] --json`** |
 | `models suggest` | 单行对象 **`models_suggest_v1`**：`task_description`、`matched_role`、`reason`、`suggested_profiles[]`、`active_profile_id`、`hint` 等 | **`cai-agent models suggest <任务描述…> --json`** |
-| `models routing-test` | 单行对象 **`models_routing_test_v1`**：`role`、`goal_preview`、`model_routing_enabled`、`rules_count`、**`cost_budget_max_tokens`/`total_tokens_used`/`cost_budget_remaining`**、`base_profile_id`、`effective_profile_id`、`matched_rule`（可含 **`cost_budget_remaining_tokens_below`**）；**不调 LLM**；机器校验见 **`cai-agent/src/cai_agent/schemas/models_routing_test_v1.schema.json`** | **`cai-agent models routing-test [--goal "…"] [--role …] [--total-tokens-used N] --json`** |
+| `models routing-test` | 单行对象 **`models_routing_test_v1`**：`role`、`goal_preview`、`model_routing_enabled`、`rules_count`、**`cost_budget_max_tokens`/`total_tokens_used`/`cost_budget_remaining`**、`base_profile_id`、`effective_profile_id`、`matched_rule`（可含 **`cost_budget_remaining_tokens_below`**）、`fallback_candidates`（**`model_fallback_candidates_v1`**，`auto_switch=false`）；**不调 LLM**；机器校验见 **`cai-agent/src/cai_agent/schemas/models_routing_test_v1.schema.json`** | **`cai-agent models routing-test [--goal "…"] [--role …] [--total-tokens-used N] --json`** |
 
-**Exit**：`list` / `fetch`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。**`suggest`**：成功 → **`0`**；空描述等 → **`2`**。**`routing-test`**：缺 **`--goal`** 等 → **`2`**；否则 **`0`**。
+**Model Gateway 归一化响应（`model_response_v1`）**：
+
+- **实现**：`cai_agent.model_gateway.ModelResponse` / `chat_response`；API `POST /v1/chat/completions` 等在内部复用同一负载字段。
+- **机读 schema**：**`cai-agent/src/cai_agent/schemas/model_response_v1.schema.json`**
+
+**Exit**：`list` / `fetch` / `capabilities` / `onboarding`：配置错误 → `2`。`ping`：任一 profile 不存在 → `2`；存在任一 status 非 `OK` → **`2`**；成功全 `OK` → **`0`**。**`--chat-smoke`** 会消耗一次最小真实 chat 调用，chat smoke 失败同样 exit **`2`**。**`--fail-on-any-error`** 为与默认相同的显式别名（兼容旧脚本）。**`suggest`**：成功 → **`0`**；空描述等 → **`2`**。**`routing-test`**：缺 **`--goal`** 等 → **`2`**；否则 **`0`**。
 
 ---
 
@@ -477,7 +484,7 @@
 | `memory user-model learn` | **`memory_user_model_learn_v1`**：`ok`、`belief`、`store_path`；无效 belief → **`ok`=`false`**、exit **`2`** | |
 | `ecc layout` | **`ecc_asset_layout_v1`**：`entries[]`、`hooks_resolved_path`、`workspace` | 根级 **`-w`** 须在子命令前：`ecc -w <dir> layout --json` |
 | `ecc scaffold` | **`ecc_scaffold_result_v1`**：`created[]`、`skipped[]`；**`--dry-run`** 不写盘 | 同上 **`-w`** 顺序 |
-| `models routing-test` | **`models_routing_test_v1`**（**`--json`**）；嵌 **`explain`**（**`routing_explain_v1`**）；无 **`--json`** 时仅文本摘要 | **`--goal`** / **`--role`** / **`--total-tokens-used`** |
+| `models routing-test` | **`models_routing_test_v1`**（**`--json`**）；嵌 **`explain`**（**`routing_explain_v1`**）与 **`fallback_candidates`**（**`model_fallback_candidates_v1`**，解释候选，不自动切换）；无 **`--json`** 时仅文本摘要 | **`--goal`** / **`--role`** / **`--total-tokens-used`** |
 | `cost budget` | **`cost_budget_v1`**：含 **`explain`**（**`cost_budget_explain_v1`**）、**`active_profile_id`** | 读 **`[cost].budget_max_tokens`** 与会话聚合 |
 | `cost report --json` | **`cost_by_profile_v1`**：嵌 **`compact_policy_explain_v1`**（与 **`graph`** 中 compact / 成本提示阈值对齐的说明行） | 无 **`--json`** 时输出文本摘要（profile 前若干行 + policy 行），**exit `0`** |
 | `memory validate-entries` | **`memory_entries_file_validate_v1`**：校验 **`memory/entries.jsonl`**（或 `--path`）行级结构；无效行 → exit **`2`** | |
@@ -493,9 +500,13 @@
 | `GET /healthz` | 无 schema；**`{"ok": true}`**；**不设** **`CAI_API_TOKEN`** 时全员可访问；设 token 时仍**免检** |
 | `GET /v1/status` | **`api_status_v1`**；嵌 **`gateway_summary_v1`** 与 **`gateway_lifecycle`** 摘要字段 |
 | `GET /v1/doctor/summary` | **`api_doctor_summary_v1`**（白名单：无 **`base_url`** / **`model`** 明文） |
+| `GET /v1/models` | **`api_openai_models_v1`**；OpenAI-compatible `object=list` / `data[]` 模型列表，来自已配置 profile；不暴露 **`api_key`** / **`base_url`** |
+| `GET /v1/models/summary` | **`api_models_summary_v1`**；profile 合约白名单摘要 |
+| `GET /v1/models/capabilities` | **`api_models_capabilities_v1`**；嵌 **`model_capabilities_list_v1`** 非敏感能力元数据 |
+| `POST /v1/chat/completions` | **`api_openai_chat_completion_v1`**；OpenAI-compatible 非流式 chat completion；内部复用 **`model_response_v1`** 并在 `cai_model_response` 中暴露 provider/model/profile/usage/latency；`stream:true` 返回 **`text/event-stream`**，chunk 为 **`api_openai_chat_completion_chunk_v1`**，最后发送 `data: [DONE]` |
 | `POST /v1/tasks/run-due` | **`api_tasks_run_due_v1`**；默认 **`dry_run`**；**`dry_run:false`** → **HTTP 403**（请用 CLI **`schedule run-due --execute`**） |
 
-默认端口 **`CAI_API_PORT`**（未设置则 **8788**）；可选 **`CAI_API_TOKEN`**（**`Authorization: Bearer`**）。契约：**`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**。
+默认端口 **`CAI_API_PORT`**（未设置则 **8788**）；可选 **`CAI_API_TOKEN`**（**`Authorization: Bearer`**）。`POST /v1/chat/completions` 支持 `model` 传 profile id 或模型名来选择已配置 profile；SSE streaming 是最小兼容实现（先完整生成一次 `ModelResponse`，再按 OpenAI chunk 形态分帧），本轮不做公网多租户托管或额外 OpenAI API 家族。契约：**`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**。
 
 ---
 
