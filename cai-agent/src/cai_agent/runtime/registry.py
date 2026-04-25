@@ -20,6 +20,84 @@ RUNTIME_REGISTRY: dict[str, type[RuntimeBackend] | Any] = {
 }
 
 
+def build_runtime_backend_interface_payload() -> dict[str, Any]:
+    """HM-N11-D02: unified backend interface contract for local/docker/ssh/cloud stubs."""
+    return {
+        "schema_version": "runtime_backend_interface_v1",
+        "operations": {
+            "exec": {
+                "args": ["cmd", "cwd", "env", "timeout_sec"],
+                "result_schema": "exec_result_v1",
+            },
+            "exists": {
+                "args": [],
+                "result_type": "bool",
+            },
+            "describe": {
+                "args": [],
+                "result_type": "object",
+            },
+            "ensure_workspace": {
+                "args": ["path"],
+                "result_type": "void",
+                "optional": True,
+            },
+        },
+        "backends": {
+            "local": {
+                "status": "ga",
+                "config_keys": [],
+            },
+            "docker": {
+                "status": "ga",
+                "config_keys": [
+                    "runtime_docker_container",
+                    "runtime_docker_image",
+                    "runtime_docker_workdir",
+                    "runtime_docker_volume_mounts",
+                    "runtime_docker_exec_options",
+                    "runtime_docker_cpus",
+                    "runtime_docker_memory",
+                ],
+                "interface_alignment": {
+                    "base_ops_aligned": True,
+                    "describe_fields": ["mode", "workdir", "volume_mounts", "cpus", "memory"],
+                },
+            },
+            "ssh": {
+                "status": "ga",
+                "config_keys": [
+                    "runtime_ssh_host",
+                    "runtime_ssh_user",
+                    "runtime_ssh_key_path",
+                    "runtime_ssh_strict_host_key",
+                    "runtime_ssh_known_hosts_path",
+                    "runtime_ssh_connect_timeout_sec",
+                    "runtime_ssh_audit_log_path",
+                    "runtime_ssh_audit_label",
+                    "runtime_ssh_audit_include_command",
+                ],
+                "interface_alignment": {
+                    "base_ops_aligned": True,
+                    "describe_fields": ["host", "user", "connect_timeout_sec", "audit_enabled"],
+                },
+            },
+            "modal": {
+                "status": "conditional_stub",
+                "config_keys": ["runtime_modal_app_name", "runtime_modal_hibernate_idle_seconds"],
+            },
+            "daytona": {
+                "status": "conditional_stub",
+                "config_keys": ["runtime_daytona_workspace"],
+            },
+            "singularity": {
+                "status": "conditional_stub",
+                "config_keys": ["runtime_singularity_sif_path", "runtime_singularity_bind_paths"],
+            },
+        },
+    }
+
+
 def get_runtime_backend(
     name: str,
     *,
@@ -118,7 +196,9 @@ def get_runtime_backend(
 
 
 def list_runtimes_payload() -> dict[str, Any]:
+    iface = build_runtime_backend_interface_payload()
     return {
         "schema_version": "runtime_registry_v1",
         "backends": sorted(RUNTIME_REGISTRY.keys()),
+        "interface": iface,
     }

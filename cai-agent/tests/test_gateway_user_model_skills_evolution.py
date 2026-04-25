@@ -21,6 +21,7 @@ class GatewayUserModelSkillsEvolutionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             p = build_gateway_platforms_payload(workspace=td)
         self.assertEqual(p.get("schema_version"), "gateway_platforms_v1")
+        self.assertEqual(p.get("adapter_contract_schema_version"), "gateway_platform_adapter_contract_v1")
         self.assertIn("telegram_webhook_pid_exists", p)
         self.assertIn("telegram_bot_token_env_present", p)
         self.assertIsInstance(p.get("telegram_webhook_pid_exists"), bool)
@@ -31,6 +32,10 @@ class GatewayUserModelSkillsEvolutionTests(unittest.TestCase):
         ep = discord.get("env_present")
         self.assertIsInstance(ep, dict)
         self.assertIn("CAI_GATEWAY_DISCORD_BOT_TOKEN", ep)
+        adapter = discord.get("adapter_contract")
+        self.assertIsInstance(adapter, dict)
+        self.assertEqual(adapter.get("schema_version"), "gateway_platform_adapter_contract_v1")
+        self.assertTrue((adapter.get("map") or {}).get("supported"))
 
     def test_user_model_overview_schema(self) -> None:
         with tempfile.TemporaryDirectory() as td:

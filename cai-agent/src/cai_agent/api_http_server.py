@@ -28,13 +28,21 @@ from urllib.parse import parse_qs, urlparse
 from cai_agent.config import Settings
 from cai_agent.doctor import build_api_doctor_summary_v1
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload, build_status_payload
+from cai_agent.gateway_lifecycle import build_gateway_proxy_route_preview
+from cai_agent.gateway_production import build_gateway_federation_summary_payload
 from cai_agent.model_gateway import build_model_capabilities_payload
 from cai_agent.llm_factory import chat_completion_response
 from cai_agent.metrics import maybe_append_metrics_from_env, metrics_event_v1
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
-from cai_agent.profiles import Profile, build_profile_contract_payload, project_base_url
+from cai_agent.profiles import (
+    Profile,
+    build_profile_contract_payload,
+    profile_to_public_dict,
+    project_base_url,
+)
 from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.schedule import compute_due_tasks
+from cai_agent.server_auth import resolve_bearer_token
 
 
 def build_api_models_summary_v1(settings: Settings) -> dict[str, Any]:
@@ -46,6 +54,7 @@ def build_api_models_summary_v1(settings: Settings) -> dict[str, Any]:
         subagent_profile_id=getattr(settings, "subagent_profile_id", None),
         planner_profile_id=getattr(settings, "planner_profile_id", None),
         env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+        workspace_root=settings.workspace,
     )
     return {
         "schema_version": "api_models_summary_v1",
@@ -71,6 +80,30 @@ def build_api_models_capabilities_v1(settings: Settings) -> dict[str, Any]:
         "schema_version": "api_models_capabilities_v1",
         "generated_at": datetime.now(UTC).isoformat(),
         "model_capabilities": payload,
+    }
+
+
+def build_api_profiles_v1(settings: Settings) -> dict[str, Any]:
+    contract = build_profile_contract_payload(
+        settings.profiles,
+        profiles_explicit=bool(getattr(settings, "profiles_explicit", False)),
+        active_profile_id=settings.active_profile_id,
+        subagent_profile_id=getattr(settings, "subagent_profile_id", None),
+        planner_profile_id=getattr(settings, "planner_profile_id", None),
+        env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+        workspace_root=settings.workspace,
+    )
+    rows = [profile_to_public_dict(p, include_resolved_key=True) for p in settings.profiles]
+    return {
+        "schema_version": "api_profiles_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(settings.workspace),
+        "active_profile_id": settings.active_profile_id,
+        "subagent_profile_id": getattr(settings, "subagent_profile_id", None),
+        "planner_profile_id": getattr(settings, "planner_profile_id", None),
+        "profiles_count": len(rows),
+        "profiles": rows,
+        "profile_contract": contract,
     }
 
 
@@ -367,7 +400,7 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
         self._send(code, raw, "text/event-stream; charset=utf-8")
 
     def _auth_ok(self, *, path: str) -> bool:
-        if path == "/healthz":
+        if path in ("/healthz", "/health"):
             return True
         token = getattr(self.server, "api_token", None)
         if not token:
@@ -401,7 +434,7 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
             return
         ws: Path = getattr(self.server, "workspace")
         try:
-            if path == "/healthz":
+            if path in ("/healthz", "/health"):
                 self._send_json(200, {"ok": True})
                 return
             if path == "/v1/status":
@@ -422,6 +455,10 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                     },
                 }
                 self._send_json(200, payload)
+                return
+            if path == "/v1/profiles":
+                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                self._send_json(200, build_api_profiles_v1(settings))
                 return
             if path == "/v1/doctor/summary":
                 settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
@@ -455,6 +492,9 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                 return
             if path == "/v1/release/runbook":
                 self._send_json(200, build_api_release_runbook_v1(ws))
+                return
+            if path == "/v1/gateway/federation-summary":
+                self._send_json(200, build_gateway_federation_summary_payload(ws))
                 return
         except Exception as e:
             self._send_json(500, {"ok": False, "error": "internal_error", "message": str(e)[:500]})
@@ -491,6 +531,34 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(500, {"ok": False, "error": "internal_error", "message": str(e)[:500]})
             return
         if path != "/v1/tasks/run-due":
+            if path == "/v1/gateway/route-preview":
+                try:
+                    body = self._read_json_body()
+                except ValueError as e:
+                    self._send_json(400, {"ok": False, "error": "bad_request", "message": str(e)})
+                    return
+                dry = body.get("dry_run")
+                dry_run = True if dry is None else bool(dry)
+                if not dry_run:
+                    self._send_json(
+                        403,
+                        {
+                            "ok": False,
+                            "error": "execute_forbidden",
+                            "message": "route-preview supports dry_run only",
+                        },
+                    )
+                    return
+                payload = build_gateway_proxy_route_preview(
+                    root=ws,
+                    platform=str(body.get("platform") or ""),
+                    channel_id=body.get("channel_id"),
+                    target_workspace=body.get("target_workspace"),
+                    target_profile_id=body.get("target_profile_id"),
+                    dry_run=True,
+                )
+                self._send_json(200, payload)
+                return
             self._send_json(404, {"ok": False, "error": "not_found", "message": path})
             return
         try:
@@ -543,8 +611,7 @@ def run_agent_api_server(
     if not root.is_dir():
         err.write(f"api serve: not a directory: {root}\n")
         return 2
-    token_raw = (os.environ.get("CAI_API_TOKEN") or "").strip()
-    api_token = token_raw or None
+    api_token = resolve_bearer_token("CAI_API_TOKEN", "CAI_OPS_API_TOKEN")
 
     httpd = AgentApiThreadingServer((host, port), AgentApiRequestHandler)
     httpd.workspace = root
@@ -553,10 +620,13 @@ def run_agent_api_server(
     err.write(
         f"api serve: listening http://{host}:{port}\n"
         f"  workspace: {root}\n"
-        f"  CAI_API_TOKEN: {'set' if api_token else 'unset'}\n"
-        "  GET /healthz | GET /v1/status | GET /v1/doctor/summary\n"
+        "  CAI_API_TOKEN/CAI_OPS_API_TOKEN: "
+        f"{'set' if api_token else 'unset'}\n"
+        "  GET /healthz | GET /health | GET /v1/status | GET /v1/profiles | GET /v1/doctor/summary\n"
         "  GET /v1/models | GET /v1/models/summary | GET /v1/plugins/surface[?compat=1] | GET /v1/release/runbook\n"
+        "  GET /v1/gateway/federation-summary\n"
         "  POST /v1/chat/completions (non-streaming or stream=true SSE)\n"
+        "  POST /v1/gateway/route-preview (dry_run only)\n"
         "  POST /v1/tasks/run-due (dry_run only)\n",
     )
     try:

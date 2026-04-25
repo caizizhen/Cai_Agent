@@ -64,6 +64,8 @@
 | `HM-06a` | `HM-06` | Runtime backend 产品化评估 RFC | 文档评审 | `docs/rfc/HM_06A_RUNTIME_BACKEND_ASSESSMENT.zh-CN.md` |
 | `HM-06b-docker` | `HM-06` | Docker runtime `container` / `image` 双模式、workdir、volumes、limits、doctor describe | pytest + smoke | 2026-04-25 批次 |
 | `HM-06c-ssh` | `HM-06` | SSH runtime 诊断、timeout、key/known_hosts、`runtime_ssh_audit_v1` | pytest + smoke | 2026-04-25 批次 |
+| `HM-N11-D01` | `HM-N11` | 云后端条件立项门槛文档（`CLOUD_RUNTIME_OOS` 中英同步） | 文档一致性校对 + smoke | 2026-04-25 批次 |
+| `HM-N11-D02` | `HM-N11` | `runtime_backend_interface_v1` 接入 `runtime_registry_v1.interface`，对齐 `local/docker/ssh` 接口与配置键 | pytest + smoke | 2026-04-25 批次 |
 | `HM-07a` | `HM-07` | Voice 边界与 OOS RFC | 文档评审 | `docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md` |
 
 ## ECC 线
@@ -77,6 +79,8 @@
 | `ECC-03a` | `ECC-03` | 插件矩阵与版本治理 RFC | 文档评审 | `docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md` |
 | `ECC-03b` | `ECC-03` | `plugin_compat_matrix_v1.maintenance_checklist` 与 `plugins --compat-check` | pytest | 2026-04-25 批次 |
 | `ECC-03c` | `ECC-03` | `scripts/gen_plugin_compat_snapshot.py --check` 与 checked-in snapshot | pytest + smoke | 2026-04-25 批次 |
+| `ECC-N04-D01` | `ECC-N04` | `ecc_asset_registry_v1` 草案快照（source/license/signature/version/trust） | schema snapshot 校对 + smoke | 2026-04-25 批次 |
+| `ECC-N04-D02` | `ECC-N04` | ingest sanitizer 策略草案与 `ecc_ingest_sanitizer_policy_v1` 快照（危险 hook 隔离） | 文档审查 + schema snapshot + smoke | 2026-04-25 批次 |
 
 ## 最新验证基线
 
@@ -84,6 +88,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **742 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **799 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |

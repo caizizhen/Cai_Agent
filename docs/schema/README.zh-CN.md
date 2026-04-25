@@ -4,7 +4,11 @@
 
 **主入口兜底**：`main()` 若未能分发到已知子命令（仅应出现于内部实现不同步），**exit `2`** 并向 stderr 打印一行诊断（此前兜底为 **`1`** 且无提示）。
 
-**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。**独立 JSON Schema**（机器校验、可入 CI）：`cai-agent/src/cai_agent/schemas/` 下如 **`plugin_compat_matrix_v1.schema.json`**、**`models_routing_test_v1.schema.json`**、**`model_fallback_candidates_v1.schema.json`**、**`routing_explain_v1.schema.json`**、**`doctor_model_gateway_v1.schema.json`**、**`api_models_capabilities_v1.schema.json`**、**`api_openai_models_v1.schema.json`**、**`api_openai_chat_completion_v1.schema.json`**、**`api_openai_chat_completion_chunk_v1.schema.json`**、**`memory_entry_v1.schema.json`** 等。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
+**仅下列长文仍拆成独立文件**（历史路径，CI/外链可能引用）：[SCHEDULE_AUDIT_JSONL.zh-CN.md](SCHEDULE_AUDIT_JSONL.zh-CN.md)、[SCHEDULE_STATS_JSON.zh-CN.md](SCHEDULE_STATS_JSON.zh-CN.md)、[METRICS_JSON.zh-CN.md](METRICS_JSON.zh-CN.md)（**S7-01** 指标 JSONL）。**独立 JSON Schema**（机器校验、可入 CI）：`cai-agent/src/cai_agent/schemas/` 下如 **`plugin_compat_matrix_v1.schema.json`**、**`models_routing_test_v1.schema.json`**、**`model_fallback_candidates_v1.schema.json`**、**`routing_explain_v1.schema.json`**、**`doctor_model_gateway_v1.schema.json`**、**`api_models_capabilities_v1.schema.json`**、**`api_profiles_v1.schema.json`**、**`api_openai_models_v1.schema.json`**、**`api_openai_chat_completion_v1.schema.json`**、**`api_openai_chat_completion_chunk_v1.schema.json`**、**`memory_entry_v1.schema.json`** 等。其余命令契约 **以本节为准**；新增契约优先写入本节，确需独立长文时再增文件。
+
+**ECC-N04-D01 草案快照**：`docs/schema/ecc_asset_registry_v1.snapshot.json` 提供 `ecc_asset_registry_v1` 的最小机读样例（source/license/signature/version/trust）。该文件当前为 **`draft_snapshot`**，用于方案评审与后续 `ECC-N04-D02/D03` 对齐，不代表已接入执行链路。
+
+**ECC-N04-D02 sanitizer 草案快照**：`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json` 提供 `ecc_ingest_sanitizer_policy_v1` 最小机读样例（`policy_mode`、`checks`、`decision`、`blocked_patterns`、`next_actions`）。该文件用于“危险 hook/脚本隔离”策略评审，不代表已开放外部资产自动执行。
 
 **从 0.5.x 升级 0.6.x**：破坏性 `--json` 形态与 exit 码摘要见 **[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**（Hermes **S8-04**）。
 
@@ -503,6 +507,7 @@
 | `GET /v1/models` | **`api_openai_models_v1`**；OpenAI-compatible `object=list` / `data[]` 模型列表，来自已配置 profile；不暴露 **`api_key`** / **`base_url`** |
 | `GET /v1/models/summary` | **`api_models_summary_v1`**；profile 合约白名单摘要 |
 | `GET /v1/models/capabilities` | **`api_models_capabilities_v1`**；嵌 **`model_capabilities_list_v1`** 非敏感能力元数据 |
+| `GET /v1/profiles` | **`api_profiles_v1`**；active/subagent/planner + profiles 列表 + `profile_contract_v1` |
 | `POST /v1/chat/completions` | **`api_openai_chat_completion_v1`**；OpenAI-compatible 非流式 chat completion；内部复用 **`model_response_v1`** 并在 `cai_model_response` 中暴露 provider/model/profile/usage/latency；`stream:true` 返回 **`text/event-stream`**，chunk 为 **`api_openai_chat_completion_chunk_v1`**，最后发送 `data: [DONE]` |
 | `POST /v1/tasks/run-due` | **`api_tasks_run_due_v1`**；默认 **`dry_run`**；**`dry_run:false`** → **HTTP 403**（请用 CLI **`schedule run-due --execute`**） |
 

@@ -19,7 +19,14 @@ Machine-readable drafts live under [`cai-agent/src/cai_agent/schemas/`](../../ca
 - **`routing_explain_v1.schema.json`** — nested **`explain`** object (same contract as in routing-test)
 - **`doctor_model_gateway_v1.schema.json`** — nested **`doctor_v1.model_gateway`** object (capabilities list, health enum, runbook path, recommended CLI flow)
 - **`api_models_capabilities_v1.schema.json`** — **`GET /v1/models/capabilities`** (wraps **`model_capabilities_list_v1`**)
+- **`api_profiles_v1.schema.json`** — **`GET /v1/profiles`** (active/subagent/planner + profile_contract summary)
 - **`api_openai_models_v1.schema.json`** — OpenAI **`GET /v1/models`**
 - **`api_openai_chat_completion_v1.schema.json`** / **`api_openai_chat_completion_chunk_v1.schema.json`** — OpenAI **`POST /v1/chat/completions`** (non-stream + SSE chunk)
 
 Full tables and exit semantics remain in the Chinese source [`README.zh-CN.md`](README.zh-CN.md).
+
+## ECC ingest draft snapshot
+
+- `docs/schema/ecc_asset_registry_v1.snapshot.json` is the `ECC-N04-D01` machine-readable draft sample for `ecc_asset_registry_v1`.
+- It intentionally stays metadata-only (`source`, `license`, `signature`, `version`, `trust`) and does not imply runtime execution or sanitizer enforcement yet.
+- `docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json` is the `ECC-N04-D02` draft sample for ingest sanitizer decisions (`policy_mode`, `checks`, `decision`, `blocked_patterns`, `next_actions`), focused on dangerous hook/script isolation before trust-policy onboarding.

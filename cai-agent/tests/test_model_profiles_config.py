@@ -12,11 +12,14 @@ from cai_agent.profiles import (
     Profile,
     ProfilesError,
     apply_preset,
+    build_profile_contract_payload,
     build_profile,
+    get_profile_by_id,
     normalize_openai_chat_base_url,
     parse_models_section,
     pick_active,
     project_base_url,
+    resolve_role_profile_id,
     strip_models_blocks,
 )
 
@@ -316,6 +319,55 @@ class PickActiveTests(unittest.TestCase):
         p1, p2 = self._make("a"), self._make("b")
         got = pick_active((p1, p2), None)
         self.assertEqual(got.id, "a")
+
+    def test_profile_contract_contains_profile_home_layout_when_workspace_given(self) -> None:
+        p1, p2 = self._make("alpha"), self._make("beta")
+        contract = build_profile_contract_payload(
+            (p1, p2),
+            profiles_explicit=True,
+            active_profile_id="beta",
+            workspace_root="d:/ws/demo",
+        )
+        self.assertEqual(contract.get("profile_home_schema_version"), "profile_home_layout_v1")
+        homes = contract.get("profile_homes")
+        self.assertIsInstance(homes, dict)
+        beta_home = (homes or {}).get("beta")
+        self.assertIsInstance(beta_home, dict)
+        self.assertTrue(str((beta_home or {}).get("root", "")).endswith(".cai\\profiles\\beta"))
+        self.assertEqual(contract.get("active_profile_home"), beta_home)
+
+    def test_get_profile_by_id_returns_none_on_unknown(self) -> None:
+        p1, p2 = self._make("alpha"), self._make("beta")
+        self.assertIsNone(get_profile_by_id((p1, p2), "ghost"))
+
+    def test_resolve_role_profile_id_prefers_role_specific_ids(self) -> None:
+        self.assertEqual(
+            resolve_role_profile_id(
+                role="subagent",
+                active_profile_id="a",
+                subagent_profile_id="s",
+                planner_profile_id="p",
+            ),
+            "s",
+        )
+        self.assertEqual(
+            resolve_role_profile_id(
+                role="planner",
+                active_profile_id="a",
+                subagent_profile_id="s",
+                planner_profile_id="p",
+            ),
+            "p",
+        )
+        self.assertEqual(
+            resolve_role_profile_id(
+                role="active",
+                active_profile_id="a",
+                subagent_profile_id="s",
+                planner_profile_id="p",
+            ),
+            "a",
+        )
 
 
 class ConfigDiscoveryTests(unittest.TestCase):

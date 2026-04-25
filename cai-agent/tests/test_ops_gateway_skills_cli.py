@@ -30,6 +30,11 @@ def test_gateway_platforms_list_json(tmp_path: Path) -> None:
     assert isinstance(pl, list) and len(pl) >= 3
     ids = {x.get("id") for x in pl if isinstance(x, dict)}
     assert "telegram" in ids and "discord" in ids
+    assert o.get("adapter_contract_schema_version") == "gateway_platform_adapter_contract_v1"
+    tg = next((x for x in pl if isinstance(x, dict) and x.get("id") == "telegram"), {})
+    ac = tg.get("adapter_contract") if isinstance(tg.get("adapter_contract"), dict) else {}
+    assert ac.get("schema_version") == "gateway_platform_adapter_contract_v1"
+    assert (ac.get("health") or {}).get("supported") is True
 
 
 def test_ops_dashboard_json(tmp_path: Path) -> None:

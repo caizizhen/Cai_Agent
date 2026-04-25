@@ -19,6 +19,13 @@ def test_registry_list_schema() -> None:
     doc = list_runtimes_payload()
     assert doc["schema_version"] == "runtime_registry_v1"
     assert "local" in doc["backends"]
+    iface = doc.get("interface") or {}
+    assert iface.get("schema_version") == "runtime_backend_interface_v1"
+    backends = iface.get("backends") or {}
+    docker = backends.get("docker") or {}
+    ssh = backends.get("ssh") or {}
+    assert docker.get("interface_alignment", {}).get("base_ops_aligned") is True
+    assert ssh.get("interface_alignment", {}).get("base_ops_aligned") is True
 
 
 def test_get_runtime_backend_defaults() -> None:

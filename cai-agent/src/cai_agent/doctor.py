@@ -14,10 +14,13 @@ from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_cap
 from cai_agent.models import ping_profile
 from cai_agent.profiles import build_profile_contract_payload
 from cai_agent.feedback import feedback_stats
+from cai_agent.memory import resolve_active_memory_provider
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
 from cai_agent.provider_registry import provider_readiness_snapshot
 from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.runtime.registry import get_runtime_backend
+from cai_agent.tool_provider import build_tool_provider_contract_payload
+from cai_agent.voice import build_voice_provider_contract_payload
 
 
 def build_installation_guidance() -> dict[str, Any]:
@@ -158,7 +161,9 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         subagent_profile_id=settings.subagent_profile_id,
         planner_profile_id=settings.planner_profile_id,
         env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+        workspace_root=settings.workspace,
     )
+    memory_provider = resolve_active_memory_provider(root)
     return {
         "schema_version": "doctor_v1",
         "generated_at": datetime.now(UTC).isoformat(),
@@ -239,6 +244,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
                 getattr(settings, "memory_policy_recall_negative_audit", True),
             ),
         },
+        "memory_provider": memory_provider,
         "skills_auto_extract": {
             "enabled": bool(getattr(settings, "skills_auto_extract_enabled", False)),
             "mode": str(getattr(settings, "skills_auto_extract_mode", "template") or "template"),
@@ -250,6 +256,8 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
                 getattr(settings, "skills_auto_improve_min_days_since_last_improve", 0) or 0,
             ),
         },
+        "voice": build_voice_provider_contract_payload(),
+        "tool_provider": build_tool_provider_contract_payload(settings),
         "installation_guidance": build_installation_guidance(),
         "release_runbook": (
             release_runbook := build_release_runbook_payload(repo_root=release_root, workspace=root)
@@ -278,10 +286,13 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "planner_profile_id": p.get("planner_profile_id"),
         "profile_contract": p.get("profile_contract"),
         "memory_policy": p.get("memory_policy"),
+        "memory_provider": p.get("memory_provider"),
         "model_routing_enabled": p.get("model_routing_enabled"),
         "model_routing_rules_count": p.get("model_routing_rules_count"),
         "models_profile_routes_count": p.get("models_profile_routes_count"),
         "cai_dir_health": p.get("cai_dir_health"),
+        "voice": p.get("voice"),
+        "tool_provider": p.get("tool_provider"),
         "installation_guidance": p.get("installation_guidance"),
     }
 
@@ -323,6 +334,7 @@ def run_doctor(
         subagent_profile_id=settings.subagent_profile_id,
         planner_profile_id=settings.planner_profile_id,
         env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+        workspace_root=settings.workspace,
     )
     print(
         "Profile Contract:",

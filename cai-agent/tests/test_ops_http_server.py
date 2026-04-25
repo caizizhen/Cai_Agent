@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -221,6 +222,47 @@ def test_ops_dashboard_interactions_schedule_reorder_preview(tmp_path: Path) -> 
         httpd.server_close()
 
 
+def test_ops_dashboard_interactions_schedule_reorder_apply(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    sched = root / ".cai-schedule.json"
+    sched.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.1",
+                "tasks": [
+                    {"id": "task-a", "goal": "a"},
+                    {"id": "task-b", "goal": "b"},
+                    {"id": "task-c", "goal": "c"},
+                ],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "schedule_reorder_preview",
+                "task_id": "task-c",
+                "before_task_id": "task-a",
+            },
+        )
+        with urllib.request.urlopen(url, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["ok"] is True
+        assert payload["applied"] is True
+        doc = json.loads(sched.read_text(encoding="utf-8"))
+        ids = [str(t.get("id")) for t in (doc.get("tasks") or [])]
+        assert ids == ["task-c", "task-a", "task-b"]
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_ops_dashboard_interactions_gateway_bind_edit_preview(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     gdir = root / ".cai" / "gateway"
@@ -260,6 +302,82 @@ def test_ops_dashboard_interactions_gateway_bind_edit_preview(tmp_path: Path) ->
         httpd.server_close()
 
 
+def test_ops_dashboard_interactions_gateway_bind_edit_apply_and_audit(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    gdir = root / ".cai" / "gateway"
+    gdir.mkdir(parents=True)
+    mpath = gdir / "slack-session-map.json"
+    mpath.write_text(
+        json.dumps(
+            {
+                "schema_version": "gateway_slack_map_v1",
+                "bindings": {"C1": {"session_file": "old.json", "label": "old"}},
+                "allowed_channel_ids": [],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        apply_url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "gateway_bind_edit_preview",
+                "platform": "slack",
+                "binding_id": "C1",
+                "session_file": "new.json",
+                "label": "new",
+            },
+        )
+        with urllib.request.urlopen(apply_url, timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["ok"] is True
+        assert payload["applied"] is True
+        doc = json.loads(mpath.read_text(encoding="utf-8"))
+        row = ((doc.get("bindings") or {}).get("C1") or {})
+        assert row.get("session_file") == "new.json"
+        assert row.get("label") == "new"
+
+        audit_url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {"workspace": str(root), "mode": "audit", "action": "gateway_bind_edit_preview"},
+        )
+        with urllib.request.urlopen(audit_url, timeout=5) as resp:
+            audit = json.loads(resp.read().decode("utf-8"))
+        assert audit["ok"] is True
+        assert audit["audit_schema_version"] == "ops_dashboard_action_audit_v1"
+        assert int(audit.get("records_count") or 0) >= 1
+        assert isinstance(audit.get("records"), list)
+        assert (audit.get("records") or [])[0].get("schema_version") == "ops_dashboard_action_audit_v1"
+        assert "actor" in (audit.get("records") or [])[0]
+
+        audit_filtered_url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "audit",
+                "action": "gateway_bind_edit_preview",
+                "filter_action": "gateway_bind_edit_preview",
+                "filter_mode": "apply",
+                "ok": "true",
+            },
+        )
+        with urllib.request.urlopen(audit_filtered_url, timeout=5) as resp:
+            af = json.loads(resp.read().decode("utf-8"))
+        assert af["ok"] is True
+        assert af.get("filter", {}).get("action") == "gateway_bind_edit_preview"
+        assert af.get("filter", {}).get("mode") == "apply"
+        assert af.get("filter", {}).get("ok") is True
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_ops_dashboard_interactions_rejects_unknown_action(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start_server(frozenset({root}), None)
@@ -277,6 +395,88 @@ def test_ops_dashboard_interactions_rejects_unknown_action(tmp_path: Path) -> No
     finally:
         httpd.shutdown()
         httpd.server_close()
+
+
+def test_ops_dashboard_interactions_profile_switch_preview_and_apply(tmp_path: Path) -> None:
+    import os
+
+    root = tmp_path.resolve()
+    (root / "cai-agent.toml").write_text(
+        "\n".join(
+            [
+                "[llm]",
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+                "[models]",
+                'active = "p1"',
+                "",
+                "[[models.profile]]",
+                'id = "p1"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m1"',
+                "",
+                "[[models.profile]]",
+                'id = "p2"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m2"',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    prev_cfg = os.environ.pop("CAI_CONFIG", None)
+    prev_ws = os.environ.pop("CAI_WORKSPACE", None)
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        preview_url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "preview",
+                "action": "profile_switch_preview",
+                "target_profile_id": "p2",
+            },
+        )
+        with urllib.request.urlopen(preview_url, timeout=5) as resp:
+            preview = json.loads(resp.read().decode("utf-8"))
+        assert preview["ok"] is True
+        assert preview["active_profile_id"] == "p1"
+        assert preview["target_profile_id"] == "p2"
+        assert preview["dry_run"] is True
+
+        apply_url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "profile_switch_preview",
+                "target_profile_id": "p2",
+            },
+        )
+        with urllib.request.urlopen(apply_url, timeout=5) as resp:
+            applied = json.loads(resp.read().decode("utf-8"))
+        assert applied["ok"] is True
+        assert applied["applied"] is True
+        cfg = tomllib.loads((root / "cai-agent.toml").read_text(encoding="utf-8"))
+        assert cfg.get("models", {}).get("active") == "p2"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+        if prev_cfg is None:
+            os.environ.pop("CAI_CONFIG", None)
+        else:
+            os.environ["CAI_CONFIG"] = prev_cfg
+        if prev_ws is None:
+            os.environ.pop("CAI_WORKSPACE", None)
+        else:
+            os.environ["CAI_WORKSPACE"] = prev_ws
 
 
 def test_ops_not_found(tmp_path: Path) -> None:

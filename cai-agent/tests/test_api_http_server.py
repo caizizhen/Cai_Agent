@@ -45,6 +45,19 @@ def test_api_healthz_without_bearer_when_token_set(tmp_path: Path) -> None:
         httpd.server_close()
 
 
+def test_api_health_alias_without_bearer_when_token_set(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, "tok")
+    try:
+        with urllib.request.urlopen(_url(httpd, "/health"), timeout=5) as resp:
+            assert resp.status == 200
+            body = json.loads(resp.read().decode("utf-8"))
+        assert body.get("ok") is True
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_api_status_unauthorized_without_bearer(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start(root, "secret")
@@ -94,6 +107,11 @@ def test_api_doctor_summary_no_base_url(tmp_path: Path) -> None:
             assert "base_url" not in data
             assert "model" not in data
             assert data.get("mock") is True
+            mp = data.get("memory_provider") or {}
+            assert mp.get("schema_version") == "memory_active_provider_v1"
+            assert mp.get("active_provider") == "local_entries_jsonl"
+            tp = data.get("tool_provider") or {}
+            assert tp.get("schema_version") == "tool_provider_contract_v1"
         finally:
             httpd.shutdown()
             httpd.server_close()
@@ -183,6 +201,36 @@ def test_api_models_summary_whitelist(tmp_path: Path) -> None:
             assert contract.get("schema_version") == "profile_contract_v1"
             assert "base_url" not in data
             assert "api_key" not in data
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+    finally:
+        if prev is None:
+            _os.environ.pop("CAI_CONFIG", None)
+        else:
+            _os.environ["CAI_CONFIG"] = prev
+
+
+def test_api_profiles_route_contains_profile_contract(tmp_path: Path) -> None:
+    import os as _os
+
+    root = tmp_path.resolve()
+    cfg = _prepare_workspace_with_profile(root)
+    prev = _os.environ.get("CAI_CONFIG")
+    try:
+        _os.environ["CAI_CONFIG"] = cfg
+        httpd = _start(root, None)
+        try:
+            with urllib.request.urlopen(_url(httpd, "/v1/profiles"), timeout=5) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            assert data.get("schema_version") == "api_profiles_v1"
+            assert data.get("active_profile_id") == "p1"
+            assert data.get("profiles_count") == 1
+            rows = data.get("profiles") or []
+            assert rows and rows[0].get("id") == "p1"
+            assert rows[0].get("api_key_present") is True
+            contract = data.get("profile_contract") or {}
+            assert contract.get("schema_version") == "profile_contract_v1"
         finally:
             httpd.shutdown()
             httpd.server_close()
@@ -404,6 +452,20 @@ def test_api_release_runbook_summary(tmp_path: Path) -> None:
         httpd.server_close()
 
 
+def test_api_gateway_federation_summary(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, None)
+    try:
+        with urllib.request.urlopen(_url(httpd, "/v1/gateway/federation-summary"), timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "gateway_federation_summary_v1"
+        assert isinstance(data.get("platforms"), list)
+        assert isinstance(data.get("federation"), dict)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_api_new_routes_require_bearer(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start(root, "abc")
@@ -414,10 +476,42 @@ def test_api_new_routes_require_bearer(tmp_path: Path) -> None:
             "/v1/models/capabilities",
             "/v1/plugins/surface",
             "/v1/release/runbook",
+            "/v1/gateway/federation-summary",
         ):
             with pytest.raises(urllib.error.HTTPError) as ei:
                 urllib.request.urlopen(_url(httpd, path), timeout=5)
             assert ei.value.code == 401
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_api_gateway_route_preview_dry_run_only(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, None)
+    try:
+        url = _url(httpd, "/v1/gateway/route-preview")
+        req = urllib.request.Request(
+            url,
+            data=json.dumps({"platform": "telegram", "channel_id": "42:7", "dry_run": True}).encode("utf-8"),
+            method="POST",
+        )
+        req.add_header("Content-Type", "application/json")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "gateway_proxy_route_v1"
+        assert data.get("dry_run") is True
+        assert (data.get("source") or {}).get("platform") == "telegram"
+
+        req2 = urllib.request.Request(
+            url,
+            data=json.dumps({"platform": "telegram", "dry_run": False}).encode("utf-8"),
+            method="POST",
+        )
+        req2.add_header("Content-Type", "application/json")
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(req2, timeout=5)
+        assert ei.value.code == 403
     finally:
         httpd.shutdown()
         httpd.server_close()
@@ -463,3 +557,9 @@ def test_api_openai_chat_completion_chunk_v1_schema_file() -> None:
     doc = json.loads((_SCHEMAS / "api_openai_chat_completion_chunk_v1.schema.json").read_text(encoding="utf-8"))
     assert doc["properties"]["schema_version"]["const"] == "api_openai_chat_completion_chunk_v1"
     assert doc["properties"]["object"]["const"] == "chat.completion.chunk"
+
+
+def test_api_profiles_v1_schema_file() -> None:
+    doc = json.loads((_SCHEMAS / "api_profiles_v1.schema.json").read_text(encoding="utf-8"))
+    assert doc["properties"]["schema_version"]["const"] == "api_profiles_v1"
+    assert doc["properties"]["profile_contract"]["properties"]["schema_version"]["const"] == "profile_contract_v1"

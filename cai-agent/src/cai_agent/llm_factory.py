@@ -35,7 +35,12 @@ from cai_agent.model_routing import (
     first_matching_routing_rule,
     routing_goal_from_messages,
 )
-from cai_agent.profiles import Profile, project_base_url
+from cai_agent.profiles import (
+    Profile,
+    get_profile_by_id,
+    project_base_url,
+    resolve_role_profile_id,
+)
 
 
 ChatFn = Callable[[Any, list[dict[str, Any]]], str]
@@ -100,18 +105,15 @@ def resolve_role_profile(settings: Any, role: str) -> Profile:
     if not profiles:
         raise RuntimeError("settings.profiles 为空，无法定位 profile")
 
-    role_l = (role or "active").strip().lower()
-    active_id = getattr(settings, "active_profile_id", None)
-    if role_l == "subagent":
-        target_id = getattr(settings, "subagent_profile_id", None) or active_id
-    elif role_l == "planner":
-        target_id = getattr(settings, "planner_profile_id", None) or active_id
-    else:
-        target_id = active_id
-
-    for p in profiles:
-        if getattr(p, "id", None) == target_id:
-            return p
+    target_id = resolve_role_profile_id(
+        role=role,
+        active_profile_id=getattr(settings, "active_profile_id", None),
+        subagent_profile_id=getattr(settings, "subagent_profile_id", None),
+        planner_profile_id=getattr(settings, "planner_profile_id", None),
+    )
+    picked = get_profile_by_id(profiles, target_id)
+    if picked is not None:
+        return picked
     return profiles[0]
 
 

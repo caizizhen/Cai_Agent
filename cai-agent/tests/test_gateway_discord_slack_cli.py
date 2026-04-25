@@ -42,6 +42,38 @@ from cai_agent.gateway_slack import (
     slack_list_bindings,
     slack_unbind,
 )
+from cai_agent.gateway_signal import (
+    signal_allow_add,
+    signal_allow_list,
+    signal_allow_rm,
+    signal_bind,
+    signal_gateway_health,
+    signal_get_binding,
+    signal_list_bindings,
+    signal_unbind,
+)
+from cai_agent.gateway_email import (
+    email_allow_add,
+    email_allow_list,
+    email_allow_rm,
+    email_bind,
+    email_gateway_health,
+    email_get_binding,
+    email_receive,
+    email_send,
+    email_unbind,
+)
+from cai_agent.gateway_matrix import (
+    matrix_allow_add,
+    matrix_allow_list,
+    matrix_allow_rm,
+    matrix_bind,
+    matrix_gateway_health,
+    matrix_get_binding,
+    matrix_receive,
+    matrix_send,
+    matrix_unbind,
+)
 from cai_agent.gateway_teams import (
     build_teams_manifest_payload,
     teams_activity_response,
@@ -148,6 +180,184 @@ def test_slack_map_file_schema(tmp_path: Path) -> None:
     assert map_file.is_file()
     data = json.loads(map_file.read_text(encoding="utf-8"))
     assert data["schema_version"] == "gateway_slack_map_v1"
+
+
+# ---------------------------------------------------------------------------
+# Signal 会话映射 / skeleton 健康检查
+# ---------------------------------------------------------------------------
+
+
+def test_signal_bind_and_get(tmp_path: Path) -> None:
+    r = signal_bind(tmp_path, "+8613000000000", "signal.json", label="ops")
+    assert r["ok"] is True
+    r2 = signal_get_binding(tmp_path, "+8613000000000")
+    assert r2["found"] is True
+    assert r2["binding"]["label"] == "ops"
+
+
+def test_signal_unbind(tmp_path: Path) -> None:
+    signal_bind(tmp_path, "u1", "s.json")
+    r = signal_unbind(tmp_path, "u1")
+    assert r["was_bound"] is True
+    assert signal_get_binding(tmp_path, "u1")["found"] is False
+
+
+def test_signal_allow_add_rm_list(tmp_path: Path) -> None:
+    signal_allow_add(tmp_path, "u1")
+    signal_allow_add(tmp_path, "u2")
+    r = signal_allow_list(tmp_path)
+    assert "u1" in r["allowed_sender_ids"]
+    assert r["allowlist_enabled"] is True
+    signal_allow_rm(tmp_path, "u1")
+    r2 = signal_allow_list(tmp_path)
+    assert "u1" not in r2["allowed_sender_ids"]
+
+
+def test_signal_map_file_schema(tmp_path: Path) -> None:
+    signal_bind(tmp_path, "u-map", "x.json")
+    map_file = tmp_path / ".cai" / "gateway" / "signal-session-map.json"
+    assert map_file.is_file()
+    data = json.loads(map_file.read_text(encoding="utf-8"))
+    assert data["schema_version"] == "gateway_signal_map_v1"
+
+
+def test_signal_health_config_presence(tmp_path: Path) -> None:
+    signal_bind(tmp_path, "u-health", "s.json")
+    r = signal_gateway_health(
+        tmp_path,
+        service_url="http://127.0.0.1:8080",
+        account="default",
+        phone_number="+8613000000000",
+    )
+    assert r["schema_version"] == "gateway_signal_health_v1"
+    assert r["bindings_count"] == 1
+    assert r["service_url_configured"] is True
+    assert r["account_configured"] is True
+    assert r["phone_number_configured"] is True
+    assert (r.get("token_check") or {}).get("performed") is False
+
+
+# ---------------------------------------------------------------------------
+# Email 会话映射 / send-receive 最小链路
+# ---------------------------------------------------------------------------
+
+
+def test_email_bind_and_get(tmp_path: Path) -> None:
+    r = email_bind(tmp_path, "ops@example.com", "mail.json", label="ops")
+    assert r["ok"] is True
+    r2 = email_get_binding(tmp_path, "ops@example.com")
+    assert r2["found"] is True
+    assert r2["binding"]["label"] == "ops"
+
+
+def test_email_unbind(tmp_path: Path) -> None:
+    email_bind(tmp_path, "a@example.com", "s.json")
+    r = email_unbind(tmp_path, "a@example.com")
+    assert r["was_bound"] is True
+    assert email_get_binding(tmp_path, "a@example.com")["found"] is False
+
+
+def test_email_allow_add_rm_list(tmp_path: Path) -> None:
+    email_allow_add(tmp_path, "sender-a@example.com")
+    email_allow_add(tmp_path, "sender-b@example.com")
+    r = email_allow_list(tmp_path)
+    assert "sender-a@example.com" in r["allowed_senders"]
+    assert r["allowlist_enabled"] is True
+    email_allow_rm(tmp_path, "sender-a@example.com")
+    r2 = email_allow_list(tmp_path)
+    assert "sender-a@example.com" not in r2["allowed_senders"]
+
+
+def test_email_send_receive_chain(tmp_path: Path) -> None:
+    email_send(
+        tmp_path,
+        from_address="sender@example.com",
+        to_address="ops@example.com",
+        subject="hello",
+        text="world",
+        mirror_inbox=True,
+    )
+    out = email_receive(tmp_path, inbox_address="ops@example.com", limit=5)
+    assert out["ok"] is True
+    assert out["messages_count"] >= 1
+    assert (out["messages"] or [{}])[-1].get("subject") == "hello"
+
+
+def test_email_health_config_presence(tmp_path: Path) -> None:
+    email_bind(tmp_path, "ops@example.com", "mail.json")
+    r = email_gateway_health(
+        tmp_path,
+        smtp_host="smtp.example.com",
+        smtp_port=587,
+        smtp_user="ops",
+        imap_host="imap.example.com",
+        imap_port=993,
+        imap_user="ops",
+    )
+    assert r["schema_version"] == "gateway_email_health_v1"
+    assert r["bindings_count"] == 1
+    assert (r["smtp"] or {}).get("host_configured") is True
+    assert (r["imap"] or {}).get("host_configured") is True
+
+
+# ---------------------------------------------------------------------------
+# Matrix room map / send-receive 最小链路
+# ---------------------------------------------------------------------------
+
+
+def test_matrix_bind_and_get(tmp_path: Path) -> None:
+    r = matrix_bind(tmp_path, "!room:example.org", "matrix.json", label="ops")
+    assert r["ok"] is True
+    r2 = matrix_get_binding(tmp_path, "!room:example.org")
+    assert r2["found"] is True
+    assert r2["binding"]["label"] == "ops"
+
+
+def test_matrix_unbind(tmp_path: Path) -> None:
+    matrix_bind(tmp_path, "!room:a", "s.json")
+    r = matrix_unbind(tmp_path, "!room:a")
+    assert r["was_bound"] is True
+    assert matrix_get_binding(tmp_path, "!room:a")["found"] is False
+
+
+def test_matrix_allow_add_rm_list(tmp_path: Path) -> None:
+    matrix_allow_add(tmp_path, "!room:a")
+    matrix_allow_add(tmp_path, "!room:b")
+    r = matrix_allow_list(tmp_path)
+    assert "!room:a" in r["allowed_room_ids"]
+    assert r["allowlist_enabled"] is True
+    matrix_allow_rm(tmp_path, "!room:a")
+    r2 = matrix_allow_list(tmp_path)
+    assert "!room:a" not in r2["allowed_room_ids"]
+
+
+def test_matrix_send_receive_chain(tmp_path: Path) -> None:
+    matrix_send(
+        tmp_path,
+        room_id="!room:ops",
+        sender="@bot:example.org",
+        text="hello",
+        mirror_inbound=True,
+    )
+    out = matrix_receive(tmp_path, room_id="!room:ops", limit=5)
+    assert out["ok"] is True
+    assert out["messages_count"] >= 1
+    assert (out["messages"] or [{}])[-1].get("text") == "hello"
+
+
+def test_matrix_health_config_presence(tmp_path: Path) -> None:
+    matrix_bind(tmp_path, "!room:ops", "matrix.json")
+    r = matrix_gateway_health(
+        tmp_path,
+        homeserver="https://matrix.example.org",
+        access_token="token-x",
+        user_id="@ops:example.org",
+    )
+    assert r["schema_version"] == "gateway_matrix_health_v1"
+    assert r["bindings_count"] == 1
+    assert r["homeserver_configured"] is True
+    assert r["access_token_configured"] is True
+    assert r["user_id_configured"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -435,6 +645,143 @@ def test_gateway_teams_manifest_cli() -> None:
     assert out["manifest"]["bots"][0]["botId"] == "BOT"
 
 
+def test_gateway_signal_bind_cli(tmp_path: Path) -> None:
+    result = _cli("gateway", "signal", "-w", str(tmp_path), "bind", "SENDER_001", "session.json", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+
+
+def test_gateway_signal_list_cli(tmp_path: Path) -> None:
+    signal_bind(tmp_path, "SENDER_X", "sx.json")
+    result = _cli("gateway", "signal", "-w", str(tmp_path), "list", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert "SENDER_X" in out["bindings"]
+
+
+def test_gateway_signal_allow_add_cli(tmp_path: Path) -> None:
+    result = _cli("gateway", "signal", "-w", str(tmp_path), "allow", "add", "SENDER_ALLOW", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+    assert "SENDER_ALLOW" in out["allowed_sender_ids"]
+
+
+def test_gateway_signal_health_cli_no_config(tmp_path: Path) -> None:
+    result = _cli("gateway", "signal", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_signal_health_v1"
+    assert out.get("bindings_count") == 0
+    assert out.get("service_url_configured") is False
+    assert (out.get("token_check") or {}).get("performed") is False
+
+
+def test_gateway_email_bind_cli(tmp_path: Path) -> None:
+    result = _cli("gateway", "email", "-w", str(tmp_path), "bind", "ops@example.com", "mail.json", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+
+
+def test_gateway_email_send_receive_cli(tmp_path: Path) -> None:
+    send_r = _cli(
+        "gateway",
+        "email",
+        "-w",
+        str(tmp_path),
+        "send",
+        "--from",
+        "sender@example.com",
+        "--to",
+        "ops@example.com",
+        "--subject",
+        "hello",
+        "--text",
+        "world",
+        "--mirror-inbox",
+        "--json",
+    )
+    assert send_r.returncode == 0, send_r.stderr
+    recv_r = _cli(
+        "gateway",
+        "email",
+        "-w",
+        str(tmp_path),
+        "receive",
+        "--inbox",
+        "ops@example.com",
+        "--limit",
+        "10",
+        "--json",
+    )
+    assert recv_r.returncode == 0, recv_r.stderr
+    out = json.loads(recv_r.stdout)
+    assert out.get("schema_version") == "gateway_email_messages_v1"
+    assert out.get("messages_count", 0) >= 1
+
+
+def test_gateway_email_health_cli_no_config(tmp_path: Path) -> None:
+    result = _cli("gateway", "email", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_email_health_v1"
+    assert (out.get("smtp") or {}).get("host_configured") is False
+    assert (out.get("imap") or {}).get("host_configured") is False
+
+
+def test_gateway_matrix_bind_cli(tmp_path: Path) -> None:
+    result = _cli("gateway", "matrix", "-w", str(tmp_path), "bind", "!room:ops", "matrix.json", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out["ok"] is True
+
+
+def test_gateway_matrix_send_receive_cli(tmp_path: Path) -> None:
+    send_r = _cli(
+        "gateway",
+        "matrix",
+        "-w",
+        str(tmp_path),
+        "send",
+        "--room-id",
+        "!room:ops",
+        "--sender",
+        "@bot:example.org",
+        "--text",
+        "hello",
+        "--mirror-inbound",
+        "--json",
+    )
+    assert send_r.returncode == 0, send_r.stderr
+    recv_r = _cli(
+        "gateway",
+        "matrix",
+        "-w",
+        str(tmp_path),
+        "receive",
+        "--room-id",
+        "!room:ops",
+        "--limit",
+        "10",
+        "--json",
+    )
+    assert recv_r.returncode == 0, recv_r.stderr
+    out = json.loads(recv_r.stdout)
+    assert out.get("schema_version") == "gateway_matrix_messages_v1"
+    assert out.get("messages_count", 0) >= 1
+
+
+def test_gateway_matrix_health_cli_no_config(tmp_path: Path) -> None:
+    result = _cli("gateway", "matrix", "-w", str(tmp_path), "health", "--json")
+    assert result.returncode == 0, result.stderr
+    out = json.loads(result.stdout)
+    assert out.get("schema_version") == "gateway_matrix_health_v1"
+    assert out.get("homeserver_configured") is False
+    assert out.get("user_id_configured") is False
+
+
 # ---------------------------------------------------------------------------
 # gateway platforms 目录验证（Discord/Slack/Teams 升级为 mvp）
 # ---------------------------------------------------------------------------
@@ -448,4 +795,7 @@ def test_gateway_platforms_shows_discord_slack_teams_mvp() -> None:
     assert plat_map["discord"]["implementation"] == "mvp"
     assert plat_map["slack"]["implementation"] == "mvp"
     assert plat_map["teams"]["implementation"] == "mvp"
+    assert plat_map["signal"]["implementation"] == "mvp"
+    assert plat_map["email"]["implementation"] == "mvp"
+    assert plat_map["matrix"]["implementation"] == "mvp"
     assert plat_map["telegram"]["implementation"] == "full"

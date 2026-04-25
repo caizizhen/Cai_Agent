@@ -23,7 +23,7 @@ from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, get_last_usage
 from cai_agent.llm_factory import activate_profile_in_memory
 from cai_agent.models import fetch_models
-from cai_agent.profiles import Profile, build_profile_contract_payload
+from cai_agent.profiles import Profile, build_profile_contract_payload, get_profile_by_id
 from cai_agent.skill_registry import load_related_skill_texts
 from cai_agent.session import list_session_files, load_session, save_session
 from cai_agent.mcp_presets import format_tui_mcp_web_notebook_quickstart
@@ -550,12 +550,9 @@ class CaiAgentApp(App[None]):
                 if isinstance(result, str) and result.strip()
                 else prev_active
             )
-            prof = next((p for p in new_s.profiles if p.id == target), None)
+            prof = get_profile_by_id(new_s.profiles, target)
             if prof is None:
-                prof = next(
-                    (p for p in new_s.profiles if p.id == new_s.active_profile_id),
-                    None,
-                )
+                prof = get_profile_by_id(new_s.profiles, new_s.active_profile_id)
             if prof is None and new_s.profiles:
                 prof = new_s.profiles[0]
             if prof is None:
@@ -570,7 +567,7 @@ class CaiAgentApp(App[None]):
                 log.write(f"[dim]{build_profile_switched_line(prof.id)}[/]\n")
             return
         if isinstance(result, str) and result.strip():
-            prof = next((p for p in self._settings.profiles if p.id == result.strip()), None)
+            prof = get_profile_by_id(self._settings.profiles, result.strip())
             if prof is not None:
                 self._apply_profile_switch(prof)
                 log.write(
@@ -759,6 +756,7 @@ class CaiAgentApp(App[None]):
                 active_profile_id=s.active_profile_id,
                 subagent_profile_id=getattr(s, "subagent_profile_id", None),
                 planner_profile_id=getattr(s, "planner_profile_id", None),
+                workspace_root=s.workspace,
             )
             label = build_context_label(
                 active_profile_id=s.active_profile_id,
@@ -1029,6 +1027,7 @@ class CaiAgentApp(App[None]):
                 active_profile_id=s.active_profile_id,
                 subagent_profile_id=sub,
                 planner_profile_id=pln,
+                workspace_root=s.workspace,
             )
             route_lines = (
                 f"profile: [cyan]{s.active_profile_id}[/]\n"

@@ -47,6 +47,10 @@ def test_summarize_two_workspaces(tmp_path: Path) -> None:
     out = summarize_gateway_maps([w1.resolve(), w2.resolve()])
     assert out["schema_version"] == "gateway_maps_summarize_v1"
     assert len(out["workspaces"]) == 2
+    fed = out.get("federation") or {}
+    assert fed.get("schema_version") == "gateway_workspace_federation_v1"
+    assert fed.get("workspaces_count") == 2
+    assert int((fed.get("summary") or {}).get("bindings_count") or 0) >= 3
     d0 = out["workspaces"][0]["discord"]["bindings"][0]
     assert d0.get("guild_id") == "G9"
     assert d0.get("label") == "dev"

@@ -21,6 +21,7 @@ from cai_agent.ops_dashboard import (
     build_ops_dashboard_interactions_payload,
     build_ops_dashboard_payload,
 )
+from cai_agent.server_auth import resolve_bearer_token
 
 
 class OpsApiThreadingServer(ThreadingHTTPServer):
@@ -171,10 +172,12 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
 
         if path == "/v1/ops/dashboard/interactions":
             action = str(one("action") or "").strip()
-            params = {k: v[0] for k, v in q.items() if v and k not in {"workspace", "action"}}
+            mode = str(one("mode") or "preview").strip().lower()
+            params = {k: v[0] for k, v in q.items() if v and k not in {"workspace", "action", "mode"}}
             interaction = build_ops_dashboard_interactions_payload(
                 cwd=str(workspace),
                 action=action,
+                mode=mode,
                 params=params,
             )
             self._send_json(200 if interaction.get("ok") else 400, interaction)
@@ -311,8 +314,7 @@ def run_ops_api_server(
             return 2
         roots.append(p)
     allow = frozenset(roots)
-    token_raw = (os.environ.get("CAI_OPS_API_TOKEN") or "").strip()
-    api_token = token_raw or None
+    api_token = resolve_bearer_token("CAI_OPS_API_TOKEN", "CAI_API_TOKEN")
 
     httpd = OpsApiThreadingServer((host, port), OpsApiRequestHandler)
     httpd.allow_roots = allow
@@ -321,7 +323,8 @@ def run_ops_api_server(
     err.write(
         f"ops serve: listening http://{host}:{port}\n"
         f"  allow workspaces ({len(allow)}): {', '.join(str(x) for x in sorted(allow))}\n"
-        f"  CAI_OPS_API_TOKEN: {'set' if api_token else 'unset'}\n"
+        "  CAI_OPS_API_TOKEN/CAI_API_TOKEN: "
+        f"{'set' if api_token else 'unset'}\n"
         "  GET /v1/ops/dashboard?workspace=...&observe_pattern=...\n",
     )
     try:

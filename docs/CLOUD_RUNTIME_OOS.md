@@ -13,3 +13,7 @@ This document summarizes the role of [CLOUD_RUNTIME_OOS.zh-CN.md](CLOUD_RUNTIME_
 - Keep this summary aligned with the Chinese source.
 - Do not add independent status tables here.
 - If the Chinese source is archived later, move this companion with it and update the docs map.
+
+## Current Gate (HM-N11-D01)
+
+Cloud runtime remains conditional. The Chinese source now includes a concrete "go/no-go" checklist before any real Modal/Daytona (or similar) backend can be started: authorization, security model, compliance, product value, and engineering verification must all be satisfied.

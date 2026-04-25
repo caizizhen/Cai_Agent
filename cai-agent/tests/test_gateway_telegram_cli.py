@@ -532,3 +532,77 @@ class GatewayTelegramCliTests(unittest.TestCase):
                     )
             self.assertEqual(rc, 2)
             self.assertIn("同时", err.getvalue())
+
+    def test_telegram_voice_reply_requires_voice_file_id(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with patch.dict("os.environ", {"CAI_TELEGRAM_BOT_TOKEN": "tkn"}, clear=False):
+                    with redirect_stdout(buf):
+                        rc = main(
+                            [
+                                "gateway",
+                                "telegram",
+                                "voice-reply",
+                                "--chat-id",
+                                "123",
+                                "--json",
+                            ],
+                        )
+            self.assertEqual(rc, 2)
+            out = json.loads(buf.getvalue().strip())
+            self.assertEqual(out.get("schema_version"), "gateway_telegram_voice_reply_v1")
+            self.assertEqual(out.get("error"), "missing_voice_file_id")
+
+    def test_telegram_voice_reply_json_ok(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with patch.dict(
+                    "os.environ",
+                    {
+                        "CAI_TELEGRAM_BOT_TOKEN": "tkn",
+                        "CAI_TELEGRAM_VOICE_FILE_ID": "voice-file-1",
+                        "CAI_VOICE_PROVIDER": "mock-voice",
+                        "CAI_VOICE_ENDPOINT": "http://127.0.0.1:9999",
+                        "CAI_VOICE_API_KEY": "k",
+                    },
+                    clear=False,
+                ):
+                    with patch(
+                        "cai_agent.__main__.urllib.request.urlopen",
+                    ) as mock_urlopen:
+                        class _Resp:
+                            status = 200
+
+                            def __enter__(self):
+                                return self
+
+                            def __exit__(self, exc_type, exc, tb):
+                                return False
+
+                            def read(self):
+                                return b'{"ok": true, "result": {"message_id": 1}}'
+
+                        mock_urlopen.return_value = _Resp()
+                        with redirect_stdout(buf):
+                            rc = main(
+                                [
+                                    "gateway",
+                                    "telegram",
+                                    "voice-reply",
+                                    "--chat-id",
+                                    "123",
+                                    "--text",
+                                    "hello voice",
+                                    "--json",
+                                ],
+                            )
+            self.assertEqual(rc, 0)
+            out = json.loads(buf.getvalue().strip())
+            self.assertEqual(out.get("schema_version"), "gateway_telegram_voice_reply_v1")
+            self.assertIs(out.get("ok"), True)
+            self.assertEqual(out.get("provider"), "mock-voice")
+            self.assertIs((out.get("send_result") or {}).get("ok"), True)

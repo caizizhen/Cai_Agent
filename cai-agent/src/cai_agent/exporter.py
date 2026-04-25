@@ -5,6 +5,8 @@ import shutil
 from pathlib import Path
 
 from cai_agent.config import Settings
+from cai_agent.memory import resolve_active_memory_provider
+from cai_agent.plugin_registry import build_local_catalog_payload
 
 
 def _project_root(settings: Settings) -> Path:
@@ -20,11 +22,16 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
     if t not in {"cursor", "codex", "opencode"}:
         raise ValueError(f"unsupported target: {target}")
 
+    local_catalog = build_local_catalog_payload(settings, root_override=root)
+    mem_provider = resolve_active_memory_provider(root)
     manifest_core = {
         "exporter": "cai-agent",
         "schema": "export-v2",
         "manifest_version": "2.1.0",
         "target": t,
+        "local_catalog_schema_version": str(local_catalog.get("schema_version") or ""),
+        "active_memory_provider": str(mem_provider.get("active_provider") or ""),
+        "active_memory_provider_source": str(mem_provider.get("active_provider_source") or "default"),
     }
 
     if t == "cursor":
@@ -45,8 +52,18 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
                 shutil.copytree(src, dst)
                 copied.append(name)
         manifest_path = out_dir / "cai-export-manifest.json"
+        catalog_path = out_dir / "cai-local-catalog.json"
+        catalog_path.write_text(
+            json.dumps(local_catalog, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         manifest_path.write_text(
-            json.dumps({**manifest_core, "copied": copied}, ensure_ascii=False, indent=2) + "\n",
+            json.dumps(
+                {**manifest_core, "copied": copied, "local_catalog_file": str(catalog_path.name)},
+                ensure_ascii=False,
+                indent=2,
+            )
+            + "\n",
             encoding="utf-8",
         )
         readme = out_dir / "README.md"
@@ -66,6 +83,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             "target": t,
             "output_dir": str(out_dir),
             "manifest": str(manifest_path),
+            "local_catalog": str(catalog_path),
             "copied": copied,
             "mode": "structured",
         }
@@ -83,8 +101,22 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             encoding="utf-8",
         )
         manifest_path = out_dir / "cai-export-manifest.json"
+        catalog_path = out_dir / "cai-local-catalog.json"
+        catalog_path.write_text(
+            json.dumps(local_catalog, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
         manifest_path.write_text(
-            json.dumps({**manifest_core, "copied": [], "note": "copy+manifest_only"}, ensure_ascii=False, indent=2)
+            json.dumps(
+                {
+                    **manifest_core,
+                    "copied": [],
+                    "note": "copy+manifest_only",
+                    "local_catalog_file": str(catalog_path.name),
+                },
+                ensure_ascii=False,
+                indent=2,
+            )
             + "\n",
             encoding="utf-8",
         )
@@ -93,6 +125,7 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
             "target": t,
             "output_dir": str(out_dir),
             "manifest": str(manifest_path),
+            "local_catalog": str(catalog_path),
             "copied": [],
             "mode": "manifest",
         }
@@ -114,14 +147,27 @@ def export_target(settings: Settings, target: str) -> dict[str, object]:
         if src.is_dir():
             shutil.copytree(src, dst)
             copied.append(name)
-    (out_dir / "cai-export-manifest.json").write_text(
-        json.dumps({**manifest_core, "copied": copied}, ensure_ascii=False, indent=2) + "\n",
+    catalog_path = out_dir / "cai-local-catalog.json"
+    catalog_path.write_text(
+        json.dumps(local_catalog, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    manifest_path = out_dir / "cai-export-manifest.json"
+    manifest_path.write_text(
+        json.dumps(
+            {**manifest_core, "copied": copied, "local_catalog_file": str(catalog_path.name)},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
         encoding="utf-8",
     )
     return {
         "schema_version": "export_cli_v1",
         "target": t,
         "output_dir": str(out_dir),
+        "manifest": str(manifest_path),
+        "local_catalog": str(catalog_path),
         "copied": copied,
         "mode": "copy",
     }

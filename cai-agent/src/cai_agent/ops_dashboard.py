@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import html
 import json
+import os
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -11,9 +13,144 @@ from typing import Any
 from cai_agent.board_state import attach_failed_summary, attach_status_summary, build_board_payload
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload
 from cai_agent.gateway_maps import summarize_gateway_maps
+from cai_agent.config import Settings
+from cai_agent.profiles import write_models_to_toml
 from cai_agent.schedule import compute_schedule_stats_from_audit
 from cai_agent.schedule import list_schedule_tasks
 from cai_agent.session import aggregate_sessions
+
+
+def _ops_action_audit_path(workspace: Path) -> Path:
+    p = workspace / ".cai" / "ops-dashboard-actions.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _append_ops_action_audit(
+    workspace: Path,
+    *,
+    action: str,
+    mode: str,
+    ok: bool,
+    summary: dict[str, Any] | None = None,
+    params: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    _params = dict(params or {})
+    actor = str(
+        _params.get("actor")
+        or _params.get("operator")
+        or os.environ.get("CAI_OPERATOR")
+        or os.environ.get("USERNAME")
+        or os.environ.get("USER")
+        or "unknown",
+    ).strip() or "unknown"
+    row = {
+        "schema_version": "ops_dashboard_action_audit_v1",
+        "event_id": str(uuid.uuid4()),
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(workspace),
+        "actor": actor,
+        "action": str(action),
+        "mode": str(mode),
+        "ok": bool(ok),
+        "result": "success" if bool(ok) else "failed",
+        "summary": dict(summary or {}),
+        "params": _params,
+    }
+    ap = _ops_action_audit_path(workspace)
+    with ap.open("a", encoding="utf-8") as f:
+        f.write(json.dumps(row, ensure_ascii=False) + "\n")
+    return row
+
+
+def _read_ops_action_audit(
+    workspace: Path,
+    *,
+    limit: int = 50,
+    action: str | None = None,
+    mode: str | None = None,
+    ok: bool | None = None,
+) -> list[dict[str, Any]]:
+    ap = _ops_action_audit_path(workspace)
+    if not ap.is_file():
+        return []
+    rows: list[dict[str, Any]] = []
+    for raw in ap.read_text(encoding="utf-8").splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict):
+            rows.append(obj)
+    a = str(action or "").strip()
+    m = str(mode or "").strip().lower()
+    filt: list[dict[str, Any]] = []
+    for r in rows:
+        if a and str(r.get("action") or "") != a:
+            continue
+        if m and str(r.get("mode") or "").lower() != m:
+            continue
+        if ok is not None and bool(r.get("ok")) != bool(ok):
+            continue
+        filt.append(r)
+    return filt[-max(1, int(limit)) :]
+
+
+def _apply_schedule_reorder(workspace: Path, task_ids: list[str]) -> dict[str, Any]:
+    sched = workspace / ".cai-schedule.json"
+    if not sched.is_file():
+        return {"ok": False, "error": "schedule_file_not_found"}
+    try:
+        doc = json.loads(sched.read_text(encoding="utf-8"))
+    except Exception:
+        return {"ok": False, "error": "schedule_file_invalid_json"}
+    tasks = doc.get("tasks") if isinstance(doc.get("tasks"), list) else []
+    by_id = {
+        str(t.get("id") or "").strip(): t for t in tasks if isinstance(t, dict) and str(t.get("id") or "").strip()
+    }
+    if len(by_id) != len(task_ids):
+        return {"ok": False, "error": "schedule_id_mismatch"}
+    reordered = [by_id[tid] for tid in task_ids if tid in by_id]
+    if len(reordered) != len(tasks):
+        return {"ok": False, "error": "schedule_reorder_incomplete"}
+    doc["tasks"] = reordered
+    sched.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {"ok": True, "written_path": str(sched)}
+
+
+def _apply_gateway_binding_patch(
+    *,
+    map_path: Path,
+    binding_id: str,
+    key_name: str,
+    patch: dict[str, Any],
+) -> dict[str, Any]:
+    if not map_path.is_file():
+        return {"ok": False, "error": "map_file_not_found", "map_path": str(map_path)}
+    try:
+        doc = json.loads(map_path.read_text(encoding="utf-8"))
+    except Exception:
+        return {"ok": False, "error": "map_file_invalid_json", "map_path": str(map_path)}
+    if not isinstance(doc, dict):
+        return {"ok": False, "error": "map_file_invalid_shape", "map_path": str(map_path)}
+    bindings = doc.get("bindings") if isinstance(doc.get("bindings"), dict) else {}
+    target = bindings.get(binding_id)
+    if not isinstance(target, dict):
+        return {"ok": False, "error": "binding_not_found", "map_path": str(map_path)}
+    for k, v in patch.items():
+        target[k] = v
+    bindings[binding_id] = target
+    doc["bindings"] = bindings
+    map_path.write_text(json.dumps(doc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {
+        "ok": True,
+        "map_path": str(map_path),
+        key_name: binding_id,
+        "binding": target,
+    }
 
 
 def build_ops_dashboard_payload(
@@ -79,6 +216,7 @@ def build_ops_dashboard_interactions_payload(
     *,
     cwd: str | Path | None = None,
     action: str,
+    mode: str = "preview",
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Preview-only dashboard interaction contract.
@@ -89,22 +227,118 @@ def build_ops_dashboard_interactions_payload(
     """
     base = Path(cwd or ".").expanduser().resolve()
     act = str(action or "").strip()
+    op_mode = str(mode or "preview").strip().lower() or "preview"
     p = dict(params or {})
-    supported = ("schedule_reorder_preview", "gateway_bind_edit_preview")
+    supported = ("schedule_reorder_preview", "gateway_bind_edit_preview", "profile_switch_preview")
     result: dict[str, Any] = {
         "schema_version": "ops_dashboard_interactions_v1",
         "workspace": str(base),
         "action": act,
-        "dry_run": True,
+        "mode": op_mode,
+        "dry_run": op_mode != "apply",
         "applied": False,
         "supported_actions": list(supported),
+        "supported_modes": ["preview", "apply", "audit"],
     }
+    if op_mode not in ("preview", "apply", "audit"):
+        return {
+            **result,
+            "ok": False,
+            "error": "unsupported_mode",
+        }
+    if op_mode == "audit":
+        ok_raw = str(p.get("ok") or "").strip().lower()
+        ok_filter: bool | None = None
+        if ok_raw in ("1", "true", "yes", "on"):
+            ok_filter = True
+        elif ok_raw in ("0", "false", "no", "off"):
+            ok_filter = False
+        rows = _read_ops_action_audit(
+            base,
+            limit=int(p.get("limit") or 50),
+            action=str(p.get("filter_action") or "").strip() or None,
+            mode=str(p.get("filter_mode") or "").strip() or None,
+            ok=ok_filter,
+        )
+        return {
+            **result,
+            "ok": True,
+            "audit_schema_version": "ops_dashboard_action_audit_v1",
+            "filter": {
+                "action": str(p.get("filter_action") or "").strip() or None,
+                "mode": str(p.get("filter_mode") or "").strip() or None,
+                "ok": ok_filter,
+            },
+            "records_count": len(rows),
+            "records": rows,
+        }
     if act not in supported:
         return {
             **result,
             "ok": False,
             "error": "unsupported_action",
         }
+
+    if act == "profile_switch_preview":
+        cfg_in_workspace = base / "cai-agent.toml"
+        cfg = str(cfg_in_workspace) if cfg_in_workspace.is_file() else None
+        settings = Settings.from_env(config_path=cfg, workspace_hint=str(base))
+        target_profile_id = str(p.get("target_profile_id") or "").strip()
+        available_ids = [pp.id for pp in settings.profiles]
+        if not target_profile_id:
+            return {**result, "ok": False, "error": "missing_target_profile_id", "available_profile_ids": available_ids}
+        if target_profile_id not in available_ids:
+            return {
+                **result,
+                "ok": False,
+                "error": "target_profile_not_found",
+                "available_profile_ids": available_ids,
+            }
+        preview_profile = next((pp for pp in settings.profiles if pp.id == target_profile_id), None)
+        if preview_profile is None:
+            return {
+                **result,
+                "ok": False,
+                "error": "target_profile_not_found",
+                "available_profile_ids": available_ids,
+            }
+        out = {
+            **result,
+            "ok": True,
+            "active_profile_id": settings.active_profile_id,
+            "target_profile_id": target_profile_id,
+            "target_profile_provider": preview_profile.provider,
+            "target_profile_model": preview_profile.model,
+            "summary": {
+                "position_changed": settings.active_profile_id != target_profile_id,
+            },
+        }
+        if op_mode == "apply":
+            cfg = Path(str(settings.config_loaded_from or "")).expanduser() if settings.config_loaded_from else None
+            if cfg is None:
+                out["ok"] = False
+                out["error"] = "config_file_not_found"
+                out["applied"] = False
+            else:
+                write_models_to_toml(
+                    cfg,
+                    settings.profiles,
+                    active=target_profile_id,
+                    subagent=settings.subagent_profile_id,
+                    planner=settings.planner_profile_id,
+                )
+                out["applied"] = True
+                out["apply_result"] = {"ok": True, "config_path": str(cfg)}
+        audit_ps = _append_ops_action_audit(
+            base,
+            action=act,
+            mode=op_mode,
+            ok=bool(out.get("ok")),
+            summary=out.get("summary") if isinstance(out.get("summary"), dict) else {},
+            params={"target_profile_id": target_profile_id},
+        )
+        out["audit_event"] = audit_ps
+        return out
 
     if act == "schedule_reorder_preview":
         tasks = list_schedule_tasks(str(base))
@@ -124,7 +358,7 @@ def build_ops_dashboard_interactions_payload(
             next_order.insert(idx, task_id)
         else:
             next_order.append(task_id)
-        return {
+        preview = {
             **result,
             "ok": True,
             "current_order": task_ids,
@@ -135,6 +369,20 @@ def build_ops_dashboard_interactions_payload(
                 "position_changed": task_ids != next_order,
             },
         }
+        if op_mode == "apply" and task_ids != next_order:
+            wr = _apply_schedule_reorder(base, next_order)
+            preview["applied"] = bool(wr.get("ok"))
+            preview["apply_result"] = wr
+        audit = _append_ops_action_audit(
+            base,
+            action=act,
+            mode=op_mode,
+            ok=bool(preview.get("ok")),
+            summary=preview.get("summary") if isinstance(preview.get("summary"), dict) else {},
+            params={"task_id": task_id, "before_task_id": before_task_id or None},
+        )
+        preview["audit_event"] = audit
+        return preview
 
     platform = str(p.get("platform") or "").strip().lower()
     binding_id = str(p.get("binding_id") or "").strip()
@@ -153,12 +401,13 @@ def build_ops_dashboard_interactions_payload(
     for key in ("session_file", "label"):
         if key in p and str(p.get(key) or "").strip():
             patch[key] = str(p.get(key)).strip()
-    return {
+    response = {
         **result,
         "ok": True,
         "platform": platform,
         "binding_id": binding_id,
         "binding_found": current is not None,
+        "map_path": plat.get("map_path"),
         "current_binding": current,
         "preview_binding": {**(current or {key_name: binding_id}), **patch},
         "summary": {
@@ -166,6 +415,26 @@ def build_ops_dashboard_interactions_payload(
             "requires_apply_endpoint": True,
         },
     }
+    if op_mode == "apply" and current is not None and patch:
+        mp = Path(str(plat.get("map_path") or "")).expanduser()
+        wr2 = _apply_gateway_binding_patch(
+            map_path=mp,
+            binding_id=binding_id,
+            key_name=key_name,
+            patch=patch,
+        )
+        response["applied"] = bool(wr2.get("ok"))
+        response["apply_result"] = wr2
+    audit2 = _append_ops_action_audit(
+        base,
+        action=act,
+        mode=op_mode,
+        ok=bool(response.get("ok")),
+        summary=response.get("summary") if isinstance(response.get("summary"), dict) else {},
+        params={"platform": platform, "binding_id": binding_id, **patch},
+    )
+    response["audit_event"] = audit2
+    return response
 
 
 # ---------------------------------------------------------------------------

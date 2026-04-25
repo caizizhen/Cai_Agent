@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/api_profiles_v1.schema.json",
+  "title": "ApiProfilesV1",
+  "description": "GET /v1/profiles — read-only profile summary for API/ops tooling.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "workspace",
+    "active_profile_id",
+    "profiles_count",
+    "profiles",
+    "profile_contract"
+  ],
+  "properties": {
+    "schema_version": { "const": "api_profiles_v1" },
+    "generated_at": { "type": "string" },
+    "workspace": { "type": "string" },
+    "active_profile_id": { "type": "string" },
+    "subagent_profile_id": { "type": ["string", "null"] },
+    "planner_profile_id": { "type": ["string", "null"] },
+    "profiles_count": { "type": "integer", "minimum": 0 },
+    "profiles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["id", "provider", "base_url", "model"]
+      }
+    },
+    "profile_contract": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["schema_version"],
+      "properties": {
+        "schema_version": { "const": "profile_contract_v1" }
+      }
+    }
+  }
+}

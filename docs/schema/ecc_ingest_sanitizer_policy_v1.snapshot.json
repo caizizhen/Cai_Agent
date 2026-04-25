@@ -1,0 +1,35 @@
+{
+  "schema_version": "ecc_ingest_sanitizer_policy_v1",
+  "policy_mode": "deny_exec",
+  "decision": "review",
+  "checks": [
+    {
+      "id": "metadata.source_present",
+      "status": "pass",
+      "reason": "source metadata provided"
+    },
+    {
+      "id": "metadata.license_present",
+      "status": "warn",
+      "reason": "license file not verified yet"
+    },
+    {
+      "id": "hook.command_dangerous_pattern",
+      "status": "fail",
+      "reason": "blocked pattern matched: curl | bash"
+    }
+  ],
+  "blocked_patterns": [
+    "curl",
+    "| bash"
+  ],
+  "next_actions": [
+    "manual_security_review",
+    "replace_remote_exec_hook",
+    "re-submit_for_sanitizer_check"
+  ],
+  "boundaries": {
+    "auto_execute_hooks": false,
+    "trust_policy_required": true
+  }
+}

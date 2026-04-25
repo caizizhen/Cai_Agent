@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -244,6 +246,7 @@ def build_memory_entries_jsonl_validate_report(root: str | Path) -> dict[str, An
 
 def build_memory_provider_contract_payload(root: str | Path) -> dict[str, Any]:
     """Describe the local memory provider surface without initializing stores."""
+    builtin_specs = list_builtin_memory_provider_specs()
     base = Path(root).expanduser().resolve()
     entries_path = _entries_file_readonly(base)
     entries_report = build_memory_entries_jsonl_validate_report(base)
@@ -294,17 +297,31 @@ def build_memory_provider_contract_payload(root: str | Path) -> dict[str, Any]:
             "error": store_error,
         },
     ]
+    builtin_ids = [
+        str(row.get("id") or "")
+        for row in builtin_specs
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    ]
     return {
         "schema_version": "memory_provider_contract_v1",
         "workspace": str(base),
         "default_provider": "local_entries_jsonl",
         "providers": providers,
+        "builtin_registry": {
+            "schema_version": "memory_provider_builtin_registry_v1",
+            "provider_ids": builtin_ids,
+            "default_provider": "local_entries_jsonl",
+        },
         "external_adapters": [
             {
                 "id": "honcho_external",
-                "status": "future_adapter",
+                "status": "mock_http_available",
                 "requires_credentials": True,
                 "network_enabled_by_default": False,
+                "env": {
+                    "base_url": "CAI_MEMORY_EXTERNAL_MOCK_URL",
+                    "api_key": "CAI_MEMORY_EXTERNAL_API_KEY",
+                },
             },
         ],
         "user_model_provider_coverage": {
@@ -314,6 +331,262 @@ def build_memory_provider_contract_payload(root: str | Path) -> dict[str, Any]:
             "external_graph": None,
         },
         "ok": bool(entries_report.get("ok")) and store_ok,
+    }
+
+
+def _test_external_mock_provider() -> dict[str, Any]:
+    base_url = str(os.environ.get("CAI_MEMORY_EXTERNAL_MOCK_URL", "") or "").strip()
+    api_key = str(os.environ.get("CAI_MEMORY_EXTERNAL_API_KEY", "") or "").strip()
+    if not base_url:
+        return {
+            "ok": False,
+            "error": "missing_base_url",
+            "message": "设置 CAI_MEMORY_EXTERNAL_MOCK_URL 后可进行 mock HTTP 健康探测。",
+            "configured": False,
+            "api_key_present": bool(api_key),
+        }
+    url = base_url.rstrip("/") + "/health"
+    headers = {"User-Agent": "cai-agent/memory-provider-test"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    req = urllib.request.Request(url, method="GET", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=8.0) as resp:
+            status = int(getattr(resp, "status", 200) or 200)
+            raw = resp.read().decode("utf-8", errors="replace")
+    except urllib.error.HTTPError as e:
+        return {
+            "ok": False,
+            "configured": True,
+            "api_key_present": bool(api_key),
+            "error": "http_error",
+            "status": int(e.code),
+            "message": str(e),
+            "url": url,
+        }
+    except Exception as e:
+        return {
+            "ok": False,
+            "configured": True,
+            "api_key_present": bool(api_key),
+            "error": "request_failed",
+            "message": str(e),
+            "url": url,
+        }
+    body: dict[str, Any] | None = None
+    try:
+        parsed = json.loads(raw)
+        body = parsed if isinstance(parsed, dict) else None
+    except Exception:
+        body = None
+    remote_ok = bool(body.get("ok")) if isinstance(body, dict) else False
+    return {
+        "ok": status < 400 and remote_ok,
+        "configured": True,
+        "api_key_present": bool(api_key),
+        "status": status,
+        "url": url,
+        "remote_schema_version": (body or {}).get("schema_version") if isinstance(body, dict) else None,
+    }
+
+
+def list_builtin_memory_provider_specs() -> list[dict[str, Any]]:
+    """HM-N09-D02: explicit builtin local provider registration specs."""
+    return [
+        {
+            "id": "local_entries_jsonl",
+            "kind": "memory_entries",
+            "schema_version": "memory_entry_v1",
+            "default": True,
+            "read_surface": ["memory health", "memory state", "memory export-entries"],
+            "write_surface": ["memory add", "memory import-entries"],
+        },
+        {
+            "id": "local_user_model_sqlite",
+            "kind": "user_model_store",
+            "schema_version": "user_model_store_snapshot_v1",
+            "default": True,
+            "read_surface": ["memory user-model", "memory user-model store list", "memory user-model query"],
+            "write_surface": ["memory user-model store init", "memory user-model learn"],
+        },
+    ]
+
+
+def _memory_provider_state_path(root: str | Path) -> Path:
+    base = Path(root).expanduser().resolve()
+    p = base / ".cai" / "memory-provider.json"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    return p
+
+
+def _read_memory_provider_state(root: str | Path) -> dict[str, Any]:
+    p = _memory_provider_state_path(root)
+    if not p.is_file():
+        return {}
+    try:
+        obj = json.loads(p.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return obj if isinstance(obj, dict) else {}
+
+
+def _write_memory_provider_state(root: str | Path, obj: dict[str, Any]) -> Path:
+    p = _memory_provider_state_path(root)
+    p.write_text(json.dumps(obj, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return p
+
+
+def build_memory_provider_registry_payload(root: str | Path) -> dict[str, Any]:
+    """HM-N09-D01: registry payload with active provider pointer."""
+    base = Path(root).expanduser().resolve()
+    contract = build_memory_provider_contract_payload(base)
+    providers = contract.get("providers") if isinstance(contract.get("providers"), list) else []
+    provider_ids = [
+        str(row.get("id") or "")
+        for row in providers
+        if isinstance(row, dict) and str(row.get("id") or "").strip()
+    ]
+    state = _read_memory_provider_state(base)
+    configured = str(state.get("active_provider") or "").strip()
+    default_id = str(contract.get("default_provider") or "local_entries_jsonl")
+    active = configured if configured in provider_ids else default_id
+    return {
+        "schema_version": "memory_provider_registry_v1",
+        "workspace": str(base),
+        "active_provider": active,
+        "active_provider_source": "config" if active == configured and configured else "default",
+        "providers": providers,
+        "provider_ids": provider_ids,
+        "default_provider": default_id,
+        "builtin_registry": contract.get("builtin_registry") if isinstance(contract.get("builtin_registry"), dict) else {},
+        "state_file": str(_memory_provider_state_path(base)),
+        "ok": bool(contract.get("ok")),
+    }
+
+
+def resolve_active_memory_provider(root: str | Path) -> dict[str, Any]:
+    """HM-N09-D04: stable active-provider view for doctor/export/profile surfaces."""
+    reg = build_memory_provider_registry_payload(root)
+    return {
+        "schema_version": "memory_active_provider_v1",
+        "active_provider": str(reg.get("active_provider") or ""),
+        "active_provider_source": str(reg.get("active_provider_source") or "default"),
+        "default_provider": str(reg.get("default_provider") or ""),
+        "state_file": str(reg.get("state_file") or ""),
+        "ok": bool(reg.get("ok")),
+    }
+
+
+def set_active_memory_provider(root: str | Path, provider_id: str) -> dict[str, Any]:
+    """HM-N09-D01: select active memory provider (local registry pointer)."""
+    base = Path(root).expanduser().resolve()
+    reg = build_memory_provider_registry_payload(base)
+    pid = str(provider_id or "").strip()
+    provider_ids = reg.get("provider_ids") if isinstance(reg.get("provider_ids"), list) else []
+    if not pid:
+        return {
+            "schema_version": "memory_provider_use_v1",
+            "ok": False,
+            "error": "invalid_provider_id",
+            "message": "provider id 不能为空",
+            "providers": provider_ids,
+        }
+    if pid not in provider_ids:
+        return {
+            "schema_version": "memory_provider_use_v1",
+            "ok": False,
+            "error": "provider_not_found",
+            "provider_id": pid,
+            "providers": provider_ids,
+        }
+    written = _write_memory_provider_state(
+        base,
+        {
+            "schema_version": "memory_provider_state_v1",
+            "active_provider": pid,
+            "updated_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    return {
+        "schema_version": "memory_provider_use_v1",
+        "ok": True,
+        "active_provider": pid,
+        "state_file": str(written),
+    }
+
+
+def test_memory_provider(root: str | Path, provider_id: str | None = None) -> dict[str, Any]:
+    """HM-N09-D01: provider connectivity/health smoke check (local-only)."""
+    base = Path(root).expanduser().resolve()
+    reg = build_memory_provider_registry_payload(base)
+    pid = str(provider_id or reg.get("active_provider") or "").strip() or "local_entries_jsonl"
+    provider_ids = reg.get("provider_ids") if isinstance(reg.get("provider_ids"), list) else []
+    if pid not in provider_ids and pid != "honcho_external":
+        return {
+            "schema_version": "memory_provider_test_v1",
+            "ok": False,
+            "provider_id": pid,
+            "error": "provider_not_found",
+            "providers": provider_ids,
+        }
+    if pid == "local_entries_jsonl":
+        rep = build_memory_entries_jsonl_validate_report(base)
+        return {
+            "schema_version": "memory_provider_test_v1",
+            "ok": bool(rep.get("ok")),
+            "provider_id": pid,
+            "checks": {
+                "entries_file": rep.get("entries_file"),
+                "exists": rep.get("exists"),
+                "valid_lines": rep.get("valid_lines"),
+                "invalid_lines_count": len(rep.get("invalid_lines") or []),
+            },
+        }
+    if pid == "local_user_model_sqlite":
+        from cai_agent.user_model_store import list_recent_beliefs, user_model_store_path
+
+        store = user_model_store_path(base)
+        if not store.is_file():
+            return {
+                "schema_version": "memory_provider_test_v1",
+                "ok": True,
+                "provider_id": pid,
+                "checks": {
+                    "store_path": str(store),
+                    "exists": False,
+                    "beliefs_count": 0,
+                    "message": "store_not_initialized",
+                },
+            }
+        try:
+            beliefs = list_recent_beliefs(base, limit=20)
+            return {
+                "schema_version": "memory_provider_test_v1",
+                "ok": True,
+                "provider_id": pid,
+                "checks": {
+                    "store_path": str(store),
+                    "exists": True,
+                    "beliefs_count": len(beliefs),
+                },
+            }
+        except Exception as e:  # pragma: no cover - defensive around corrupt sqlite
+            return {
+                "schema_version": "memory_provider_test_v1",
+                "ok": False,
+                "provider_id": pid,
+                "error": "store_read_failed",
+                "message": str(e)[:300],
+                "checks": {"store_path": str(store), "exists": True},
+            }
+    ext = _test_external_mock_provider()
+    ext_ok = bool(ext.get("ok"))
+    return {
+        "schema_version": "memory_provider_test_v1",
+        "ok": ext_ok,
+        "provider_id": pid,
+        "checks": ext,
+        "error": None if ext_ok else str(ext.get("error") or "external_check_failed"),
     }
 
 

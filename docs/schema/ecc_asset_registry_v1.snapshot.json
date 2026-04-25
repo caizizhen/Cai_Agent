@@ -1,0 +1,54 @@
+{
+  "schema_version": "ecc_asset_registry_v1",
+  "registry_kind": "draft_snapshot",
+  "status": "conditional",
+  "scope": "metadata_only",
+  "generated_at": "2026-04-25T00:00:00Z",
+  "assets": [
+    {
+      "asset_id": "skill.websearch.quickstart",
+      "asset_type": "skill",
+      "version": "1.0.0",
+      "source": {
+        "kind": "git",
+        "origin": "https://example.invalid/ecc/skills.git",
+        "owner": "team-ecc",
+        "retrieved_at": "2026-04-25T00:00:00Z"
+      },
+      "license": {
+        "spdx_id": "MIT",
+        "license_file": "LICENSE"
+      },
+      "signature": {
+        "scheme": "none",
+        "verified": false,
+        "key_id": null
+      },
+      "integrity": {
+        "hash_algo": "sha256",
+        "hash_value": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+      },
+      "compatibility": {
+        "harnesses": [
+          "cursor",
+          "codex",
+          "opencode"
+        ],
+        "min_agent_version": "0.6.0"
+      },
+      "trust": {
+        "level": "reviewed",
+        "review_notes": "Draft-only sample record for ECC-N04-D01."
+      }
+    }
+  ],
+  "boundaries": {
+    "execution_included": false,
+    "sanitizer_included": false,
+    "provenance_policy_included": false
+  },
+  "next_steps": [
+    "ECC-N04-D02 sanitizer policy",
+    "ECC-N04-D03 provenance/signature/trust policy"
+  ]
+}

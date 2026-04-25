@@ -131,6 +131,7 @@ PRESETS: dict[str, dict[str, Any]] = {
 }
 
 from cai_agent.provider_registry import EXTRA_PRESETS as _EXTRA_PRESETS
+from cai_agent.memory import resolve_active_memory_provider
 
 PRESETS.update(_EXTRA_PRESETS)
 
@@ -364,6 +365,34 @@ def pick_active(
     if active_id and active_id in ids:
         return ids[active_id]
     return profiles[0]
+
+
+def get_profile_by_id(
+    profiles: Sequence[Profile],
+    profile_id: str | None,
+) -> Profile | None:
+    pid = str(profile_id or "").strip()
+    if not pid:
+        return None
+    for p in profiles:
+        if p.id == pid:
+            return p
+    return None
+
+
+def resolve_role_profile_id(
+    *,
+    role: str,
+    active_profile_id: str | None,
+    subagent_profile_id: str | None = None,
+    planner_profile_id: str | None = None,
+) -> str | None:
+    role_l = (role or "active").strip().lower()
+    if role_l == "subagent":
+        return subagent_profile_id or active_profile_id
+    if role_l == "planner":
+        return planner_profile_id or active_profile_id
+    return active_profile_id
 
 
 def project_base_url(profile: Profile) -> str:
@@ -629,6 +658,18 @@ def profile_to_public_dict(p: Profile, *, include_resolved_key: bool = False) ->
     return out
 
 
+def _build_profile_home_layout(workspace_root: str | Path, profile_id: str) -> dict[str, str]:
+    root = Path(workspace_root).expanduser().resolve()
+    home = root / ".cai" / "profiles" / profile_id
+    return {
+        "root": str(home),
+        "sessions_dir": str(home / "sessions"),
+        "memory_dir": str(home / "memory"),
+        "gateway_dir": str(home / "gateway"),
+        "state_dir": str(home / "state"),
+    }
+
+
 def build_profile_contract_payload(
     profiles: Sequence[Profile],
     *,
@@ -637,6 +678,7 @@ def build_profile_contract_payload(
     subagent_profile_id: str | None = None,
     planner_profile_id: str | None = None,
     env_active_override: str | None = None,
+    workspace_root: str | Path | None = None,
 ) -> dict[str, Any]:
     """Shared profile contract summary used by HM-01a-facing surfaces."""
     ids = [p.id for p in profiles]
@@ -648,7 +690,13 @@ def build_profile_contract_payload(
         if not profiles_explicit
         else "Profile contract is explicit; future HM-01 work can build on this persisted structure."
     )
-    return {
+    profile_homes: dict[str, dict[str, str]] = {}
+    active_profile_home: dict[str, str] | None = None
+    if workspace_root is not None:
+        for pid in ids:
+            profile_homes[pid] = _build_profile_home_layout(workspace_root, pid)
+        active_profile_home = profile_homes.get(active_profile_id)
+    payload: dict[str, Any] = {
         "schema_version": "profile_contract_v1",
         "source_kind": source_kind,
         "persistence_mode": persistence_mode,
@@ -673,6 +721,13 @@ def build_profile_contract_payload(
             "routing_doc": "docs/MODEL_ROUTING_RULES.zh-CN.md",
         },
     }
+    if workspace_root is not None:
+        payload["profile_home_schema_version"] = "profile_home_layout_v1"
+        payload["workspace_root"] = str(Path(workspace_root).expanduser().resolve())
+        payload["profile_homes"] = profile_homes
+        payload["active_profile_home"] = active_profile_home
+        payload["memory_provider"] = resolve_active_memory_provider(workspace_root)
+    return payload
 
 
 __all__ = [
@@ -685,10 +740,12 @@ __all__ = [
     "build_profile",
     "build_profile_contract_payload",
     "edit_profile",
+    "get_profile_by_id",
     "normalize_openai_chat_base_url",
     "parse_models_section",
     "pick_active",
     "profile_to_public_dict",
+    "resolve_role_profile_id",
     "project_base_url",
     "remove_profile",
     "serialize_models_block",

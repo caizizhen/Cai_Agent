@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 SUMMARIZE_SCHEMA = "gateway_maps_summarize_v1"
+FEDERATION_SCHEMA = "gateway_workspace_federation_v1"
 
 
 def parse_workspace_roots(
@@ -189,8 +190,51 @@ def summarize_gateway_maps(roots: list[Path]) -> dict[str, Any]:
                 "teams": _summarize_teams(root),
             },
         )
+    platform_ids = ("telegram", "discord", "slack", "teams")
+    federation_workspaces: list[dict[str, Any]] = []
+    for row in workspaces:
+        if not isinstance(row, dict):
+            continue
+        ps: list[dict[str, Any]] = []
+        for pid in platform_ids:
+            p = row.get(pid)
+            pd = p if isinstance(p, dict) else {}
+            ps.append(
+                {
+                    "id": pid,
+                    "bindings_count": int(pd.get("bindings_count") or 0),
+                    "allowlist_enabled": bool(pd.get("allowlist_enabled")),
+                },
+            )
+        federation_workspaces.append(
+            {
+                "workspace": str(row.get("workspace") or ""),
+                "platforms": ps,
+            },
+        )
+    federation = {
+        "schema_version": FEDERATION_SCHEMA,
+        "workspaces_count": len(federation_workspaces),
+        "platforms_per_workspace": len(platform_ids),
+        "workspaces": federation_workspaces,
+        "summary": {
+            "bindings_count": sum(
+                int(p.get("bindings_count") or 0)
+                for w in federation_workspaces
+                for p in (w.get("platforms") if isinstance(w.get("platforms"), list) else [])
+                if isinstance(p, dict)
+            ),
+            "allowlist_enabled_count": sum(
+                1
+                for w in federation_workspaces
+                for p in (w.get("platforms") if isinstance(w.get("platforms"), list) else [])
+                if isinstance(p, dict) and bool(p.get("allowlist_enabled"))
+            ),
+        },
+    }
     return {
         "schema_version": SUMMARIZE_SCHEMA,
         "generated_at": datetime.now(UTC).isoformat(),
         "workspaces": workspaces,
+        "federation": federation,
     }

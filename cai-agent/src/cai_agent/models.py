@@ -15,7 +15,7 @@ import httpx
 
 from cai_agent.config import Settings
 from cai_agent.http_trust import effective_http_trust_env
-from cai_agent.profiles import Profile, project_base_url
+from cai_agent.profiles import Profile, get_profile_by_id, project_base_url
 
 
 def fetch_models(
@@ -32,11 +32,10 @@ def fetch_models(
     未识别的 provider 回退走 OpenAI 兼容路径，以保持 S1 之前单一 ``[llm]`` 的行为。
     """
     active_id = getattr(settings, "active_profile_id", None)
-    active_profile: Profile | None = None
-    for p in getattr(settings, "profiles", ()) or ():
-        if getattr(p, "id", None) == active_id:
-            active_profile = p
-            break
+    active_profile: Profile | None = get_profile_by_id(
+        tuple(getattr(settings, "profiles", ()) or ()),
+        active_id,
+    )
 
     provider = (
         (active_profile.provider if active_profile else None)

@@ -374,6 +374,15 @@ class ExportCliTests(unittest.TestCase):
             self.assertEqual(payload.get("mode"), "structured")
             self.assertIn("output_dir", payload)
             self.assertIn("manifest", payload)
+            self.assertIn("local_catalog", payload)
+            catalog_path = Path(str(payload.get("local_catalog")))
+            self.assertTrue(catalog_path.is_file())
+            catalog = json.loads(catalog_path.read_text(encoding="utf-8"))
+            self.assertEqual(catalog.get("schema_version"), "local_catalog_v1")
+            manifest = json.loads(Path(str(payload.get("manifest"))).read_text(encoding="utf-8"))
+            self.assertEqual(manifest.get("local_catalog_schema_version"), "local_catalog_v1")
+            self.assertEqual(manifest.get("active_memory_provider"), "local_entries_jsonl")
+            self.assertEqual(manifest.get("active_memory_provider_source"), "default")
 
 
 class MainDispatchFallbackTests(unittest.TestCase):

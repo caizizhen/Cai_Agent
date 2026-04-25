@@ -10,6 +10,7 @@ from pathlib import Path
 
 from cai_agent.ecc_layout import build_ecc_asset_layout_payload, ecc_scaffold_workspace, iter_hooks_json_paths
 from cai_agent.config import Settings
+from cai_agent.plugin_registry import build_local_catalog_payload
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
@@ -65,3 +66,22 @@ def test_ecc_scaffold_cli_json(tmp_path: Path) -> None:
     assert out.returncode == 0, out.stderr
     r = json.loads((out.stdout or "").strip())
     assert r.get("schema_version") == "ecc_scaffold_result_v1"
+
+
+def test_local_catalog_payload_schema(tmp_path: Path) -> None:
+    s = Settings.from_env(config_path=None, workspace_hint=str(tmp_path))
+    pl = build_local_catalog_payload(s, root_override=tmp_path)
+    assert pl.get("schema_version") == "local_catalog_v1"
+    assert pl.get("workspace") == str(tmp_path.resolve())
+    assets = pl.get("assets")
+    assert isinstance(assets, list)
+    ids = {a.get("id") for a in assets if isinstance(a, dict)}
+    assert {"rules", "skills", "hooks", "plugins"}.issubset(ids)
+
+
+def test_ecc_catalog_cli_json(tmp_path: Path) -> None:
+    out = _cli(tmp_path, "ecc", "-w", str(tmp_path), "catalog", "--json")
+    assert out.returncode == 0, out.stderr
+    pl = json.loads((out.stdout or "").strip())
+    assert pl.get("schema_version") == "local_catalog_v1"
+    assert isinstance(pl.get("assets"), list)

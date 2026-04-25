@@ -17,6 +17,7 @@ PID_NAME = "telegram-webhook.pid"
 CONFIG_SCHEMA = "gateway_telegram_config_v1"
 PID_SCHEMA = "gateway_telegram_pid_v1"
 STATUS_SCHEMA = "gateway_lifecycle_status_v1"
+PROXY_ROUTE_SCHEMA = "gateway_proxy_route_v1"
 
 
 def _gateway_dir(root: Path) -> Path:
@@ -212,6 +213,37 @@ def build_status_payload(root: Path | str) -> dict[str, Any]:
         "allowed_chat_ids": summary.get("allowed_chat_ids"),
         "allowlist_enabled": summary.get("allowlist_enabled"),
         "gateway_summary": summary,
+    }
+
+
+def build_gateway_proxy_route_preview(
+    *,
+    root: Path | str,
+    platform: str,
+    channel_id: str | None,
+    target_workspace: str | None,
+    target_profile_id: str | None,
+    dry_run: bool = True,
+) -> dict[str, Any]:
+    """HM-N07-D03: minimal gateway proxy/routing preview contract."""
+    base = Path(root).expanduser().resolve()
+    src = build_gateway_summary_payload(base)
+    channel = str(channel_id or "").strip() or "default"
+    return {
+        "schema_version": PROXY_ROUTE_SCHEMA,
+        "generated_at": datetime.now(UTC).isoformat(),
+        "dry_run": bool(dry_run),
+        "source": {
+            "workspace": str(base),
+            "gateway_status": src.get("status"),
+            "platform": str(platform or "").strip().lower() or "unknown",
+            "channel_id": channel,
+        },
+        "route": {
+            "target_workspace": str(target_workspace or base),
+            "target_profile_id": (str(target_profile_id or "").strip() or "default"),
+            "decision": "route_preview_only",
+        },
     }
 
 

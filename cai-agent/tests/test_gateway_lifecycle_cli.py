@@ -105,11 +105,22 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             payload = json.loads(buf.getvalue().strip())
             self.assertEqual(payload.get("schema_version"), "gateway_production_summary_v1")
-            self.assertEqual(payload.get("summary", {}).get("platforms_count"), 4)
+            self.assertEqual(payload.get("summary", {}).get("platforms_count"), 7)
             self.assertEqual(payload.get("summary", {}).get("bindings_count"), 2)
+            fed = payload.get("federation") or {}
+            self.assertEqual(fed.get("schema_version"), "gateway_workspace_federation_v1")
+            self.assertEqual(fed.get("workspaces_count"), 1)
             rows = {r.get("id"): r for r in payload.get("platforms") or []}
             self.assertEqual(rows["telegram"]["production_state"], "configured")
             self.assertEqual(rows["slack"]["health"]["bindings_count"], 1)
+            tg_mon = rows["telegram"].get("channel_monitoring") or {}
+            self.assertEqual(tg_mon.get("schema_version"), "gateway_channel_monitoring_v1")
+            self.assertGreaterEqual(int(tg_mon.get("channels_count") or 0), 1)
+            tg_ch = (tg_mon.get("channels") or [{}])[0]
+            self.assertIn("last_seen", tg_ch)
+            self.assertIn("latency_ms", tg_ch)
+            self.assertIn("error_count", tg_ch)
+            self.assertIn("owner", tg_ch)
 
     def test_start_patches_popen(self) -> None:
         with TemporaryDirectory() as td:
@@ -164,3 +175,57 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             lo = json.loads(buf.getvalue().strip())
             self.assertTrue(str(lo.get("map_file") or "").endswith("telegram-session-map.json"))
+
+    def test_gateway_route_preview_json(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "gateway",
+                            "route-preview",
+                            "--platform",
+                            "telegram",
+                            "--channel-id",
+                            "42:7",
+                            "--target-profile-id",
+                            "p1",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "gateway_proxy_route_v1")
+            self.assertIs(payload.get("dry_run"), True)
+            src = payload.get("source") or {}
+            route = payload.get("route") or {}
+            self.assertEqual(src.get("platform"), "telegram")
+            self.assertEqual(src.get("channel_id"), "42:7")
+            self.assertEqual(route.get("target_profile_id"), "p1")
+
+    def test_gateway_federation_summary_json(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            gdir = root / ".cai" / "gateway"
+            gdir.mkdir(parents=True, exist_ok=True)
+            (gdir / "telegram-session-map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "bindings": {"1:2": {"chat_id": "1", "user_id": "2", "session_file": "s.json"}},
+                        "allowed_chat_ids": ["1"],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["gateway", "federation-summary", "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "gateway_federation_summary_v1")
+            self.assertEqual(payload.get("summary", {}).get("platforms_count"), 7)
+            self.assertGreaterEqual(payload.get("summary", {}).get("channels_count"), 1)

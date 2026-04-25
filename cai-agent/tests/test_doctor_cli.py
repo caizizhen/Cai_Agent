@@ -115,6 +115,20 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIn("max_entries_per_day", mp)
             self.assertIn("default_ttl_days", mp)
             self.assertIn("recall_negative_audit", mp)
+            mprov = pl.get("memory_provider")
+            self.assertIsInstance(mprov, dict)
+            self.assertEqual(mprov.get("schema_version"), "memory_active_provider_v1")
+            self.assertEqual(mprov.get("active_provider"), "local_entries_jsonl")
+            vc = pl.get("voice")
+            self.assertIsInstance(vc, dict)
+            self.assertEqual(vc.get("schema_version"), "voice_provider_contract_v1")
+            self.assertIn("stt", vc)
+            self.assertIn("tts", vc)
+            self.assertIn("health", vc)
+            tp = pl.get("tool_provider")
+            self.assertIsInstance(tp, dict)
+            self.assertEqual(tp.get("schema_version"), "tool_provider_contract_v1")
+            self.assertIn("providers", tp)
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

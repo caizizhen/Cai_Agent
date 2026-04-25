@@ -17,6 +17,7 @@ PLUGIN_COMPONENTS = (
 PLUGIN_VERSION = "0.1.0"
 COMPAT_MATRIX_SCHEMA = "plugin_compat_matrix_v1"
 COMPAT_MATRIX_CHECK_SCHEMA = "plugin_compat_matrix_check_v1"
+LOCAL_CATALOG_SCHEMA = "local_catalog_v1"
 
 # ECC-03b：治理 checklist 单源。改动 TOOLS_REGISTRY / 内置工具名 / harness 目标目录时需同步
 # 矩阵行 + 相关说明文档，与 `docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md` §2 对齐。
@@ -238,4 +239,84 @@ def list_plugin_surface(settings: Settings) -> dict[str, object]:
         },
         "health_score": health,
         "components": components,
+    }
+
+
+def build_local_catalog_payload(
+    settings: Settings,
+    *,
+    root_override: Path | None = None,
+) -> dict[str, object]:
+    """ECC-N03-D01: local catalog schema for rules/skills/hooks/plugins assets."""
+    root = root_override if root_override is not None else _project_root(settings)
+    surface = list_plugin_surface(settings)
+    hooks_candidates = [
+        root / "hooks" / "hooks.json",
+        root / ".cai" / "hooks" / "hooks.json",
+    ]
+    hooks_file = next((p for p in hooks_candidates if p.is_file()), None)
+    hooks_count = 0
+    hooks_error: str | None = None
+    if hooks_file is not None:
+        try:
+            raw = json.loads(hooks_file.read_text(encoding="utf-8"))
+            if isinstance(raw, dict) and isinstance(raw.get("hooks"), list):
+                hooks_count = sum(1 for h in raw.get("hooks") if isinstance(h, dict))
+            else:
+                hooks_error = "invalid_hooks_document"
+        except Exception:
+            hooks_error = "invalid_hooks_json"
+
+    def _count_md(dir_path: Path) -> int:
+        if not dir_path.is_dir():
+            return 0
+        return sum(
+            1
+            for p in dir_path.rglob("*.md")
+            if p.is_file() and p.name.lower() != "readme.md"
+        )
+
+    rules_dir = root / "rules"
+    skills_dir = root / "skills"
+    assets: list[dict[str, object]] = [
+        {
+            "id": "rules",
+            "kind": "directory",
+            "path": str(rules_dir),
+            "exists": rules_dir.is_dir(),
+            "items_count": _count_md(rules_dir),
+        },
+        {
+            "id": "skills",
+            "kind": "directory",
+            "path": str(skills_dir),
+            "exists": skills_dir.is_dir(),
+            "items_count": _count_md(skills_dir),
+        },
+        {
+            "id": "hooks",
+            "kind": "file",
+            "path": str(hooks_file) if hooks_file is not None else None,
+            "exists": hooks_file is not None,
+            "items_count": hooks_count,
+            "error": hooks_error,
+        },
+        {
+            "id": "plugins",
+            "kind": "object",
+            "path": str(root),
+            "exists": True,
+            "items_count": len(surface.get("components") or {}),
+            "schema_version": surface.get("schema_version"),
+            "plugin_version": surface.get("plugin_version"),
+        },
+    ]
+    return {
+        "schema_version": LOCAL_CATALOG_SCHEMA,
+        "workspace": str(root),
+        "plugin_version": PLUGIN_VERSION,
+        "assets": assets,
+        "components": surface.get("components") or {},
+        "compatibility": surface.get("compatibility") or {},
+        "health_score": int(surface.get("health_score") or 0),
     }

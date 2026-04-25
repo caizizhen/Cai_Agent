@@ -89,7 +89,7 @@ from cai_agent.memory import (
     sort_memory_rows,
     validate_memory_entries_bundle,
 )
-from cai_agent.plugin_registry import list_plugin_surface
+from cai_agent.plugin_registry import build_local_catalog_payload, list_plugin_surface
 from cai_agent.quality_gate import run_quality_gate
 from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.rules import load_rule_text
@@ -118,6 +118,7 @@ from cai_agent.session_events import (
     normalize_session_run_events,
     wrap_run_events,
 )
+from cai_agent.voice import build_voice_provider_contract_payload
 from cai_agent.progress_ring import build_progress_ring_summary, global_ring, reset_global_ring
 from cai_agent.skill_evolution import clear_session_skill_touches
 from cai_agent.recall_audit import (
@@ -2539,6 +2540,43 @@ def _telegram_send_message(
     }
 
 
+def _telegram_send_voice_file_id(
+    *,
+    bot_token: str,
+    chat_id: str,
+    voice_file_id: str,
+    caption: str | None = None,
+    timeout_sec: float = 12.0,
+) -> dict[str, Any]:
+    url = f"https://api.telegram.org/bot{bot_token}/sendVoice"
+    body: dict[str, Any] = {
+        "chat_id": str(chat_id),
+        "voice": str(voice_file_id),
+    }
+    if caption is not None and str(caption).strip():
+        body["caption"] = str(caption)
+    req_body = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=req_body,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    status_code = 200
+    try:
+        with urllib.request.urlopen(req, timeout=timeout_sec) as resp:
+            raw = resp.read().decode("utf-8")
+            status_code = int(getattr(resp, "status", 200) or 200)
+            obj = json.loads(raw)
+    except urllib.error.HTTPError as e:
+        return {"ok": False, "error": "http_error", "status": int(e.code), "message": str(e)}
+    except Exception as e:
+        return {"ok": False, "error": "request_failed", "message": str(e)}
+    if not isinstance(obj, dict):
+        return {"ok": False, "error": "invalid_response"}
+    return {"ok": bool(obj.get("ok")), "status": status_code}
+
+
 def _telegram_send_text_chunked(
     *,
     bot_token: str,
@@ -2946,6 +2984,7 @@ def _cmd_models_list(settings: Settings, *, json_output: bool, list_providers: b
         subagent_profile_id=settings.subagent_profile_id,
         planner_profile_id=settings.planner_profile_id,
         env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
+        workspace_root=settings.workspace,
     )
     if json_output:
         payload = {
@@ -3765,6 +3804,11 @@ def main(argv: list[str] | None = None) -> int:
         dest="ecc_scaffold_dry_run",
         help="只打印将创建的路径，不写盘",
     )
+    ecc_catalog_p = ecc_sub.add_parser(
+        "catalog",
+        help="输出 local_catalog_v1（rules/skills/hooks/plugins 本地资产目录）",
+    )
+    ecc_catalog_p.add_argument("--json", action="store_true", dest="json_output")
 
     plan_p = sub.add_parser(
         "plan",
@@ -3869,6 +3913,55 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="非 mock 且 API Key 为空时 exit 2（可与 --json 同用于 CI）",
     )
+
+    tools_p = sub.add_parser(
+        "tools",
+        parents=[common],
+        help="Tool provider contract（web/image/browser/tts）",
+    )
+    tools_sub = tools_p.add_subparsers(dest="tools_action", required=True)
+    tools_contract = tools_sub.add_parser("contract", help="输出 tool_provider_contract_v1")
+    tools_contract.add_argument("--json", action="store_true", dest="json_output")
+    tools_list = tools_sub.add_parser("list", help="输出 tool_provider_registry_v1")
+    tools_list.add_argument("--json", action="store_true", dest="json_output")
+    tools_bridge = tools_sub.add_parser("bridge", help="MCP bridge 复用现有 presets 输出（HM-N10-D03）")
+    tools_bridge.add_argument(
+        "--preset",
+        default="websearch/notebook",
+        choices=list(allowed_mcp_preset_choices()),
+        help="MCP preset（websearch|notebook|websearch/notebook）",
+    )
+    tools_bridge.add_argument("--force", action="store_true", help="强制刷新 mcp_list_tools 缓存")
+    tools_bridge.add_argument("--json", action="store_true", dest="json_output")
+    tools_guard = tools_sub.add_parser("guard", help="输出 Tool Gateway approval/policy/cost guard（HM-N10-D05）")
+    tools_guard.add_argument("--json", action="store_true", dest="json_output")
+    tools_web_fetch = tools_sub.add_parser("web-fetch", help="真实 web provider 示例：通过 fetch_url 抓取 URL（HM-N10-D04）")
+    tools_web_fetch.add_argument("--url", required=True, help="要抓取的 URL")
+    tools_web_fetch.add_argument(
+        "--estimated-tokens",
+        type=int,
+        default=200,
+        dest="estimated_tokens",
+        help="用于 cost guard 的估算 token（默认 200）",
+    )
+    tools_web_fetch.add_argument("--json", action="store_true", dest="json_output")
+    tools_enable = tools_sub.add_parser("enable", help="启用指定工具类别（web/image/browser/tts）")
+    tools_enable.add_argument("category", choices=("web", "image", "browser", "tts"))
+    tools_enable.add_argument("--json", action="store_true", dest="json_output")
+    tools_disable = tools_sub.add_parser("disable", help="禁用指定工具类别（web/image/browser/tts）")
+    tools_disable.add_argument("category", choices=("web", "image", "browser", "tts"))
+    tools_disable.add_argument("--json", action="store_true", dest="json_output")
+
+    voice_p = sub.add_parser(
+        "voice",
+        parents=[common],
+        help="Voice provider 配置与健康检查（HM-N08-D02）",
+    )
+    voice_sub = voice_p.add_subparsers(dest="voice_action", required=True)
+    voice_cfg = voice_sub.add_parser("config", help="输出 voice provider contract")
+    voice_cfg.add_argument("--json", action="store_true", dest="json_output")
+    voice_chk = voice_sub.add_parser("check", help="检查 voice provider 配置状态")
+    voice_chk.add_argument("--json", action="store_true", dest="json_output")
 
     cont_p = sub.add_parser(
         "continue",
@@ -5360,8 +5453,17 @@ def main(argv: list[str] | None = None) -> int:
     memory_nudge_report.add_argument("--json", action="store_true", dest="json_output")
     memory_provider = memory_sub.add_parser(
         "provider",
-        help="输出 memory provider / user-model provider 覆盖只读契约（HM-05d）",
+        help="memory provider registry：list/use/test（HM-N09-D01）",
     )
+    memory_provider_sub = memory_provider.add_subparsers(dest="memory_provider_action", required=False)
+    memory_provider_list = memory_provider_sub.add_parser("list", help="列出 provider registry 与当前 active provider")
+    memory_provider_list.add_argument("--json", action="store_true", dest="json_output")
+    memory_provider_use = memory_provider_sub.add_parser("use", help="切换 active provider（写入 .cai/memory-provider.json）")
+    memory_provider_use.add_argument("--id", required=True, dest="memory_provider_id", help="provider id")
+    memory_provider_use.add_argument("--json", action="store_true", dest="json_output")
+    memory_provider_test = memory_provider_sub.add_parser("test", help="测试 provider 可用性（默认测试 active provider）")
+    memory_provider_test.add_argument("--id", default=None, dest="memory_provider_id", help="可选 provider id（默认 active）")
+    memory_provider_test.add_argument("--json", action="store_true", dest="json_output")
     memory_provider.add_argument("--json", action="store_true", dest="json_output")
     memory_user_model = memory_sub.add_parser(
         "user-model",
@@ -6085,6 +6187,16 @@ def main(argv: list[str] | None = None) -> int:
     )
     gw_prod.add_argument("--json", action="store_true", dest="json_output")
 
+    gw_fed = gateway_sub.add_parser("federation-summary", help="Gateway 联邦汇总（HM-N07-D04）")
+    gw_fed.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        dest="gateway_workspace",
+        help="工作区根路径（默认当前目录）",
+    )
+    gw_fed.add_argument("--json", action="store_true", dest="json_output")
+
     gw_stop = gateway_sub.add_parser("stop", help="停止 start 写入 PID 的 webhook 子进程")
     gw_stop.add_argument(
         "-w",
@@ -6094,6 +6206,14 @@ def main(argv: list[str] | None = None) -> int:
         help="工作区根路径（默认当前目录）",
     )
     gw_stop.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_route = gateway_sub.add_parser("route-preview", help="Gateway proxy/routing 最小预览（HM-N07-D03）")
+    gw_route.add_argument("-w", "--workspace", default=None, dest="gateway_workspace", help="工作区根路径（默认当前目录）")
+    gw_route.add_argument("--platform", required=True, dest="gateway_route_platform")
+    gw_route.add_argument("--channel-id", default=None, dest="gateway_route_channel_id")
+    gw_route.add_argument("--target-workspace", default=None, dest="gateway_route_target_workspace")
+    gw_route.add_argument("--target-profile-id", default=None, dest="gateway_route_target_profile_id")
+    gw_route.add_argument("--json", action="store_true", dest="json_output")
 
     gw_tg = gateway_sub.add_parser("telegram", help="Telegram 映射管理")
     gw_tg.add_argument(
@@ -6246,6 +6366,23 @@ def main(argv: list[str] | None = None) -> int:
         help="与 --reply-on-deny 配合",
     )
     gw_tg_serve.add_argument("--json", action="store_true", dest="json_output")
+    gw_tg_vr = gw_tg_sub.add_parser(
+        "voice-reply",
+        help="Voice 最小闭环：向指定 chat 发送语音回复（基于 Telegram voice file_id）",
+    )
+    gw_tg_vr.add_argument("--chat-id", required=True)
+    gw_tg_vr.add_argument("--text", default="", help="语音说明文本（可为空）")
+    gw_tg_vr.add_argument(
+        "--telegram-bot-token",
+        default=None,
+        help="Bot token（亦可设 CAI_TELEGRAM_BOT_TOKEN）",
+    )
+    gw_tg_vr.add_argument(
+        "--voice-file-id",
+        default=None,
+        help="Telegram voice file_id（亦可设 CAI_TELEGRAM_VOICE_FILE_ID）",
+    )
+    gw_tg_vr.add_argument("--json", action="store_true", dest="json_output")
 
     # ---- Discord Gateway MVP（§24 补齐）----
     gw_dc = gateway_sub.add_parser("discord", help="Discord Gateway MVP — Bot Polling 接入")
@@ -6440,6 +6577,120 @@ def main(argv: list[str] | None = None) -> int:
     gw_tm_serve.add_argument("--log-file", default=None)
     gw_tm_serve.add_argument("--json", action="store_true", dest="json_output")
 
+    # ---- Signal Gateway skeleton（HM-N05-D02）----
+    gw_sg = gateway_sub.add_parser("signal", help="Signal Gateway skeleton — map/allow/health")
+    gw_sg.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_sg_sub = gw_sg.add_subparsers(dest="gateway_signal_action", required=True)
+
+    gw_sg_bind = gw_sg_sub.add_parser("bind", help="绑定 sender_id → session_file")
+    gw_sg_bind.add_argument("sender_id")
+    gw_sg_bind.add_argument("session_file")
+    gw_sg_bind.add_argument("--label", default=None)
+    gw_sg_bind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sg_unbind = gw_sg_sub.add_parser("unbind", help="解绑 sender_id")
+    gw_sg_unbind.add_argument("sender_id")
+    gw_sg_unbind.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sg_get = gw_sg_sub.add_parser("get", help="查询 sender_id 绑定")
+    gw_sg_get.add_argument("sender_id")
+    gw_sg_get.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sg_list = gw_sg_sub.add_parser("list", help="列出所有绑定与白名单")
+    gw_sg_list.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sg_health = gw_sg_sub.add_parser("health", help="检查 Signal skeleton 的本地映射与配置存在性")
+    gw_sg_health.add_argument("--service-url", default=None, dest="signal_service_url")
+    gw_sg_health.add_argument("--account", default=None, dest="signal_account")
+    gw_sg_health.add_argument("--phone-number", default=None, dest="signal_phone_number")
+    gw_sg_health.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_sg_allow = gw_sg_sub.add_parser("allow", help="白名单管理")
+    gw_sg_allow_sub = gw_sg_allow.add_subparsers(dest="signal_allow_action", required=True)
+    gw_sg_allow_add = gw_sg_allow_sub.add_parser("add"); gw_sg_allow_add.add_argument("sender_id"); gw_sg_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_sg_allow_rm = gw_sg_allow_sub.add_parser("rm"); gw_sg_allow_rm.add_argument("sender_id"); gw_sg_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_sg_allow_list = gw_sg_allow_sub.add_parser("list"); gw_sg_allow_list.add_argument("--json", action="store_true", dest="json_output")
+
+    # ---- Email Gateway MVP（HM-N05-D03）----
+    gw_em = gateway_sub.add_parser("email", help="Email Gateway MVP — SMTP/IMAP config surface + local send/receive chain")
+    gw_em.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_em_sub = gw_em.add_subparsers(dest="gateway_email_action", required=True)
+    gw_em_bind = gw_em_sub.add_parser("bind", help="绑定收件地址 → session_file")
+    gw_em_bind.add_argument("address")
+    gw_em_bind.add_argument("session_file")
+    gw_em_bind.add_argument("--label", default=None)
+    gw_em_bind.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_unbind = gw_em_sub.add_parser("unbind", help="解绑收件地址")
+    gw_em_unbind.add_argument("address")
+    gw_em_unbind.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_get = gw_em_sub.add_parser("get", help="查询收件地址绑定")
+    gw_em_get.add_argument("address")
+    gw_em_get.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_list = gw_em_sub.add_parser("list", help="列出绑定和发件人白名单")
+    gw_em_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_allow = gw_em_sub.add_parser("allow", help="发件人白名单管理")
+    gw_em_allow_sub = gw_em_allow.add_subparsers(dest="email_allow_action", required=True)
+    gw_em_allow_add = gw_em_allow_sub.add_parser("add"); gw_em_allow_add.add_argument("sender"); gw_em_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_allow_rm = gw_em_allow_sub.add_parser("rm"); gw_em_allow_rm.add_argument("sender"); gw_em_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_allow_list = gw_em_allow_sub.add_parser("list"); gw_em_allow_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_send = gw_em_sub.add_parser("send", help="发送本地 Email 事件（spool）")
+    gw_em_send.add_argument("--from", required=True, dest="email_from")
+    gw_em_send.add_argument("--to", required=True, dest="email_to")
+    gw_em_send.add_argument("--subject", default="")
+    gw_em_send.add_argument("--text", default="")
+    gw_em_send.add_argument("--mirror-inbox", action="store_true", default=False)
+    gw_em_send.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_recv = gw_em_sub.add_parser("receive", help="读取本地 Email 入站事件（spool）")
+    gw_em_recv.add_argument("--inbox", required=True, dest="email_inbox")
+    gw_em_recv.add_argument("--limit", type=int, default=20)
+    gw_em_recv.add_argument("--json", action="store_true", dest="json_output")
+    gw_em_health = gw_em_sub.add_parser("health", help="检查 Email 映射/队列与 SMTP/IMAP 配置存在性")
+    gw_em_health.add_argument("--smtp-host", default=None, dest="email_smtp_host")
+    gw_em_health.add_argument("--smtp-port", type=int, default=0, dest="email_smtp_port")
+    gw_em_health.add_argument("--smtp-user", default=None, dest="email_smtp_user")
+    gw_em_health.add_argument("--imap-host", default=None, dest="email_imap_host")
+    gw_em_health.add_argument("--imap-port", type=int, default=0, dest="email_imap_port")
+    gw_em_health.add_argument("--imap-user", default=None, dest="email_imap_user")
+    gw_em_health.add_argument("--json", action="store_true", dest="json_output")
+
+    # ---- Matrix Gateway MVP（HM-N05-D04）----
+    gw_mx = gateway_sub.add_parser("matrix", help="Matrix Gateway MVP — room map/send/receive/health")
+    gw_mx.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_mx_sub = gw_mx.add_subparsers(dest="gateway_matrix_action", required=True)
+    gw_mx_bind = gw_mx_sub.add_parser("bind", help="绑定 room_id → session_file")
+    gw_mx_bind.add_argument("room_id")
+    gw_mx_bind.add_argument("session_file")
+    gw_mx_bind.add_argument("--label", default=None)
+    gw_mx_bind.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_unbind = gw_mx_sub.add_parser("unbind", help="解绑 room_id")
+    gw_mx_unbind.add_argument("room_id")
+    gw_mx_unbind.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_get = gw_mx_sub.add_parser("get", help="查询 room_id 绑定")
+    gw_mx_get.add_argument("room_id")
+    gw_mx_get.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_list = gw_mx_sub.add_parser("list", help="列出 room 绑定和白名单")
+    gw_mx_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_allow = gw_mx_sub.add_parser("allow", help="房间白名单管理")
+    gw_mx_allow_sub = gw_mx_allow.add_subparsers(dest="matrix_allow_action", required=True)
+    gw_mx_allow_add = gw_mx_allow_sub.add_parser("add"); gw_mx_allow_add.add_argument("room_id"); gw_mx_allow_add.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_allow_rm = gw_mx_allow_sub.add_parser("rm"); gw_mx_allow_rm.add_argument("room_id"); gw_mx_allow_rm.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_allow_list = gw_mx_allow_sub.add_parser("list"); gw_mx_allow_list.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_send = gw_mx_sub.add_parser("send", help="发送本地 Matrix 事件（spool）")
+    gw_mx_send.add_argument("--room-id", required=True, dest="matrix_room_id")
+    gw_mx_send.add_argument("--sender", required=True, dest="matrix_sender")
+    gw_mx_send.add_argument("--text", default="")
+    gw_mx_send.add_argument("--mirror-inbound", action="store_true", default=False)
+    gw_mx_send.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_recv = gw_mx_sub.add_parser("receive", help="读取本地 Matrix 入站事件（spool）")
+    gw_mx_recv.add_argument("--room-id", required=True, dest="matrix_room_id")
+    gw_mx_recv.add_argument("--limit", type=int, default=20)
+    gw_mx_recv.add_argument("--json", action="store_true", dest="json_output")
+    gw_mx_health = gw_mx_sub.add_parser("health", help="检查 Matrix map/spool 与 homeserver 配置")
+    gw_mx_health.add_argument("--homeserver", default=None, dest="matrix_homeserver")
+    gw_mx_health.add_argument("--access-token", default=None, dest="matrix_access_token")
+    gw_mx_health.add_argument("--user-id", default=None, dest="matrix_user_id")
+    gw_mx_health.add_argument("--json", action="store_true", dest="json_output")
+
     wf_p = sub.add_parser(
         "workflow",
         parents=[common],
@@ -6576,6 +6827,29 @@ def main(argv: list[str] | None = None) -> int:
                 success=True,
             )
             return 0
+        if ecc_act == "catalog":
+            cdoc = build_local_catalog_payload(settings_ecc, root_override=root_ecc)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(cdoc, ensure_ascii=False))
+            else:
+                print(
+                    f"ECC catalog workspace={cdoc.get('workspace')} "
+                    f"health={cdoc.get('health_score')} assets={len(cdoc.get('assets') or [])}",
+                )
+                for row in cdoc.get("assets") or []:
+                    if isinstance(row, dict):
+                        print(
+                            f"- {row.get('id')}: exists={row.get('exists')} "
+                            f"items={row.get('items_count')} path={row.get('path')}",
+                        )
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.catalog",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(cdoc.get("assets") or []),
+                success=True,
+            )
+            return 0
         print(f"unknown ecc action: {ecc_act}", file=sys.stderr)
         return 2
 
@@ -6611,6 +6885,151 @@ def main(argv: list[str] | None = None) -> int:
             success=(int(rc_doc) == 0),
         )
         return rc_doc
+
+    if args.command == "tools":
+        act_tools = str(getattr(args, "tools_action", "") or "").strip().lower()
+        try:
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        from cai_agent.tool_provider import (
+            build_tool_gateway_guard_payload,
+            build_tool_mcp_bridge_payload,
+            build_tool_provider_contract_payload,
+            build_tool_provider_registry_payload,
+            run_tool_provider_web_fetch,
+            set_tool_provider_enabled,
+        )
+
+        if act_tools == "contract":
+            payload = build_tool_provider_contract_payload(settings)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                sm = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+                print(
+                    f"[tools contract] schema={payload.get('schema_version')} "
+                    f"configured={sm.get('configured_count')}",
+                )
+            return 0
+        if act_tools == "list":
+            payload = build_tool_provider_registry_payload(settings)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                sm = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+                print(
+                    f"[tools list] schema={payload.get('schema_version')} "
+                    f"enabled={sm.get('enabled_count')}",
+                )
+            return 0
+        if act_tools == "bridge":
+            payload = build_tool_mcp_bridge_payload(
+                settings,
+                preset=str(getattr(args, "preset", "websearch/notebook") or "websearch/notebook"),
+                force=bool(getattr(args, "force", False)),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"[tools bridge] ok={payload.get('ok')} preset={payload.get('preset')} "
+                    f"matched={len(payload.get('matched_tools') or [])} "
+                    f"missing={len(payload.get('missing_tools') or [])}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
+        if act_tools == "guard":
+            payload = build_tool_gateway_guard_payload(settings)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                cg = payload.get("cost_guard") if isinstance(payload.get("cost_guard"), dict) else {}
+                print(
+                    f"[tools guard] schema={payload.get('schema_version')} "
+                    f"cost_guard_enabled={cg.get('enabled')}",
+                )
+            return 0
+        if act_tools == "web-fetch":
+            payload = run_tool_provider_web_fetch(
+                settings,
+                url=str(getattr(args, "url", "") or ""),
+                estimated_tokens=int(getattr(args, "estimated_tokens", 200) or 200),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"[tools web-fetch] ok={payload.get('ok')} "
+                    f"url={payload.get('url')} provider={payload.get('provider')}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
+        if act_tools in ("enable", "disable"):
+            payload = set_tool_provider_enabled(
+                settings,
+                category=str(getattr(args, "category", "") or ""),
+                enabled=(act_tools == "enable"),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"[tools {act_tools}] ok={payload.get('ok')} "
+                    f"category={payload.get('category')} enabled={payload.get('enabled')}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
+        print(f"unknown tools action: {act_tools}", file=sys.stderr)
+        return 2
+
+    if args.command == "voice":
+        t_voice = time.perf_counter()
+        act = str(getattr(args, "voice_action", "") or "").strip().lower()
+        payload = build_voice_provider_contract_payload()
+        if act == "config":
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"[voice config] provider={payload.get('provider')} "
+                    f"stt={(payload.get('stt') or {}).get('enabled')} "
+                    f"tts={(payload.get('tts') or {}).get('enabled')}",
+                )
+            _maybe_metrics_cli(
+                module="voice",
+                event="voice.config",
+                latency_ms=(time.perf_counter() - t_voice) * 1000.0,
+                tokens=1,
+                success=True,
+            )
+            return 0
+        if act == "check":
+            health = payload.get("health") if isinstance(payload.get("health"), dict) else {}
+            ok = bool(health.get("configured"))
+            out = {
+                "schema_version": "voice_check_v1",
+                "ok": ok,
+                "voice": payload,
+            }
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out, ensure_ascii=False))
+            else:
+                print(
+                    f"[voice check] ok={ok} provider={payload.get('provider')} "
+                    f"status={health.get('status')}",
+                )
+            _maybe_metrics_cli(
+                module="voice",
+                event="voice.check",
+                latency_ms=(time.perf_counter() - t_voice) * 1000.0,
+                tokens=1,
+                success=ok,
+            )
+            return 0 if ok else 2
+        print(f"unknown voice action: {act}", file=sys.stderr)
+        return 2
 
     if args.command == "plan":
         t_plan = time.perf_counter()
@@ -9455,12 +9874,35 @@ def main(argv: list[str] | None = None) -> int:
                 return 0
             if args.memory_action == "provider":
                 t_mpv = time.perf_counter()
-                from cai_agent.memory import build_memory_provider_contract_payload
+                from cai_agent.memory import (
+                    build_memory_provider_contract_payload,
+                    build_memory_provider_registry_payload,
+                    set_active_memory_provider,
+                    test_memory_provider,
+                )
 
-                payload = build_memory_provider_contract_payload(root)
+                p_act = str(getattr(args, "memory_provider_action", "") or "").strip().lower()
+                if p_act == "":
+                    payload = build_memory_provider_contract_payload(root)
+                elif p_act == "list":
+                    payload = build_memory_provider_registry_payload(root)
+                elif p_act == "use":
+                    payload = set_active_memory_provider(
+                        root,
+                        str(getattr(args, "memory_provider_id", "") or ""),
+                    )
+                elif p_act == "test":
+                    raw_pid = getattr(args, "memory_provider_id", None)
+                    payload = test_memory_provider(
+                        root,
+                        provider_id=(str(raw_pid).strip() if raw_pid else None),
+                    )
+                else:
+                    print(f"unknown memory provider action: {p_act}", file=sys.stderr)
+                    return 2
                 _maybe_metrics_cli(
                     module="memory",
-                    event="memory.provider",
+                    event=f"memory.provider.{p_act or 'list'}",
                     latency_ms=(time.perf_counter() - t_mpv) * 1000.0,
                     tokens=len(payload.get("providers") or []),
                     success=bool(payload.get("ok")),
@@ -9468,12 +9910,24 @@ def main(argv: list[str] | None = None) -> int:
                 if bool(getattr(args, "json_output", False)):
                     print(json.dumps(payload, ensure_ascii=False))
                 else:
-                    providers = payload.get("providers") if isinstance(payload.get("providers"), list) else []
-                    print(
-                        f"[memory provider] providers={len(providers)} "
-                        f"default={payload.get('default_provider')} ok={payload.get('ok')}",
-                    )
-                return 0
+                    if p_act in ("", "list"):
+                        providers = payload.get("providers") if isinstance(payload.get("providers"), list) else []
+                        active = payload.get("active_provider") or payload.get("default_provider")
+                        print(
+                            f"[memory provider] providers={len(providers)} "
+                            f"active={active} ok={payload.get('ok')}",
+                        )
+                    elif p_act == "use":
+                        print(
+                            f"[memory provider use] ok={payload.get('ok')} "
+                            f"active={payload.get('active_provider')} state_file={payload.get('state_file')}",
+                        )
+                    else:
+                        print(
+                            f"[memory provider test] ok={payload.get('ok')} "
+                            f"provider={payload.get('provider_id')} error={payload.get('error') or ''}",
+                        )
+                return 0 if bool(payload.get("ok")) else 2
             if args.memory_action == "user-model":
                 t_mum = time.perf_counter()
                 from cai_agent.user_model import (
@@ -11239,7 +11693,7 @@ def main(argv: list[str] | None = None) -> int:
             root = Path.cwd().resolve()
 
         ga = getattr(args, "gateway_action", None)
-        if ga in {"setup", "start", "status", "prod-status", "stop"}:
+        if ga in {"setup", "start", "status", "prod-status", "federation-summary", "stop", "route-preview"}:
             from cai_agent import gateway_lifecycle
 
             if ga == "setup":
@@ -11337,6 +11791,21 @@ def main(argv: list[str] | None = None) -> int:
                         f"running={sm.get('running_count')} bindings={sm.get('bindings_count')}",
                     )
                 return 0
+            if ga == "federation-summary":
+                from cai_agent.gateway_production import build_gateway_federation_summary_payload
+
+                out_st = build_gateway_federation_summary_payload(root)
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    sm = out_st.get("summary") if isinstance(out_st.get("summary"), dict) else {}
+                    print(
+                        "[gateway federation-summary] "
+                        f"platforms={sm.get('platforms_count')} configured={sm.get('configured_count')} "
+                        f"running={sm.get('running_count')} channels={sm.get('channels_count')} "
+                        f"errors={sm.get('error_count_total')}",
+                    )
+                return 0
             if ga == "stop":
                 out_st = gateway_lifecycle.stop_webhook_subprocess(root)
                 json_st = bool(getattr(args, "json_output", False))
@@ -11352,6 +11821,26 @@ def main(argv: list[str] | None = None) -> int:
                 if str(out_st.get("error") or "") == "no_pid_file":
                     return 0
                 return 2
+            if ga == "route-preview":
+                out_st = gateway_lifecycle.build_gateway_proxy_route_preview(
+                    root=root,
+                    platform=str(getattr(args, "gateway_route_platform", "") or ""),
+                    channel_id=getattr(args, "gateway_route_channel_id", None),
+                    target_workspace=getattr(args, "gateway_route_target_workspace", None),
+                    target_profile_id=getattr(args, "gateway_route_target_profile_id", None),
+                    dry_run=True,
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    src = out_st.get("source") if isinstance(out_st.get("source"), dict) else {}
+                    rt = out_st.get("route") if isinstance(out_st.get("route"), dict) else {}
+                    print(
+                        "[gateway route-preview] "
+                        f"platform={src.get('platform')} channel={src.get('channel_id')} "
+                        f"workspace={rt.get('target_workspace')} profile={rt.get('target_profile_id')}",
+                    )
+                return 0
 
         if ga == "platforms":
             actp = str(getattr(args, "gateway_platforms_action", "") or "").strip()
@@ -11808,6 +12297,70 @@ def main(argv: list[str] | None = None) -> int:
                         f"handled={out.get('events_handled')} log={out.get('log_file')}",
                     )
                 return 0
+            if act == "voice-reply":
+                t_gvr = time.perf_counter()
+                voice_payload = build_voice_provider_contract_payload()
+                chat_id = str(getattr(args, "chat_id", "") or "").strip()
+                if not chat_id:
+                    print("chat-id 不能为空", file=sys.stderr)
+                    return 2
+                text = str(getattr(args, "text", "") or "")
+                tok_cli = str(getattr(args, "telegram_bot_token", None) or "").strip()
+                tok = tok_cli or str(os.environ.get("CAI_TELEGRAM_BOT_TOKEN") or "").strip()
+                if not tok:
+                    out = {
+                        "schema_version": "gateway_telegram_voice_reply_v1",
+                        "ok": False,
+                        "error": "missing_bot_token",
+                        "voice": voice_payload,
+                    }
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out, ensure_ascii=False))
+                    else:
+                        print("缺少 bot token（--telegram-bot-token 或 CAI_TELEGRAM_BOT_TOKEN）", file=sys.stderr)
+                    return 2
+                file_id_cli = str(getattr(args, "voice_file_id", None) or "").strip()
+                file_id = file_id_cli or str(os.environ.get("CAI_TELEGRAM_VOICE_FILE_ID") or "").strip()
+                if not file_id:
+                    out = {
+                        "schema_version": "gateway_telegram_voice_reply_v1",
+                        "ok": False,
+                        "error": "missing_voice_file_id",
+                        "voice": voice_payload,
+                        "hint": "设置 --voice-file-id 或环境变量 CAI_TELEGRAM_VOICE_FILE_ID。",
+                    }
+                    if bool(getattr(args, "json_output", False)):
+                        print(json.dumps(out, ensure_ascii=False))
+                    else:
+                        print("缺少 voice file_id（--voice-file-id 或 CAI_TELEGRAM_VOICE_FILE_ID）", file=sys.stderr)
+                    return 2
+                send = _telegram_send_voice_file_id(
+                    bot_token=tok,
+                    chat_id=chat_id,
+                    voice_file_id=file_id,
+                    caption=(text[:200] if text else None),
+                )
+                ok = bool(send.get("ok"))
+                out = {
+                    "schema_version": "gateway_telegram_voice_reply_v1",
+                    "ok": ok,
+                    "chat_id": chat_id,
+                    "provider": voice_payload.get("provider"),
+                    "voice": voice_payload,
+                    "send_result": send,
+                }
+                _maybe_metrics_cli(
+                    module="gateway",
+                    event="gateway.telegram.voice_reply",
+                    latency_ms=(time.perf_counter() - t_gvr) * 1000.0,
+                    tokens=1,
+                    success=ok,
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out, ensure_ascii=False))
+                else:
+                    print(f"voice_reply ok={ok} chat_id={chat_id} provider={out.get('provider')}")
+                return 0 if ok else 2
         # ---- Discord Gateway（§24 补齐）----
         _gw_act = str(getattr(args, "gateway_action", "") or "").strip()
         if _gw_act == "discord":
@@ -12113,6 +12666,259 @@ def main(argv: list[str] | None = None) -> int:
                 elif tm_act == "manifest":
                     print(json.dumps(r.get("manifest") or {}, ensure_ascii=False, indent=2))
                 elif tm_act != "serve-webhook":
+                    print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
+        # ---- Signal Gateway skeleton（HM-N05-D02）----
+        if _gw_act == "signal":
+            from cai_agent.gateway_signal import (
+                signal_allow_add,
+                signal_allow_list,
+                signal_allow_rm,
+                signal_bind,
+                signal_gateway_health,
+                signal_get_binding,
+                signal_list_bindings,
+                signal_unbind,
+            )
+
+            sg_ws_raw = getattr(args, "workspace", None)
+            sg_root = Path(os.path.abspath(sg_ws_raw)).resolve() if sg_ws_raw else Path.cwd().resolve()
+            sg_act = str(getattr(args, "gateway_signal_action", "") or "").strip()
+            json_out_sg = bool(getattr(args, "json_output", False))
+            if sg_act == "bind":
+                r = signal_bind(
+                    sg_root,
+                    args.sender_id,
+                    args.session_file,
+                    label=getattr(args, "label", None),
+                )
+            elif sg_act == "unbind":
+                r = signal_unbind(sg_root, args.sender_id)
+            elif sg_act == "get":
+                r = signal_get_binding(sg_root, args.sender_id)
+            elif sg_act == "list":
+                r = signal_list_bindings(sg_root)
+            elif sg_act == "health":
+                service_url_sg = str(
+                    getattr(args, "signal_service_url", None) or os.environ.get("CAI_SIGNAL_SERVICE_URL", "") or "",
+                )
+                account_sg = str(getattr(args, "signal_account", None) or os.environ.get("CAI_SIGNAL_ACCOUNT", "") or "")
+                phone_sg = str(
+                    getattr(args, "signal_phone_number", None) or os.environ.get("CAI_SIGNAL_PHONE_NUMBER", "") or "",
+                )
+                r = signal_gateway_health(
+                    sg_root,
+                    service_url=service_url_sg or None,
+                    account=account_sg or None,
+                    phone_number=phone_sg or None,
+                )
+            elif sg_act == "allow":
+                al_act = str(getattr(args, "signal_allow_action", "") or "")
+                if al_act == "add":
+                    r = signal_allow_add(sg_root, args.sender_id)
+                elif al_act == "rm":
+                    r = signal_allow_rm(sg_root, args.sender_id)
+                else:
+                    r = signal_allow_list(sg_root)
+            else:
+                print(f"unknown signal action: {sg_act}", file=sys.stderr)
+                return 2
+            if json_out_sg:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                if sg_act == "health":
+                    tc_sg = r.get("token_check") if isinstance(r.get("token_check"), dict) else {}
+                    print(
+                        f"Signal health: bindings={r.get('bindings_count')} "
+                        f"allowlist={r.get('allowlist_enabled')} "
+                        f"service_url={r.get('service_url_configured')} "
+                        f"account={r.get('account_configured')} "
+                        f"phone={r.get('phone_number_configured')} "
+                        f"token_checked={tc_sg.get('performed')}",
+                    )
+                else:
+                    print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
+        # ---- Email Gateway MVP（HM-N05-D03）----
+        if _gw_act == "email":
+            from cai_agent.gateway_email import (
+                email_allow_add,
+                email_allow_list,
+                email_allow_rm,
+                email_bind,
+                email_gateway_health,
+                email_get_binding,
+                email_list_bindings,
+                email_receive,
+                email_send,
+                email_unbind,
+            )
+
+            em_ws_raw = getattr(args, "workspace", None)
+            em_root = Path(os.path.abspath(em_ws_raw)).resolve() if em_ws_raw else Path.cwd().resolve()
+            em_act = str(getattr(args, "gateway_email_action", "") or "").strip()
+            json_out_em = bool(getattr(args, "json_output", False))
+            if em_act == "bind":
+                r = email_bind(em_root, args.address, args.session_file, label=getattr(args, "label", None))
+            elif em_act == "unbind":
+                r = email_unbind(em_root, args.address)
+            elif em_act == "get":
+                r = email_get_binding(em_root, args.address)
+            elif em_act == "list":
+                r = email_list_bindings(em_root)
+            elif em_act == "allow":
+                al_act = str(getattr(args, "email_allow_action", "") or "")
+                if al_act == "add":
+                    r = email_allow_add(em_root, args.sender)
+                elif al_act == "rm":
+                    r = email_allow_rm(em_root, args.sender)
+                else:
+                    r = email_allow_list(em_root)
+            elif em_act == "send":
+                r = email_send(
+                    em_root,
+                    from_address=str(getattr(args, "email_from", "") or ""),
+                    to_address=str(getattr(args, "email_to", "") or ""),
+                    subject=str(getattr(args, "subject", "") or ""),
+                    text=str(getattr(args, "text", "") or ""),
+                    mirror_inbox=bool(getattr(args, "mirror_inbox", False)),
+                )
+            elif em_act == "receive":
+                r = email_receive(
+                    em_root,
+                    inbox_address=str(getattr(args, "email_inbox", "") or ""),
+                    limit=int(getattr(args, "limit", 20) or 20),
+                )
+            elif em_act == "health":
+                smtp_host = str(
+                    getattr(args, "email_smtp_host", None) or os.environ.get("CAI_EMAIL_SMTP_HOST", "") or "",
+                )
+                smtp_port = int(getattr(args, "email_smtp_port", 0) or int(os.environ.get("CAI_EMAIL_SMTP_PORT", "0") or "0"))
+                smtp_user = str(
+                    getattr(args, "email_smtp_user", None) or os.environ.get("CAI_EMAIL_SMTP_USER", "") or "",
+                )
+                imap_host = str(
+                    getattr(args, "email_imap_host", None) or os.environ.get("CAI_EMAIL_IMAP_HOST", "") or "",
+                )
+                imap_port = int(getattr(args, "email_imap_port", 0) or int(os.environ.get("CAI_EMAIL_IMAP_PORT", "0") or "0"))
+                imap_user = str(
+                    getattr(args, "email_imap_user", None) or os.environ.get("CAI_EMAIL_IMAP_USER", "") or "",
+                )
+                r = email_gateway_health(
+                    em_root,
+                    smtp_host=smtp_host or None,
+                    smtp_port=smtp_port if smtp_port > 0 else None,
+                    smtp_user=smtp_user or None,
+                    imap_host=imap_host or None,
+                    imap_port=imap_port if imap_port > 0 else None,
+                    imap_user=imap_user or None,
+                )
+            else:
+                print(f"unknown email action: {em_act}", file=sys.stderr)
+                return 2
+            if json_out_em:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                if em_act == "health":
+                    print(
+                        f"Email health: bindings={r.get('bindings_count')} "
+                        f"allowlist={r.get('allowlist_enabled')} "
+                        f"smtp_host={((r.get('smtp') or {}).get('host_configured'))} "
+                        f"imap_host={((r.get('imap') or {}).get('host_configured'))}",
+                    )
+                elif em_act == "receive":
+                    print(
+                        f"Email receive: inbox={r.get('inbox_address')} messages={r.get('messages_count')} "
+                        f"spool={r.get('spool_path')}",
+                    )
+                else:
+                    print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
+            return 0
+
+        # ---- Matrix Gateway MVP（HM-N05-D04）----
+        if _gw_act == "matrix":
+            from cai_agent.gateway_matrix import (
+                matrix_allow_add,
+                matrix_allow_list,
+                matrix_allow_rm,
+                matrix_bind,
+                matrix_gateway_health,
+                matrix_get_binding,
+                matrix_list_bindings,
+                matrix_receive,
+                matrix_send,
+                matrix_unbind,
+            )
+
+            mx_ws_raw = getattr(args, "workspace", None)
+            mx_root = Path(os.path.abspath(mx_ws_raw)).resolve() if mx_ws_raw else Path.cwd().resolve()
+            mx_act = str(getattr(args, "gateway_matrix_action", "") or "").strip()
+            json_out_mx = bool(getattr(args, "json_output", False))
+            if mx_act == "bind":
+                r = matrix_bind(mx_root, args.room_id, args.session_file, label=getattr(args, "label", None))
+            elif mx_act == "unbind":
+                r = matrix_unbind(mx_root, args.room_id)
+            elif mx_act == "get":
+                r = matrix_get_binding(mx_root, args.room_id)
+            elif mx_act == "list":
+                r = matrix_list_bindings(mx_root)
+            elif mx_act == "allow":
+                al_act = str(getattr(args, "matrix_allow_action", "") or "")
+                if al_act == "add":
+                    r = matrix_allow_add(mx_root, args.room_id)
+                elif al_act == "rm":
+                    r = matrix_allow_rm(mx_root, args.room_id)
+                else:
+                    r = matrix_allow_list(mx_root)
+            elif mx_act == "send":
+                r = matrix_send(
+                    mx_root,
+                    room_id=str(getattr(args, "matrix_room_id", "") or ""),
+                    sender=str(getattr(args, "matrix_sender", "") or ""),
+                    text=str(getattr(args, "text", "") or ""),
+                    mirror_inbound=bool(getattr(args, "mirror_inbound", False)),
+                )
+            elif mx_act == "receive":
+                r = matrix_receive(
+                    mx_root,
+                    room_id=str(getattr(args, "matrix_room_id", "") or ""),
+                    limit=int(getattr(args, "limit", 20) or 20),
+                )
+            elif mx_act == "health":
+                homeserver = str(
+                    getattr(args, "matrix_homeserver", None) or os.environ.get("CAI_MATRIX_HOMESERVER", "") or "",
+                )
+                access_token = str(
+                    getattr(args, "matrix_access_token", None) or os.environ.get("CAI_MATRIX_ACCESS_TOKEN", "") or "",
+                )
+                user_id = str(getattr(args, "matrix_user_id", None) or os.environ.get("CAI_MATRIX_USER_ID", "") or "")
+                r = matrix_gateway_health(
+                    mx_root,
+                    homeserver=homeserver or None,
+                    access_token=access_token or None,
+                    user_id=user_id or None,
+                )
+            else:
+                print(f"unknown matrix action: {mx_act}", file=sys.stderr)
+                return 2
+            if json_out_mx:
+                print(json.dumps(r, ensure_ascii=False))
+            else:
+                if mx_act == "health":
+                    print(
+                        f"Matrix health: bindings={r.get('bindings_count')} "
+                        f"allowlist={r.get('allowlist_enabled')} "
+                        f"homeserver={r.get('homeserver_configured')} "
+                        f"user_id={r.get('user_id_configured')}",
+                    )
+                elif mx_act == "receive":
+                    print(
+                        f"Matrix receive: room_id={r.get('room_id')} messages={r.get('messages_count')} "
+                        f"spool={r.get('spool_path')}",
+                    )
+                else:
                     print(" ".join(f"{k}={v}" for k, v in r.items() if k != "bindings"))
             return 0
 

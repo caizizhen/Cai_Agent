@@ -12,6 +12,8 @@
 | 领域 | 交付内容 | 代码/文档入口 |
 |------|-----------|---------------|
 | **Design backlog 契约（HM-04c / HM-03e / HM-05d）** | 新增 **`ops_dashboard_interactions_v1`**（Dashboard dry-run 预览）、**`gateway prod-status --json`** 输出 **`gateway_production_summary_v1`**、**`memory provider --json`** 输出 **`memory_provider_contract_v1`**；均为本地只读/预览契约，不依赖外部服务 | **`ops_dashboard.py`**、**`ops_http_server.py`**、**`gateway_production.py`**、**`memory.py`**、**`test_ops_http_server.py`**、**`test_gateway_lifecycle_cli.py`**、**`test_memory_provider_contract_cli.py`** |
+| **Cloud runtime 条件项（HM-N11-D01 / D02）** | 新增云后端条件立项门槛文档（`CLOUD_RUNTIME_OOS` 中英同步），并在 `runtime_registry_v1.interface` 暴露 **`runtime_backend_interface_v1`**，统一 `local/docker/ssh` 的接口与配置键口径，为后续条件立项保留稳定接入面 | **`docs/CLOUD_RUNTIME_OOS.zh-CN.md`**、**`docs/CLOUD_RUNTIME_OOS.md`**、**`runtime/registry.py`**、**`test_runtime_local.py`** |
+| **ECC ingest 草案（ECC-N04-D01 / D02）** | 新增资产生态 ingest 草案快照：**`ecc_asset_registry_v1.snapshot.json`**（来源/license/签名/版本/trust）与 **`ecc_ingest_sanitizer_policy_v1.snapshot.json`**（`deny_exec`、危险 hook 隔离、review 决策），并补齐中英文策略文档 | **`docs/schema/ecc_asset_registry_v1.snapshot.json`**、**`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`**、**`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`** |
 | **插件兼容矩阵 CI snapshot（ECC-03c）** | 新增 **`scripts/gen_plugin_compat_snapshot.py`**，可生成/校验 **`docs/schema/plugin_compat_matrix_v1.snapshot.json`**；snapshot 内嵌 **`plugin_compat_matrix_v1`** 与 **`plugin_compat_matrix_check_v1`**，smoke 执行 `--check` | **`scripts/gen_plugin_compat_snapshot.py`**、**`plugin_compat_matrix_v1.snapshot.json`**、**`test_plugin_compat_matrix.py`** |
 | **SSH Runtime（HM-06c）** | **`runtime.ssh`** 诊断补齐 `ssh_binary_present`、key/known_hosts 存在性、严格 host key 与连接超时；新增可选 **`runtime_ssh_audit_v1`** JSONL 审计（默认不记录命令明文，可用 `audit_include_command=true` 显式打开） | **`runtime/ssh.py`**、**`runtime/registry.py`**、**`config.py`**、**`test_runtime_ssh_mock.py`** |
 | **Docker Runtime（HM-06b）** | **`runtime.docker`** 支持既有 `container` / `docker exec` 模式与新增 `image` / `docker run --rm` 模式；新增 **`workdir`**、**`volume_mounts`**、**`cpus`**、**`memory`** 配置，**`doctor_runtime_v1.describe`** 暴露 mode/image/workdir/volumes/limits | **`runtime/docker.py`**、**`runtime/registry.py`**、**`config.py`**、**`test_runtime_docker_mock.py`** |
@@ -43,7 +45,7 @@
 ## 最近回归执行记录（QA）
 
 - **日期**：2026-04-25（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**（自 **`cai-agent`** 目录 **`python -m pytest -q tests`**）：**742 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。
+- **`pytest cai-agent/tests`**（仓库根执行 **`python -m pytest -q cai-agent/tests`**）：**799 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（HM-04c / HM-03e / HM-05d 后）。最近一次落盘机器记录仍为 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**；需要新日志时勿设 **`QA_SKIP_LOG=1`** 后重跑（见 **QA_REGRESSION_LOGGING**）。
 

@@ -219,7 +219,7 @@
 9. `HM-N03-D02`
 10. `HM-N03-D03`
 11. `HM-N04-D01`
-12. `HM-N05-D01`
+12. `ECC-N04-D03`
 13. `ECC-N03-D01`
 14. `ECC-N03-D02`
 
@@ -257,6 +257,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **742 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **799 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |

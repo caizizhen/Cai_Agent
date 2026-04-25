@@ -89,6 +89,7 @@ class ModelsCliEndToEnd(unittest.TestCase):
         self.assertEqual(contract.get("schema_version"), "profile_contract_v1")
         self.assertEqual(contract.get("migration_state"), "ready")
         self.assertEqual(contract.get("active_profile_id"), "p1")
+        self.assertEqual((contract.get("memory_provider") or {}).get("schema_version"), "memory_active_provider_v1")
         ids = [p["id"] for p in payload["profiles"]]
         self.assertEqual(sorted(ids), ["p1", "p2"])
 
