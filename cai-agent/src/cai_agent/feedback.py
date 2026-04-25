@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import platform
 import re
 import urllib.request
 from datetime import UTC, datetime
@@ -36,6 +37,11 @@ def sanitize_feedback_text(text: str, *, max_len: int = 8000) -> str:
     s = re.sub(r"AKIA[0-9A-Z]{16}", "AKIA<redacted>", s)
     s = re.sub(r"(?i)gh[pousr]_[A-Za-z0-9]{30,}", "gh_token_<redacted>", s)
     s = re.sub(
+        r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b",
+        "<email-redacted>",
+        s,
+    )
+    s = re.sub(
         r"(?i)(api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|password)\s*[:=]\s*"
         r"['\"]?[A-Za-z0-9_+/=\-]{12,}['\"]?",
         r"\1=<redacted>",
@@ -45,6 +51,24 @@ def sanitize_feedback_text(text: str, *, max_len: int = 8000) -> str:
     s = re.sub(r"(?i)([A-Za-z]:\\Users\\)[^\\]+\\", r"\1<user>\\", s)
     s = re.sub(r"/Users/[^/\s]+/", "/Users/<user>/", s)
     return s
+
+
+def _sanitize_bundle_value(value: Any, *, workspace: Path) -> Any:
+    if isinstance(value, str):
+        s = value.replace(str(workspace), "<workspace>")
+        try:
+            s = s.replace(str(workspace).replace("\\", "/"), "<workspace>")
+        except Exception:
+            pass
+        return sanitize_feedback_text(s, max_len=20_000)
+    if isinstance(value, list):
+        return [_sanitize_bundle_value(v, workspace=workspace) for v in value]
+    if isinstance(value, dict):
+        return {
+            str(k): _sanitize_bundle_value(v, workspace=workspace)
+            for k, v in value.items()
+        }
+    return value
 
 
 def _append_feedback_row(cwd: str | Path, row: dict[str, Any]) -> dict[str, Any]:
@@ -178,4 +202,80 @@ def export_feedback_jsonl(
         "workspace": str(Path(cwd).expanduser().resolve()),
         "dest": str(dest_p),
         "rows": len(rows),
+    }
+
+
+def build_feedback_bundle_payload(
+    cwd: str | Path,
+    *,
+    settings: Any,
+    limit: int | None = None,
+    include_repair_plan: bool = True,
+) -> dict[str, Any]:
+    """Build a redacted support bundle for local issue triage."""
+    root = Path(cwd).expanduser().resolve()
+    lim = 200 if limit is None else max(1, min(2000, int(limit)))
+    rows = list_feedback(root, limit=lim)
+    from cai_agent import __version__
+    from cai_agent.doctor import build_api_doctor_summary_v1, build_repair_plan
+
+    doctor_summary = build_api_doctor_summary_v1(settings)
+    repair_plan = build_repair_plan(settings) if include_repair_plan else None
+    payload: dict[str, Any] = {
+        "schema_version": "feedback_bundle_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "cai_agent_version": __version__,
+        "workspace": "<workspace>",
+        "platform": {
+            "system": platform.system(),
+            "release": platform.release(),
+            "python": platform.python_version(),
+        },
+        "redaction": {
+            "strategy": "sanitize_feedback_text_v1",
+            "workspace": "<workspace>",
+            "notes": [
+                "feedback text is redacted for common tokens and emails",
+                "workspace absolute path is replaced with <workspace>",
+            ],
+        },
+        "feedback": {
+            "path": ".cai/feedback.jsonl",
+            "rows": len(rows),
+            "items": rows,
+        },
+        "doctor_summary": doctor_summary,
+        "repair_plan": repair_plan,
+        "triage": {
+            "recommended_flow": [
+                "cai-agent doctor --json",
+                "cai-agent repair --dry-run --json",
+                "cai-agent feedback bug <summary> --detail <steps> --json",
+                "cai-agent feedback bundle --dest dist/feedback-bundle.json --json",
+            ],
+        },
+    }
+    return _sanitize_bundle_value(payload, workspace=root)
+
+
+def export_feedback_bundle_json(
+    cwd: str | Path,
+    *,
+    settings: Any,
+    dest: str | Path,
+    limit: int | None = None,
+) -> dict[str, Any]:
+    root = Path(cwd).expanduser().resolve()
+    dest_p = Path(dest).expanduser().resolve()
+    bundle = build_feedback_bundle_payload(root, settings=settings, limit=limit)
+    dest_p.parent.mkdir(parents=True, exist_ok=True)
+    dest_p.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    return {
+        "schema_version": "feedback_bundle_export_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(root),
+        "dest": str(dest_p),
+        "bundle_schema_version": bundle.get("schema_version"),
+        "rows": int((bundle.get("feedback") or {}).get("rows") or 0),
+        "redaction": bundle.get("redaction"),
     }

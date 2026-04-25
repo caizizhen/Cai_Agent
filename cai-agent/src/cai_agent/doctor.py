@@ -4,6 +4,7 @@ import json
 import os
 import subprocess
 from datetime import UTC, datetime
+from importlib import resources
 from pathlib import Path
 from typing import Any
 
@@ -29,11 +30,256 @@ def build_installation_guidance() -> dict[str, Any]:
         "onboarding_doc": "docs/ONBOARDING.zh-CN.md",
         "docs_index": "docs/README.zh-CN.md",
         "upgrade_docs": ["CHANGELOG.zh-CN.md", "CHANGELOG.md"],
+        "repair_command": "cai-agent repair --dry-run --json",
         "recommended_flow": [
             "cai-agent init",
             "cai-agent doctor",
+            "cai-agent repair --dry-run",
             'cai-agent run "用一句话描述当前工作区用途"',
         ],
+    }
+
+
+def _template_available(name: str) -> bool:
+    try:
+        resources.files("cai_agent").joinpath(f"templates/{name}").read_bytes()
+        return True
+    except Exception:
+        return False
+
+
+def _root_config_status(settings: Settings, root: Path) -> tuple[Path | None, bool]:
+    config_path = root / "cai-agent.toml"
+    configured = str(settings.config_loaded_from or "").strip()
+    configured_path = Path(configured).expanduser().resolve() if configured else None
+    if configured_path is not None:
+        try:
+            configured_path.relative_to(root)
+        except ValueError:
+            configured_path = None
+    visible_path = configured_path or config_path
+    exists = config_path.is_file() or bool(configured_path and configured_path.is_file())
+    return visible_path, exists
+
+
+def build_doctor_install_diagnostic(settings: Settings) -> dict[str, Any]:
+    """Installation surface diagnostics for `doctor --json`.
+
+    This block intentionally stays local and cheap: it checks whether the
+    workspace has the minimum files and bundled templates needed for init/repair.
+    """
+    root = Path(settings.workspace).expanduser().resolve()
+    visible_config_path, config_exists = _root_config_status(settings, root)
+    checks = [
+        {
+            "id": "workspace_exists",
+            "ok": root.is_dir(),
+            "severity": "error",
+            "path": str(root),
+            "repair_action": "create_workspace_dir",
+        },
+        {
+            "id": "config_exists",
+            "ok": config_exists,
+            "severity": "warning",
+            "path": str(visible_config_path),
+            "repair_action": "create_config_from_template",
+        },
+        {
+            "id": "template_default_available",
+            "ok": _template_available("cai-agent.example.toml"),
+            "severity": "error",
+            "repair_action": None,
+        },
+        {
+            "id": "template_starter_available",
+            "ok": _template_available("cai-agent.starter.toml"),
+            "severity": "warning",
+            "repair_action": None,
+        },
+        {
+            "id": "cai_dir_exists",
+            "ok": (root / ".cai").is_dir(),
+            "severity": "warning",
+            "path": str(root / ".cai"),
+            "repair_action": "create_cai_dir",
+        },
+    ]
+    return {
+        "schema_version": "doctor_install_v1",
+        "workspace": str(root),
+        "config_path": str(visible_config_path),
+        "python_executable": os.sys.executable,
+        "python_version": os.sys.version.split()[0],
+        "ok": all(bool(c.get("ok")) or c.get("severity") == "warning" for c in checks),
+        "checks": checks,
+        "recommended_commands": [
+            "cai-agent repair --dry-run --json",
+            "cai-agent repair --apply",
+            "cai-agent doctor --json",
+        ],
+    }
+
+
+def build_doctor_sync_diagnostic(settings: Settings) -> dict[str, Any]:
+    """Local sync/drift diagnostics for home and workspace support assets."""
+    root = Path(settings.workspace).expanduser().resolve()
+    expected = [
+        {
+            "id": "cai_dir",
+            "path": root / ".cai",
+            "kind": "directory",
+            "repair_action": "create_cai_dir",
+        },
+        {
+            "id": "gateway_dir",
+            "path": root / ".cai" / "gateway",
+            "kind": "directory",
+            "repair_action": "create_gateway_dir",
+        },
+        {
+            "id": "hooks_dir",
+            "path": root / "hooks",
+            "kind": "directory",
+            "repair_action": "create_hooks_dir",
+        },
+    ]
+    rows: list[dict[str, Any]] = []
+    for item in expected:
+        p = Path(item["path"])
+        exists = p.is_dir() if item["kind"] == "directory" else p.exists()
+        rows.append(
+            {
+                "id": item["id"],
+                "kind": item["kind"],
+                "path": str(p),
+                "exists": exists,
+                "status": "ok" if exists else "missing",
+                "repair_action": None if exists else item["repair_action"],
+            },
+        )
+    return {
+        "schema_version": "doctor_sync_v1",
+        "workspace": str(root),
+        "ok": all(bool(r.get("exists")) for r in rows),
+        "items": rows,
+        "repair_command": "cai-agent repair --dry-run --json",
+    }
+
+
+def build_feedback_triage_payload(settings: Settings) -> dict[str, Any]:
+    install = build_doctor_install_diagnostic(settings)
+    sync = build_doctor_sync_diagnostic(settings)
+    install_missing = [
+        str(c.get("id"))
+        for c in install.get("checks") or []
+        if isinstance(c, dict) and not bool(c.get("ok"))
+    ]
+    sync_missing = [
+        str(r.get("id"))
+        for r in sync.get("items") or []
+        if isinstance(r, dict) and not bool(r.get("exists"))
+    ]
+    needs_repair = bool(install_missing or sync_missing)
+    return {
+        "schema_version": "doctor_feedback_triage_v1",
+        "needs_repair_before_feedback": needs_repair,
+        "missing_checks": install_missing + sync_missing,
+        "recommended_flow": [
+            "cai-agent doctor --json",
+            "cai-agent repair --dry-run --json",
+            "cai-agent repair --apply",
+            "cai-agent feedback bug <summary> --detail <steps> --json",
+            "cai-agent feedback bundle --dest dist/feedback-bundle.json --json",
+        ],
+    }
+
+
+def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[str, Any]:
+    """Build a conservative local repair plan; no writes are performed here."""
+    root = Path(settings.workspace).expanduser().resolve()
+    config_path = root / "cai-agent.toml"
+    preset_norm = "starter" if str(preset or "").strip().lower() == "starter" else "default"
+    actions: list[dict[str, Any]] = []
+    dirs = [
+        ("create_workspace_dir", root),
+        ("create_cai_dir", root / ".cai"),
+        ("create_gateway_dir", root / ".cai" / "gateway"),
+        ("create_hooks_dir", root / "hooks"),
+    ]
+    for action_id, path in dirs:
+        exists = path.is_dir()
+        actions.append(
+            {
+                "id": action_id,
+                "type": "mkdir",
+                "path": str(path),
+                "needed": not exists,
+                "status": "skip_exists" if exists else "pending",
+            },
+        )
+    _, config_exists = _root_config_status(settings, root)
+    actions.append(
+        {
+            "id": "create_config_from_template",
+            "type": "write_template",
+            "path": str(config_path),
+            "template": (
+                "templates/cai-agent.starter.toml"
+                if preset_norm == "starter"
+                else "templates/cai-agent.example.toml"
+            ),
+            "needed": not config_exists,
+            "status": "skip_exists" if config_exists else "pending",
+        },
+    )
+    return {
+        "schema_version": "repair_plan_v1",
+        "workspace": str(root),
+        "preset": preset_norm,
+        "ok": True,
+        "actions": actions,
+        "summary": {
+            "actions_total": len(actions),
+            "actions_needed": sum(1 for a in actions if bool(a.get("needed"))),
+        },
+    }
+
+
+def apply_repair_plan(plan: dict[str, Any]) -> dict[str, Any]:
+    """Apply actions from `build_repair_plan` without overwriting existing files."""
+    applied: list[dict[str, Any]] = []
+    errors: list[dict[str, Any]] = []
+    for action in plan.get("actions") or []:
+        if not isinstance(action, dict) or not bool(action.get("needed")):
+            continue
+        aid = str(action.get("id") or "")
+        typ = str(action.get("type") or "")
+        path = Path(str(action.get("path") or "")).expanduser().resolve()
+        try:
+            if typ == "mkdir":
+                path.mkdir(parents=True, exist_ok=True)
+                applied.append({"id": aid, "path": str(path), "status": "applied"})
+            elif typ == "write_template":
+                if path.exists():
+                    applied.append({"id": aid, "path": str(path), "status": "skip_exists"})
+                    continue
+                tpl = str(action.get("template") or "templates/cai-agent.example.toml")
+                data = resources.files("cai_agent").joinpath(tpl).read_bytes()
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_bytes(data)
+                applied.append({"id": aid, "path": str(path), "status": "applied"})
+            else:
+                errors.append({"id": aid, "path": str(path), "error": "unknown_action_type"})
+        except Exception as e:
+            errors.append({"id": aid, "path": str(path), "error": str(e)})
+    return {
+        "schema_version": "repair_result_v1",
+        "workspace": plan.get("workspace"),
+        "ok": not errors,
+        "applied": applied,
+        "errors": errors,
+        "plan": plan,
     }
 
 
@@ -232,6 +478,9 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "workspace_is_dir": root.is_dir(),
         "git_inside_work_tree": inside,
         "cai_dir_health": build_doctor_cai_dir_health(root),
+        "install": build_doctor_install_diagnostic(settings),
+        "sync": build_doctor_sync_diagnostic(settings),
+        "feedback_triage": build_feedback_triage_payload(settings),
         "plugins": {
             "schema_version": "doctor_plugins_bundle_v1",
             "surface": list_plugin_surface(settings),
@@ -291,6 +540,9 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "model_routing_rules_count": p.get("model_routing_rules_count"),
         "models_profile_routes_count": p.get("models_profile_routes_count"),
         "cai_dir_health": p.get("cai_dir_health"),
+        "install": p.get("install"),
+        "sync": p.get("sync"),
+        "feedback_triage": p.get("feedback_triage"),
         "voice": p.get("voice"),
         "tool_provider": p.get("tool_provider"),
         "installation_guidance": p.get("installation_guidance"),
@@ -447,6 +699,26 @@ def run_doctor(
         print(f"  hooks.json={hf} valid={hv}")
     else:
         print("  hooks.json=（未找到，可选）")
+    print()
+    install_diag = build_doctor_install_diagnostic(settings)
+    sync_diag = build_doctor_sync_diagnostic(settings)
+    install_missing = [
+        c.get("id")
+        for c in install_diag.get("checks") or []
+        if isinstance(c, dict) and not bool(c.get("ok"))
+    ]
+    sync_missing = [
+        r.get("id")
+        for r in sync_diag.get("items") or []
+        if isinstance(r, dict) and not bool(r.get("exists"))
+    ]
+    print("安装/同步自检:")
+    print(
+        f"  install_ok={install_diag.get('ok')} sync_ok={sync_diag.get('ok')} "
+        f"missing={','.join(str(x) for x in (install_missing + sync_missing)) or '-'}",
+    )
+    print("  修复预览: cai-agent repair --dry-run --json")
+    print("  反馈 bundle: cai-agent feedback bundle --dest dist/feedback-bundle.json --json")
     print()
     surf = list_plugin_surface(settings)
     hs = int(surf.get("health_score") or 0)

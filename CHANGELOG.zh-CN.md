@@ -6,7 +6,11 @@
 
 ### Unreleased
 
-- **文档状态与完成功能同步收敛**：统一回写 roadmap/todo/archive/implementation status 对最新完成批次（`HM-N11-D01/D02`、`ECC-N04-D01/D02`）的状态口径，并将共享 QA 基线更新为 `799 passed, 3 subtests passed` + smoke 全绿。
+- **CC-N02 feedback bundle 与自助 triage 启动**：新增 `cai-agent feedback bundle --dest ... --json`，导出 `feedback_bundle_v1` 诊断包（最近反馈、`api_doctor_summary_v1`、`repair_plan_v1`、平台信息与脱敏策略），并返回 `feedback_bundle_export_v1`；`doctor --json` 新增 `doctor_feedback_triage_v1`，把 `doctor -> repair -> feedback bug -> feedback bundle` 串成固定本地排障链路。测试：`test_feedback_bundle_cli.py`、`test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`。
+- **配置发现顺序修正**：`Settings.from_env()` 现在在当前目录直接配置之后，优先检查 `CAI_WORKSPACE` 与 CLI `workspace_hint`，再沿当前目录父级查找；同时对 `.tmp-*` / `pytest-*` 等临时目录设置父级搜索边界，避免测试/临时工作区误读仓库根配置。测试：`test_model_profiles_config.py`。
+- **CC-N01 repair / doctor 安装修复入口启动**：新增 `cai-agent repair --dry-run|--apply --json`，输出 `repair_plan_v1` / `repair_result_v1`，可保守创建缺失的 `.cai/`、`.cai/gateway/`、`hooks/` 与缺失的 `cai-agent.toml` 模板；`doctor --json` 新增 `doctor_install_v1` 与 `doctor_sync_v1`，并在文本 doctor 中展示安装/同步自检与 repair 提示。测试：`test_repair_cli.py`、`test_doctor_cli.py`。
+- **后续开发队列文档收敛**：更新 `DEVELOPER_TODOS.zh-CN.md`、`TEST_TODOS.zh-CN.md` 与 `ISSUE_BACKLOG.zh-CN.md`，将已完成的 `HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与部分 `ECC-N03/ECC-N04` 从默认开工队列移出，下一批聚焦 `CC-N01`、`CC-N02`、`HM-N01`、`ECC-N01`、`ECC-N02`。
+- **文档状态与完成功能同步收敛**：统一回写 roadmap/todo/archive/implementation status 对最新完成批次（`HM-N11-D01/D02`、`ECC-N04-D01/D02`）的状态口径，并将共享 QA 基线更新为 `803 passed, 3 subtests passed` + smoke 全绿。
 - **ECC-N04-D02 ingest sanitizer 策略草案**：新增 `docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`（含英文伴随文档）与 `docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`，定义 `metadata-first` + 默认 `deny-exec` 的最小净化基线，并将危险 hook/脚本隔离作为外部资产 ingest 的前置门禁（未完成 trust policy 前不开放自动执行）。
 - **ECC-N04-D01 资产生态 ingest registry 草案快照**：新增 `docs/schema/ecc_asset_registry_v1.snapshot.json`（`ecc_asset_registry_v1`）机读草案，覆盖 `source/license/signature/version/trust` 元数据字段；并同步更新 `docs/schema/README.zh-CN.md` 与 `docs/schema/README.md`，明确该文件为仅 metadata 的 `draft_snapshot`，作为后续 `ECC-N04-D02/D03` 的输入基线。
 - **HM-N11-D02 runtime backend interface 对齐**：在 `runtime/registry.py` 新增 `runtime_backend_interface_v1` 并接入 `runtime_registry_v1.interface`，统一声明 `exec/exists/describe/ensure_workspace` 操作契约、backend 配置键集合，以及 docker/ssh 对齐标记（`base_ops_aligned` + describe 字段集），确保未来云后端接入复用同一接口面且不破坏现有 `local/docker/ssh` 路径。

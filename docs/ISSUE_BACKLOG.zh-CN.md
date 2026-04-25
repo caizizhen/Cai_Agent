@@ -26,6 +26,20 @@
 | `ECC-02a` | 把 routing/profile/budget 变成稳定产品路径 | `M4` | `P1` |
 | `ECC-03c` | 插件兼容矩阵 CI snapshot | `M5` | `P1` |
 
+## 当前下一批开工单（2026-04-25 晚间）
+
+旧优先 9 项中的多数已经进入 `Done` 或归档。下一批 issue 建议按下面顺序开，范围以 [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) §1.1 为准：
+
+| ID | 建议标题 | 状态 | 主要验收 |
+|---|---|---|---|
+| `CC-N01-repair` | 安装 / 升级 / 修复一体化入口 | `In progress` | `repair --dry-run/--apply --json`、`doctor.install`、`doctor.sync`、onboarding 回写 |
+| `CC-N02-feedback-bundle` | 反馈 bundle 与自助 triage 链路 | `In progress` | `doctor -> repair -> feedback bug/bundle` 一条链路可复现、脱敏稳定 |
+| `HM-N01-profile-clone` | Profile clone / alias / migration doctor | `Ready` | clone 后状态隔离，alias 可执行，旧配置有迁移建议 |
+| `ECC-N01-sync-home` | home sync dry-run / doctor drift / repair 建议 | `Design` | add/update/skip/conflict 可读，doctor 能把漂移转成建议命令 |
+| `ECC-N02-asset-pack` | asset pack import/export/install/repair 生命周期 | `Design` | pack manifest 可校验，导出/导入/修复有 dry-run 与 checksum |
+
+本轮不再把 `HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 排入默认新 issue；这些能力已经在 roadmap/changelog 中标记为完成或条件维护。
+
 ## REL-01a 收口 release-ga / doctor / changelog 回写流程
 
 | 字段 | 内容 |

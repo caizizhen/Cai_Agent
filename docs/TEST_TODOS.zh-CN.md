@@ -10,11 +10,25 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **799 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **803 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
 结论：当前主干测试健康，可以在绿基线上继续扩展未完成功能。
+
+### 1.1 当前测试开工队列
+
+2026-04-25 晚间文档收敛后，测试侧优先跟随以下真实未完成/在做项：
+
+| 顺位 | 能力 | 当前测试动作 |
+|---|---|---|
+| 1 | `CC-N01` repair / doctor install / sync | 已新增 `test_repair_cli.py`，覆盖 `repair --dry-run --json` 与 `repair --apply --json`；`test_doctor_cli.py` 已覆盖 `doctor_install_v1` / `doctor_sync_v1` |
+| 2 | `CC-N02` feedback bundle / triage | 已新增 `test_feedback_bundle_cli.py`，覆盖 `feedback_bundle_v1`、doctor 摘要、repair plan、路径/token/email 脱敏与 `doctor_feedback_triage_v1` |
+| 3 | `HM-N01` profile clone / alias / migration | 下一步补 profile clone/alias/migration doctor 测试 |
+| 4 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
+| 5 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
+
+`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01/D02` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
 
 ## 2. 使用规则
 
@@ -58,7 +72,7 @@
 | ID | 状态 | 测试重点 | 现有测试入口 | 需新增自动化 | 手工 / 真机 | 通过标准 |
 |---|---|---|---|---|---|---|
 | `CC-N01` | `Ready` | init / doctor / repair / upgrade 路径 | `test_init_presets.py`、`test_doctor_cli.py` | `test_repair_cli.py`、`test_install_surface_cli.py`、smoke 补 `init -> doctor -> repair` | 空目录初始化、缺配置修复、旧配置残留提示 | 新用户与坏环境都能恢复到最小可用 |
-| `CC-N02` | `Ready` | 反馈与自助 triage 链路 | `test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py` | `test_feedback_bundle_cli.py`、`test_doctor_feedback_hints.py` | 手工走一遍 `doctor -> repair -> feedback bug` | 反馈前诊断、反馈导出、提示链路一致 |
+| `CC-N02` | `In progress` | 反馈与自助 triage 链路 | `test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`、`test_feedback_bundle_cli.py` | 后续补 bug 模板字段与附件列表测试 | 手工走一遍 `doctor -> repair -> feedback bug -> feedback bundle` | 反馈前诊断、反馈导出、提示链路一致 |
 | `CC-N03` | `Design` | plugin / marketplace / sync-home | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py` | `test_plugins_sync_home.py`、`test_plugins_home_drift.py`、`test_marketplace_manifest_cli.py` | `.claude` / `.codex` 两目标 dry-run diff | sync 不误删文件，doctor 能发现漂移 |
 | `CC-N04` | `Design` | recap / resume / task UX | `test_tui_task_board_render.py`、`test_tui_session_strip.py`、`test_tui_model_panel.py` | `test_session_recap_cli.py`、`test_tui_resume_hints.py`、`test_task_board_filters.py` | 长会话恢复体验手工验证 | 长会话 resume 不再要求重读整段历史 |
 | `CC-N05` | `Explore` | local GUI / desktop 包装层 | 现有无专门主入口 | 暂不新建正式自动化，先保留设计/PoC 校验 | 本地原型验证 | 先形成方案，再决定是否进入正式测试线 |
@@ -122,9 +136,9 @@
 | `CC-N01-D02` | `test_doctor_cli.py` 增加 `doctor.install` JSON snapshot | 新机器或干净 venv 走查 | install 诊断字段稳定、建议可执行 |
 | `CC-N01-D03` | `test_install_surface_cli.py` 覆盖 `doctor.sync` drift 场景 | 手工制造模板缺失/旧 schema | 能区分 error/warning/action |
 | `CC-N01-D04` | docs link check 或 smoke 中校验 onboarding 命令存在 | 按 README 从零跑一遍 | 新旧用户路径没有冲突文案 |
-| `CC-N02-D01` | `test_feedback_bundle_cli.py` 覆盖 bundle schema、脱敏字段、doctor 摘要 | 打开导出的 bundle 检查内容 | bundle 可复现问题且不泄漏敏感字段 |
+| `CC-N02-D01` | `test_feedback_bundle_cli.py` 已覆盖 bundle schema、脱敏字段、doctor 摘要、repair plan | 打开导出的 bundle 检查内容 | bundle 可复现问题且不泄漏敏感字段 |
 | `CC-N02-D02` | `test_feedback_cli.py` 覆盖 bug 模板字段和 JSON 输出 | 手工填写一次反馈流程 | human/json 两种输出结构一致 |
-| `CC-N02-D03` | `test_doctor_feedback_hints.py` 覆盖 triage hint | 手工走 `doctor -> repair -> feedback bug` | 常见错误先给修复建议再导出反馈 |
+| `CC-N02-D03` | `test_feedback_bundle_cli.py` 已覆盖 `doctor_feedback_triage_v1` | 手工走 `doctor -> repair -> feedback bug -> feedback bundle` | 常见错误先给修复建议再导出反馈 |
 | `CC-N02-D04` | `test_feedback_export.py` 补 path/token/email 脱敏断言 | 检查真实导出目录 | 敏感信息不会出现在明文 bundle |
 | `CC-N03-D01` | `test_marketplace_manifest_cli.py` 覆盖 catalog schema 校验 | 检查生成 catalog 可读性 | catalog 可版本化、可解析 |
 | `CC-N03-D02` | `test_plugins_sync_home.py` 覆盖 dry-run add/update/skip/conflict | 对 `.claude` / `.codex` 目标执行 dry-run | dry-run 不写文件，diff 清楚 |
@@ -218,28 +232,16 @@
 
 建议跟开发同步按下面顺序推进：
 
-1. `MODEL-P0-01`
-2. `MODEL-P0-02`
-3. `MODEL-P0-03`
-4. `MODEL-P0-04`
-5. `MODEL-P0-05`
-6. `MODEL-P0-06`
-7. `MODEL-P0-07`
-8. `HM-N01`
-9. `HM-N02`
-10. `CC-N01`
-11. `CC-N02`
-12. `HM-N04`
-13. `HM-N05`
-14. `HM-N07`
-15. `CC-N03`
-16. `ECC-N01`
-17. `ECC-N03`
-18. `HM-N09`
-19. `HM-N10`
-20. `CC-N04`
-21. `ECC-N02`
-22. `HM-N08`
+1. `CC-N01`
+2. `CC-N02`
+3. `HM-N01`
+4. `ECC-N01`
+5. `ECC-N02`
+6. `CC-N03`
+7. `CC-N04`
+8. `HM-N03`
+9. `HM-N04`
+10. `ECC-N04-D03`
 
 ## 9. 合入前统一命令
 

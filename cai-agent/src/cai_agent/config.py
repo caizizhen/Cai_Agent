@@ -98,9 +98,9 @@ def _resolve_config_file(
     """返回要加载的 TOML 路径；显式路径缺失时抛错；未配置则自动查找。
 
     查找顺序：``CAI_CONFIG`` → 当前目录 ``cai-agent.toml`` / ``.cai-agent.toml`` →
-    沿父目录向上最多 12 级（便于「配置在仓库根、在子目录里跑 ``ui``」）→
-    若仍未找到：再沿 ``CAI_WORKSPACE`` 环境变量目录及其父目录查找 →
-    沿 ``workspace_hint``（通常为 CLI ``--workspace``）同样查找 →
+    ``CAI_WORKSPACE`` 环境变量目录及其父目录 →
+    ``workspace_hint``（通常为 CLI ``--workspace``）及其父目录 →
+    若仍未找到：再沿当前目录父级向上最多 12 级查找（便于「配置在仓库根、在子目录里跑 ``ui``」）→
     最后尝试用户级全局配置（见 :func:`_user_config_candidates`）。
 
     解决从任意目录启动（尤其跨盘符）时读不到项目根 ``cai-agent.toml``、
@@ -134,7 +134,17 @@ def _resolve_config_file(
                 return cand
         return None
 
-    def _walk_from(anchor: Path) -> Path | None:
+    def _is_transient_path(path: Path) -> bool:
+        transient_names = {"tmp", "temp", "pytest-of-win11"}
+        name = str(path.name).lower()
+        return (
+            name in transient_names
+            or name.startswith(".tmp")
+            or name.startswith("pytest-")
+            or name.startswith("tmp")
+        )
+
+    def _walk_from(anchor: Path, *, stop_at_transient_boundary: bool = False) -> Path | None:
         hit = _pick_in(anchor)
         if hit is not None:
             return hit
@@ -142,10 +152,18 @@ def _resolve_config_file(
             hit = _pick_in(parent)
             if hit is not None:
                 return hit
+            if stop_at_transient_boundary and _is_transient_path(parent):
+                break
         return None
 
+    def _looks_like_transient_anchor(anchor: Path) -> bool:
+        for parent in (anchor, *anchor.parents):
+            if _is_transient_path(parent):
+                return True
+        return False
+
     here = Path.cwd().resolve()
-    hit = _walk_from(here)
+    hit = _pick_in(here)
     if hit is not None:
         return hit
 
@@ -164,12 +182,16 @@ def _resolve_config_file(
         if key in seen_roots:
             return None
         seen_roots.add(key)
-        return _walk_from(root)
+        return _walk_from(root, stop_at_transient_boundary=_looks_like_transient_anchor(root))
 
     hit = _try_extra_root(os.getenv("CAI_WORKSPACE"))
     if hit is not None:
         return hit
     hit = _try_extra_root(workspace_hint)
+    if hit is not None:
+        return hit
+
+    hit = _walk_from(here, stop_at_transient_boundary=_looks_like_transient_anchor(here))
     if hit is not None:
         return hit
 

@@ -94,6 +94,14 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(install, dict)
             self.assertEqual(install.get("schema_version"), "doctor_installation_guidance_v1")
             self.assertEqual(install.get("onboarding_doc"), "docs/ONBOARDING.zh-CN.md")
+            install_diag = pl.get("install")
+            self.assertIsInstance(install_diag, dict)
+            self.assertEqual(install_diag.get("schema_version"), "doctor_install_v1")
+            self.assertIsInstance(install_diag.get("checks"), list)
+            sync_diag = pl.get("sync")
+            self.assertIsInstance(sync_diag, dict)
+            self.assertEqual(sync_diag.get("schema_version"), "doctor_sync_v1")
+            self.assertIsInstance(sync_diag.get("items"), list)
             self.assertEqual(
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",

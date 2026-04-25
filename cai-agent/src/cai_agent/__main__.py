@@ -23,7 +23,7 @@ from cai_agent import __version__
 from cai_agent.agent_registry import list_agent_names, load_agent_text
 from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
-from cai_agent.doctor import run_doctor
+from cai_agent.doctor import apply_repair_plan, build_repair_plan, run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import (
     attach_group_summary,
@@ -3914,6 +3914,38 @@ def main(argv: list[str] | None = None) -> int:
         help="非 mock 且 API Key 为空时 exit 2（可与 --json 同用于 CI）",
     )
 
+    repair_p = sub.add_parser(
+        "repair",
+        parents=[common],
+        help="诊断并修复最小本地安装面（默认 dry-run；需 --apply 才写入）",
+    )
+    repair_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="覆盖工作区目录（默认来自配置 / 当前目录）",
+    )
+    repair_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="repair_dry_run",
+        help="只输出 repair_plan_v1，不写盘（默认行为）",
+    )
+    repair_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="repair_apply",
+        help="执行修复计划：创建缺失目录，并在缺配置时写入内置模板",
+    )
+    repair_p.add_argument(
+        "--preset",
+        default="default",
+        choices=["default", "starter"],
+        dest="repair_preset",
+        help="缺配置时使用的内置模板",
+    )
+    repair_p.add_argument("--json", action="store_true", dest="json_output")
+
     tools_p = sub.add_parser(
         "tools",
         parents=[common],
@@ -5813,6 +5845,18 @@ def main(argv: list[str] | None = None) -> int:
     )
     feedback_export.add_argument("--limit", type=int, default=None, dest="feedback_export_limit")
     feedback_export.add_argument("--json", action="store_true", dest="json_output")
+    feedback_bundle = feedback_sub.add_parser(
+        "bundle",
+        help="导出反馈诊断 bundle（feedback_bundle_v1，含 doctor 摘要与 repair 预览）",
+    )
+    feedback_bundle.add_argument(
+        "--dest",
+        required=True,
+        metavar="PATH",
+        help="输出 JSON bundle 路径（如 dist/feedback-bundle.json）",
+    )
+    feedback_bundle.add_argument("--limit", type=int, default=None, dest="feedback_export_limit")
+    feedback_bundle.add_argument("--json", action="store_true", dest="json_output")
 
     release_ga_p = sub.add_parser(
         "release-ga",
@@ -6885,6 +6929,56 @@ def main(argv: list[str] | None = None) -> int:
             success=(int(rc_doc) == 0),
         )
         return rc_doc
+
+    if args.command == "repair":
+        try:
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            print(str(e), file=sys.stderr)
+            return 2
+        if args.model:
+            settings = replace(settings, model=str(args.model).strip())
+        if args.workspace:
+            settings = replace(settings, workspace=os.path.abspath(args.workspace))
+        t_rep = time.perf_counter()
+        plan = build_repair_plan(
+            settings,
+            preset=str(getattr(args, "repair_preset", "default") or "default"),
+        )
+        do_apply = bool(getattr(args, "repair_apply", False))
+        payload = apply_repair_plan(plan) if do_apply else plan
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(payload, ensure_ascii=False))
+        else:
+            if do_apply:
+                print(
+                    f"[repair] applied={len(payload.get('applied') or [])} "
+                    f"errors={len(payload.get('errors') or [])}",
+                )
+                for row in payload.get("applied") or []:
+                    if isinstance(row, dict):
+                        print(f"  + {row.get('id')}: {row.get('path')} ({row.get('status')})")
+            else:
+                sm = plan.get("summary") if isinstance(plan.get("summary"), dict) else {}
+                print(
+                    f"[repair dry-run] needed={sm.get('actions_needed')} "
+                    f"total={sm.get('actions_total')}",
+                )
+                for row in plan.get("actions") or []:
+                    if isinstance(row, dict) and bool(row.get("needed")):
+                        print(f"  - {row.get('id')}: {row.get('path')}")
+                print("执行修复: cai-agent repair --apply")
+        _maybe_metrics_cli(
+            module="repair",
+            event="repair.apply" if do_apply else "repair.plan",
+            latency_ms=(time.perf_counter() - t_rep) * 1000.0,
+            tokens=int((plan.get("summary") or {}).get("actions_needed") or 0),
+            success=bool(payload.get("ok", True)),
+        )
+        return 0 if bool(payload.get("ok", True)) else 2
 
     if args.command == "tools":
         act_tools = str(getattr(args, "tools_action", "") or "").strip().lower()
@@ -10984,9 +11078,15 @@ def main(argv: list[str] | None = None) -> int:
         )
 
     if args.command == "feedback":
-        from cai_agent.feedback import append_feedback, export_feedback_jsonl, feedback_stats, list_feedback
+        from cai_agent.feedback import (
+            append_feedback,
+            export_feedback_bundle_json,
+            export_feedback_jsonl,
+            feedback_stats,
+            list_feedback,
+        )
 
-        root_fb = Path.cwd().resolve()
+        root_fb = Path(os.getcwd()).resolve()
         act_fb = str(getattr(args, "feedback_action", "") or "").strip().lower()
         t_fb = time.perf_counter()
         if act_fb == "stats":
@@ -11037,7 +11137,8 @@ def main(argv: list[str] | None = None) -> int:
                 print("[feedback] bug 已记录", row.get("ts"), "→", str(feedback_path(root_fb)))
                 print("  category=", row.get("category"), "summary=", (row.get("summary") or "")[:120])
                 if bool(getattr(args, "attach_doctor_hint", False)):
-                    print("  hint: 附加环境摘要可执行: cai-agent doctor --json")
+                    print("  hint: 诊断链路: cai-agent doctor --json -> cai-agent repair --dry-run --json")
+                    print("  hint: bundle: cai-agent feedback bundle --dest dist/feedback-bundle.json --json")
             _maybe_metrics_cli(
                 module="feedback",
                 event="feedback.bug",
@@ -11100,6 +11201,35 @@ def main(argv: list[str] | None = None) -> int:
             _maybe_metrics_cli(
                 module="feedback",
                 event="feedback.export",
+                latency_ms=(time.perf_counter() - t_fb) * 1000.0,
+                tokens=int(out_ex.get("rows") or 0),
+                success=True,
+            )
+            return 0
+        if act_fb == "bundle":
+            dest_ex = str(getattr(args, "dest", "") or "").strip()
+            if not dest_ex:
+                print("需要 --dest PATH", file=sys.stderr)
+                return 2
+            try:
+                settings_fb = Settings.from_env(config_path=None, workspace_hint=str(root_fb))
+            except FileNotFoundError as e:
+                print(str(e), file=sys.stderr)
+                return 2
+            lim_ex = getattr(args, "feedback_export_limit", None)
+            out_ex = export_feedback_bundle_json(
+                root_fb,
+                settings=settings_fb,
+                dest=dest_ex,
+                limit=int(lim_ex) if isinstance(lim_ex, int) and not isinstance(lim_ex, bool) else None,
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(out_ex, ensure_ascii=False))
+            else:
+                print(f"[feedback] bundle rows={out_ex.get('rows')} -> {out_ex.get('dest')}")
+            _maybe_metrics_cli(
+                module="feedback",
+                event="feedback.bundle",
                 latency_ms=(time.perf_counter() - t_fb) * 1000.0,
                 tokens=int(out_ex.get("rows") or 0),
                 success=True,
