@@ -11,6 +11,7 @@ from cai_agent.tui import (
     _SLASH_COMMAND_CANDIDATES,
     _cai_brand_markup,
     _parse_mcp_tool_lines,
+    _slash_menu_matches,
     _slash_typo_hint,
 )
 
@@ -97,6 +98,29 @@ class ParseMcpToolLinesTests(unittest.TestCase):
 
 
 class DynamicSlashCompletionTests(unittest.TestCase):
+    def test_registered_command_names(self) -> None:
+        ctx = SlashCompletionContext()
+        ctx.command_names = ("plan", "verify")
+        s = SlashCommandSuggester(context=ctx)
+        self.assertEqual(_suggest(s, "/p"), "/plan")
+        self.assertEqual(_suggest(s, "/v"), "/verify")
+        self.assertIsNone(_suggest(s, "/plan"))
+
+    def test_slash_menu_includes_registered_and_static_commands(self) -> None:
+        ctx = SlashCompletionContext()
+        ctx.command_names = ("code-review", "plan", "verify")
+        hits = _slash_menu_matches("/", context=ctx)
+        self.assertIn("/plan", hits)
+        self.assertIn("/code-review", hits)
+        self.assertIn("/verify", hits)
+        self.assertIn("/help", hits)
+        self.assertIn("/status", hits)
+
+    def test_slash_menu_filters_prefix_with_dynamic_priority(self) -> None:
+        ctx = SlashCompletionContext()
+        ctx.command_names = ("plan",)
+        self.assertEqual(_slash_menu_matches("/p", context=ctx)[0], "/plan")
+
     def test_use_model_profiles(self) -> None:
         ctx = SlashCompletionContext()
         ctx.profile_ids = ("local", "remote")

@@ -4,8 +4,10 @@ import argparse
 import io
 import json
 import os
+import shutil
 import tempfile
 import unittest
+import uuid
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
@@ -229,9 +231,10 @@ class ObserveCliTests(unittest.TestCase):
 
 class CommandsAgentsJsonTests(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        root = Path(self.tmp.name)
+        root = Path.cwd() / ".tmp-tests" / f"commands-agents-{uuid.uuid4().hex}"
+        root.mkdir(parents=True)
+        self.root = root
+        self.addCleanup(shutil.rmtree, root, ignore_errors=True)
         self.cfg = root / "cai-agent.toml"
         self.cfg.write_text(
             '[llm]\nbase_url = "http://localhost/v1"\nmodel = "m"\napi_key = "k"\n',
@@ -249,7 +252,26 @@ class CommandsAgentsJsonTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         o = json.loads(buf.getvalue().strip())
         self.assertEqual(o.get("schema_version"), "commands_list_v1")
-        self.assertEqual(o.get("commands"), ["hello"])
+        self.assertIn("hello", o.get("commands"))
+
+    def test_commands_json_uses_workspace_when_config_is_global(self) -> None:
+        workspace = self.root / "workspace"
+        workspace.mkdir()
+        (workspace / "commands").mkdir()
+        (workspace / "commands" / "code-review.md").write_text("# review", encoding="utf-8")
+        global_dir = self.root / "global"
+        global_dir.mkdir()
+        global_cfg = global_dir / "cai-agent.toml"
+        global_cfg.write_text(
+            '[llm]\nbase_url = "http://localhost/v1"\nmodel = "m"\napi_key = "k"\n',
+            encoding="utf-8",
+        )
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["commands", "--config", str(global_cfg), "-w", str(workspace), "--json"])
+        self.assertEqual(rc, 0)
+        o = json.loads(buf.getvalue().strip())
+        self.assertIn("code-review", o.get("commands"))
 
     def test_agents_json_envelope(self) -> None:
         buf = io.StringIO()

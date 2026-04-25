@@ -13,11 +13,12 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.suggester import Suggester
-from textual.widgets import Footer, Header, Input, LoadingIndicator, RichLog, Static
+from textual.widgets import Footer, Header, Input, LoadingIndicator, OptionList, RichLog, Static
+from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
 from cai_agent import __version__
-from cai_agent.command_registry import load_command_text
+from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
 from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, get_last_usage
@@ -43,6 +44,7 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/?",
     "/help",
     "/status",
+    "/compress",
     "/models",
     "/models refresh",
     "/mcp refresh",
@@ -56,9 +58,13 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/load",
     "/load ",
     "/load latest",
+    "/personality",
+    "/retry",
     "/use-model",
     "/use-model ",
     "/reload",
+    "/usage",
+    "/undo",
     "/fix-build",
     "/security-scan",
     "/stop",
@@ -70,17 +76,46 @@ _MCP_CALL_PREFIX = "/mcp call "
 _LOAD_PREFIX = "/load "
 _SAVE_PREFIX = "/save "
 _LOAD_LATEST = "/load latest"
+_NATIVE_TUI_COMMANDS: frozenset[str] = frozenset(
+    {
+        "?",
+        "help",
+        "status",
+        "models",
+        "mcp",
+        "mcp-presets",
+        "save",
+        "load",
+        "sessions",
+        "tasks",
+        "use-model",
+        "reload",
+        "stop",
+        "clear",
+        "usage",
+        "compress",
+        "retry",
+        "undo",
+        "personality",
+    }
+)
+_SLASH_MENU_MAX_ITEMS = 200
 
 # 斜杠命令纠错：与补全候选略有不同（含多词命令），用于未知输入时的友好提示。
 _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/?",
     "/help",
     "/status",
+    "/code-review",
+    "/compress",
     "/models",
     "/models refresh",
     "/mcp",
     "/mcp refresh",
     "/mcp-presets",
+    "/plan",
+    "/personality",
+    "/retry",
     "/save",
     "/load",
     "/load latest",
@@ -88,6 +123,9 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/tasks",
     "/use-model",
     "/reload",
+    "/usage",
+    "/undo",
+    "/verify",
     "/fix-build",
     "/security-scan",
     "/stop",
@@ -116,6 +154,40 @@ def _slash_typo_hint(value: str) -> str | None:
     if sug == token:
         return None
     return f"[dim]你可能想输入:[/] [cyan]{sug}[/]"
+
+
+def _slash_static_menu_candidates() -> tuple[str, ...]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for cand in _SLASH_COMMAND_CANDIDATES:
+        if cand in seen:
+            continue
+        seen.add(cand)
+        out.append(cand)
+    return tuple(out)
+
+
+def _slash_menu_matches(
+    value: str,
+    *,
+    context: "SlashCompletionContext | None" = None,
+    limit: int = _SLASH_MENU_MAX_ITEMS,
+) -> tuple[str, ...]:
+    if not value.startswith("/") or " " in value.rstrip():
+        return ()
+    dynamic = tuple(f"/{name}" for name in sorted((context.command_names if context else ()) or ()))
+    candidates = (*dynamic, *_slash_static_menu_candidates())
+    matches: list[str] = []
+    seen: set[str] = set()
+    for cand in candidates:
+        if cand in seen:
+            continue
+        if cand.startswith(value):
+            seen.add(cand)
+            matches.append(cand)
+        if len(matches) >= limit:
+            break
+    return tuple(matches)
 
 
 def _cai_brand_markup() -> str:
@@ -159,7 +231,7 @@ _CONTEXT_WINDOW_SOURCE_LABELS: dict[str, str] = {
 class SlashCompletionContext:
     """由 ``CaiAgentApp`` 维护，供 ``SlashCommandSuggester`` 读 profile / MCP / 会话文件名。"""
 
-    __slots__ = ("profile_ids", "mcp_tool_names", "session_paths", "path_roots")
+    __slots__ = ("profile_ids", "mcp_tool_names", "session_paths", "path_roots", "command_names")
 
     def __init__(self) -> None:
         self.profile_ids: tuple[str, ...] = ()
@@ -168,6 +240,7 @@ class SlashCompletionContext:
         self.session_paths: tuple[str, ...] = ()
         # 路径补全根目录（workspace + cwd 去重，resolve 后）
         self.path_roots: tuple[Path, ...] = ()
+        self.command_names: tuple[str, ...] = ()
 
 
 def _parse_mcp_tool_lines(list_text: str) -> list[str]:
@@ -278,6 +351,17 @@ class SlashCommandSuggester(Suggester):
                 return hit
         return None
 
+    def _dynamic_registered_command(self, value: str) -> str | None:
+        if self._ctx is None or not self._ctx.command_names:
+            return None
+        if " " in value:
+            return None
+        for name in sorted(self._ctx.command_names):
+            cand = f"/{name}"
+            if cand.startswith(value) and len(cand) > len(value):
+                return cand
+        return None
+
     async def get_suggestion(self, value: str) -> str | None:
         if not value.startswith("/"):
             return None
@@ -291,6 +375,7 @@ class SlashCommandSuggester(Suggester):
             self._dynamic_mcp_call,
             self._dynamic_load,
             self._dynamic_save,
+            self._dynamic_registered_command,
         ):
             hit = fn(value)
             if hit is not None:
@@ -306,14 +391,22 @@ class SlashAwareInput(Input):
 
     BINDINGS = [
         *Input.BINDINGS,
+        Binding("down", "focus_slash_menu", "slash menu", show=False),
         Binding("tab", "try_tab_complete", "接受补全或切焦点", show=False),
     ]
 
     def action_try_tab_complete(self) -> None:
+        if self.app is not None and getattr(self.app, "_accept_first_slash_menu_option", lambda: False)():
+            return
         if self.cursor_at_end and self._suggestion:
             self.action_cursor_right()
         elif self.app is not None:
             self.app.action_focus_next()
+
+    def action_focus_slash_menu(self) -> None:
+        if self.app is not None and getattr(self.app, "_focus_slash_command_menu", lambda: False)():
+            return
+        self.action_cursor_down()
 
 
 def run_tui(settings: Settings) -> None:
@@ -392,6 +485,13 @@ class CaiAgentApp(App[None]):
     #user-input {
         margin: 0 1;
     }
+    #slash-command-menu {
+        height: auto;
+        max-height: 14;
+        margin: 0 1 0 1;
+        border: tall $primary;
+        background: $surface;
+    }
     """
 
     # Textual 原生支持鼠标拖选文本 + Ctrl+C 触发 screen.copy_text；但本应用把
@@ -459,6 +559,12 @@ class CaiAgentApp(App[None]):
         profs = getattr(self._settings, "profiles", ()) or ()
         pids = tuple(sorted(p.id for p in profs if getattr(p, "id", None)))
         self._slash_ctx.profile_ids = pids
+        try:
+            self._slash_ctx.command_names = tuple(
+                sorted(n for n in list_command_names(self._settings) if n not in _NATIVE_TUI_COMMANDS)
+            )
+        except Exception:
+            self._slash_ctx.command_names = ()
         tools: list[str] = []
         if getattr(self._settings, "mcp_enabled", False):
             try:
@@ -701,6 +807,7 @@ class CaiAgentApp(App[None]):
             with Horizontal(id="activity-row"):
                 yield LoadingIndicator(id="loader")
                 yield Static("", id="activity-status")
+            yield OptionList(id="slash-command-menu", compact=True)
             yield SlashAwareInput(
                 placeholder=tui_input_placeholder(),
                 id="user-input",
@@ -712,6 +819,7 @@ class CaiAgentApp(App[None]):
         self.title = "CAI Agent"
         self.sub_title = self._settings.workspace
         self.query_one("#activity-row").display = False
+        self.query_one("#slash-command-menu", OptionList).display = False
         self._sync_slash_completion_sources()
         self._refresh_context_bar()
         self._print_welcome()
@@ -964,6 +1072,80 @@ class CaiAgentApp(App[None]):
             return
         self._finish_agent_worker(worker)
 
+    def _hide_slash_command_menu(self) -> None:
+        try:
+            menu = self.query_one("#slash-command-menu", OptionList)
+            menu.display = False
+            menu.clear_options()
+        except Exception:
+            return
+
+    def _refresh_slash_command_menu(self, value: str) -> None:
+        try:
+            menu = self.query_one("#slash-command-menu", OptionList)
+        except Exception:
+            return
+        matches = _slash_menu_matches(value, context=self._slash_ctx)
+        if not matches:
+            menu.display = False
+            menu.clear_options()
+            return
+        menu.set_options(Option(f"[cyan]{cmd}[/]", id=cmd) for cmd in matches)
+        menu.highlighted = 0
+        menu.display = True
+
+    def _accept_slash_command_menu_selection(self, option_id: str | None) -> None:
+        if not option_id:
+            return
+        inp = self.query_one("#user-input", Input)
+        inp.value = option_id
+        inp.cursor_position = len(option_id)
+        self._hide_slash_command_menu()
+        inp.focus()
+
+    def _accept_first_slash_menu_option(self) -> bool:
+        try:
+            menu = self.query_one("#slash-command-menu", OptionList)
+        except Exception:
+            return False
+        if not menu.display or menu.option_count <= 0:
+            return False
+        index = menu.highlighted if menu.highlighted is not None else 0
+        option = menu.get_option_at_index(index)
+        self._accept_slash_command_menu_selection(option.id)
+        return True
+
+    def _focus_slash_command_menu(self) -> bool:
+        try:
+            menu = self.query_one("#slash-command-menu", OptionList)
+        except Exception:
+            return False
+        if not menu.display or menu.option_count <= 0:
+            return False
+        if menu.highlighted is None:
+            menu.highlighted = 0
+        menu.focus()
+        return True
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id != "user-input":
+            return
+        self._refresh_slash_command_menu(event.value)
+
+    def on_option_list_option_selected(self, event: OptionList.OptionSelected) -> None:
+        if event.option_list.id != "slash-command-menu":
+            return
+        event.stop()
+        self._accept_slash_command_menu_selection(event.option.id)
+
+    def _registered_command_help_lines(self) -> str:
+        names = [n for n in list_command_names(self._settings) if n not in _NATIVE_TUI_COMMANDS]
+        if not names:
+            return ""
+        lines = ["\n[bold]模板命令[/]"]
+        lines.extend(f"/{name} — 载入并执行 {name} 命令模板" for name in names)
+        return "\n".join(lines) + "\n"
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "user-input":
             return
@@ -971,6 +1153,7 @@ class CaiAgentApp(App[None]):
         raw = event.value.strip()
         if not raw:
             return
+        self._hide_slash_command_menu()
         if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/mcp-presets", "/stop"):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
@@ -1004,6 +1187,7 @@ class CaiAgentApp(App[None]):
                 "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
                 "其他以 / 开头会提示未知命令。\n"
+                + self._registered_command_help_lines()
                 + tui_workbench_cheatsheet_rich(leading_nl=True)
                 + "\n[bold]快捷键[/]\n"
                 "[dim]Ctrl+M 聊天模型 · Ctrl+B 任务看板 · Ctrl+C 停止 · Ctrl+Q 退出[/]\n"
@@ -1067,17 +1251,20 @@ class CaiAgentApp(App[None]):
             self._sync_slash_completion_sources()
             return
 
-        if raw in ("/fix-build", "/security-scan"):
-            cmd_name = raw.lstrip("/")
+        command_token = raw.split(maxsplit=1)[0] if raw.startswith("/") else ""
+        command_name = command_token.lstrip("/")
+        if command_name and command_name not in _NATIVE_TUI_COMMANDS and command_name in list_command_names(self._settings):
+            cmd_name = command_name
             cmd_text = load_command_text(self._settings, cmd_name)
             log = self.query_one("#chat", RichLog)
             if not cmd_text:
                 log.write(f"\n[red]命令模板不存在:[/] /{cmd_name}\n")
                 return
+            cmd_args = raw[len(command_token) :].strip()
             skill_texts = load_related_skill_texts(
                 self._settings,
                 cmd_name,
-                goal_hint=f"/{cmd_name}",
+                goal_hint=raw,
             )
             skill_block = ""
             if skill_texts:
@@ -1090,6 +1277,8 @@ class CaiAgentApp(App[None]):
                 "请严格参考下方命令模板完成任务：\n\n"
                 f"{cmd_text}{skill_block}"
             )
+            if cmd_args:
+                rendered_goal = f"{rendered_goal}\n\nUser arguments: {cmd_args}"
             # 走统一执行路径：将模板渲染后的目标塞回输入处理，避免复制粘贴运行逻辑。
             raw = rendered_goal
 

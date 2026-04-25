@@ -218,7 +218,7 @@ mcp_enabled = true
 - `hooks/`：会话与操作自动化骨架，提供 `hooks.json` 与 session start/end 建议流程；CLI 会在会话开始/结束读取并输出已启用 hook 标识。
 - `cai-agent command` / `cai-agent agent`：会自动尝试匹配并注入 `skills/` 中相关技能内容（同名或前缀匹配），提升命令/角色执行质量。
 
-这些目录当前已经从「骨架」扩展为可实际引用的内容库与运行层雏形；下一步会继续把 `commands/agents/hooks` 接入 `plan` / `workflow` / TUI 命令入口。
+这些目录当前已经从「骨架」扩展为可实际引用的内容库与运行层雏形；TUI 聊天输入框键入 `/` 会弹出可选择的命令菜单，`commands/*.md` 会被自动发现并进入菜单与补全（如 `/plan`、`/code-review`、`/verify`、`/fix-build`、`/security-scan`），并通过同一套会话执行路径运行。
 
 ---
 

@@ -4596,6 +4596,12 @@ def main(argv: list[str] | None = None) -> int:
         dest="json_output",
         help="以 JSON 数组输出命令名称",
     )
+    cmd_list_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="Workspace root used to discover commands/ templates",
+    )
     cmd_run_p = sub.add_parser(
         "command",
         parents=[common],
@@ -7981,6 +7987,8 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        if getattr(args, "workspace", None):
+            settings = replace(settings, workspace=os.path.abspath(str(args.workspace).strip()))
         t_cmdn = time.perf_counter()
         names = list_command_names(settings)
         if args.json_output:

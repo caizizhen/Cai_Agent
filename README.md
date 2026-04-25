@@ -553,7 +553,7 @@ cai-agent ui -w "$PWD"
 cai-agent workflow path/to/workflow.json --json
 ```
 
-**TUI slash commands**: `/help`, `/status`, `/models` (same as **Ctrl+M** model panel), `/mcp`, `/mcp refresh`, `/mcp call …`, `/save`, `/load`, `/sessions`, `/use-model`, `/reload`, `/clear`.
+**TUI slash commands**: type `/` in the chat input to open a selectable command menu; use arrow keys / Enter or Tab to accept. Native commands include `/help`, `/status`, `/models` (same as **Ctrl+M** model panel), `/models refresh`, `/mcp`, `/mcp refresh`, `/mcp call …`, `/mcp-presets`, `/save`, `/load`, `/sessions`, `/tasks`, `/use-model`, `/reload`, `/stop`, `/clear`, `/usage`, `/compress`, `/retry`, `/undo`, and `/personality`. Project command templates from `commands/*.md` (for example `/plan`, `/code-review`, `/verify`, `/fix-build`, `/security-scan`) are auto-discovered, completed, and executed through the same chat flow.
 
 **TUI key bindings and copy/paste:**
 
