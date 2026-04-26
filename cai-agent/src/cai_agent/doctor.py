@@ -15,7 +15,10 @@ from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.ecc_layout import iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
 from cai_agent.models import ping_profile
-from cai_agent.profiles import build_profile_contract_payload
+from cai_agent.profiles import (
+    build_profile_contract_payload,
+    build_profile_home_migration_diag_v1,
+)
 from cai_agent.feedback import feedback_stats
 from cai_agent.memory import resolve_active_memory_provider
 from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
@@ -460,6 +463,11 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         env_active_override=os.getenv("CAI_ACTIVE_MODEL"),
         workspace_root=settings.workspace,
     )
+    profile_home_migration = build_profile_home_migration_diag_v1(
+        settings.profiles,
+        profiles_explicit=bool(settings.profiles_explicit),
+        workspace_root=settings.workspace,
+    )
     memory_provider = resolve_active_memory_provider(root)
     return {
         "schema_version": "doctor_v1",
@@ -474,6 +482,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "api_key_masked_line": key_line,
         "active_profile_id": settings.active_profile_id,
         "profile_contract": profile_contract,
+        "profile_home_migration": profile_home_migration,
         "profiles_count": len(settings.profiles),
         "subagent_profile_id": settings.subagent_profile_id or None,
         "planner_profile_id": settings.planner_profile_id or None,
@@ -586,6 +595,7 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "subagent_profile_id": p.get("subagent_profile_id"),
         "planner_profile_id": p.get("planner_profile_id"),
         "profile_contract": p.get("profile_contract"),
+        "profile_home_migration": p.get("profile_home_migration"),
         "memory_policy": p.get("memory_policy"),
         "memory_provider": p.get("memory_provider"),
         "model_routing_enabled": p.get("model_routing_enabled"),
@@ -645,6 +655,19 @@ def run_doctor(
         "Profile Contract:",
         f"{profile_contract.get('source_kind')} | migration={profile_contract.get('migration_state')}",
     )
+    mig_diag = build_profile_home_migration_diag_v1(
+        settings.profiles,
+        profiles_explicit=bool(settings.profiles_explicit),
+        workspace_root=settings.workspace,
+    )
+    orphans = mig_diag.get("orphan_profile_dirs") or []
+    if orphans:
+        print("Profile Home / 迁移:", f"未绑定目录={','.join(str(x) for x in orphans)}")
+    else:
+        print("Profile Home / 迁移:", "未绑定目录=-")
+    for hz in mig_diag.get("hints_zh") or []:
+        print("  ", hz)
+    print("  机读: doctor --json -> profile_home_migration")
     if settings.subagent_profile_id or settings.planner_profile_id:
         print(
             "路由:    ",

@@ -11,7 +11,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **820 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **825 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
@@ -24,7 +24,7 @@
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
 | 1 | `CC-N01` repair / doctor install / sync | 已新增 `test_repair_cli.py`，覆盖 `repair --dry-run --json` 与 `repair --apply --json`；`test_doctor_cli.py` 已覆盖 `doctor_install_v1` / `doctor_sync_v1` |
-| 2 | `HM-N01` profile clone / alias / migration | 下一步补 profile clone/alias/migration doctor 测试 |
+| 2 | `HM-N01` profile home | **`HM-N01-D02`/`D04`/`D05` 已覆盖**：`test_profile_clone_alias_cli.py`；下一补 **`HM-N01-D03`**（多入口 active 一致性） |
 | 3 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
 | 4 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
 
@@ -161,10 +161,10 @@
 | 开发子任务 | 自动化覆盖 | 手工 / 真机覆盖 | 通过标准 |
 |---|---|---|---|
 | `HM-N01-D01` | `test_profile_home_isolation.py` 覆盖 config/session/memory/gateway 目录隔离 | 建两个 profile 手工检查 home | 状态不串 |
-| `HM-N01-D02` | `test_profile_alias_cli.py` 或 profile clone 测试覆盖 dry-run/conflict | clone 一个真实 profile | clone 后可启动 |
+| `HM-N01-D02` | **`Done（2026-04-26）`**：`test_profile_clone_alias_cli.py` 覆盖 clone dry-run / 冲突 / 家目录复制 | clone 一个真实 profile | clone 后可启动 |
 | `HM-N01-D03` | smoke 补 create/use/API/gateway profile resolution | 手工切 profile 后跑 TUI/API/gateway | 所有入口读同一 active profile |
-| `HM-N01-D04` | `test_profile_alias_cli.py` 覆盖 alias command 输出 | 复制 alias 命令执行 | alias 可直接进入 profile |
-| `HM-N01-D05` | `test_doctor_cli.py` 覆盖 profile migration hint | 用旧配置跑 doctor | 老配置有安全迁移路径 |
+| `HM-N01-D04` | **`Done（2026-04-26）`**：`test_profile_clone_alias_cli.py` 覆盖 `models alias --json` | 复制 alias 命令执行 | alias 可直接进入 profile |
+| `HM-N01-D05` | **`Done（2026-04-26）`**：`test_profile_clone_alias_cli.py` + `doctor --json` 的 `profile_home_migration` | 用旧配置跑 doctor | 老配置有安全迁移路径 |
 | `HM-N02-D01` | `test_api_openai_chat_completions.py` 覆盖 `/v1/models` | `curl /v1/models` | 返回 OpenAI 风格模型列表 |
 | `HM-N02-D02` | `test_api_openai_chat_completions.py` 覆盖非流式 chat | OpenAI-compatible client 发请求 | 响应字段兼容 |
 | `HM-N02-D03` | `test_api_http_server.py` 覆盖 SSE chunk / done | 客户端读取 streaming | 流式能结束且不丢 chunk |
@@ -263,3 +263,4 @@ $env:QA_SKIP_LOG='1'; python scripts/run_regression.py
 | 2026-04-26 | `DOC-AUTO-FINALIZE` | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | [`docs/qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md`](qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md) |
 | 2026-04-26 | `ECC-N04-D03` | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md`](docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md) |
 | 2026-04-26 | `CC-N02-D04` | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-212531-CC-N02-D04.md`](docs/qa/runs/task-finalize-20260426-212531-CC-N02-D04.md) |
+| 2026-04-26 | `HM-N01-D02`, `HM-N01-D04`, `HM-N01-D05` | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-214419-HM-N01-D02-HM-N01-D04-HM-N01-D05.md`](docs/qa/runs/task-finalize-20260426-214419-HM-N01-D02-HM-N01-D04-HM-N01-D05.md) |

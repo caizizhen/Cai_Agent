@@ -11,7 +11,7 @@ init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
-``runtime list --json``（含 docker/ssh 后端）、``models onboarding --json`` / ``models routing-test --json`` fallback candidates、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在）与
+``runtime list --json``（含 docker/ssh 后端）、``models onboarding --json`` / ``models routing-test --json`` fallback candidates、``models clone --dry-run --json`` / ``models alias --json``、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在）与
 ``api_http_server`` OpenAI-compatible payload builders（``/v1/models``、非流式与 SSE ``/v1/chat/completions``），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
@@ -797,6 +797,36 @@ def main() -> int:
         )
         if pmb.returncode != 0:
             errs.append(f"models second add exit {pmb.returncode} stderr={pmb.stderr!r}")
+        pclone = _run(
+            [
+                *cli,
+                "models",
+                "--config",
+                str(cfg),
+                "clone",
+                "local",
+                "localcopy",
+                "--dry-run",
+                "--json",
+            ],
+            cwd=mdl_td,
+        )
+        if pclone.returncode != 0:
+            errs.append(f"models clone dry-run exit {pclone.returncode} stderr={pclone.stderr!r}")
+        else:
+            clo = json.loads((pclone.stdout or "").strip())
+            if clo.get("schema_version") != "models_clone_plan_v1":
+                errs.append(f"models clone plan schema {clo.get('schema_version')!r}")
+        palias = _run(
+            [*cli, "models", "--config", str(cfg), "alias", "local", "--json"],
+            cwd=mdl_td,
+        )
+        if palias.returncode != 0:
+            errs.append(f"models alias exit {palias.returncode} stderr={palias.stderr!r}")
+        else:
+            alo = json.loads((palias.stdout or "").strip())
+            if alo.get("schema_version") != "models_alias_v1":
+                errs.append(f"models alias schema {alo.get('schema_version')!r}")
         pme = _run(
             [
                 *cli,

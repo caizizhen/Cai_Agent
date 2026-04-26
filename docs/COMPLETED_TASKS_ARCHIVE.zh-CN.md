@@ -90,7 +90,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **820 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **825 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |
 
@@ -101,3 +101,4 @@
 | `DOC-AUTO-FINALIZE` | 2026-04-26 | 建立任务完成后的自动文档同步脚本和低 token 完成协议 | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | finalize_task |
 | `ECC-N04-D03` | 2026-04-26 | Deliver ECC-N04-D03 provenance/trust bilingual policy, ecc_ingest_provenance_trust_v1 snapshot, schema README and roadmap; add regression test for ingest draft JSON. | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `CC-N02-D04` | 2026-04-26 | Harden feedback bundle and JSONL export redaction: sanitize_feedback_text workspace/home paths and Slack tokens, sanitize append_feedback, redact export rows, feedback_bundle_export_v1 dest_placement and warnings for external --dest, release runbook bundle step. | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
+| `HM-N01-D02`/`D04`/`D05` | 2026-04-26 | 交付 `models clone` / `clone-all` / `alias` 与 doctor **`profile_home_migration`**。 | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |

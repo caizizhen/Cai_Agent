@@ -61,9 +61,13 @@ from cai_agent.profiles import (
     ProfilesError,
     add_profile,
     apply_preset,
+    build_models_alias_v1,
     build_profile_contract_payload,
     build_profile,
+    clone_profile_home_tree,
     edit_profile,
+    ensure_profile_id_legal,
+    get_profile_by_id,
     profile_to_public_dict,
     remove_profile,
     write_models_to_toml,
@@ -3465,6 +3469,30 @@ def _cmd_models(args: argparse.Namespace) -> int:
                 )
         return 0
 
+    if action == "alias":
+        pid = str(getattr(args, "id", "") or "").strip()
+        if not pid:
+            print("缺少 profile id", file=sys.stderr)
+            return 2
+        if get_profile_by_id(settings.profiles, pid) is None:
+            print(f"profile 不存在: {pid}", file=sys.stderr)
+            return 2
+        doc = build_models_alias_v1(
+            profile_id=pid,
+            workspace_root=settings.workspace,
+            config_path=_resolve_config_target(settings),
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(doc, ensure_ascii=False))
+        else:
+            print(doc.get("hint_zh") or "")
+            pos = doc.get("posix_shell") if isinstance(doc.get("posix_shell"), dict) else {}
+            ps = doc.get("powershell") if isinstance(doc.get("powershell"), dict) else {}
+            print("POSIX:", pos.get("cd_models_use") or "")
+            print("PowerShell:", ps.get("set_location_models_use") or "")
+            print("示例 run:", pos.get("cd_run_example") or "")
+        return 0
+
     # 以下动作会改写 TOML：先算新的 profiles 集合，再写回。
     target = _resolve_config_target(settings)
     # 合成 default 不应持久化：仅显式配置才作为写入基线。
@@ -3474,6 +3502,111 @@ def _cmd_models(args: argparse.Namespace) -> int:
     base_active = settings.active_profile_id if settings.profiles_explicit else None
     next_subagent = settings.subagent_profile_id
     next_planner = settings.planner_profile_id
+
+    if action == "clone" and bool(getattr(args, "clone_dry_run", False)):
+        try:
+            src_id = str(getattr(args, "clone_src", "") or "").strip()
+            dst_id = ensure_profile_id_legal(
+                str(getattr(args, "clone_dst", "") or ""),
+                context="clone 目标",
+            )
+        except ProfilesError as e:
+            print(f"操作失败: {e}", file=sys.stderr)
+            return 2
+        if get_profile_by_id(settings.profiles, src_id) is None:
+            print(f"profile 不存在: {src_id}", file=sys.stderr)
+            return 2
+        if any(p.id == dst_id for p in base_profiles):
+            print(f"目标 profile id 已存在: {dst_id}", file=sys.stderr)
+            return 2
+        no_copy = bool(getattr(args, "clone_no_copy_home", False))
+        force_h = bool(getattr(args, "clone_force_home", False))
+        home_res = clone_profile_home_tree(
+            settings.workspace,
+            src_id,
+            dst_id,
+            dry_run=True,
+            no_copy=no_copy,
+            force_home=force_h,
+        )
+        if home_res.get("reason") == "dst_profile_home_nonempty":
+            print(
+                f"目标 profile 家目录非空: {dst_id}；请使用 --force-home 或先清理对应目录。",
+                file=sys.stderr,
+            )
+            return 2
+        plan: dict[str, Any] = {
+            "schema_version": "models_clone_plan_v1",
+            "source_profile_id": src_id,
+            "dest_profile_id": dst_id,
+            "would_write_toml": True,
+            "would_set_active": bool(getattr(args, "clone_set_active", False)),
+            "profile_home": home_res,
+            "secrets_note_zh": (
+                "副本继承 api_key_env / api_key；若使用明文 api_key，副本同样敏感。"
+            ),
+        }
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(plan, ensure_ascii=False))
+        else:
+            print(f"[models] clone dry-run: {src_id} -> {dst_id}")
+            print(f"  profile_home: {home_res}")
+            print(f"  {plan['secrets_note_zh']}")
+        return 0
+
+    if action == "clone-all" and bool(getattr(args, "clone_all_dry_run", False)):
+        suf = str(getattr(args, "clone_all_suffix", "") or "").strip()
+        if not suf:
+            print("clone-all 需要 --suffix", file=sys.stderr)
+            return 2
+        snap = tuple(settings.profiles)
+        if not snap:
+            print("(无 profile 可复制)", file=sys.stderr)
+            return 2
+        planned_pairs: list[tuple[str, str]] = []
+        for p in snap:
+            nid = f"{p.id}{suf}"
+            try:
+                ensure_profile_id_legal(nid, context="clone-all 目标")
+            except ProfilesError as e:
+                print(f"操作失败: {e}", file=sys.stderr)
+                return 2
+            if any(x.id == nid for x in base_profiles):
+                print(f"clone-all: 目标 profile id 已存在: {nid}", file=sys.stderr)
+                return 2
+            planned_pairs.append((p.id, nid))
+        no_copy = bool(getattr(args, "clone_all_no_copy_home", False))
+        force_h = bool(getattr(args, "clone_all_force_home", False))
+        checks: list[dict[str, Any]] = []
+        for src_id, dst_id in planned_pairs:
+            c = clone_profile_home_tree(
+                settings.workspace,
+                src_id,
+                dst_id,
+                dry_run=True,
+                no_copy=no_copy,
+                force_home=force_h,
+            )
+            checks.append({"source_profile_id": src_id, "dest_profile_id": dst_id, "profile_home": c})
+            if c.get("reason") == "dst_profile_home_nonempty":
+                print(f"clone-all: 目标家目录非空: {dst_id}", file=sys.stderr)
+                return 2
+        plan_all: dict[str, Any] = {
+            "schema_version": "models_clone_all_plan_v1",
+            "suffix": suf,
+            "would_add_profiles": [d for _, d in planned_pairs],
+            "pairs": checks,
+            "secrets_note_zh": (
+                "每个副本继承对应源的 api_key_env / api_key；若使用明文 api_key，副本同样敏感。"
+            ),
+        }
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(plan_all, ensure_ascii=False))
+        else:
+            print(f"[models] clone-all dry-run: suffix={suf!r} count={len(planned_pairs)}")
+            for row in checks:
+                print(f"  {row['source_profile_id']} -> {row['dest_profile_id']}: {row['profile_home']}")
+        return 0
 
     try:
         if action == "add":
@@ -3515,6 +3648,70 @@ def _cmd_models(args: argparse.Namespace) -> int:
             next_active = _resolve_active_after_mutation(
                 base_active, new_profiles,
             )
+        elif action == "clone":
+            src_id = str(getattr(args, "clone_src", "") or "").strip()
+            dst_id = ensure_profile_id_legal(
+                str(getattr(args, "clone_dst", "") or ""),
+                context="clone 目标",
+            )
+            source_p = get_profile_by_id(settings.profiles, src_id)
+            if source_p is None:
+                raise ProfilesError(f"profile 不存在：{src_id!r}")
+            if any(p.id == dst_id for p in base_profiles):
+                raise ProfilesError(f"目标 profile id 已存在：{dst_id!r}")
+            no_copy = bool(getattr(args, "clone_no_copy_home", False))
+            force_h = bool(getattr(args, "clone_force_home", False))
+            chk = clone_profile_home_tree(
+                settings.workspace,
+                src_id,
+                dst_id,
+                dry_run=True,
+                no_copy=no_copy,
+                force_home=force_h,
+            )
+            if chk.get("reason") == "dst_profile_home_nonempty":
+                raise ProfilesError(
+                    f"目标 profile 家目录非空：{dst_id!r}（使用 --force-home 或清空 .cai/profiles/{dst_id}）",
+                )
+            new_p = replace(source_p, id=dst_id)
+            new_profiles = add_profile(base_profiles, new_p)
+            next_active = _resolve_active_after_mutation(
+                base_active,
+                new_profiles,
+                prefer=dst_id if bool(getattr(args, "clone_set_active", False)) else None,
+            )
+        elif action == "clone-all":
+            suf = str(getattr(args, "clone_all_suffix", "") or "").strip()
+            if not suf:
+                raise ProfilesError("clone-all 需要 --suffix")
+            snap = tuple(settings.profiles)
+            if not snap:
+                raise ProfilesError("无 profile 可复制")
+            planned_pairs: list[tuple[str, str]] = []
+            for p in snap:
+                nid = f"{p.id}{suf}"
+                ensure_profile_id_legal(nid, context="clone-all 目标")
+                if any(x.id == nid for x in base_profiles):
+                    raise ProfilesError(f"目标 profile id 已存在：{nid!r}")
+                planned_pairs.append((p.id, nid))
+            no_copy = bool(getattr(args, "clone_all_no_copy_home", False))
+            force_h = bool(getattr(args, "clone_all_force_home", False))
+            for src_id, dst_id in planned_pairs:
+                c = clone_profile_home_tree(
+                    settings.workspace,
+                    src_id,
+                    dst_id,
+                    dry_run=True,
+                    no_copy=no_copy,
+                    force_home=force_h,
+                )
+                if c.get("reason") == "dst_profile_home_nonempty":
+                    raise ProfilesError(f"目标 profile 家目录非空：{dst_id!r}")
+            new_profiles = base_profiles
+            for p in snap:
+                nid = f"{p.id}{suf}"
+                new_profiles = add_profile(new_profiles, replace(p, id=nid))
+            next_active = base_active
         else:
             print(f"未知子命令: {action}", file=sys.stderr)
             return 2
@@ -3537,7 +3734,40 @@ def _cmd_models(args: argparse.Namespace) -> int:
         f"[models] {action} ok | active={next_active} "
         f"profiles={len(new_profiles)} file={target}",
     )
-    if action == "use" and next_active:
+    if action == "clone":
+        hres = clone_profile_home_tree(
+            settings.workspace,
+            str(getattr(args, "clone_src", "") or "").strip(),
+            str(getattr(args, "clone_dst", "") or "").strip(),
+            dry_run=False,
+            no_copy=bool(getattr(args, "clone_no_copy_home", False)),
+            force_home=bool(getattr(args, "clone_force_home", False)),
+        )
+        print(f"  profile_home: copied={hres.get('copied')} skipped={hres.get('skipped')} reason={hres.get('reason')}")
+    elif action == "clone-all":
+        suf = str(getattr(args, "clone_all_suffix", "") or "").strip()
+        snap = tuple(settings.profiles)
+        no_copy = bool(getattr(args, "clone_all_no_copy_home", False))
+        force_h = bool(getattr(args, "clone_all_force_home", False))
+        for p in snap:
+            dst_id = f"{p.id}{suf}"
+            hres = clone_profile_home_tree(
+                settings.workspace,
+                p.id,
+                dst_id,
+                dry_run=False,
+                no_copy=no_copy,
+                force_home=force_h,
+            )
+            print(
+                f"  profile_home {p.id}->{dst_id}: "
+                f"copied={hres.get('copied')} skipped={hres.get('skipped')} reason={hres.get('reason')}",
+            )
+    if (action == "use" and next_active) or (
+        action == "clone"
+        and bool(getattr(args, "clone_set_active", False))
+        and next_active
+    ):
         from cai_agent.tui_session_strip import build_profile_switched_line
 
         print(build_profile_switched_line(str(next_active)))
@@ -4057,7 +4287,10 @@ def main(argv: list[str] | None = None) -> int:
     models_p = sub.add_parser(
         "models",
         parents=[models_parent],
-        help="模型 profile 管理：list/use/add/edit/rm/ping/fetch/capabilities/onboarding/suggest/route/routing-test",
+        help=(
+            "模型 profile 管理：list/use/add/edit/rm/clone/clone-all/alias/ping/"
+            "fetch/capabilities/onboarding/suggest/route/routing-test"
+        ),
     )
     models_sub = models_p.add_subparsers(dest="models_action", required=False)
 
@@ -4110,6 +4343,76 @@ def main(argv: list[str] | None = None) -> int:
 
     _mr = models_sub.add_parser("rm", help="删除一个 profile")
     _mr.add_argument("id", help="profile id")
+
+    _mclone = models_sub.add_parser(
+        "clone",
+        help="复制已有 profile 为新 id，并可选复制 .cai/profiles/<src> 家目录到目标",
+    )
+    _mclone.add_argument("clone_src", metavar="source_id", help="源 profile id")
+    _mclone.add_argument("clone_dst", metavar="dest_id", help="目标 profile id（须尚未存在于显式配置中）")
+    _mclone.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="clone_dry_run",
+        help="仅预览将写入的 TOML 与家目录复制计划，不写盘",
+    )
+    _mclone.add_argument(
+        "--no-copy-home",
+        action="store_true",
+        dest="clone_no_copy_home",
+        help="不复制 .cai/profiles 下家目录（仅复制 TOML profile 行）",
+    )
+    _mclone.add_argument(
+        "--force-home",
+        action="store_true",
+        dest="clone_force_home",
+        help="若目标家目录非空则先删除再复制（危险：会清空目标目录）",
+    )
+    _mclone.add_argument(
+        "--set-active",
+        action="store_true",
+        dest="clone_set_active",
+        help="复制完成后将 active 设为目标 profile",
+    )
+    _mclone.add_argument("--json", action="store_true", dest="json_output")
+
+    _mcloneall = models_sub.add_parser(
+        "clone-all",
+        help="为当前每个 profile 追加一份 id+suffix 的副本（显式 TOML + 家目录）",
+    )
+    _mcloneall.add_argument(
+        "--suffix",
+        required=True,
+        dest="clone_all_suffix",
+        metavar="SUFFIX",
+        help="追加到每个源 id 后的后缀（如 -bak），合成 id 须合法且不冲突",
+    )
+    _mcloneall.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="clone_all_dry_run",
+        help="仅预览批量复制计划，不写盘",
+    )
+    _mcloneall.add_argument(
+        "--no-copy-home",
+        action="store_true",
+        dest="clone_all_no_copy_home",
+        help="不复制家目录，仅追加 TOML profile 块",
+    )
+    _mcloneall.add_argument(
+        "--force-home",
+        action="store_true",
+        dest="clone_all_force_home",
+        help="若某个目标家目录非空则先删除再复制",
+    )
+    _mcloneall.add_argument("--json", action="store_true", dest="json_output")
+
+    _malias = models_sub.add_parser(
+        "alias",
+        help="输出进入指定 profile 的可复制命令（cd + models use；--json 输出 models_alias_v1）",
+    )
+    _malias.add_argument("id", help="profile id")
+    _malias.add_argument("--json", action="store_true", dest="json_output")
 
     _mp = models_sub.add_parser("ping", help="对 profile 做 /models 健康检查")
     _mp.add_argument("id", nargs="?", default=None, help="profile id（缺省 ping 全部）")
@@ -7409,6 +7712,9 @@ def main(argv: list[str] | None = None) -> int:
             "use": "models.use",
             "rm": "models.rm",
             "edit": "models.edit",
+            "clone": "models.clone",
+            "clone-all": "models.clone_all",
+            "alias": "models.alias",
         }.get(act_m, "models.cli")
         tok_m = 0
         if act_m == "list" and int(rc_mdl) == 0:
@@ -7425,8 +7731,22 @@ def main(argv: list[str] | None = None) -> int:
                     tok_m = 1
                 else:
                     tok_m = len(ld2.profiles)
-        elif act_m in {"add", "use", "rm", "route", "route-wizard", "routing-test", "edit", "suggest"} and int(rc_mdl) == 0:
+        elif act_m in {
+            "add",
+            "use",
+            "rm",
+            "route",
+            "route-wizard",
+            "routing-test",
+            "edit",
+            "suggest",
+            "clone",
+            "alias",
+        } and int(rc_mdl) == 0:
             tok_m = 1
+        elif act_m == "clone-all" and int(rc_mdl) == 0:
+            ld3 = _load_settings_for_models(getattr(args, "config", None))
+            tok_m = len(ld3.profiles) if not isinstance(ld3, int) else 0
         _maybe_metrics_cli(
             module="models",
             event=ev_m,

@@ -31,7 +31,7 @@
 |---|---|---|---|
 | 1 | `CC-N01` 安装 / 升级 / 修复 | `In progress` | `CC-N01-D01` repair CLI 已启动；继续补 `doctor.install` / `doctor.sync` 深化与文档回写 |
 | 2 | `CC-N02` 反馈与自助诊断 | `Done` | `CC-N02-D01`～`D04` 已交付；后续仅密钥形态扩展等维护项 |
-| 3 | `HM-N01` Profile home | `Ready` | `HM-N01-D02` clone、`HM-N01-D04` alias、`HM-N01-D05` migration doctor |
+| 3 | `HM-N01` Profile home | `Ready` | `HM-N01-D02`/`D04`/`D05` 已交付；下一原子项 `HM-N01-D03`（active profile 全入口对齐） |
 | 4 | `ECC-N01` home sync / catalog | `Design` | `ECC-N01-D02` sync-home dry-run、`ECC-N01-D03` doctor drift、`ECC-N01-D04` repair 建议 |
 | 5 | `ECC-N02` asset pack 生命周期 | `Design` | pack manifest、export/import/install/repair |
 
@@ -157,10 +157,10 @@
 | 子任务 ID | 对应能力 | 交付物 | 主要入口 | 验收点 |
 |---|---|---|---|---|
 | `HM-N01-D01` | Profiles | profile home schema，定义 config/session/memory/gateway 的隔离目录 | `profiles.py`、`doctor.py` | 不同 profile 的状态不串 |
-| `HM-N01-D02` | Profiles | `profile clone` / `clone-all`，支持 dry-run 和冲突提示 | `__main__.py`、`profiles.py` | clone 后配置完整、敏感项处理明确 |
+| `HM-N01-D02` | Profiles | **`Done（2026-04-26）`**：`models clone` / `clone-all`（dry-run、家目录复制、`--force-home`） | `__main__.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` + smoke |
 | `HM-N01-D03` | Profiles | active profile 解析链路，覆盖 CLI、TUI、API、gateway | `profiles.py`、`api_http_server.py`、`gateway_maps.py` | 所有入口读取同一个 active profile |
-| `HM-N01-D04` | Profiles | alias command 生成，例如按 profile 输出可复制的启动命令 | `__main__.py`、`profiles.py` | 用户能用 alias 固定进入某个 profile |
-| `HM-N01-D05` | Profiles | profile doctor / migration，识别旧模型 profile 与新 profile home 的关系 | `doctor.py`、`profiles.py` | 老配置可迁移，不丢状态 |
+| `HM-N01-D04` | Profiles | **`Done（2026-04-26）`**：`models alias`（`models_alias_v1`） | `__main__.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` + smoke |
+| `HM-N01-D05` | Profiles | **`Done（2026-04-26）`**：`profile_home_migration` 诊断（doctor JSON + 文本摘要） | `doctor.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` |
 | `HM-N03-D01` | API 扩展 | `/health`、`/v1/status`、`/v1/profiles` 等状态路由 | `api_http_server.py` | ops 和外部工具能读状态 |
 | `HM-N03-D02` | API 扩展 | OpenAPI schema 草案或 machine-readable route manifest | `api_http_server.py`、`docs/` | 路由可文档化、可快照测试 |
 | `HM-N03-D03` | API 扩展 | API 与 `ops serve` auth 配置收口 | `api_http_server.py`、`ops_http_server.py`、`server_auth.py` | **部分落地**：`server_auth.resolve_bearer_token` 等统一 bearer 解析（`test_server_auth.py`）；**仍待**：与扩路由、OpenAPI、运维文档一起完整收口「如何配 token、哪些路由受保护」 |
@@ -251,14 +251,12 @@
 1. `CC-N01-D01`
 2. `CC-N01-D02`
 3. `CC-N01-D03`
-4. `HM-N01-D02`
-5. `HM-N01-D04`
-6. `HM-N01-D05`
-7. `ECC-N01-D02`
-8. `ECC-N01-D03`
-9. `ECC-N01-D04`
-10. `ECC-N02-D01`
-11. `ECC-N02-D02`
+4. `HM-N01-D03`
+5. `ECC-N01-D02`
+6. `ECC-N01-D03`
+7. `ECC-N01-D04`
+8. `ECC-N02-D01`
+9. `ECC-N02-D02`
 
 ## 9. OOS / 条件立项边界
 
@@ -294,6 +292,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **820 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **825 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |

@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
+import shutil
 import tempfile
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -367,6 +369,17 @@ def pick_active(
     return profiles[0]
 
 
+def ensure_profile_id_legal(pid: str, *, context: str = "") -> str:
+    """校验 profile id 符合 ``_ID_RE``；非法时抛出 :class:`ProfilesError`。"""
+    s = str(pid or "").strip()
+    if not s or not _ID_RE.match(s):
+        tail = f"（{context}）" if context else ""
+        raise ProfilesError(
+            f"profile id 非法：{pid!r}{tail}（须为字母数字开头，长度 1-64）",
+        )
+    return s
+
+
 def get_profile_by_id(
     profiles: Sequence[Profile],
     profile_id: str | None,
@@ -670,6 +683,190 @@ def _build_profile_home_layout(workspace_root: str | Path, profile_id: str) -> d
     }
 
 
+PROFILE_HOME_SUBDIR_NAMES: tuple[str, ...] = ("sessions", "memory", "gateway", "state")
+
+
+def profile_home_root_path(workspace_root: str | Path, profile_id: str) -> Path:
+    """``.cai/profiles/<id>/`` 根路径（目录未必已存在）。"""
+    return Path(_build_profile_home_layout(workspace_root, profile_id)["root"])
+
+
+def _profile_home_dir_nonempty(home_root: Path) -> bool:
+    if not home_root.is_dir():
+        return False
+    try:
+        return any(home_root.iterdir())
+    except OSError:
+        return True
+
+
+def clone_profile_home_tree(
+    workspace_root: str | Path,
+    src_profile_id: str,
+    dst_profile_id: str,
+    *,
+    dry_run: bool = False,
+    no_copy: bool = False,
+    force_home: bool = False,
+) -> dict[str, Any]:
+    """将 ``.cai/profiles/<src>`` 整树复制到 ``<dst>``（用于 HM-N01 profile home 隔离）。
+
+    - ``no_copy``：跳过文件系统操作。
+    - ``src`` 家目录不存在：跳过（非错误），便于仅有 TOML 而无本地状态的 profile。
+    - ``dst`` 已存在且非空：除非 ``force_home``，否则返回 ``reason=dst_profile_home_nonempty``。
+    """
+    ws = Path(workspace_root).expanduser().resolve()
+    src_root = profile_home_root_path(ws, src_profile_id)
+    dst_root = profile_home_root_path(ws, dst_profile_id)
+    out: dict[str, Any] = {
+        "schema_version": "profile_home_clone_result_v1",
+        "workspace": str(ws),
+        "src_profile_id": src_profile_id,
+        "dst_profile_id": dst_profile_id,
+        "dry_run": dry_run,
+        "skipped": False,
+        "reason": None,
+        "src_home_existed": src_root.is_dir(),
+        "dst_home_nonempty": _profile_home_dir_nonempty(dst_root),
+        "copied": False,
+    }
+    if no_copy:
+        out["skipped"] = True
+        out["reason"] = "no_copy_home"
+        return out
+    if not src_root.is_dir():
+        out["skipped"] = True
+        out["reason"] = "src_profile_home_missing"
+        return out
+    if _profile_home_dir_nonempty(dst_root):
+        if not force_home:
+            out["skipped"] = True
+            out["reason"] = "dst_profile_home_nonempty"
+            return out
+        if dry_run:
+            out["would_remove_dst_home"] = True
+        else:
+            shutil.rmtree(dst_root)
+    if dry_run:
+        out["would_copytree"] = str(src_root)
+        return out
+    dst_root.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(src_root, dst_root, symlinks=True)
+    out["copied"] = True
+    return out
+
+
+def build_models_alias_v1(
+    *,
+    profile_id: str,
+    workspace_root: str | Path,
+    config_path: str | Path | None,
+    cai_agent_executable: str = "cai-agent",
+) -> dict[str, Any]:
+    """生成固定工作区 + 配置下切换到某 profile 的可复制命令（HM-N01 alias）。"""
+    ws = Path(workspace_root).expanduser().resolve()
+    cfg_abs = Path(config_path).expanduser().resolve() if config_path else None
+    ws_q = shlex.quote(str(ws))
+    exe = cai_agent_executable.strip() or "cai-agent"
+    exe_tokens = shlex.split(exe)
+    exe_q = shlex.join(exe_tokens) if len(exe_tokens) > 1 else shlex.quote(exe)
+    pid_q = shlex.quote(str(profile_id))
+    mid: list[str] = [exe_q]
+    if cfg_abs is not None:
+        mid.extend(["--config", shlex.quote(str(cfg_abs))])
+    mid.extend(["models", "use", pid_q])
+    posix_use = f"cd {ws_q} && {' '.join(mid)}"
+    ws_ps = str(ws).replace("'", "''")
+    pid_ps = str(profile_id).replace("'", "''")
+    cfg_ps = str(cfg_abs).replace("'", "''") if cfg_abs is not None else ""
+    if cfg_abs is not None:
+        ps_use = f"Set-Location '{ws_ps}'; {exe} --config '{cfg_ps}' models use '{pid_ps}'"
+    else:
+        ps_use = f"Set-Location '{ws_ps}'; {exe} models use '{pid_ps}'"
+    mid_run = [exe_q]
+    if cfg_abs is not None:
+        mid_run.extend(["--config", shlex.quote(str(cfg_abs))])
+    mid_run.extend(["-w", shlex.quote(str(ws)), "run", shlex.quote("你的目标")])
+    posix_run = f"cd {ws_q} && {' '.join(mid_run)}"
+    return {
+        "schema_version": "models_alias_v1",
+        "profile_id": str(profile_id),
+        "workspace": str(ws),
+        "config_path": str(cfg_abs) if cfg_abs is not None else None,
+        "posix_shell": {
+            "cd_models_use": posix_use,
+            "cd_run_example": posix_run,
+        },
+        "powershell": {
+            "set_location_models_use": ps_use,
+        },
+        "hint_zh": (
+            "在同一工作区下使用下列命令可切换到该 profile（含 cd，确保 .cai/profiles 相对路径正确）。"
+            "若使用 api_key 字面量，注意副本配置同样敏感。"
+        ),
+    }
+
+
+def build_profile_home_migration_diag_v1(
+    profiles: Sequence[Profile],
+    *,
+    profiles_explicit: bool,
+    workspace_root: str | Path,
+) -> dict[str, Any]:
+    """对比 profile 列表与 ``.cai/profiles/*`` 目录，辅助 legacy → explicit 与家目录迁移诊断。"""
+    ws = Path(workspace_root).expanduser().resolve()
+    prof_root = ws / ".cai" / "profiles"
+    ids = {p.id for p in profiles}
+    orphan_dirs: list[str] = []
+    if prof_root.is_dir():
+        for child in prof_root.iterdir():
+            if child.is_dir() and child.name not in ids:
+                orphan_dirs.append(child.name)
+    rows: list[dict[str, Any]] = []
+    hints: list[str] = []
+    if not profiles_explicit:
+        hints.append(
+            "当前为 [llm] 隐式 default profile；建议运行 "
+            "`cai-agent models add …` 写入显式 [[models.profile]] 后再使用 route/subagent/planner。",
+        )
+    for p in profiles:
+        home = prof_root / p.id
+        missing_subdirs = [
+            name for name in PROFILE_HOME_SUBDIR_NAMES
+            if not (home / name).is_dir()
+        ]
+        rows.append(
+            {
+                "profile_id": p.id,
+                "home_root": str(home),
+                "home_root_exists": home.is_dir(),
+                "missing_subdirs": missing_subdirs,
+            },
+        )
+    if orphan_dirs:
+        hints.append(
+            f"`.cai/profiles` 下存在未绑定到任何 profile 的子目录: {', '.join(orphan_dirs)}；"
+            "可用 `cai-agent models clone <旧id> <新id>` 或手工整理。",
+        )
+    any_missing = any(bool(r.get("missing_subdirs")) for r in rows)
+    if any_missing and profiles_explicit:
+        hints.append(
+            "部分 profile 家目录缺少标准子目录（sessions/memory/gateway/state）；"
+            "运行相关功能时会按需创建，也可用 repair / 手工 mkdir 预建。",
+        )
+    return {
+        "schema_version": "profile_home_migration_diag_v1",
+        "workspace": str(ws),
+        "profiles_explicit": bool(profiles_explicit),
+        "profile_contract_migration_state": (
+            "ready" if profiles_explicit else "needs_explicit_profiles"
+        ),
+        "profiles": rows,
+        "orphan_profile_dirs": orphan_dirs,
+        "hints_zh": hints,
+    }
+
+
 def build_profile_contract_payload(
     profiles: Sequence[Profile],
     *,
@@ -733,17 +930,23 @@ def build_profile_contract_payload(
 __all__ = [
     "KNOWN_PROVIDERS",
     "PRESETS",
+    "PROFILE_HOME_SUBDIR_NAMES",
     "Profile",
     "ProfilesError",
     "add_profile",
     "apply_preset",
     "build_profile",
     "build_profile_contract_payload",
+    "build_models_alias_v1",
+    "build_profile_home_migration_diag_v1",
+    "clone_profile_home_tree",
     "edit_profile",
+    "ensure_profile_id_legal",
     "get_profile_by_id",
     "normalize_openai_chat_base_url",
     "parse_models_section",
     "pick_active",
+    "profile_home_root_path",
     "profile_to_public_dict",
     "resolve_role_profile_id",
     "project_base_url",

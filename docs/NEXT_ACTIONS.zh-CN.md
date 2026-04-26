@@ -19,7 +19,7 @@
 
 `ECC-N04-D03`（provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照 + `test_ecc_ingest_schema_snapshots`）已交付并归档；ingest 下一里程碑在 **`ECC-N01`/`ECC-N02` 执行链**，而非重复扩写 D01～D03 文档。
 
-**`CC-N02-D04`**（feedback bundle/export 脱敏与 **`dest_placement`** 路径策略）已交付；P0 反馈线 **`CC-N02`** 能力级可视为 **Done**，队列顶切换为 **`HM-N01`** / **`ECC-N01`**。
+**`CC-N02-D04`**（feedback bundle/export 脱敏与 **`dest_placement`** 路径策略）已交付；P0 反馈线 **`CC-N02`** 能力级可视为 **Done**。**`HM-N01-D02`/`D04`/`D05`**（`models clone` / `clone-all` / `alias` 与 **`profile_home_migration`**）已交付；profile home 线下一优先 **`HM-N01-D03`**，队列顶切换为 **`ECC-N01`** 与 **`CC-N01`** 并行推进。
 
 `DEVELOPER_TODOS.zh-CN.md` §4～§8、`PRODUCT_GAP_ANALYSIS.zh-CN.md` §2/§4、`docs/PRODUCT_GAP_ANALYSIS.md` 已与 ROADMAP 中 `HM-N05`～`HM-N10` 与 **`ECC-N04-D01`～`D03`** 等交付态对齐（2026-04-26）。
 
@@ -27,15 +27,16 @@
 
 | 顺位 | ID | 状态 | 目标 | 主要入口 | 最小验证 |
 |---|---|---|---|---|---|
-| 1 | `HM-N01-D02/D04/D05` | Ready | profile home 的 clone、alias command、migration doctor，补齐独立 profile home 的用户路径 | `cai-agent/src/cai_agent/profiles.py`、`cai-agent/src/cai_agent/doctor.py`、`cai-agent/src/cai_agent/__main__.py` | 新增/扩展 profile CLI 与 doctor 测试，优先窄跑相关 pytest |
-| 2 | `ECC-N01-D02/D03/D04` | Design -> Ready | home sync dry-run、doctor drift、repair 建议，把本地 catalog 变成可操作同步链路 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/ecc_layout.py`、`cai-agent/src/cai_agent/doctor.py` | 新增 sync-home dry-run / drift JSON snapshot 测试 |
-| 3 | `ECC-N02-D01/D02` | Design | asset pack manifest 与 export pack dry-run/checksum，为 import/install/repair 做地基 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/templates/ecc/`、`docs/schema/` | manifest schema 或 snapshot 测试 |
-| 4 | `CC-N01-D01`～`D04` | In progress | repair / `doctor.install` / `doctor.sync` / upgrade 叙事深化 | `cai-agent/src/cai_agent/__main__.py`、`cai-agent/src/cai_agent/doctor.py` | `pytest` repair/doctor 相关用例 |
+| 1 | `ECC-N01-D02/D03/D04` | Design -> Ready | home sync dry-run、doctor drift、repair 建议，把本地 catalog 变成可操作同步链路 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/ecc_layout.py`、`cai-agent/src/cai_agent/doctor.py` | 新增 sync-home dry-run / drift JSON snapshot 测试 |
+| 2 | `ECC-N02-D01/D02` | Design | asset pack manifest 与 export pack dry-run/checksum，为 import/install/repair 做地基 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/templates/ecc/`、`docs/schema/` | manifest schema 或 snapshot 测试 |
+| 3 | `CC-N01-D01`～`D04` | In progress | repair / `doctor.install` / `doctor.sync` / upgrade 叙事深化 | `cai-agent/src/cai_agent/__main__.py`、`cai-agent/src/cai_agent/doctor.py` | `pytest` repair/doctor 相关用例 |
+| 4 | `HM-N01-D03` | Ready | active profile 解析链路对齐 CLI、TUI、API、gateway | `profiles.py`、`api_http_server.py`、`gateway_maps.py` | pytest / smoke 覆盖多入口同一 active |
 
 ## 刚完成
 
 | ID | 完成日期 | 结果 | 验证/证据 |
 |---|---|---|---|
+| `HM-N01-D02`/`D04`/`D05` | 2026-04-26 | 交付 `models clone` / `clone-all` / `alias`（`models_alias_v1` 等）与 doctor **`profile_home_migration`**（`profile_home_migration_diag_v1`）。 | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `CC-N02-D04` | 2026-04-26 | Harden feedback bundle and JSONL export redaction: sanitize_feedback_text workspace/home paths and Slack tokens, sanitize append_feedback, redact export rows, feedback_bundle_export_v1 dest_placement and warnings for external --dest, release runbook bundle step. | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `ECC-N04-D03` | 2026-04-26 | Deliver ECC-N04-D03 provenance/trust bilingual policy, ecc_ingest_provenance_trust_v1 snapshot, schema README and roadmap; add regression test for ingest draft JSON. | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `DOC-AUTO-FINALIZE` | 2026-04-26 | 建立任务完成后的自动文档同步脚本和低 token 完成协议 | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed |
