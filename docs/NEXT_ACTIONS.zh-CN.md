@@ -15,7 +15,7 @@
 
 ## 当前结论
 
-上一轮 `CC-N01-D05` 命令中心发现链路和 `CC-N02-D02` feedback bug 结构化字段已经完成。当前最好继续沿着“安装/修复/反馈闭环”和“profile/home/sync 产品化”推进，避免重新打开已经 Done 的 gateway、runtime、model gateway 大块。
+**安装 / 修复 / 反馈**（`CC-N01`～`CC-N02`）与 **gateway / voice / memory / tool / runtime 合同向**（`HM-N05`～`HM-N11` 主路径）已在主干交付；日常以回归与小步增强为主。当前增量主线是 **`CC-N03`（plugins / home sync）收尾**、**`ECC-N02` 资产 pack 的 import/repair**、**`HM-N01-D01`（profile home schema）** 与 **`HM-N03`/`HM-N04`（API / dashboard 深化）**；避免在无授权下重开 `CC-N07` / 云 runtime 实装等大块。
 
 `ECC-N04-D03`（provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照 + `test_ecc_ingest_schema_snapshots`）已交付并归档；ingest 下一里程碑在 **`ECC-N02-D03/D04`**（pack import/repair）与 **`CC-N03-D04`**（**`plugins sync-home --apply`** 覆盖保护），而非重复扩写 D01～D03 文档。
 
@@ -30,6 +30,8 @@
 | 1 | `CC-N03-D04` | Ready | **`plugins sync-home --apply`**：冲突策略、备份/回滚提示（承接 D02 计划 + D03 drift） | `plugin_registry.py`、`exporter.py`、`__main__.py` | pytest + smoke；与 **`plugins_sync_home_plan_v1`** / **`plugins_home_sync_drift_v1`** 对齐 |
 
 ## 刚完成
+
+> 更早批次（仅保留摘要）见 [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)；下表保留最近若干条便于对账。
 
 | ID | 完成日期 | 结果 | 验证/证据 |
 |---|---|---|---|

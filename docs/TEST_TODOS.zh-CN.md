@@ -11,11 +11,11 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **826 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **834 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
-结论：当前主干测试健康，可以在绿基线上继续扩展未完成功能。
+结论：与 [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) §11 QA 基线一致；主干绿，可继续扩展未完成功能。
 
 ### 1.1 当前测试开工队列
 
@@ -71,8 +71,8 @@
 
 | ID | 状态 | 测试重点 | 现有测试入口 | 需新增自动化 | 手工 / 真机 | 通过标准 |
 |---|---|---|---|---|---|---|
-| `CC-N01` | `Ready` | init / doctor / repair / upgrade 路径 | `test_init_presets.py`、`test_doctor_cli.py` | `test_repair_cli.py`、`test_install_surface_cli.py`、smoke 补 `init -> doctor -> repair` | 空目录初始化、缺配置修复、旧配置残留提示 | 新用户与坏环境都能恢复到最小可用 |
-| `CC-N02` | `In progress` | 反馈与自助 triage 链路 | `test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`、`test_feedback_bundle_cli.py` | 后续补 bug 模板字段与附件列表测试 | 手工走一遍 `doctor -> repair -> feedback bug -> feedback bundle` | 反馈前诊断、反馈导出、提示链路一致 |
+| `CC-N01` | `Done` | init / doctor / repair / upgrade 路径 | `test_init_presets.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_install_surface_cli.py`、smoke | 维护增量与脱敏增强 | 空目录初始化、缺配置修复 | 新用户与坏环境能恢复到最小可用（能力级 Done，见 `DEVELOPER_TODOS` §4） |
+| `CC-N02` | `Done` | 反馈与自助 triage / bundle / 导出脱敏 | `test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`、`test_feedback_bundle_cli.py` | 维护增量（更多密钥形态等） | 手工走 `doctor -> repair -> feedback bug -> feedback bundle` | 反馈前诊断、导出与 triage 一致（能力级 Done，见 `DEVELOPER_TODOS` §4） |
 | `CC-N03` | `Ready` | plugin / marketplace / sync-home | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_api_http_server.py` | `test_marketplace_manifest_cli.py`（占位）、D04 `--apply` 套件 | **`D02`/`D03` 已覆盖**；仍缺 D04 专用套件 | sync 不误删文件，doctor 能发现漂移 |
 | `CC-N04` | `Design` | recap / resume / task UX | `test_tui_task_board_render.py`、`test_tui_session_strip.py`、`test_tui_model_panel.py` | `test_session_recap_cli.py`、`test_tui_resume_hints.py`、`test_task_board_filters.py` | 长会话恢复体验手工验证 | 长会话 resume 不再要求重读整段历史 |
 | `CC-N05` | `Explore` | local GUI / desktop 包装层 | 现有无专门主入口 | 暂不新建正式自动化，先保留设计/PoC 校验 | 本地原型验证 | 先形成方案，再决定是否进入正式测试线 |
@@ -87,22 +87,22 @@
 | `HM-N02` | `Done` | OpenAI-compatible API、streaming、profile-aware request | `test_api_http_server.py` | 已覆盖 `/v1/models`、非流式 chat、SSE chunk / `[DONE]`、Bearer 鉴权、profile-aware `model` 选择 | `curl` 和至少一个 OpenAI-compatible client 接入 | 外部客户端能直接连本地 CAI Agent |
 | `HM-N03` | `Design` | API 扩路由 / OpenAPI / auth 收口 | `test_api_http_server.py` | `test_api_status_routes.py`、`test_api_auth_config.py`、OpenAPI snapshot test | API 文档页或本地 schema 输出手工检查 | 路由、文档、auth 配置不打架 |
 | `HM-N04` | `Design` | dashboard preview/apply/audit、安全边界 | `test_ops_http_server.py`、`test_ops_dashboard_html.py` | `test_ops_apply_actions.py`、`test_ops_audit_log.py`、smoke 补 preview/apply | 浏览器执行真实 apply，并确认审计记录 | 至少一个写动作可自动化回归 |
-| `HM-N05` | `Design` | Signal / Email / Matrix 平台适配 | `test_gateway_maps_summarize.py`、`test_gateway_lifecycle_cli.py` | `test_gateway_signal_cli.py`、`test_gateway_email_cli.py`、`test_gateway_matrix_cli.py` | 至少一个新平台真机消息链路 | 至少 2 个新平台具备最小 CLI + map + health |
+| `HM-N05` | `Done` | Signal / Email / Matrix 等平台适配 | `test_gateway_signal_cli.py`、`test_gateway_email_cli.py`、`test_gateway_matrix_cli.py` 等 | 回归与真机抽检 | 至少一个新平台真机消息链路 | ROADMAP §10 已标 Done；新平台走 `HM-N06` |
 | `HM-N06` | `Explore` | 第二批平台优先级与抽象复用 | 现有无 | 暂不新建正式自动化 | 预研记录 | 先形成优先级和适配器复用设计 |
-| `HM-N07` | `Design` | gateway federation / channel monitoring / proxy | `test_gateway_maps_summarize.py`、`test_gateway_lifecycle_cli.py` | `test_gateway_federation_summary.py`、`test_gateway_proxy_routes.py` | 多 workspace 状态聚合手工验证 | 多工作区、多平台状态可统一汇总和路由 |
-| `HM-N08` | `Design` | voice provider contract、CLI voice mode、gateway voice reply | 现有无稳定主入口 | `test_voice_cli.py`、`test_voice_provider_contract.py`、`test_gateway_voice_settings.py` | CLI 音频输入输出、Telegram/Discord voice reply | 自动化覆盖配置/错误语义，手工覆盖真实音频链路 |
-| `HM-N09` | `Ready` | provider registry、provider test、active provider exposure | `test_memory_provider_contract_cli.py`、`test_memory_user_model_store_cli.py`、`test_doctor_cli.py` | `test_memory_provider_registry.py`、`test_memory_provider_http_mock.py`、smoke 补 provider switch | local -> mock external provider 切换 | provider 可列出、切换、测试，不只是 contract 说明 |
-| `HM-N10` | `Design` | web/image/browser/tts 统一工具层 | `test_mcp_presets_tui_quickstart.py`、插件相关测试 | `test_tool_gateway_contract.py`、`test_tool_provider_registry.py` | 至少一类工具 provider 实机验证 | 四类工具至少有统一 contract 和一类真实接入 |
+| `HM-N07` | `Done` | federation / monitoring / proxy 等 | `test_gateway_maps_summarize.py`、`test_gateway_lifecycle_cli.py` 等 | 回归 | 多 workspace 状态聚合手工验证 | ROADMAP §10 已标 Done |
+| `HM-N08` | `Done` | voice contract、CLI、`gateway voice reply` | `test_voice_cli.py`、`test_voice_provider_contract.py` 等 | 回归；真实音频链路手工 | CLI 与 contract 自动化 | ROADMAP §10 已标 Done |
+| `HM-N09` | `Done` | memory provider registry / mock / doctor 暴露 | `test_memory_provider_contract_cli.py`、`test_memory_user_model_store_cli.py`、`test_doctor_cli.py` 等 | 回归 | provider 切换抽检 | ROADMAP §10 已标 Done |
+| `HM-N10` | `Done` | tool provider / registry / MCP bridge / guard | `test_tool_provider_contract_cli.py`、`test_tools_registry_doc_sync.py` 等 | 回归；实机一类工具抽检 | 高风险工具门禁 | ROADMAP §10 已标 Done |
 | `HM-N11` | `Conditional` | cloud runtime backends | `test_runtime_docker_mock.py`、`test_runtime_ssh_mock.py` 仅供参考 | 立项后再加真实云后端测试 | 云端执行环境验证 | 默认不进入测试线 |
 
 ## 6. ECC 线测试 backlog
 
 | ID | 状态 | 测试重点 | 现有测试入口 | 需新增自动化 | 手工 / 真机 | 通过标准 |
 |---|---|---|---|---|---|---|
-| `ECC-N01` | `Design` | local catalog、sync-home、doctor drift、repair 建议 | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py` | `test_catalog_snapshot_cli.py`、`test_home_sync_doctor.py` | home sync dry-run 与 drift 手工核对 | 分发、同步、修复口径统一 |
-| `ECC-N02` | `Design` | pack import/export/install/repair | `test_ecc_layout_cli.py`、相关 export 测试 | `test_asset_pack_manifest.py`、`test_asset_pack_import_export.py`、`test_asset_pack_repair.py` | 打包后导入到新 workspace 手工验证 | 资产生命周期可自动化回归 |
+| `ECC-N01` | `Done` | local catalog、sync-home、doctor drift、repair 建议 | `test_ecc_layout_cli.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_plugin_compat_matrix.py`（plugins 漂移同源）等 | 可选：`test_catalog_snapshot_cli.py` 等深化 | home sync / drift 手工核对 | **`ECC-N01-D02`～`D04` 已交付**；`D01` 与 catalog 深化可跟 `CC-N03-D01` |
+| `ECC-N02` | `Ready` | pack manifest / dry-run（Done）与 **import/repair（待 D03/D04）** | `test_ecc_layout_cli.py` + smoke | **`test_asset_pack_import_export.py`**、**`test_asset_pack_repair.py`**（待开发对齐） | 打包后导入新 workspace | **D01/D02** 已覆盖；**D03/D04** 仍缺专用自动化 |
 | `ECC-N03` | `Ready` | cross-harness doctor / diff | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py` | `test_harness_doctor_diff.py`、`test_export_sync_diff.py` | 至少两个 harness home 手工 diff | 用户可看懂“还差什么、会改什么、不会改什么” |
-| `ECC-N04` | `Explore` | registry format / ecosystem ingest | 现有无 | 暂不新建正式自动化 | 预研记录 | 先产出 registry / ingest 方案 |
+| `ECC-N04` | `Design` | ingest registry / sanitizer / trust **文档与快照**（Done）；**import 执行链**待后续 issue | `test_ecc_ingest_schema_snapshots.py` 等 | import/install 执行链自动化（待立项） | 评审文档与快照 | **`ECC-N04-D01`～`D03` 已交付**；执行面另立开发与测试项 |
 | `ECC-N05` | `Explore` | operator / desktop control plane | 现有无 | 暂不新建正式自动化 | 本地原型验证 | 先判断是否值得立项 |
 
 ## 7. 原子级测试拆解
@@ -231,18 +231,15 @@
 
 ## 8. 推荐测试顺序
 
-建议跟开发同步按下面顺序推进：
+建议跟开发同步按下面顺序推进（**已 Done 的能力线以回归为主**，不必再当作默认开工序列）：
 
-1. `CC-N01`
-2. `CC-N02`
-3. `HM-N01`
-4. `ECC-N01`
-5. `ECC-N02`
-6. `CC-N03`
-7. `CC-N04`
-8. `HM-N03`
-9. `HM-N04`
-10. `ECC-N04-D03`
+1. `CC-N03`（**`D04` `--apply`** 与冲突/备份策略）
+2. `ECC-N02`（**`D03`/`D04`** pack import/repair）
+3. `HM-N01`（**`D01`** schema 深化后的契约测试）
+4. `HM-N03` / `HM-N04`（API 扩面、dashboard 可写化）
+5. `ECC-N03`（cross-harness doctor 深化，与已交付 drift 对齐）
+6. `CC-N04`（session / recap / resume）
+7. 维护项：`CC-N01`、`CC-N02`、`ECC-N01`、`HM-N05`～`HM-N10`（随改动跑相关子集 + smoke）
 
 ## 9. 合入前统一命令
 
