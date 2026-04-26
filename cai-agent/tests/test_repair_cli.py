@@ -21,6 +21,8 @@ def test_repair_dry_run_json_reports_needed_actions(tmp_path: Path) -> None:
     assert int(summary.get("actions_needed") or 0) >= 3
     actions = payload.get("actions") or []
     assert any(a.get("id") == "create_config_from_template" for a in actions)
+    assert any(a.get("id") == "create_commands_dir" for a in actions)
+    assert any(a.get("id") == "create_hooks_json_minimal" for a in actions)
     assert not (tmp_path / "cai-agent.toml").exists()
 
 
@@ -35,5 +37,10 @@ def test_repair_apply_json_creates_minimal_install_surface(tmp_path: Path) -> No
     assert payload.get("ok") is True
     assert (tmp_path / ".cai").is_dir()
     assert (tmp_path / ".cai" / "gateway").is_dir()
+    assert (tmp_path / "commands").is_dir()
+    assert (tmp_path / "skills").is_dir()
+    assert (tmp_path / "rules" / "common").is_dir()
+    assert (tmp_path / "rules" / "python").is_dir()
     assert (tmp_path / "hooks").is_dir()
+    assert (tmp_path / "hooks" / "hooks.json").is_file()
     assert (tmp_path / "cai-agent.toml").is_file()

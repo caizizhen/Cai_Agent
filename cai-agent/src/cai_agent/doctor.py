@@ -9,8 +9,10 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent import __version__
+from cai_agent.command_registry import build_command_discovery_payload
 from cai_agent.config import Settings
 from cai_agent.context import INSTRUCTION_FILE_NAMES
+from cai_agent.ecc_layout import iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
 from cai_agent.models import ping_profile
 from cai_agent.profiles import build_profile_contract_payload
@@ -138,16 +140,49 @@ def build_doctor_sync_diagnostic(settings: Settings) -> dict[str, Any]:
             "repair_action": "create_gateway_dir",
         },
         {
+            "id": "commands_dir",
+            "path": root / "commands",
+            "kind": "directory",
+            "repair_action": "create_commands_dir",
+        },
+        {
+            "id": "skills_dir",
+            "path": root / "skills",
+            "kind": "directory",
+            "repair_action": "create_skills_dir",
+        },
+        {
+            "id": "rules_common_dir",
+            "path": root / "rules" / "common",
+            "kind": "directory",
+            "repair_action": "create_rules_common_dir",
+        },
+        {
+            "id": "rules_python_dir",
+            "path": root / "rules" / "python",
+            "kind": "directory",
+            "repair_action": "create_rules_python_dir",
+        },
+        {
             "id": "hooks_dir",
             "path": root / "hooks",
             "kind": "directory",
             "repair_action": "create_hooks_dir",
         },
+        {
+            "id": "hooks_json",
+            "path": root / "hooks" / "hooks.json",
+            "kind": "file",
+            "repair_action": "create_hooks_json_minimal",
+        },
     ]
     rows: list[dict[str, Any]] = []
+    hooks_json_exists = any(p.is_file() for p in iter_hooks_json_paths(root))
     for item in expected:
         p = Path(item["path"])
-        exists = p.is_dir() if item["kind"] == "directory" else p.exists()
+        exists = hooks_json_exists if item["id"] == "hooks_json" else (
+            p.is_dir() if item["kind"] == "directory" else p.exists()
+        )
         rows.append(
             {
                 "id": item["id"],
@@ -205,6 +240,10 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
         ("create_workspace_dir", root),
         ("create_cai_dir", root / ".cai"),
         ("create_gateway_dir", root / ".cai" / "gateway"),
+        ("create_commands_dir", root / "commands"),
+        ("create_skills_dir", root / "skills"),
+        ("create_rules_common_dir", root / "rules" / "common"),
+        ("create_rules_python_dir", root / "rules" / "python"),
         ("create_hooks_dir", root / "hooks"),
     ]
     for action_id, path in dirs:
@@ -231,6 +270,18 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
             ),
             "needed": not config_exists,
             "status": "skip_exists" if config_exists else "pending",
+        },
+    )
+    hooks_json_path = root / "hooks" / "hooks.json"
+    hooks_json_exists = any(p.is_file() for p in iter_hooks_json_paths(root))
+    actions.append(
+        {
+            "id": "create_hooks_json_minimal",
+            "type": "write_template",
+            "path": str(hooks_json_path),
+            "template": "templates/ecc/hooks.min.json",
+            "needed": not hooks_json_exists,
+            "status": "skip_exists" if hooks_json_exists else "pending",
         },
     )
     return {
@@ -480,6 +531,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "cai_dir_health": build_doctor_cai_dir_health(root),
         "install": build_doctor_install_diagnostic(settings),
         "sync": build_doctor_sync_diagnostic(settings),
+        "command_center": build_command_discovery_payload(settings),
         "feedback_triage": build_feedback_triage_payload(settings),
         "plugins": {
             "schema_version": "doctor_plugins_bundle_v1",
@@ -542,6 +594,7 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "cai_dir_health": p.get("cai_dir_health"),
         "install": p.get("install"),
         "sync": p.get("sync"),
+        "command_center": p.get("command_center"),
         "feedback_triage": p.get("feedback_triage"),
         "voice": p.get("voice"),
         "tool_provider": p.get("tool_provider"),

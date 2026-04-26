@@ -1,6 +1,7 @@
 ﻿# 开发 TODO（全量未完成功能版）
 
 > 产品判断来源：[`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)。测试对齐页：[`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md)。已完成归档：[`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)。
+> 低 token 当前开发入口：[`NEXT_ACTIONS.zh-CN.md`](NEXT_ACTIONS.zh-CN.md)。每次调整本页优先级或完成状态时，必须同步更新 `NEXT_ACTIONS`。
 
 这份文档的目标不是只列“下一步 3 件事”，而是尽量覆盖**相对 `claude-code` / `hermes-agent` / `everything-claude-code` 三条能力线仍未完成的功能开发面**，方便开发按块推进，测试按同样的块去补验证。
 
@@ -33,6 +34,22 @@
 | 3 | `HM-N01` Profile home | `Ready` | `HM-N01-D02` clone、`HM-N01-D04` alias、`HM-N01-D05` migration doctor |
 | 4 | `ECC-N01` home sync / catalog | `Design` | `ECC-N01-D02` sync-home dry-run、`ECC-N01-D03` doctor drift、`ECC-N01-D04` repair 建议 |
 | 5 | `ECC-N02` asset pack 生命周期 | `Design` | pack manifest、export/import/install/repair |
+
+### 1.2 当前执行 TODO（2026-04-26）
+
+本轮按“命令中心 / TUI slash 补全 / doctor-repair 同源诊断”推进，完成后逐项标记 Done：
+
+| ID | 状态 | 任务 | 验收 |
+|---|---|---|---|
+| `CC-N01-D05a` | `Done（2026-04-26）` | 建立 `command_discovery_v1`，统一 CLI/TUI/doctor 的命令模板发现视图 | 已覆盖搜索路径、命令列表、数量和 repair hint |
+| `CC-N01-D05b` | `Done（2026-04-26）` | TUI `/` 下拉菜单显示所有原生命令与 `commands/*.md` 模板命令，并带说明 | `/code-review` 等模板命令已进入聊天框 `/` 菜单 |
+| `CC-N01-D05c` | `Done（2026-04-26）` | `doctor --json` / API summary 暴露 `command_center`，`doctor.sync` 覆盖 commands/skills/rules/hooks 缺失诊断 | JSON 字段稳定，能给出 actionable repair |
+| `CC-N01-D05d` | `Done（2026-04-26）` | `repair --apply` 创建最小命令中心资产面：`commands/`、`skills/`、`rules/*`、`hooks/hooks.json` | 新 workspace 能恢复到可发现、可诊断、可补全的最小结构 |
+| `CC-N01-D05e` | `Done（2026-04-26）` | 补自动化/烟测验证并记录 Windows sandbox 临时目录限制 | `test_command_registry.py` + `test_tui_slash_suggester.py` 通过；repair/doctor CLI smoke 通过 |
+| `CC-N02-D02a` | `Done（2026-04-26）` | `feedback bug` 新增结构化复现步骤字段 | CLI 支持 `--step` 多次传入，JSON 输出 `repro_steps` |
+| `CC-N02-D02b` | `Done（2026-04-26）` | `feedback bug` 新增期望/实际行为字段 | CLI 支持 `--expected` / `--actual`，JSON 输出同名结构字段 |
+| `CC-N02-D02c` | `Done（2026-04-26）` | `feedback bug` 新增附件列表字段 | CLI 支持 `--attachment` 多次传入，落盘前脱敏 |
+| `CC-N02-D02d` | `Done（2026-04-26）` | 补测试与文档验收回写 | `test_feedback_cli.py` 补 human/json 同结构断言；CLI smoke 通过 |
 
 状态说明：
 
@@ -113,8 +130,9 @@
 | `CC-N01-D02` | 安装 / 升级 / 修复 | `doctor.install` 诊断块，覆盖 Python、依赖、home、配置、模板 | `doctor.py`、`templates/` | `doctor --json` 中有稳定字段和建议动作 |
 | `CC-N01-D03` | 安装 / 升级 / 修复 | `doctor.sync` 诊断块，发现 home drift、缺失模板、旧 schema | `doctor.py`、`plugin_registry.py` | 能区分 warning / error / actionable repair |
 | `CC-N01-D04` | 安装 / 升级 / 修复 | upgrade / onboarding 文案与命令路径统一 | `__main__.py`、`docs/` | 新用户和老用户看到的是同一条安装叙事 |
+| `CC-N01-D05` | 安装 / 升级 / 修复 | 命令中心发现链路：TUI slash 菜单、`commands/*.md`、doctor/repair 诊断同源 | `command_registry.py`、`tui.py`、`doctor.py`、`tests/` | **Done（2026-04-26）**：`/code-review` 等模板命令可补全；doctor/repair 能发现并修复命令资产面 |
 | `CC-N02-D01` | 反馈与诊断 | feedback bundle schema，自动附带 doctor 摘要、版本、平台、配置摘要 | `feedback.py`、`doctor.py` | **Done（2026-04-26）**：`feedback bundle --dest ... --json` 输出 `feedback_bundle_v1` / `feedback_bundle_export_v1` |
-| `CC-N02-D02` | 反馈与诊断 | `feedback bug` 模板补齐复现步骤、期望行为、实际行为、附件列表 | `feedback.py`、`__main__.py` | CLI 交互和 JSON 输出都能表达同一结构 |
+| `CC-N02-D02` | 反馈与诊断 | `feedback bug` 模板补齐复现步骤、期望行为、实际行为、附件列表 | `feedback.py`、`__main__.py` | **Done（2026-04-26）**：CLI 交互和 JSON 输出都能表达同一结构 |
 | `CC-N02-D03` | 反馈与诊断 | 反馈前 triage 提示，串起 `doctor -> repair -> feedback bug` | `doctor.py`、`feedback.py` | **Done（2026-04-26）**：`doctor_feedback_triage_v1` 指向 doctor / repair / feedback bug / feedback bundle 流程 |
 | `CC-N02-D04` | 反馈与诊断 | 脱敏策略和导出目录策略收口 | `feedback.py`、`release_runbook.py` | token、path、email 等敏感字段不会直接出现在 bundle |
 | `CC-N03-D01` | Plugin / marketplace / home sync | 本地 catalog schema，描述 plugin / skill / hook / rule 资产 | `plugin_registry.py`、`ecc_layout.py` | catalog 可生成、可校验、可版本化 |

@@ -3,7 +3,7 @@ from __future__ import annotations
 import difflib
 import json
 import time
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from pathlib import Path
 from datetime import datetime
 from typing import Any
@@ -40,35 +40,48 @@ from cai_agent.tui_task_board import TaskBoardScreen
 from cai_agent.tui_path_complete import suggest_path_after_command
 
 # 斜杠命令补全：顺序决定前缀冲突时的优先级（短命令在前，同前缀的长命令紧跟其后）。
+@dataclass(frozen=True)
+class SlashCommandSpec:
+    value: str
+    display: str
+    description: str
+    source: str = "native"
+
+
+_NATIVE_SLASH_COMMAND_SPECS: tuple[SlashCommandSpec, ...] = (
+    SlashCommandSpec("/?", "/?", "Show TUI help"),
+    SlashCommandSpec("/help", "/help", "Show TUI help"),
+    SlashCommandSpec("/status", "/status", "Show model, workspace, config, profile, and MCP status"),
+    SlashCommandSpec("/models", "/models", "Open the chat model profile panel"),
+    SlashCommandSpec("/models refresh", "/models refresh", "Fetch GET /v1/models from the active endpoint"),
+    SlashCommandSpec("/mcp", "/mcp", "List cached MCP tools"),
+    SlashCommandSpec("/mcp refresh", "/mcp refresh", "Refresh MCP tool list"),
+    SlashCommandSpec("/mcp call ", "/mcp call <name> <json_args>", "Call an MCP tool"),
+    SlashCommandSpec("/mcp-presets", "/mcp-presets", "Show WebSearch / Notebook MCP quickstart"),
+    SlashCommandSpec("/save", "/save [path]", "Save the current chat session"),
+    SlashCommandSpec("/load", "/load <path|latest>", "Load a saved chat session"),
+    SlashCommandSpec("/sessions", "/sessions", "List recent session files"),
+    SlashCommandSpec("/tasks", "/tasks", "Open the read-only task board"),
+    SlashCommandSpec("/use-model", "/use-model <profile_id|model_id>", "Switch the current TUI runtime model"),
+    SlashCommandSpec("/reload", "/reload", "Reload the system prompt from disk"),
+    SlashCommandSpec("/stop", "/stop", "Stop the current running task"),
+    SlashCommandSpec("/clear", "/clear", "Clear chat and rebuild the system prompt"),
+    SlashCommandSpec("/usage", "/usage", "Show local token usage counters"),
+    SlashCommandSpec("/compress", "/compress", "Show compacting guidance for the next turn"),
+    SlashCommandSpec("/retry", "/retry", "Show retry / continue guidance"),
+    SlashCommandSpec("/undo", "/undo", "Show current undo guidance"),
+    SlashCommandSpec("/personality", "/personality", "Show the current CAI_PERSONALITY hint"),
+)
+
+
 _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
-    "/?",
-    "/help",
-    "/status",
-    "/compress",
-    "/models",
-    "/models refresh",
-    "/mcp refresh",
-    "/mcp call ",
-    "/mcp",
-    "/mcp-presets",
-    "/save",
+    *(s.value for s in _NATIVE_SLASH_COMMAND_SPECS),
     "/save ",
-    "/sessions",
-    "/tasks",
-    "/load",
     "/load ",
     "/load latest",
-    "/personality",
-    "/retry",
-    "/use-model",
     "/use-model ",
-    "/reload",
-    "/usage",
-    "/undo",
     "/fix-build",
     "/security-scan",
-    "/stop",
-    "/clear",
 )
 
 _USE_MODEL_PREFIX = "/use-model "
@@ -157,14 +170,44 @@ def _slash_typo_hint(value: str) -> str | None:
 
 
 def _slash_static_menu_candidates() -> tuple[str, ...]:
-    out: list[str] = []
+    return tuple(s.value for s in _NATIVE_SLASH_COMMAND_SPECS)
+
+
+def _slash_command_specs(
+    *,
+    context: "SlashCompletionContext | None" = None,
+) -> tuple[SlashCommandSpec, ...]:
+    dynamic = tuple(
+        SlashCommandSpec(
+            f"/{name}",
+            f"/{name}",
+            f"Load and run commands/{name}.md",
+            source="template",
+        )
+        for name in sorted((context.command_names if context else ()) or ())
+    )
+    return (*dynamic, *_NATIVE_SLASH_COMMAND_SPECS)
+
+
+def _slash_menu_rows(
+    value: str,
+    *,
+    context: "SlashCompletionContext | None" = None,
+    limit: int = _SLASH_MENU_MAX_ITEMS,
+) -> tuple[SlashCommandSpec, ...]:
+    if not value.startswith("/") or " " in value.rstrip():
+        return ()
+    matches: list[SlashCommandSpec] = []
     seen: set[str] = set()
-    for cand in _SLASH_COMMAND_CANDIDATES:
-        if cand in seen:
+    for spec in _slash_command_specs(context=context):
+        if spec.value in seen:
             continue
-        seen.add(cand)
-        out.append(cand)
-    return tuple(out)
+        if spec.value.startswith(value):
+            seen.add(spec.value)
+            matches.append(spec)
+        if len(matches) >= limit:
+            break
+    return tuple(matches)
 
 
 def _slash_menu_matches(
@@ -173,21 +216,7 @@ def _slash_menu_matches(
     context: "SlashCompletionContext | None" = None,
     limit: int = _SLASH_MENU_MAX_ITEMS,
 ) -> tuple[str, ...]:
-    if not value.startswith("/") or " " in value.rstrip():
-        return ()
-    dynamic = tuple(f"/{name}" for name in sorted((context.command_names if context else ()) or ()))
-    candidates = (*dynamic, *_slash_static_menu_candidates())
-    matches: list[str] = []
-    seen: set[str] = set()
-    for cand in candidates:
-        if cand in seen:
-            continue
-        if cand.startswith(value):
-            seen.add(cand)
-            matches.append(cand)
-        if len(matches) >= limit:
-            break
-    return tuple(matches)
+    return tuple(spec.value for spec in _slash_menu_rows(value, context=context, limit=limit))
 
 
 def _cai_brand_markup() -> str:
@@ -1085,12 +1114,18 @@ class CaiAgentApp(App[None]):
             menu = self.query_one("#slash-command-menu", OptionList)
         except Exception:
             return
-        matches = _slash_menu_matches(value, context=self._slash_ctx)
-        if not matches:
+        rows = _slash_menu_rows(value, context=self._slash_ctx)
+        if not rows:
             menu.display = False
             menu.clear_options()
             return
-        menu.set_options(Option(f"[cyan]{cmd}[/]", id=cmd) for cmd in matches)
+        menu.set_options(
+            Option(
+                f"[cyan]{spec.display}[/] [dim]- {spec.description}[/]",
+                id=spec.value,
+            )
+            for spec in rows
+        )
         menu.highlighted = 0
         menu.display = True
 
@@ -1146,6 +1181,30 @@ class CaiAgentApp(App[None]):
         lines.extend(f"/{name} — 载入并执行 {name} 命令模板" for name in names)
         return "\n".join(lines) + "\n"
 
+    def _slash_help_text(self) -> str:
+        self._sync_slash_completion_sources()
+        lines = ["\n[bold]Commands[/]"]
+        for spec in _NATIVE_SLASH_COMMAND_SPECS:
+            lines.append(f"[cyan]{spec.display}[/] - {spec.description}")
+        if self._slash_ctx.command_names:
+            lines.append("\n[bold]Template commands[/]")
+            for name in self._slash_ctx.command_names:
+                lines.append(f"[cyan]/{name}[/] - Load and run commands/{name}.md")
+        lines.extend(
+            [
+                "",
+                "[dim]Type / to open the selectable menu. Use arrows + Enter, or Tab to accept the first item.[/]",
+                "[dim]Dynamic arguments are completed for /use-model, /mcp call, /load, and /save.[/]",
+                tui_workbench_cheatsheet_rich(leading_nl=True),
+                "\n[bold]Shortcuts[/]",
+                "[dim]Ctrl+M model panel · Ctrl+B task board · Ctrl+C stop · Ctrl+Q quit[/]",
+                "[dim]Copy chat: drag-select, then Ctrl+Shift+C. Ctrl+Shift+A selects the chat log.[/]",
+                format_tui_mcp_web_notebook_quickstart(),
+                "",
+            ],
+        )
+        return "\n".join(lines)
+
     def on_input_submitted(self, event: Input.Submitted) -> None:
         if event.input.id != "user-input":
             return
@@ -1164,6 +1223,8 @@ class CaiAgentApp(App[None]):
         inp.value = ""
 
         if raw in ("/help", "/?"):
+            self.query_one("#chat", RichLog).write(self._slash_help_text())
+            return
             self.query_one("#chat", RichLog).write(
                 "\n[bold]命令[/]\n"
                 "[dim]输入 / 时显示灰色补全；光标在末尾时按 Tab 或 →（右方向键）接受。[/]\n"

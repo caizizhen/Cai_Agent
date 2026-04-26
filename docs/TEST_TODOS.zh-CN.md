@@ -1,6 +1,7 @@
 # 测试 TODO（全量未完成功能版）
 
 > 开发对齐页：[`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md)。产品判断页：[`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md)。
+> 任务完成后的验证记录由 `scripts/finalize_task.py` 追加到本页“自动验证记录”，并同步写入 `docs/qa/runs/`。
 
 这份文档按三条能力线维护**尽量全量**的测试 backlog，目标是让开发和测试围绕同一批“未完成功能”推进，而不是只盯少数优先项。
 
@@ -136,8 +137,9 @@
 | `CC-N01-D02` | `test_doctor_cli.py` 增加 `doctor.install` JSON snapshot | 新机器或干净 venv 走查 | install 诊断字段稳定、建议可执行 |
 | `CC-N01-D03` | `test_install_surface_cli.py` 覆盖 `doctor.sync` drift 场景 | 手工制造模板缺失/旧 schema | 能区分 error/warning/action |
 | `CC-N01-D04` | docs link check 或 smoke 中校验 onboarding 命令存在 | 按 README 从零跑一遍 | 新旧用户路径没有冲突文案 |
+| `CC-N01-D05` | **Done（2026-04-26）**：`test_command_registry.py` 覆盖 `command_discovery_v1`；`test_tui_slash_suggester.py` 覆盖模板命令菜单说明；`test_doctor_cli.py` / `test_repair_cli.py` 覆盖 command_center 与最小资产面 | 已执行：`test_command_registry.py` + `test_tui_slash_suggester.py` = 29 passed；`repair --apply --json` 与 `doctor --json` CLI smoke 通过。Windows sandbox 下 pytest `tmp_path` / `TemporaryDirectory` 会被临时目录权限拦截，repair/doctor 用等价 CLI smoke 验证 | 命令发现、补全、诊断、修复四处同源 |
 | `CC-N02-D01` | `test_feedback_bundle_cli.py` 已覆盖 bundle schema、脱敏字段、doctor 摘要、repair plan | 打开导出的 bundle 检查内容 | bundle 可复现问题且不泄漏敏感字段 |
-| `CC-N02-D02` | `test_feedback_cli.py` 覆盖 bug 模板字段和 JSON 输出 | 手工填写一次反馈流程 | human/json 两种输出结构一致 |
+| `CC-N02-D02` | **Done（2026-04-26）**：`test_feedback_cli.py` 已补 bug 模板字段和 JSON 输出断言（`repro_steps` / `expected` / `actual` / `attachments`） | 已执行 JSON 与文本模式 CLI smoke；当前 Windows sandbox 下 pytest `tmp_path` 仍会被系统临时目录权限拦截，保留测试文件用于正常环境回归 | human/json 两种输出结构一致 |
 | `CC-N02-D03` | `test_feedback_bundle_cli.py` 已覆盖 `doctor_feedback_triage_v1` | 手工走 `doctor -> repair -> feedback bug -> feedback bundle` | 常见错误先给修复建议再导出反馈 |
 | `CC-N02-D04` | `test_feedback_export.py` 补 path/token/email 脱敏断言 | 检查真实导出目录 | 敏感信息不会出现在明文 bundle |
 | `CC-N03-D01` | `test_marketplace_manifest_cli.py` 覆盖 catalog schema 校验 | 检查生成 catalog 可读性 | catalog 可版本化、可解析 |
@@ -254,3 +256,9 @@ $env:QA_SKIP_LOG='1'; python scripts/run_regression.py
 ```
 
 如果只是局部模块，也允许先跑子集；但涉及共享 CLI / API / gateway / dashboard / memory provider / sync-home 的改动，不建议跳过 smoke 和 regression。
+
+## 自动验证记录
+
+| 日期 | 任务 | 验证 | 记录 |
+|---|---|---|---|
+| 2026-04-26 | `DOC-AUTO-FINALIZE` | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | [`docs/qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md`](qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md) |

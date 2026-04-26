@@ -91,3 +91,9 @@
 | 全量单测 | `python -m pytest -q cai-agent/tests` | **803 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |
+
+## 自动完成归档
+
+| Issue ID | 完成日期 | 交付摘要 | 验证 | 来源 / 备注 |
+|---|---|---|---|---|
+| `DOC-AUTO-FINALIZE` | 2026-04-26 | 建立任务完成后的自动文档同步脚本和低 token 完成协议 | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | finalize_task |

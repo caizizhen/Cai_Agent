@@ -12,6 +12,7 @@ from cai_agent.tui import (
     _cai_brand_markup,
     _parse_mcp_tool_lines,
     _slash_menu_matches,
+    _slash_menu_rows,
     _slash_typo_hint,
 )
 
@@ -120,6 +121,14 @@ class DynamicSlashCompletionTests(unittest.TestCase):
         ctx = SlashCompletionContext()
         ctx.command_names = ("plan",)
         self.assertEqual(_slash_menu_matches("/p", context=ctx)[0], "/plan")
+
+    def test_slash_menu_rows_include_descriptions(self) -> None:
+        ctx = SlashCompletionContext()
+        ctx.command_names = ("code-review",)
+        rows = _slash_menu_rows("/c", context=ctx)
+        self.assertEqual(rows[0].value, "/code-review")
+        self.assertEqual(rows[0].source, "template")
+        self.assertIn("commands/code-review.md", rows[0].description)
 
     def test_use_model_profiles(self) -> None:
         ctx = SlashCompletionContext()

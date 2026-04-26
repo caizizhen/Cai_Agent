@@ -79,6 +79,66 @@ def test_feedback_bug_cli_json(tmp_path: Path) -> None:
     assert any(r.get("schema_version") == "feedback_bug_report_v1" for r in rows)
 
 
+def test_feedback_bug_cli_json_structured_fields(tmp_path: Path) -> None:
+    buf = io.StringIO()
+    with patch("cai_agent.__main__.os.getcwd", return_value=str(tmp_path)):
+        with redirect_stdout(buf):
+            rc = main(
+                [
+                    "feedback",
+                    "bug",
+                    "structured",
+                    "case",
+                    "--step",
+                    "open the TUI",
+                    "--step",
+                    "type /code-review",
+                    "--expected",
+                    "menu shows code-review",
+                    "--actual",
+                    "menu hides token sk-proj-SECRETKEYHERE",
+                    "--attachment",
+                    str(tmp_path / "shot.png"),
+                    "--json",
+                ],
+            )
+    assert rc == 0
+    row = json.loads(buf.getvalue().strip())
+    assert row.get("repro_steps") == ["open the TUI", "type /code-review"]
+    assert row.get("expected") == "menu shows code-review"
+    assert "sk-proj-" not in str(row.get("actual") or "")
+    assert row.get("attachments")
+    rows = list_feedback(tmp_path, limit=5)
+    assert any((r.get("repro_steps") or []) == ["open the TUI", "type /code-review"] for r in rows)
+
+
+def test_feedback_bug_text_reports_structured_counts(tmp_path: Path) -> None:
+    buf = io.StringIO()
+    with patch("cai_agent.__main__.os.getcwd", return_value=str(tmp_path)):
+        with redirect_stdout(buf):
+            rc = main(
+                [
+                    "feedback",
+                    "bug",
+                    "text",
+                    "case",
+                    "--step",
+                    "one",
+                    "--expected",
+                    "works",
+                    "--actual",
+                    "broken",
+                    "--attachment",
+                    "screen.txt",
+                ],
+            )
+    assert rc == 0
+    out = buf.getvalue()
+    assert "steps=" in out
+    assert "behavior= expected/actual recorded" in out
+    assert "attachments=" in out
+
+
 def test_feedback_bug_detail_file(tmp_path: Path) -> None:
     df = tmp_path / "detail.txt"
     df.write_text("steps\nline2", encoding="utf-8")

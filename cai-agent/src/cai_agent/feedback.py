@@ -117,6 +117,10 @@ def append_bug_report(
     *,
     summary: str,
     detail: str = "",
+    repro_steps: list[str] | tuple[str, ...] | None = None,
+    expected: str = "",
+    actual: str = "",
+    attachments: list[str] | tuple[str, ...] | None = None,
     category: str = "other",
     cai_agent_version: str = "",
 ) -> dict[str, Any]:
@@ -126,6 +130,18 @@ def append_bug_report(
         cat = "other"
     summary_s = sanitize_feedback_text((summary or "").strip())[:800]
     detail_s = sanitize_feedback_text((detail or "").strip())[:3500]
+    steps_s = [
+        sanitize_feedback_text(str(step).strip())[:1000]
+        for step in (repro_steps or ())
+        if str(step).strip()
+    ][:50]
+    expected_s = sanitize_feedback_text((expected or "").strip())[:2000]
+    actual_s = sanitize_feedback_text((actual or "").strip())[:2000]
+    attachments_s = [
+        sanitize_feedback_text(str(item).strip())[:1000]
+        for item in (attachments or ())
+        if str(item).strip()
+    ][:50]
     if not summary_s:
         raise ValueError("bug summary is empty")
     text = f"[bug:{cat}] {summary_s}"[:4000]
@@ -136,6 +152,10 @@ def append_bug_report(
         "category": cat,
         "summary": summary_s,
         "detail": detail_s,
+        "repro_steps": steps_s,
+        "expected": expected_s,
+        "actual": actual_s,
+        "attachments": attachments_s,
         "text": text,
         "redaction": "sanitize_feedback_text_v1",
         "cai_agent_version": (cai_agent_version or "")[:48],

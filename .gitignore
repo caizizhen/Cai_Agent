@@ -43,7 +43,10 @@ cai-agent/memory/instincts/instincts-*.md
 .tmp_qg/
 .tmp-test/
 .tmp-test-*/
+.tmp-tests/
 .tmp-codex-pytest/
+cai-agent/tests/.tmp-pytest/
+tmp*/
 
 # 临时 plan / regression 工件
 .regression-workflow.json

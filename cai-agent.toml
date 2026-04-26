@@ -79,8 +79,10 @@ git_context = true
 
 # 对话轮次较长时注入一次「建议收尾」提示（0 表示关闭）；见 docs/CONTEXT_AND_COMPACT.zh-CN.md
 [context]
-# compact_after_iterations = 10
-# compact_min_messages = 8
+compact_after_iterations = 6
+compact_min_messages = 8
+compact_on_tool_error = true
+compact_after_tool_calls = 8
 
 # 默认不跑编译/测试门禁（与程序内置默认一致）；需要 CI 式检查时再改为 true。
 [quality_gate]
@@ -160,4 +162,4 @@ fetch_url = "allow"
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）
-budget_max_tokens = 50000
+budget_max_tokens = 30000

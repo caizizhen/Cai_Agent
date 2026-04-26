@@ -5822,6 +5822,30 @@ def main(argv: list[str] | None = None) -> int:
         help="复现步骤或补充说明（写入前脱敏）",
     )
     feedback_bug.add_argument(
+        "--step",
+        action="append",
+        default=[],
+        dest="repro_steps",
+        help="复现步骤；可重复传入多次，JSON 输出为 repro_steps",
+    )
+    feedback_bug.add_argument(
+        "--expected",
+        default="",
+        help="期望行为（写入前脱敏）",
+    )
+    feedback_bug.add_argument(
+        "--actual",
+        default="",
+        help="实际行为（写入前脱敏）",
+    )
+    feedback_bug.add_argument(
+        "--attachment",
+        action="append",
+        default=[],
+        dest="attachments",
+        help="附件路径或说明；可重复传入多次，写入前脱敏",
+    )
+    feedback_bug.add_argument(
         "--detail-file",
         default="",
         metavar="PATH",
@@ -11133,6 +11157,10 @@ def main(argv: list[str] | None = None) -> int:
                     root_fb,
                     summary=summ,
                     detail=det,
+                    repro_steps=list(getattr(args, "repro_steps", []) or []),
+                    expected=str(getattr(args, "expected", "") or ""),
+                    actual=str(getattr(args, "actual", "") or ""),
+                    attachments=list(getattr(args, "attachments", []) or []),
                     category=str(getattr(args, "category", "other") or "other"),
                     cai_agent_version=__version__,
                 )
@@ -11144,6 +11172,12 @@ def main(argv: list[str] | None = None) -> int:
             else:
                 print("[feedback] bug 已记录", row.get("ts"), "→", str(feedback_path(root_fb)))
                 print("  category=", row.get("category"), "summary=", (row.get("summary") or "")[:120])
+                if row.get("repro_steps"):
+                    print("  steps=", len(row.get("repro_steps") or []))
+                if row.get("expected") or row.get("actual"):
+                    print("  behavior= expected/actual recorded")
+                if row.get("attachments"):
+                    print("  attachments=", len(row.get("attachments") or []))
                 if bool(getattr(args, "attach_doctor_hint", False)):
                     print("  hint: 诊断链路: cai-agent doctor --json -> cai-agent repair --dry-run --json")
                     print("  hint: bundle: cai-agent feedback bundle --dest dist/feedback-bundle.json --json")

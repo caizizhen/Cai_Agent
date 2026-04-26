@@ -102,6 +102,10 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(sync_diag, dict)
             self.assertEqual(sync_diag.get("schema_version"), "doctor_sync_v1")
             self.assertIsInstance(sync_diag.get("items"), list)
+            command_center = pl.get("command_center")
+            self.assertIsInstance(command_center, dict)
+            self.assertEqual(command_center.get("schema_version"), "command_discovery_v1")
+            self.assertIsInstance(command_center.get("commands_count"), int)
             self.assertEqual(
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",
