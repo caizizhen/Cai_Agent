@@ -3,7 +3,7 @@
 
 Covers plan/run/stats/sessions/observe/commands/agents/cost budget, gateway
 platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-root
-``plugins --json --with-compat-matrix``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
+``plugins --json --with-compat-matrix`` + ``plugins sync-home --json``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory provider --json`` + ``memory user-model --json`` + ``memory user-model export``
 + ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json``, plus
@@ -276,6 +276,25 @@ def main() -> int:
                 errs.append(
                     f"plugins compat_matrix schema_version {cm.get('schema_version')!r}",
                 )
+        ppsh = _run(
+            [
+                *cli,
+                "plugins",
+                "--config",
+                str(cfg_repo),
+                "sync-home",
+                "--target",
+                "cursor",
+                "--json",
+            ],
+            cwd=str(root),
+        )
+        if ppsh.returncode != 0:
+            errs.append(f"plugins sync-home exit {ppsh.returncode} stderr={ppsh.stderr!r}")
+        else:
+            psh = json.loads((ppsh.stdout or "").strip())
+            if psh.get("schema_version") != "plugins_sync_home_plan_v1":
+                errs.append(f"plugins sync-home schema {psh.get('schema_version')!r}")
         pd = _run(
             [*cli, "doctor", "--json", "--config", str(cfg_repo)],
             cwd=str(root),
@@ -295,6 +314,9 @@ def main() -> int:
                 dcm = (plug.get("compat_matrix") or {}).get("schema_version")
                 if dcm != "plugin_compat_matrix_v1":
                     errs.append(f"doctor plugins.compat_matrix schema_version {dcm!r}")
+                hsd = plug.get("home_sync_drift") or {}
+                if hsd.get("schema_version") != "plugins_home_sync_drift_v1":
+                    errs.append(f"doctor plugins.home_sync_drift schema {hsd.get('schema_version')!r}")
         prc = _run(
             [*cli, "release-changelog", "--json", "--semantic", "--config", str(cfg_repo)],
             cwd=str(root),

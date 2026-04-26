@@ -36,6 +36,8 @@
 | `CC-03b` | `CC-03` | 模型切换与 `/status` 提示 RFC | RFC 评审 | `docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md` |
 | `CC-03c` | `CC-03` | TUI `#context-label` route/migration 提示；CLI/TUI 共享 `profile_switched: <id>` | pytest | 2026-04-25 批次 |
 | `CC-N01-D04` | `CC-N01` | `doctor_upgrade_hints_v1`：统一 repair / ecc / export 与文档指针 | pytest `test_doctor_cli` | 2026-04-26 批次 |
+| `CC-N03-D02` | `CC-N03` | `plugins sync-home` → `plugins_sync_home_plan_v1`（与 export/ecc 同源） | pytest `test_plugin_compat_matrix` + smoke | 2026-04-26 批次 |
+| `CC-N03-D03` | `CC-N03` | `plugins_home_sync_drift_v1`（doctor/repair/API，与 ecc drift 同源） | pytest 多套件 + smoke | 2026-04-26 批次 |
 | `CC-N02-D04` | `CC-N02` | feedback bundle/export 脱敏强化、`dest_placement`、工作区外 dest 警告、runbook `feedback bundle` 步骤 | pytest `test_feedback_*` + `test_doctor_cli` + smoke | 2026-04-26 批次 |
 
 ## Hermes 线

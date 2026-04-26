@@ -22,7 +22,11 @@ from cai_agent.profiles import (
 )
 from cai_agent.feedback import feedback_stats
 from cai_agent.memory import resolve_active_memory_provider
-from cai_agent.plugin_registry import build_plugin_compat_matrix, list_plugin_surface
+from cai_agent.plugin_registry import (
+    build_plugin_compat_matrix,
+    build_plugins_home_sync_drift_v1,
+    list_plugin_surface,
+)
 from cai_agent.provider_registry import provider_readiness_snapshot
 from cai_agent.release_runbook import build_release_runbook_payload, resolve_release_repo_root
 from cai_agent.runtime.registry import get_runtime_backend
@@ -40,6 +44,7 @@ def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
             "cai-agent doctor --json",
             "cai-agent repair --dry-run --json",
             "cai-agent ecc catalog --json",
+            "cai-agent plugins sync-home --all-targets --json",
             "cai-agent ecc sync-home --all-targets --dry-run --json",
             "cai-agent export --target cursor --dry-run --json",
         ],
@@ -310,6 +315,10 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
     ecc_sync_commands = [f"cai-agent ecc sync-home --target {x} --apply" for x in drift_targets]
     if not ecc_sync_commands:
         ecc_sync_commands = ["cai-agent ecc sync-home --all-targets --dry-run --json"]
+    ph = build_plugins_home_sync_drift_v1(settings)
+    plugins_preview = ph.get("preview_commands") if isinstance(ph.get("preview_commands"), list) else []
+    if not plugins_preview:
+        plugins_preview = ["cai-agent plugins sync-home --all-targets --json"]
 
     return {
         "schema_version": "repair_plan_v1",
@@ -323,6 +332,7 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
         },
         "ecc_home_sync_drift_targets": drift_targets,
         "ecc_sync_commands": ecc_sync_commands,
+        "plugins_sync_home_preview_commands": plugins_preview,
     }
 
 
@@ -572,6 +582,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             "schema_version": "doctor_plugins_bundle_v1",
             "surface": list_plugin_surface(settings),
             "compat_matrix": build_plugin_compat_matrix(),
+            "home_sync_drift": build_plugins_home_sync_drift_v1(settings),
         },
         "memory_policy": {
             "max_entries_per_day": int(getattr(settings, "memory_policy_max_entries_per_day", 10_000)),
@@ -640,6 +651,12 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "ecc_home_sync_drift_targets": (
             (p.get("ecc_home_sync_drift") or {}).get("targets_with_drift")
             if isinstance(p.get("ecc_home_sync_drift"), dict)
+            else None
+        ),
+        "plugins_home_sync_drift_targets": (
+            ((p.get("plugins") or {}).get("home_sync_drift") or {}).get("targets_with_drift")
+            if isinstance(p.get("plugins"), dict)
+            and isinstance((p.get("plugins") or {}).get("home_sync_drift"), dict)
             else None
         ),
     }
@@ -837,6 +854,20 @@ def run_doctor(
         "  兼容矩阵: cai-agent plugins --json --with-compat-matrix；"
         "说明见 docs/PLUGIN_COMPAT_MATRIX.zh-CN.md（英文: docs/PLUGIN_COMPAT_MATRIX.md）",
     )
+    phd = build_plugins_home_sync_drift_v1(settings)
+    dtargets = [str(x) for x in (phd.get("targets_with_drift") or [])]
+    print("Plugins / 根目录 ↔ harness 导出漂移:")
+    if dtargets:
+        print(f"  有差分目标: {','.join(dtargets)}")
+    else:
+        print("  未发现 rules/skills/agents/commands 相对于导出根的缺漏差分")
+    prev = phd.get("preview_commands") or []
+    if isinstance(prev, list) and prev:
+        print(f"  预览: {prev[0]}")
+    apply_cmds = phd.get("apply_commands") or []
+    if dtargets and isinstance(apply_cmds, list) and apply_cmds:
+        print(f"  写回（等价 export）: {apply_cmds[0]}")
+    print("  机读: doctor --json -> plugins.home_sync_drift")
     print()
     mepd = int(getattr(settings, "memory_policy_max_entries_per_day", 10_000) or 0)
     mtd = getattr(settings, "memory_policy_default_ttl_days", None)

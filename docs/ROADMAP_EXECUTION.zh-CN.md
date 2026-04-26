@@ -278,6 +278,8 @@
 | `ECC-N02-D01` | `Done` | `ECC-N02` | pack manifest v1 | **`cai-agent ecc pack-manifest`** 输出 **`ecc_asset_pack_manifest_v1`**（per-target 源文件 sha256 + synthetic catalog digest、**`pack_sha256`**） | `ECC-N01-D02` | pytest `test_ecc_layout_cli` + smoke |
 | `ECC-N02-D02` | `Done` | `ECC-N02` | export pack dry-run / checksum | 与 D01 共用 manifest 计算；**`export --dry-run`** 与 **`ecc sync-home --dry-run`** 提供计划型 dry-run 出口 | `ECC-N02-D01` | pytest + smoke |
 | `CC-N01-D04` | `Done` | `CC-N01` | upgrade 叙事命令面 | **`doctor_v1.upgrade_hints`**（**`doctor_upgrade_hints_v1`**）：统一列出 repair / ecc / export 与文档指针 | `CC-N01-D05` | pytest `test_doctor_cli` |
+| `CC-N03-D02` | `Done` | `CC-N03` | plugins sync-home dry-run | 新增 **`cai-agent plugins sync-home`**（**`plugins_sync_home_plan_v1`**）：按 harness 预览将 repo 根 **rules/skills/agents/commands** 同步到与 **`export`/`ecc sync-home`** 一致的导出根；**codex** 标记 **manifest_only**（与 `export_target` 行为对齐） | `ECC-N03-D02` | pytest `test_plugin_compat_matrix` + smoke |
+| `CC-N03-D03` | `Done` | `CC-N03` | plugins home drift（doctor/repair/API） | 新增 **`plugins_home_sync_drift_v1`**：复用 **`ecc_home_sync_drift_v1`** 的 **`export_ecc_dir_diff_v1`** 聚合；**`doctor_v1.plugins.home_sync_drift`**；人类 **`doctor`** 插件区漂移摘要；**`repair_plan_v1.plugins_sync_home_preview_commands`**；**`api_doctor_summary_v1.plugins_home_sync_drift_targets`** | `CC-N03-D02` | pytest `test_plugin_compat_matrix` + `test_doctor_cli` + `test_repair_cli` + `test_api_http_server` + smoke |
 | `DOC-01c` | `Done` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 根 README 与 docs README 补 Teams/runtime/plugin snapshot 入口；中英入口互指实现摘要、测试清单与 snapshot | — | 手工 + `rg` |
 
 ### 10.1 建议开单顺序

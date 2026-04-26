@@ -4677,6 +4677,26 @@ def main(argv: list[str] | None = None) -> int:
             "检查失败（missing / mismatches）时 exit 2"
         ),
     )
+    plugins_sub = plugins_p.add_subparsers(dest="plugins_action", required=False)
+    plugins_sync_p = plugins_sub.add_parser(
+        "sync-home",
+        help="预览将 rules/skills/agents/commands 同步到各 harness 导出目录（CC-N03-D02；与 export/ecc sync-home 同源；仅 dry-run）",
+    )
+    plugins_sync_p.add_argument(
+        "--target",
+        action="append",
+        dest="plugins_sync_targets",
+        metavar="T",
+        choices=["cursor", "codex", "opencode", "all"],
+        help="导出目标，可重复；或使用 --all-targets",
+    )
+    plugins_sync_p.add_argument(
+        "--all-targets",
+        action="store_true",
+        dest="plugins_sync_all",
+        help="等价于 cursor + codex + opencode",
+    )
+    plugins_sync_p.add_argument("--json", action="store_true", dest="json_output")
     skills_p = sub.add_parser(
         "skills",
         parents=[common],
@@ -7960,6 +7980,42 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
+        if getattr(args, "workspace", None):
+            settings = replace(settings, workspace=os.path.abspath(str(args.workspace).strip()))
+        plg_act = str(getattr(args, "plugins_action", "") or "").strip().lower()
+        if plg_act == "sync-home":
+            from cai_agent.plugin_registry import build_plugins_sync_home_plan_v1
+
+            t_plg_sh = time.perf_counter()
+            if bool(getattr(args, "plugins_sync_all", False)):
+                tlist_sh: list[str] = ["all"]
+            else:
+                tlist_sh = list(getattr(args, "plugins_sync_targets", None) or [])
+            if not tlist_sh:
+                print("plugins sync-home: 需要 --target（可重复）或 --all-targets", file=sys.stderr)
+                return 2
+            plan_sh = build_plugins_sync_home_plan_v1(settings, targets=tuple(tlist_sh))
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(plan_sh, ensure_ascii=False))
+            else:
+                print(
+                    f"[plugins sync-home] ok={plan_sh.get('ok')} "
+                    f"targets={len(plan_sh.get('targets') or [])}",
+                )
+            ok_sh = bool(plan_sh.get("ok"))
+            tok_sh = sum(
+                len(tr.get("components") or [])
+                for tr in (plan_sh.get("targets") or [])
+                if isinstance(tr, dict)
+            )
+            _maybe_metrics_cli(
+                module="plugins",
+                event="plugins.sync_home",
+                latency_ms=(time.perf_counter() - t_plg_sh) * 1000.0,
+                tokens=tok_sh,
+                success=ok_sh,
+            )
+            return 0 if ok_sh else 2
         t_plg = time.perf_counter()
         surface = list_plugin_surface(settings)
         if bool(getattr(args, "plugins_with_compat_matrix", False)):

@@ -17,20 +17,24 @@
 
 上一轮 `CC-N01-D05` 命令中心发现链路和 `CC-N02-D02` feedback bug 结构化字段已经完成。当前最好继续沿着“安装/修复/反馈闭环”和“profile/home/sync 产品化”推进，避免重新打开已经 Done 的 gateway、runtime、model gateway 大块。
 
-`ECC-N04-D03`（provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照 + `test_ecc_ingest_schema_snapshots`）已交付并归档；ingest 下一里程碑在 **`ECC-N02-D03/D04`**（pack import/repair）与 **`CC-N03`**（plugins sync-home），而非重复扩写 D01～D03 文档。
+`ECC-N04-D03`（provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照 + `test_ecc_ingest_schema_snapshots`）已交付并归档；ingest 下一里程碑在 **`ECC-N02-D03/D04`**（pack import/repair）与 **`CC-N03-D04`**（**`plugins sync-home --apply`** 覆盖保护），而非重复扩写 D01～D03 文档。
 
-**`CC-N02`** 能力级 **Done**。**`HM-N01-D03`** 与 **`ECC-N01-D02`～`D04`**、**`ECC-N02-D01`/`D02`**、**`CC-N01-D04`**（upgrade 命令面）已于本轮收口（见下表「刚完成」）。下一优先建议从 **`DEVELOPER_TODOS.zh-CN.md` §8** 取 **`CC-N03`**、**`ECC-N02-D03`** 或 **`HM-N01-D01`**（profile home schema 深化）。
+**`CC-N02`** 能力级 **Done**。**`HM-N01-D03`** 与 **`ECC-N01-D02`～`D04`**、**`ECC-N02-D01`/`D02`**、**`CC-N01-D04`**（upgrade 命令面）已于本轮收口（见下表「刚完成」）。下一优先建议从 **`DEVELOPER_TODOS.zh-CN.md` §8** 取 **`CC-N03-D04`**、**`ECC-N02-D03`** 或 **`HM-N01-D01`**（profile home schema 深化）。
 
 `DEVELOPER_TODOS.zh-CN.md` §4～§8、`PRODUCT_GAP_ANALYSIS.zh-CN.md` §2/§4、`docs/PRODUCT_GAP_ANALYSIS.md` 已与 ROADMAP 中 `HM-N05`～`HM-N10` 与 **`ECC-N04-D01`～`D03`** 等交付态对齐（2026-04-26）。
 
 ## 现在做
 
-当前 **`NEXT_ACTIONS`「现在做」列为空**：上一批 **`ECC-N01`/`ECC-N02`/`CC-N01-D04`/`HM-N01-D03`** 已合入。下一轮请从 **`DEVELOPER_TODOS.zh-CN.md` §8** 与 **`ROADMAP_EXECUTION.zh-CN.md` §10** 选取下一组 **Ready** 项（例如 **`CC-N03`**、**`ECC-N02-D03`**、**`HM-N01-D01`**）。
+| 顺位 | ID | 状态 | 目标 | 主要入口 | 最小验证 |
+|---|---|---|---|---|---|
+| 1 | `CC-N03-D04` | Ready | **`plugins sync-home --apply`**：冲突策略、备份/回滚提示（承接 D02 计划 + D03 drift） | `plugin_registry.py`、`exporter.py`、`__main__.py` | pytest + smoke；与 **`plugins_sync_home_plan_v1`** / **`plugins_home_sync_drift_v1`** 对齐 |
 
 ## 刚完成
 
 | ID | 完成日期 | 结果 | 验证/证据 |
 |---|---|---|---|
+| `CC-N03-D03` | 2026-04-26 | **`plugins_home_sync_drift_v1`**：与 **`ecc_home_sync_drift_v1`** 同源；**`doctor --json` → plugins.home_sync_drift**；**`repair_plan_v1.plugins_sync_home_preview_commands`**；**`api_doctor_summary_v1.plugins_home_sync_drift_targets`**；文本 doctor 插件区漂移摘要。 | python -m pytest -q cai-agent/tests: PASS (834 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS |
+| `CC-N03-D02` | 2026-04-26 | 新增 **`cai-agent plugins sync-home`**（**`plugins_sync_home_plan_v1`**，与 export/ecc 同源目录约定；codex manifest_only）；**`doctor_upgrade_hints_v1`** 增补推荐命令；smoke 覆盖。 | python -m pytest -q cai-agent/tests: PASS<br>python scripts/smoke_new_features.py: PASS |
 | `ECC-N01-D02`/`D03`/`D04` + `ECC-N02-D01`/`D02` + `CC-N01-D04` + `HM-N01-D03` | 2026-04-26 | **`ecc sync-home`**（dry-run/apply）、**`export --dry-run`**；**`export_ecc_dir_diff_v1`** 支持 codex/opencode；**`ecc_home_sync_drift_v1`** 接入 doctor/API summary；**`repair_plan_v1.ecc_sync_commands`**；**`ecc pack-manifest`**（`ecc_asset_pack_manifest_v1`）；**`doctor_upgrade_hints_v1`**；**`load_agent_settings_for_workspace`** + gateway **discord/slack `--config`**。 | python -m pytest -q cai-agent/tests: PASS (830 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `HM-N01-D02`/`D04`/`D05` | 2026-04-26 | 交付 `models clone` / `clone-all` / `alias`（`models_alias_v1` 等）与 doctor **`profile_home_migration`**（`profile_home_migration_diag_v1`）。 | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `CC-N02-D04` | 2026-04-26 | Harden feedback bundle and JSONL export redaction: sanitize_feedback_text workspace/home paths and Slack tokens, sanitize append_feedback, redact export rows, feedback_bundle_export_v1 dest_placement and warnings for external --dest, release runbook bundle step. | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |

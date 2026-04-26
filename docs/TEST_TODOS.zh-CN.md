@@ -23,7 +23,7 @@
 
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
-| 1 | `CC-N03` plugin / sync-home | 仍缺 `plugins sync-home` 与 home drift 专用用例；可先扩展现有 `test_plugin_compat_matrix.py` / `test_ecc_layout_cli.py` 模式 |
+| 1 | `CC-N03` plugin / sync-home | **`CC-N03-D02`/`D03`**：`test_plugin_compat_matrix.py` / `test_doctor_cli.py` 等已覆盖 **`plugins_sync_home_plan_v1`**、**`plugins_home_sync_drift_v1`**；仍缺 **D04**（`--apply`）专用用例 |
 | 2 | `HM-N01` profile home | **`HM-N01-D01`**：schema 深化后补契约测试；**`D02`～`D05`/`D03`**：`test_profile_clone_alias_cli.py` + 全量 pytest + smoke |
 | 3 | `ECC-N02` pack import/repair | **`ECC-N02-D01`/`D02`**：`test_ecc_layout_cli.py` + smoke 已覆盖 **`ecc pack-manifest`** / **`ecc sync-home --dry-run`**；**`D03`/`D04`** 仍待用例 |
 | 4 | `ECC-N03` cross-harness doctor | 与已交付 **`ecc_home_sync_drift_v1`** 对齐，补 target inventory / 结构化 diff 快照测试 |
@@ -73,7 +73,7 @@
 |---|---|---|---|---|---|---|
 | `CC-N01` | `Ready` | init / doctor / repair / upgrade 路径 | `test_init_presets.py`、`test_doctor_cli.py` | `test_repair_cli.py`、`test_install_surface_cli.py`、smoke 补 `init -> doctor -> repair` | 空目录初始化、缺配置修复、旧配置残留提示 | 新用户与坏环境都能恢复到最小可用 |
 | `CC-N02` | `In progress` | 反馈与自助 triage 链路 | `test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`、`test_feedback_bundle_cli.py` | 后续补 bug 模板字段与附件列表测试 | 手工走一遍 `doctor -> repair -> feedback bug -> feedback bundle` | 反馈前诊断、反馈导出、提示链路一致 |
-| `CC-N03` | `Design` | plugin / marketplace / sync-home | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py` | `test_plugins_sync_home.py`、`test_plugins_home_drift.py`、`test_marketplace_manifest_cli.py` | `.claude` / `.codex` 两目标 dry-run diff | sync 不误删文件，doctor 能发现漂移 |
+| `CC-N03` | `Ready` | plugin / marketplace / sync-home | `test_plugin_compat_matrix.py`、`test_ecc_layout_cli.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_api_http_server.py` | `test_marketplace_manifest_cli.py`（占位）、D04 `--apply` 套件 | **`D02`/`D03` 已覆盖**；仍缺 D04 专用套件 | sync 不误删文件，doctor 能发现漂移 |
 | `CC-N04` | `Design` | recap / resume / task UX | `test_tui_task_board_render.py`、`test_tui_session_strip.py`、`test_tui_model_panel.py` | `test_session_recap_cli.py`、`test_tui_resume_hints.py`、`test_task_board_filters.py` | 长会话恢复体验手工验证 | 长会话 resume 不再要求重读整段历史 |
 | `CC-N05` | `Explore` | local GUI / desktop 包装层 | 现有无专门主入口 | 暂不新建正式自动化，先保留设计/PoC 校验 | 本地原型验证 | 先形成方案，再决定是否进入正式测试线 |
 | `CC-N06` | `OOS` | WebSearch / Notebook 原生实现 | `test_mcp_presets_tui_quickstart.py`、`test_mcp_serve_roundtrip.py` | 无；继续维护 preset / MCP 路径 | MCP 接入手工走查 | 保持替代路径可用即可 |
@@ -142,8 +142,8 @@
 | `CC-N02-D03` | `test_feedback_bundle_cli.py` 已覆盖 `doctor_feedback_triage_v1` | 手工走 `doctor -> repair -> feedback bug -> feedback bundle` | 常见错误先给修复建议再导出反馈 |
 | `CC-N02-D04` | `test_feedback_export.py` 补 path/token/email 脱敏断言 | 检查真实导出目录 | 敏感信息不会出现在明文 bundle |
 | `CC-N03-D01` | `test_marketplace_manifest_cli.py` 覆盖 catalog schema 校验 | 检查生成 catalog 可读性 | catalog 可版本化、可解析 |
-| `CC-N03-D02` | `test_plugins_sync_home.py` 覆盖 dry-run add/update/skip/conflict | 对 `.claude` / `.codex` 目标执行 dry-run | dry-run 不写文件，diff 清楚 |
-| `CC-N03-D03` | `test_plugins_home_drift.py` 覆盖缺失/过期/冲突资产 | 手工制造 home drift | doctor 能指出漂移和目标 |
+| `CC-N03-D02` | **`test_plugin_compat_matrix.py`** 覆盖 **`plugins sync-home`**（**`plugins_sync_home_plan_v1`**）与 CLI | 对 cursor/codex/opencode 执行 dry-run JSON | 不写盘；与 export 导出根路径一致 |
+| `CC-N03-D03` | **`test_plugin_compat_matrix.py`**（**`build_plugins_home_sync_drift_v1`** 与 ecc 同源断言）+ **`test_doctor_cli`/`test_repair_cli`/`test_api_http_server`** + smoke doctor JSON | 构造 **rules/** 与空导出根 | **`plugins_home_sync_drift_v1`** 与 preview 命令非空 |
 | `CC-N03-D04` | `test_plugins_sync_home.py` 补覆盖保护和备份断言 | 手工验证冲突确认提示 | 默认不覆盖用户修改 |
 | `CC-N04-D01` | `test_session_recap_cli.py` 覆盖 recap 生成和持久化 | 构造长会话后恢复 | recap 足够短且能定位上下文 |
 | `CC-N04-D02` | `test_tui_resume_hints.py` 覆盖 resume hints 字段 | 手工恢复最近会话 | 下一步提示准确、不误导 |

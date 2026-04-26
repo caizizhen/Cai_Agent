@@ -12,9 +12,13 @@ from pathlib import Path
 from unittest.mock import patch
 
 from cai_agent.__main__ import main
+from cai_agent.config import Settings
+from cai_agent.exporter import build_ecc_home_sync_drift_v1
 from cai_agent.plugin_registry import (
     build_plugin_compat_matrix,
     build_plugin_compat_matrix_check_v1,
+    build_plugins_home_sync_drift_v1,
+    build_plugins_sync_home_plan_v1,
 )
 
 
@@ -138,6 +142,75 @@ class PluginCompatMatrixCheckTests(unittest.TestCase):
             self.assertEqual(rc, 0)
             text = buf.getvalue()
             self.assertIn("compat_check=ok", text)
+
+
+class PluginsSyncHomeTests(unittest.TestCase):
+    def test_build_plugins_sync_home_plan_cursor(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "rules" / "common").mkdir(parents=True)
+            (root / "rules" / "common" / "a.md").write_text("x", encoding="utf-8")
+            s = Settings.from_env(config_path=cfg, workspace_hint=str(root))
+            plan = build_plugins_sync_home_plan_v1(s, targets=("cursor",))
+            self.assertEqual(plan.get("schema_version"), "plugins_sync_home_plan_v1")
+            self.assertTrue(plan.get("ok"))
+            rows = plan.get("targets") or []
+            self.assertEqual(len(rows), 1)
+            r0 = rows[0]
+            self.assertIsInstance(r0, dict)
+            self.assertEqual(r0.get("target"), "cursor")
+            comps = r0.get("components") or []
+            rules = next((c for c in comps if isinstance(c, dict) and c.get("component") == "rules"), None)
+            self.assertIsInstance(rules, dict)
+            self.assertTrue(rules.get("would_copy"))
+            self.assertGreater(int(rules.get("source_file_count") or 0), 0)
+
+    def test_build_plugins_sync_home_plan_codex_manifest_only(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "skills").mkdir()
+            (root / "skills" / "b.md").write_text("y", encoding="utf-8")
+            s = Settings.from_env(config_path=cfg, workspace_hint=str(root))
+            plan = build_plugins_sync_home_plan_v1(s, targets=("codex",))
+            self.assertTrue(plan.get("ok"))
+            r0 = (plan.get("targets") or [])[0]
+            self.assertEqual(r0.get("mode"), "manifest")
+            for c in r0.get("components") or []:
+                if isinstance(c, dict):
+                    self.assertFalse(bool(c.get("would_copy")))
+
+    def test_build_plugins_home_sync_drift_parity_with_ecc(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "rules" / "common").mkdir(parents=True)
+            (root / "rules" / "common" / "a.md").write_text("x", encoding="utf-8")
+            cfg = _write_min_config(root)
+            s = Settings.from_env(config_path=cfg, workspace_hint=str(root))
+            ecc = build_ecc_home_sync_drift_v1(s)
+            ph = build_plugins_home_sync_drift_v1(s)
+            self.assertEqual(ph.get("schema_version"), "plugins_home_sync_drift_v1")
+            self.assertEqual(ph.get("targets_with_drift"), ecc.get("targets_with_drift"))
+            self.assertEqual(len(ph.get("diffs") or []), len(ecc.get("diffs") or []))
+            prev = ph.get("preview_commands")
+            self.assertIsInstance(prev, list)
+            self.assertTrue(prev)
+
+    def test_plugins_sync_home_cli_json(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        ["plugins", "--config", cfg, "sync-home", "--target", "opencode", "--json"],
+                    )
+            self.assertEqual(rc, 0)
+            doc = json.loads(buf.getvalue().strip())
+            self.assertEqual(doc.get("schema_version"), "plugins_sync_home_plan_v1")
+            self.assertTrue(doc.get("ok"))
 
 
 class PluginCompatMatrixSnapshotTests(unittest.TestCase):

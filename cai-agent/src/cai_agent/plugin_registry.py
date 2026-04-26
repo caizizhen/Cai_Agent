@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from cai_agent.config import Settings
 
@@ -18,6 +19,10 @@ PLUGIN_VERSION = "0.1.0"
 COMPAT_MATRIX_SCHEMA = "plugin_compat_matrix_v1"
 COMPAT_MATRIX_CHECK_SCHEMA = "plugin_compat_matrix_check_v1"
 LOCAL_CATALOG_SCHEMA = "local_catalog_v1"
+PLUGINS_SYNC_HOME_PLAN_SCHEMA = "plugins_sync_home_plan_v1"
+PLUGINS_HOME_SYNC_DRIFT_SCHEMA = "plugins_home_sync_drift_v1"
+# 与 ``export_target`` / ``ecc sync-home`` 复制的顶层目录一致（不含独立 hooks 树；hooks 见 ecc scaffold）。
+PLUGINS_SYNC_HOME_EXPORT_DIRS = ("rules", "skills", "agents", "commands")
 
 # ECC-03b：治理 checklist 单源。改动 TOOLS_REGISTRY / 内置工具名 / harness 目标目录时需同步
 # 矩阵行 + 相关说明文档，与 `docs/rfc/ECC_03A_PLUGIN_VERSION_GOVERNANCE.zh-CN.md` §2 对齐。
@@ -35,6 +40,129 @@ def _project_root(settings: Settings) -> Path:
     if settings.config_loaded_from:
         return Path(settings.config_loaded_from).expanduser().resolve().parent
     return Path.cwd().resolve()
+
+
+def _harness_export_root_for_plugins_sync(root: Path, target: str) -> Path:
+    """各 harness 导出根（与 ``cai_agent.exporter.ecc_export_root_for_target`` 路径一致，避免 plugin_registry 依赖 exporter 循环引用）。"""
+    t = target.strip().lower()
+    if t == "cursor":
+        return root / ".cursor" / "cai-agent-export"
+    if t == "codex":
+        return root / ".codex" / "cai-agent-export"
+    if t == "opencode":
+        return root / ".opencode"
+    raise ValueError(f"unsupported harness target: {target}")
+
+
+def _normalize_plugins_sync_targets(raw: tuple[str, ...]) -> list[str]:
+    out: list[str] = []
+    for item in raw:
+        x = str(item).strip().lower()
+        if x == "all":
+            return ["cursor", "codex", "opencode"]
+        if x in ("cursor", "codex", "opencode") and x not in out:
+            out.append(x)
+    return out
+
+
+def build_plugins_sync_home_plan_v1(
+    settings: Settings,
+    *,
+    targets: tuple[str, ...],
+) -> dict[str, object]:
+    """CC-N03-D02：dry-run 计划，描述将 ``PLUGINS_SYNC_HOME_EXPORT_DIRS`` 同步到各 harness 导出目录的意图（不写盘）。"""
+    root = _project_root(settings)
+    norm = _normalize_plugins_sync_targets(targets)
+    if not norm:
+        return {
+            "schema_version": PLUGINS_SYNC_HOME_PLAN_SCHEMA,
+            "ok": False,
+            "error": "no_targets",
+            "hint": "使用 --target cursor|codex|opencode（可重复）或 --all-targets",
+        }
+    target_rows: list[dict[str, object]] = []
+    for tgt in norm:
+        try:
+            dest_root = _harness_export_root_for_plugins_sync(root, tgt)
+        except ValueError as e:
+            target_rows.append({"target": tgt, "error": str(e)})
+            continue
+        mode = "manifest" if tgt == "codex" else ("structured" if tgt == "cursor" else "copy")
+        comps: list[dict[str, object]] = []
+        for name in PLUGINS_SYNC_HOME_EXPORT_DIRS:
+            src = root / name
+            nfiles = sum(1 for p in src.rglob("*") if p.is_file()) if src.is_dir() else 0
+            if tgt == "codex":
+                would_copy = False
+                skip_reason: str | None = "codex_export_is_manifest_only"
+            else:
+                would_copy = src.is_dir()
+                skip_reason = None if would_copy else "source_missing"
+            comps.append(
+                {
+                    "component": name,
+                    "source_path": str(src),
+                    "dest_path": str(dest_root / name),
+                    "source_file_count": nfiles,
+                    "would_copy": bool(would_copy),
+                    "skip_reason": skip_reason,
+                },
+            )
+        manifest_path = dest_root / "cai-export-manifest.json"
+        catalog_path = dest_root / "cai-local-catalog.json"
+        target_rows.append(
+            {
+                "target": tgt,
+                "mode": mode,
+                "export_root": str(dest_root),
+                "would_write_manifest": True,
+                "would_write_local_catalog": True,
+                "manifest_path": str(manifest_path),
+                "local_catalog_path": str(catalog_path),
+                "components": comps,
+            },
+        )
+    return {
+        "schema_version": PLUGINS_SYNC_HOME_PLAN_SCHEMA,
+        "ok": True,
+        "dry_run": True,
+        "workspace": str(root),
+        "targets": target_rows,
+        "alignment_note": (
+            "与 cai-agent export / ecc sync-home 一致：repo 根 rules|skills|agents|commands → 各 harness 导出根"
+        ),
+    }
+
+
+def build_plugins_home_sync_drift_v1(settings: Settings) -> dict[str, Any]:
+    """CC-N03-D03：与 ``ecc_home_sync_drift_v1`` 同源目录差分，供 plugins / doctor 叙事消费。
+
+    在函数内 lazy-import ``exporter``，避免 ``exporter`` ↔ ``plugin_registry`` 的 import 环。
+    """
+    from cai_agent.exporter import build_ecc_home_sync_drift_v1
+
+    ecc = build_ecc_home_sync_drift_v1(settings)
+    drift_targets = [str(x) for x in (ecc.get("targets_with_drift") or [])]
+    preview: list[str] = ["cai-agent plugins sync-home --all-targets --json"]
+    apply_like: list[str] = []
+    for t in drift_targets:
+        preview.append(f"cai-agent plugins sync-home --target {t} --json")
+        apply_like.append(f"cai-agent ecc sync-home --target {t} --apply")
+    if not drift_targets:
+        apply_like = ["cai-agent ecc sync-home --all-targets --dry-run --json"]
+    return {
+        "schema_version": PLUGINS_HOME_SYNC_DRIFT_SCHEMA,
+        "workspace": ecc.get("workspace"),
+        "targets_with_drift": ecc.get("targets_with_drift"),
+        "diffs": ecc.get("diffs"),
+        "parity_with": "ecc_home_sync_drift_v1",
+        "preview_commands": preview,
+        "apply_commands": apply_like,
+        "note": (
+            "对比仓库根 rules/skills/agents/commands 与各 harness 导出根；"
+            "codex 为 manifest 导向，目录级差分可能长期非空。"
+        ),
+    }
 
 
 def _compute_health_score(root: Path, components: dict[str, dict[str, object]]) -> int:

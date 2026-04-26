@@ -110,6 +110,10 @@ class DoctorCliTests(unittest.TestCase):
                 (plug.get("surface") or {}).get("schema_version"),
                 "plugins_surface_v1",
             )
+            hsd = plug.get("home_sync_drift") or {}
+            self.assertIsInstance(hsd, dict)
+            self.assertEqual(hsd.get("schema_version"), "plugins_home_sync_drift_v1")
+            self.assertIn("targets_with_drift", hsd)
             ch = pl.get("cai_dir_health") or {}
             self.assertIsInstance(ch, dict)
             dsum = ch.get("discord_map_summary")

@@ -25,6 +25,8 @@ def test_repair_dry_run_json_reports_needed_actions(tmp_path: Path) -> None:
     assert any(a.get("id") == "create_hooks_json_minimal" for a in actions)
     assert isinstance(payload.get("ecc_sync_commands"), list)
     assert payload.get("ecc_sync_commands")
+    assert isinstance(payload.get("plugins_sync_home_preview_commands"), list)
+    assert payload.get("plugins_sync_home_preview_commands")
     assert not (tmp_path / "cai-agent.toml").exists()
 
 

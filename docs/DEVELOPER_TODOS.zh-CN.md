@@ -29,7 +29,7 @@
 
 | 顺位 | 能力 | 状态 | 下一步原子任务 |
 |---|---|---|---|
-| 1 | `CC-N03` Plugin / marketplace / home sync | `Design` | `plugins sync-home --dry-run`、home drift doctor、sync apply 保护（见 §4 表） |
+| 1 | `CC-N03` Plugin / marketplace / home sync | `Ready` | **`CC-N03-D02`/`D03` 已交付**；下一 **`CC-N03-D04`** sync apply 保护（与 **`plugins_sync_home_plan_v1`** 对齐） |
 | 2 | `ECC-N02` asset pack 生命周期 | `Ready` | **`ECC-N02-D01`/`D02` 已交付**；下一原子项 **`ECC-N02-D03`/`D04`**（import/install pack 与 pack repair） |
 | 3 | `HM-N01` Profile home | `Ready` | **`HM-N01-D03` 已交付**；仍缺 **`HM-N01-D01`**（profile home schema 深化）等 |
 | 4 | `ECC-N01` home sync / catalog | `Done` | **`ECC-N01-D02`～`D04` 已交付**（`D01` 与 **`ECC-N03-D01`** 同源 local catalog，不再单列阻塞） |
@@ -81,7 +81,7 @@
 |---|---|---|---|---|---|---|---|---|
 | `CC-N01` | `Done` | `P0` | 安装 / 升级 / 修复一体化入口 | **`CC-N01-D01`～`D05` 已交付**（repair、`doctor.install`/`doctor.sync`、命令中心、**`doctor_upgrade_hints_v1`**） | `__main__.py`、`doctor.py`、`templates/`、`plugin_registry.py`、`command_registry.py` | 后续仅回归与小步增强（更多密钥形态脱敏等） | 不做平台签名安装器，不做 GUI 安装器 | 新用户可从零跑通；旧用户配置损坏时能用 CLI 恢复最小可用状态 |
 | `CC-N02` | `Done` | `P0` | `/bug` 等价反馈与自助诊断链路 | **`CC-N02-D01`～`D04` 已交付**（bundle、triage、结构化 bug、`sanitize_feedback_text` 强化、**bundle/export 路径策略** 与 **JSONL 导出行级再脱敏**） | `feedback.py`、`doctor.py`、`__main__.py`、`release_runbook.py` | 后续仅回归与小步增强（例如更多密钥形态） | 不做在线反馈平台，不做遥测后台 | 用户可在本地完成“诊断 -> 修复尝试 -> bug 反馈导出”一条链路 |
-| `CC-N03` | `Design` | `P1` | Plugin / marketplace / home sync | 现在有 plugin compat 与 export，但没有 Claude Code 风格的 marketplace / install / sync 统一表面 | `plugin_registry.py`、`exporter.py`、`ecc_layout.py`、`__main__.py` | 落地 `plugins sync-home --dry-run`、本地 catalog snapshot、home drift doctor、最小 marketplace manifest | 不做公共付费 marketplace，不做远程依赖解析服务 | 资产可安全同步到 home，doctor 能发现漂移，插件/导出/同步口径统一 |
+| `CC-N03` | `Ready` | `P1` | Plugin / marketplace / home sync | **`CC-N03-D02`/`D03` 已交付**（`plugins sync-home` dry-run；**`plugins_home_sync_drift_v1`** 接入 doctor/repair/API）；仍缺 **D04**（sync apply 保护）与 marketplace 叙事 | `plugin_registry.py`、`exporter.py`、`ecc_layout.py`、`__main__.py` | 落地 **D04**；可选 catalog snapshot 增强 | 不做公共付费 marketplace，不做远程依赖解析服务 | 资产可安全同步到 home，doctor 能发现漂移，插件/导出/同步口径统一 |
 | `CC-N04` | `Design` | `P1` | 更完整的 session / task / recap 体验 | 当前 `/tasks`、session strip、模型切换可用，但还缺 long-session recap、resume 提示、任务过滤和更强的继续体验 | `tui.py`、`tui_task_board.py`、`tui_session_strip.py`、`__main__.py` | 增加 recap / resume 摘要、任务筛选、session restore 提示、长会话继续引导 | 不做远程控制，不做官方云端 review 能力 | 用户离开长会话后，能快速恢复上下文并继续任务，不需要重新阅读整段历史 |
 | `CC-N05` | `Explore` | `P2` | 本地 Desktop / GUI 入口 | 当前只有 TUI 和只读/轻交互 Web；还没有真正的本地图形入口包装层 | `ops_http_server.py`、`ops_dashboard.py`、`tui.py` | 评估以本地 dashboard / embedded TUI 为基础做轻量 GUI 包装 | 不做跨平台原生桌面发行版 | 给出方案、依赖、风险与是否立项建议 |
 | `CC-N06` | `OOS` | `P2` | 原生 WebSearch / Notebook 重实现 | 当前明确走 `MCP 优先`，没有做内建搜索/Notebook 编辑器 | `mcp_presets.py`、`mcp_serve.py`、相关文档 | 保持 preset / onboarding / fallback 最优，而不是重写功能本体 | 不做原生 web search API，不做原生 notebook editor | 继续通过 MCP 路径完成对齐，不进入默认开发线 |
@@ -138,8 +138,8 @@
 | `CC-N02-D03` | 反馈与诊断 | 反馈前 triage 提示，串起 `doctor -> repair -> feedback bug` | `doctor.py`、`feedback.py` | **Done（2026-04-26）**：`doctor_feedback_triage_v1` 指向 doctor / repair / feedback bug / feedback bundle 流程 |
 | `CC-N02-D04` | 反馈与诊断 | 脱敏策略和导出目录策略收口 | `feedback.py`、`release_runbook.py` | **Done（2026-04-26）**：`sanitize_feedback_text` 扩展；`append_feedback`/JSONL export/bundle 递归脱敏；`feedback_bundle_export_v1` 不泄露绝对 workspace；`dest_placement` + `redaction.warnings`；见 ROADMAP `CC-N02-D04` |
 | `CC-N03-D01` | Plugin / marketplace / home sync | 本地 catalog schema，描述 plugin / skill / hook / rule 资产 | `plugin_registry.py`、`ecc_layout.py` | catalog 可生成、可校验、可版本化 |
-| `CC-N03-D02` | Plugin / marketplace / home sync | `plugins sync-home --dry-run`，展示将写入/跳过/冲突的文件 | `__main__.py`、`plugin_registry.py` | dry-run 不写文件，diff 可读 |
-| `CC-N03-D03` | Plugin / marketplace / home sync | home drift doctor，检测 `.claude` / `.codex` / 目标 harness 漂移 | `doctor.py`、`ecc_layout.py` | 能输出目标、差异、建议命令 |
+| `CC-N03-D02` | Plugin / marketplace / home sync | **`Done（2026-04-26）`**：`cai-agent plugins sync-home` → **`plugins_sync_home_plan_v1`**（与 export/ecc 同源；codex 为 manifest_only） | `__main__.py`、`plugin_registry.py` | pytest `test_plugin_compat_matrix` + smoke |
+| `CC-N03-D03` | Plugin / marketplace / home sync | **`Done（2026-04-26）`**：**`plugins_home_sync_drift_v1`**（与 **`ecc_home_sync_drift_v1`** 同源）；**`doctor --json` → `plugins.home_sync_drift`**；**`repair_plan_v1.plugins_sync_home_preview_commands`**；**`api_doctor_summary_v1.plugins_home_sync_drift_targets`**；文本 doctor 摘要 | `plugin_registry.py`、`doctor.py` | pytest `test_plugin_compat_matrix` + `test_doctor_cli` + `test_repair_cli` + `test_api_http_server` + smoke |
 | `CC-N03-D04` | Plugin / marketplace / home sync | sync apply 的覆盖保护、备份、回滚提示 | `plugin_registry.py`、`exporter.py` | 默认不覆盖用户手改内容，冲突需显式确认 |
 | `CC-N04-D01` | Session / task / recap | 长会话 recap 生成与持久化 | `tui_session_strip.py`、`__main__.py` | resume 前能拿到短摘要 |
 | `CC-N04-D02` | Session / task / recap | resume hints，根据最近任务、模型、profile、失败命令给提示 | `tui.py`、`tui_task_board.py` | 重新进入会话能看到下一步建议 |
@@ -224,7 +224,7 @@
 
 如果目标是“尽量贴近三上游”，建议按下面顺序推进（**已交付的 `HM-N05`～`HM-N10` 不再排入主序列**，与 [`NEXT_ACTIONS.zh-CN.md`](NEXT_ACTIONS.zh-CN.md) 一致）：
 
-1. `CC-N03`（plugin / **`plugins sync-home`**、home drift、sync apply 保护）
+1. `CC-N03`（**`plugins sync-home` dry-run 与 home drift 已交付**；继续 **`plugins sync-home --apply`** 保护）
 2. `HM-N01`（**`HM-N01-D01`**：profile home schema 深化；其余子项已交付）
 3. `HM-N03`（API 路由族、OpenAPI、`HM-N03-D03` 与文档化一并收口）
 4. `HM-N04`（dashboard 可写化）
@@ -247,7 +247,7 @@
 第一批建议优先开这些原子任务。已完成的大块 HM 项、**`CC-N01`/`CC-N02`**、**`HM-N01-D02`～`D05` 与 `D03`**、**`ECC-N01-D02`～`D04`**、**`ECC-N02-D01`/`D02`** 与 **`ECC-N04-D01`～`D03` 文档基线** 不再重复排入第一批：
 
 1. `CC-N03-D01`
-2. `CC-N03-D02`
+2. `CC-N03-D04`
 3. `HM-N01-D01`
 4. `ECC-N02-D03`
 5. `ECC-N02-D04`
@@ -288,6 +288,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **826 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **834 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
