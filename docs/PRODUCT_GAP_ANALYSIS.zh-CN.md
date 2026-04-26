@@ -10,11 +10,11 @@
 
 ## 1. 当前判断
 
-截至 2026-04-25，当前仓库可以作出两个同时成立的判断：
+截至 2026-04-26，当前仓库可以作出两个同时成立的判断：
 
 1. **上一轮 roadmap / backlog 内定义的功能开发，已经基本完成。**
    - 证据见：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) §10、[COMPLETED_TASKS_ARCHIVE.zh-CN.md](COMPLETED_TASKS_ARCHIVE.zh-CN.md)、[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)。
-   - 自动化基线也已复核通过：`803 passed, 3 subtests passed`，smoke / regression 全绿。
+   - 自动化基线也已复核通过：`817 passed, 3 subtests passed`，smoke / regression 全绿。
 2. **相对三个上游仓库的当前公开能力面，本仓还没有“全部同步完成”。**
    - 当前更接近“**核心主链路已成型，产品化外表面仍需补齐**”。
    - 后续工作的重点，不再是补第一轮内部缺口，而是补“三上游最新能力面”的剩余对齐项。
@@ -24,7 +24,7 @@
 | 对齐源 | 当前判断 | 已经对齐的主面 | 仍缺的关键面 |
 |---|---|---|---|
 | `anthropics/claude-code` | **核心能力高，对外表面中等** | CLI / TUI、plan / run / continue、workflow、MCP、任务板、模型切换、hooks、skills | 官方安装/升级体验、插件/marketplace 入口、Desktop/图形入口、更加收敛的自助反馈与修复链路 |
-| `NousResearch/hermes-agent` | **Agent 核心中高，平台化外壳中等** | recall、scheduler、gateway 基础、MODEL-P0 模型接入地基（capabilities / health / onboarding / routing fallback / response envelope）、`api serve` v0 + OpenAI-compatible `/v1/models` / 非流式与 SSE `/v1/chat/completions`、dashboard 只读、memory/user-model、docker/ssh runtime、Teams/Discord/Slack/Telegram 基础面 | 独立 profile home + alias command、API OpenAPI / 管理化、可写 dashboard、更多 gateway 平台、voice、external memory providers |
+| `NousResearch/hermes-agent` | **Agent 核心中高，平台化外壳中等** | recall、scheduler、gateway 基础、MODEL-P0 模型接入地基（capabilities / health / onboarding / routing fallback / response envelope）、`api serve` v0 + OpenAI-compatible `/v1/models` / 非流式与 SSE `/v1/chat/completions`、dashboard 只读、memory/user-model、docker/ssh runtime、Teams/Discord/Slack/Telegram 基础面；**另**：第一批扩展 gateway（Signal/Email/Matrix）、联邦/路由预览、voice contract 与 Telegram voice-reply、memory/tool registry 与 MCP bridge 等主路径已对齐 | 独立 profile home + alias command、API OpenAPI / 路由族 / 文档化、可写 dashboard、**第二批** gateway 平台、ingest **provenance/trust** 深化 |
 | `affaan-m/everything-claude-code` | **方法论与治理面中高，资产/分发面中等** | rules / skills / hooks、导出、compat matrix、cost / routing、跨 harness 约定 | 安装/修复/同步面、插件/marketplace 风格分发、规模化资产目录与 home 同步、桌面化管理入口 |
 
 ## 3. 当前最值得开发的方向
@@ -42,7 +42,7 @@
    - 对齐重点：Init / Doctor / Repair / Plugin / Export / Sync。
 3. **长期产品差异化面**
    - 这些不是最先挡路，但会决定产品后续高度。
-   - 对齐重点：Voice、External Memory Providers、资产生态化。
+   - 对齐重点：**Asset pack 生命周期**、ingest **信任与 provenance（`ECC-N04-D03`）**、第二批 gateway、桌面化/operator 控制面；Voice / external memory / tool gateway **主路径已落地**，后续为边界内增量与维护。
 
 ## 4. 下一轮推荐优先级
 
@@ -57,9 +57,9 @@
 |---|---|---|
 | `MODEL-P0` 模型接入地基 | `MODEL-P0-01` 到 `MODEL-P0-07` 已完成 | provider contract、capabilities、health、response、routing explain / fallback 与 onboarding runbook 已形成共同底座 |
 | `P0` 外部入口补齐 | `CC-N01`、`CC-N02`、`HM-N01` | 在模型地基稳定后，补安装/修复、profile home 这些最影响“别人怎么接入我们”的能力；`HM-N02` 已由 OpenAI-compatible API server 收口 |
-| `P1` 产品外壳补齐 | `CC-N03`、`CC-N04`、`HM-N03`、`HM-N04`、`HM-N05`、`HM-N07`、`ECC-N01`、`ECC-N03` | 让 dashboard、gateway、plugin/home sync、session UX 更接近三上游的产品外表面 |
-| `P2` 差异化能力补齐 | `HM-N08`、`HM-N09`、`HM-N10`、`ECC-N02` | 继续补 voice、external memory provider、tool gateway、asset pack 生命周期 |
-| `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N06`、`HM-N11`、`ECC-N04`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |
+| `P1` 产品外壳补齐 | `CC-N03`、`CC-N04`、`HM-N03`、`HM-N04`、`ECC-N01`、`ECC-N03` | 让 dashboard、plugin/home sync、session UX、API 可管理化更接近三上游；**`HM-N05`/`HM-N07` 等 gateway 扩面与联邦主路径已交付**，本组不再重复排为最高优先 |
+| `P2` 差异化能力补齐 | `ECC-N02`、`HM-N06` | **`HM-N08`～`HM-N10` 主路径已交付**；**`ECC-N04-D01`～`D03` 文档与机读草案已交付**，本组聚焦 **asset pack / import-install 执行链**、第二批 gateway 预研落地 |
+| `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N11`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |
 
 详细开发拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)。详细测试拆解见：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)。两页现在按 `CC-N* / HM-N* / ECC-N*` 维护能力级任务，并用 `*-Dxx` 原子任务覆盖可直接开工的开发与测试粒度。
 

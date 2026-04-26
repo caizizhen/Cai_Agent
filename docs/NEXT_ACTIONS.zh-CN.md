@@ -17,6 +17,10 @@
 
 上一轮 `CC-N01-D05` 命令中心发现链路和 `CC-N02-D02` feedback bug 结构化字段已经完成。当前最好继续沿着“安装/修复/反馈闭环”和“profile/home/sync 产品化”推进，避免重新打开已经 Done 的 gateway、runtime、model gateway 大块。
 
+`ECC-N04-D03`（provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照 + `test_ecc_ingest_schema_snapshots`）已交付并归档；ingest 下一里程碑在 **`ECC-N01`/`ECC-N02` 执行链**，而非重复扩写 D01～D03 文档。
+
+`DEVELOPER_TODOS.zh-CN.md` §4～§8、`PRODUCT_GAP_ANALYSIS.zh-CN.md` §2/§4、`docs/PRODUCT_GAP_ANALYSIS.md` 已与 ROADMAP 中 `HM-N05`～`HM-N10` 与 **`ECC-N04-D01`～`D03`** 等交付态对齐（2026-04-26）。
+
 ## 现在做
 
 | 顺位 | ID | 状态 | 目标 | 主要入口 | 最小验证 |
@@ -30,6 +34,7 @@
 
 | ID | 完成日期 | 结果 | 验证/证据 |
 |---|---|---|---|
+| `ECC-N04-D03` | 2026-04-26 | Deliver ECC-N04-D03 provenance/trust bilingual policy, ecc_ingest_provenance_trust_v1 snapshot, schema README and roadmap; add regression test for ingest draft JSON. | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) |
 | `DOC-AUTO-FINALIZE` | 2026-04-26 | 建立任务完成后的自动文档同步脚本和低 token 完成协议 | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed |
 | `CC-N01-D05a-e` | 2026-04-26 | `command_discovery_v1`、TUI slash 模板命令、doctor/repair command_center、最小命令中心资产面已落地 | `test_command_registry.py`、`test_tui_slash_suggester.py`、repair/doctor CLI smoke |
 | `CC-N02-D02a-d` | 2026-04-26 | `feedback bug` 支持 `repro_steps`、`expected`、`actual`、`attachments`，human/json 输出对齐 | `test_feedback_cli.py` 与 CLI smoke |

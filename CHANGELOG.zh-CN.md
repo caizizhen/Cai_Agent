@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **ECC-N04-D03 ingest 来源/签名/信任策略草案**：新增中英文 **`docs/ECC_04C_INGEST_PROVENANCE_TRUST*.md`** 与 **`docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json`**（`ecc_ingest_provenance_trust_v1`），定义与 **`ecc_asset_registry_v1`** 字段及 **`ecc_ingest_sanitizer_policy_v1`** 合流的保守门禁；更新 **`ecc_asset_registry_v1.snapshot.json`** 的 `boundaries`、`docs/schema/README*`、`ROADMAP_EXECUTION.zh-CN.md` §10、开发与缺口文档，并新增 **`test_ecc_ingest_schema_snapshots.py`** 保证草案 JSON 可解析。
+- **英文产品缺口摘要同步**：扩展 **`docs/PRODUCT_GAP_ANALYSIS.md`**，与中文版优先级表（P0～P3）及 `HM-N05`～`HM-N10` 已交付后的排期口径对齐。
 - **CC-N02 feedback bundle 与自助 triage 启动**：新增 `cai-agent feedback bundle --dest ... --json`，导出 `feedback_bundle_v1` 诊断包（最近反馈、`api_doctor_summary_v1`、`repair_plan_v1`、平台信息与脱敏策略），并返回 `feedback_bundle_export_v1`；`doctor --json` 新增 `doctor_feedback_triage_v1`，把 `doctor -> repair -> feedback bug -> feedback bundle` 串成固定本地排障链路。测试：`test_feedback_bundle_cli.py`、`test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`。
 - **配置发现顺序修正**：`Settings.from_env()` 现在在当前目录直接配置之后，优先检查 `CAI_WORKSPACE` 与 CLI `workspace_hint`，再沿当前目录父级查找；同时对 `.tmp-*` / `pytest-*` 等临时目录设置父级搜索边界，避免测试/临时工作区误读仓库根配置。测试：`test_model_profiles_config.py`。
 - **CC-N01 repair / doctor 安装修复入口启动**：新增 `cai-agent repair --dry-run|--apply --json`，输出 `repair_plan_v1` / `repair_result_v1`，可保守创建缺失的 `.cai/`、`.cai/gateway/`、`hooks/` 与缺失的 `cai-agent.toml` 模板；`doctor --json` 新增 `doctor_install_v1` 与 `doctor_sync_v1`，并在文本 doctor 中展示安装/同步自检与 repair 提示。测试：`test_repair_cli.py`、`test_doctor_cli.py`。

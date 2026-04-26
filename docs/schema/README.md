@@ -30,3 +30,4 @@ Full tables and exit semantics remain in the Chinese source [`README.zh-CN.md`](
 - `docs/schema/ecc_asset_registry_v1.snapshot.json` is the `ECC-N04-D01` machine-readable draft sample for `ecc_asset_registry_v1`.
 - It intentionally stays metadata-only (`source`, `license`, `signature`, `version`, `trust`) and does not imply runtime execution or sanitizer enforcement yet.
 - `docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json` is the `ECC-N04-D02` draft sample for ingest sanitizer decisions (`policy_mode`, `checks`, `decision`, `blocked_patterns`, `next_actions`), focused on dangerous hook/script isolation before trust-policy onboarding.
+- `docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json` is the `ECC-N04-D03` draft sample for **`ecc_ingest_provenance_trust_v1`**: trust levels, provenance requirements, gates, and a sample combined evaluation with sanitizer output. It does not enable crypto verification or auto-execution.

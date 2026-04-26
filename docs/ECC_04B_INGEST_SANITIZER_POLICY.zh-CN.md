@@ -73,3 +73,7 @@ sanitizer 处理对象（按 `ecc_asset_registry_v1` 草案）：
 - 有独立 sanitizer policy 文档（本文件）。
 - 有机读快照样例，能表达 `reject/review/allow_metadata_only` 三态之一。
 - ROADMAP/TODOS/CHANGELOG 与文档结论一致。
+
+## 6. 后续：`ECC-N04-D03`
+
+来源、签名与信任等级与 sanitizer 的合流口径见 **`docs/ECC_04C_INGEST_PROVENANCE_TRUST.zh-CN.md`** 与 **`docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json`**。

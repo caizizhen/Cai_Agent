@@ -1,0 +1,87 @@
+{
+  "schema_version": "ecc_ingest_provenance_trust_v1",
+  "policy_status": "draft",
+  "generated_at": "2026-04-26T00:00:00Z",
+  "trust_levels": [
+    {
+      "id": "unknown",
+      "summary": "Source or trust not stated.",
+      "allows_auto_execute": false,
+      "default_combined_decision_with_sanitizer_allow_metadata_only": "review"
+    },
+    {
+      "id": "community",
+      "summary": "Community-origin asset without maintainer audit record.",
+      "allows_auto_execute": false,
+      "default_combined_decision_with_sanitizer_allow_metadata_only": "review"
+    },
+    {
+      "id": "reviewed",
+      "summary": "Maintainer recorded a human review; still not cryptographic proof.",
+      "allows_auto_execute": false,
+      "default_combined_decision_with_sanitizer_allow_metadata_only": "allow_metadata_only"
+    },
+    {
+      "id": "publisher_verified",
+      "summary": "Reserved for future linkage to signature.verified + publisher identity.",
+      "allows_auto_execute": false,
+      "default_combined_decision_with_sanitizer_allow_metadata_only": "review"
+    }
+  ],
+  "signature_schemes": [
+    "none",
+    "gpg",
+    "sigstore",
+    "custom"
+  ],
+  "provenance_requirements": {
+    "minimum_fields": [
+      "source.kind",
+      "source.origin",
+      "integrity.hash_algo",
+      "integrity.hash_value"
+    ],
+    "recommended_fields": [
+      "license.spdx_id",
+      "signature.scheme",
+      "trust.level",
+      "source.retrieved_at"
+    ]
+  },
+  "gates": [
+    {
+      "id": "sanitizer",
+      "description": "Must run ECC-N04-D02 policy; reject short-circuits all.",
+      "required": true
+    },
+    {
+      "id": "trust_floor",
+      "description": "When sanitizer allows metadata-only, trust below reviewed maps to combined review.",
+      "required": true
+    },
+    {
+      "id": "cryptographic_verify",
+      "description": "Future: signature.verified true with trusted key material.",
+      "required": false
+    }
+  ],
+  "sample_evaluation": {
+    "asset_id": "skill.websearch.quickstart",
+    "sanitizer_decision": "allow_metadata_only",
+    "trust_level": "community",
+    "signature_scheme": "none",
+    "signature_verified": false,
+    "combined_decision": "review",
+    "reason": "Sanitizer allows metadata-only but trust is only community and signature is unverified."
+  },
+  "boundaries": {
+    "auto_execute_hooks": false,
+    "cryptographic_verification_implemented": false,
+    "registry_cross_ref": "ecc_asset_registry_v1",
+    "sanitizer_cross_ref": "ecc_ingest_sanitizer_policy_v1"
+  },
+  "next_steps": [
+    "Wire import/install CLI to emit ecc_ingest_provenance_trust_v1 alongside sanitizer output (future issue).",
+    "Optional: align redaction paths with CC-N02-D04 for bundle/export surfaces."
+  ]
+}

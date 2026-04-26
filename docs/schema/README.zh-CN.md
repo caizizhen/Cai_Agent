@@ -10,6 +10,8 @@
 
 **ECC-N04-D02 sanitizer 草案快照**：`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json` 提供 `ecc_ingest_sanitizer_policy_v1` 最小机读样例（`policy_mode`、`checks`、`decision`、`blocked_patterns`、`next_actions`）。该文件用于“危险 hook/脚本隔离”策略评审，不代表已开放外部资产自动执行。
 
+**ECC-N04-D03 provenance/trust 草案快照**：`docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json` 提供 `ecc_ingest_provenance_trust_v1` 最小机读样例（`trust_levels`、`gates`、`sample_evaluation` 等），用于与 `ecc_asset_registry_v1` 字段及 `ecc_ingest_sanitizer_policy_v1` 决策合流的保守门禁评审；**不**代表已接入验签流水线或自动执行。
+
 **从 0.5.x 升级 0.6.x**：破坏性 `--json` 形态与 exit 码摘要见 **[`docs/MIGRATION_GUIDE.md`](../MIGRATION_GUIDE.md)**（Hermes **S8-04**）。
 
 ### S1-02 / S1-03 收口口径（本仓）

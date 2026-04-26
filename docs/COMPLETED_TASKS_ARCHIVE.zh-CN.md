@@ -81,14 +81,15 @@
 | `ECC-03c` | `ECC-03` | `scripts/gen_plugin_compat_snapshot.py --check` 与 checked-in snapshot | pytest + smoke | 2026-04-25 批次 |
 | `ECC-N04-D01` | `ECC-N04` | `ecc_asset_registry_v1` 草案快照（source/license/signature/version/trust） | schema snapshot 校对 + smoke | 2026-04-25 批次 |
 | `ECC-N04-D02` | `ECC-N04` | ingest sanitizer 策略草案与 `ecc_ingest_sanitizer_policy_v1` 快照（危险 hook 隔离） | 文档审查 + schema snapshot + smoke | 2026-04-25 批次 |
+| `ECC-N04-D03` | `ECC-N04` | provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照；registry `boundaries` 标注 provenance 已覆盖 | pytest `test_ecc_ingest_schema_snapshots` + smoke | 2026-04-26 批次 |
 
 ## 最新验证基线
 
-2026-04-25 本地验证：
+2026-04-26 本地验证：
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **803 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **817 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |
 
@@ -97,3 +98,4 @@
 | Issue ID | 完成日期 | 交付摘要 | 验证 | 来源 / 备注 |
 |---|---|---|---|---|
 | `DOC-AUTO-FINALIZE` | 2026-04-26 | 建立任务完成后的自动文档同步脚本和低 token 完成协议 | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | finalize_task |
+| `ECC-N04-D03` | 2026-04-26 | Deliver ECC-N04-D03 provenance/trust bilingual policy, ecc_ingest_provenance_trust_v1 snapshot, schema README and roadmap; add regression test for ingest draft JSON. | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |

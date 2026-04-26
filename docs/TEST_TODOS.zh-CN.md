@@ -7,11 +7,11 @@
 
 ## 1. 当前测试基线
 
-2026-04-25 在仓库根 `D:\gitrepo\Cai_Agent` 复核结果：
+2026-04-26 在仓库根 `D:\gitrepo\Cai_Agent` 复核结果：
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **803 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **817 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
@@ -19,7 +19,7 @@
 
 ### 1.1 当前测试开工队列
 
-2026-04-25 晚间文档收敛后，测试侧优先跟随以下真实未完成/在做项：
+2026-04-26 文档与 ingest 策略批次收敛后，测试侧优先跟随以下真实未完成/在做项：
 
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
@@ -29,7 +29,7 @@
 | 4 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
 | 5 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
 
-`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01/D02` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
+`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01`～`D03` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
 
 ## 2. 使用规则
 
@@ -262,3 +262,4 @@ $env:QA_SKIP_LOG='1'; python scripts/run_regression.py
 | 日期 | 任务 | 验证 | 记录 |
 |---|---|---|---|
 | 2026-04-26 | `DOC-AUTO-FINALIZE` | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | [`docs/qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md`](qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md) |
+| 2026-04-26 | `ECC-N04-D03` | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md`](docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md) |

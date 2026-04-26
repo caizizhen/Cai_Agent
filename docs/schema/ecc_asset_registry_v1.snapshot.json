@@ -44,11 +44,11 @@
   ],
   "boundaries": {
     "execution_included": false,
-    "sanitizer_included": false,
-    "provenance_policy_included": false
+    "sanitizer_included": true,
+    "provenance_policy_included": true
   },
   "next_steps": [
-    "ECC-N04-D02 sanitizer policy",
-    "ECC-N04-D03 provenance/signature/trust policy"
+    "Future: import/install CLI wiring + combined sanitizer + provenance_trust evaluation (not part of ECC-N04-D03).",
+    "See docs/ECC_04C_INGEST_PROVENANCE_TRUST.zh-CN.md and docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json."
   ]
 }
