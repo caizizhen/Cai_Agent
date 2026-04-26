@@ -16,10 +16,11 @@ from cai_agent.api_http_server import AgentApiRequestHandler, AgentApiThreadingS
 _SCHEMAS = Path(__file__).resolve().parents[1] / "src" / "cai_agent" / "schemas"
 
 
-def _start(ws: Path, token: str | None) -> AgentApiThreadingServer:
+def _start(ws: Path, token: str | None, *, config_path: str | None = None) -> AgentApiThreadingServer:
     httpd = AgentApiThreadingServer(("127.0.0.1", 0), AgentApiRequestHandler)
     httpd.workspace = ws
     httpd.api_token = token
+    httpd.api_config_path = config_path
     th = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
     th.start()
     return httpd
@@ -28,6 +29,57 @@ def _start(ws: Path, token: str | None) -> AgentApiThreadingServer:
 def _url(httpd: AgentApiThreadingServer, path: str) -> str:
     host, port = httpd.server_address
     return f"http://{host}:{port}{path}"
+
+
+def test_api_profiles_use_server_config_path_and_workspace(tmp_path: Path) -> None:
+    """HM-N01-D03：HTTP API 使用显式 ``api_config_path`` 与 CLI ``--config`` 对齐，且 workspace 与 ``-w`` 一致。"""
+    ws = (tmp_path / "proj").resolve()
+    ws.mkdir()
+    cfg = tmp_path / "custom.toml"
+    cfg.write_text(
+        "\n".join(
+            [
+                "[llm]",
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+                "[agent]",
+                "mock = true",
+                "",
+                "[models]",
+                'active = "api2"',
+                "",
+                "[[models.profile]]",
+                'id = "api1"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m1"',
+                'api_key = "k"',
+                "",
+                "[[models.profile]]",
+                'id = "api2"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m2"',
+                'api_key = "k"',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start(ws, None, config_path=str(cfg))
+    try:
+        with urllib.request.urlopen(_url(httpd, "/v1/profiles"), timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "api_profiles_v1"
+        assert data.get("active_profile_id") == "api2"
+        pc = data.get("profile_contract") or {}
+        assert pc.get("workspace_root") == str(ws)
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_api_healthz_without_bearer_when_token_set(tmp_path: Path) -> None:

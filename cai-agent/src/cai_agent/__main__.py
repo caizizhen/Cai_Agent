@@ -6095,6 +6095,13 @@ def main(argv: list[str] | None = None) -> int:
         dest="api_workspace",
         help="工作区根目录（默认当前目录）",
     )
+    api_serve.add_argument(
+        "--config",
+        default=None,
+        metavar="PATH",
+        dest="api_config",
+        help="TOML 配置文件（与 models/doctor 一致；未指定时仍按工作区与 CAI_CONFIG 解析）",
+    )
 
     feedback_p = sub.add_parser("feedback", help="用户反馈：写入 .cai/feedback.jsonl（可选 webhook）")
     feedback_sub = feedback_p.add_subparsers(dest="feedback_action", required=True)
@@ -11421,11 +11428,14 @@ def main(argv: list[str] | None = None) -> int:
             bind_port = int((os.environ.get("CAI_API_PORT") or "8788").strip() or "8788")
         ws_arg = getattr(args, "api_workspace", None)
         ws = Path(str(ws_arg).strip()).expanduser().resolve() if isinstance(ws_arg, str) and str(ws_arg).strip() else Path.cwd().resolve()
+        cfg_arg = getattr(args, "api_config", None)
+        cfg_out: str | None = str(cfg_arg).strip() if isinstance(cfg_arg, str) and str(cfg_arg).strip() else None
         return int(
             run_agent_api_server(
                 host=str(getattr(args, "host", "127.0.0.1") or "127.0.0.1"),
                 port=int(bind_port),
                 workspace=ws,
+                config_path=cfg_out,
             ),
         )
 

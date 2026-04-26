@@ -22,7 +22,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 from urllib.parse import parse_qs, urlparse
 
 from cai_agent.config import Settings
@@ -371,6 +371,18 @@ def build_api_release_runbook_v1(workspace: Path) -> dict[str, Any]:
 class AgentApiThreadingServer(ThreadingHTTPServer):
     workspace: Path
     api_token: str | None
+    api_config_path: str | None
+
+
+def load_settings_for_agent_api_server(server: AgentApiThreadingServer) -> Settings:
+    """加载与 CLI 一致的模型配置，并把 ``Settings.workspace`` 对齐 ``api serve -w``（HM-N01-D03）。"""
+    ws_path = Path(getattr(server, "workspace")).expanduser().resolve()
+    raw_cp = getattr(server, "api_config_path", None)
+    cp: str | None = None
+    if isinstance(raw_cp, str) and raw_cp.strip():
+        cp = str(Path(raw_cp.strip()).expanduser().resolve())
+    base = Settings.from_env(config_path=cp, workspace_hint=str(ws_path))
+    return replace(base, workspace=str(ws_path))
 
 
 class AgentApiRequestHandler(BaseHTTPRequestHandler):
@@ -433,6 +445,7 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
             self._send_json(401, {"ok": False, "error": "unauthorized", "message": "Bearer token required"})
             return
         ws: Path = getattr(self.server, "workspace")
+        api_srv = cast(AgentApiThreadingServer, self.server)
         try:
             if path in ("/healthz", "/health"):
                 self._send_json(200, {"ok": True})
@@ -457,28 +470,28 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                 self._send_json(200, payload)
                 return
             if path == "/v1/profiles":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 self._send_json(200, build_api_profiles_v1(settings))
                 return
             if path == "/v1/doctor/summary":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 doc = build_api_doctor_summary_v1(settings)
                 self._send_json(200, doc)
                 return
             if path == "/v1/models/summary":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 self._send_json(200, build_api_models_summary_v1(settings))
                 return
             if path == "/v1/models/capabilities":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 self._send_json(200, build_api_models_capabilities_v1(settings))
                 return
             if path == "/v1/models":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 self._send_json(200, build_api_openai_models_v1(settings))
                 return
             if path == "/v1/plugins/surface":
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 qs = parse_qs(parsed.query or "", keep_blank_values=False)
                 compat_raw = (qs.get("compat") or [""])[0].strip().lower()
                 include_compat = compat_raw in ("1", "true", "yes", "on")
@@ -508,10 +521,11 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
             self._send_json(401, {"ok": False, "error": "unauthorized", "message": "Bearer token required"})
             return
         ws: Path = getattr(self.server, "workspace")
+        api_srv = cast(AgentApiThreadingServer, self.server)
         if path == "/v1/chat/completions":
             try:
                 body = self._read_json_body(max_bytes=1_048_576)
-                settings = Settings.from_env(config_path=None, workspace_hint=str(ws))
+                settings = load_settings_for_agent_api_server(api_srv)
                 if bool((body or {}).get("stream")):
                     self._send_sse(
                         200,
@@ -603,6 +617,7 @@ def run_agent_api_server(
     host: str,
     port: int,
     workspace: Path,
+    config_path: str | os.PathLike[str] | None = None,
     stderr: TextIO | None = None,
 ) -> int:
     """阻塞运行直到 ``KeyboardInterrupt``。"""
@@ -612,14 +627,23 @@ def run_agent_api_server(
         err.write(f"api serve: not a directory: {root}\n")
         return 2
     api_token = resolve_bearer_token("CAI_API_TOKEN", "CAI_OPS_API_TOKEN")
+    cfg_resolved: str | None = None
+    if config_path is not None and str(config_path).strip():
+        p = Path(config_path).expanduser().resolve()
+        if not p.is_file():
+            err.write(f"api serve: config file not found: {p}\n")
+            return 2
+        cfg_resolved = str(p)
 
     httpd = AgentApiThreadingServer((host, port), AgentApiRequestHandler)
     httpd.workspace = root
     httpd.api_token = api_token
+    httpd.api_config_path = cfg_resolved
 
     err.write(
         f"api serve: listening http://{host}:{port}\n"
         f"  workspace: {root}\n"
+        f"  config: {cfg_resolved or '(discover from workspace + CAI_CONFIG)'}\n"
         "  CAI_API_TOKEN/CAI_OPS_API_TOKEN: "
         f"{'set' if api_token else 'unset'}\n"
         "  GET /healthz | GET /health | GET /v1/status | GET /v1/profiles | GET /v1/doctor/summary\n"

@@ -158,7 +158,7 @@
 |---|---|---|---|---|
 | `HM-N01-D01` | Profiles | profile home schema，定义 config/session/memory/gateway 的隔离目录 | `profiles.py`、`doctor.py` | 不同 profile 的状态不串 |
 | `HM-N01-D02` | Profiles | **`Done（2026-04-26）`**：`models clone` / `clone-all`（dry-run、家目录复制、`--force-home`） | `__main__.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` + smoke |
-| `HM-N01-D03` | Profiles | active profile 解析链路，覆盖 CLI、TUI、API、gateway | `profiles.py`、`api_http_server.py`、`gateway_maps.py` | 所有入口读取同一个 active profile |
+| `HM-N01-D03` | Profiles | active profile 多入口对齐（**进行中**：`api serve --config` + workspace 已与 CLI 同源；TUI / gateway 仍待收口） | `api_http_server.py`、`tui.py`、`gateway_*.py` | 所有入口读取同一 active profile 与一致 workspace_root |
 | `HM-N01-D04` | Profiles | **`Done（2026-04-26）`**：`models alias`（`models_alias_v1`） | `__main__.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` + smoke |
 | `HM-N01-D05` | Profiles | **`Done（2026-04-26）`**：`profile_home_migration` 诊断（doctor JSON + 文本摘要） | `doctor.py`、`profiles.py` | pytest `test_profile_clone_alias_cli.py` |
 | `HM-N03-D01` | API 扩展 | `/health`、`/v1/status`、`/v1/profiles` 等状态路由 | `api_http_server.py` | ops 和外部工具能读状态 |
@@ -292,6 +292,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **825 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **826 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |

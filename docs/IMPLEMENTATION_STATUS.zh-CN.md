@@ -46,7 +46,7 @@
 ## 最近回归执行记录（QA）
 
 - **日期**：2026-04-25（仓库根 `D:\gitrepo\Cai_Agent`，本地时区）。  
-- **`pytest cai-agent/tests`**（仓库根执行 **`python -m pytest -q cai-agent/tests`**）：**825 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。
+- **`pytest cai-agent/tests`**（仓库根执行 **`python -m pytest -q cai-agent/tests`**）：**826 passed**，**3 subtests passed**；**`PYTHONPATH=cai-agent\src`**。
 - **`python scripts/smoke_new_features.py`**：**NEW_FEATURE_CHECKS_OK**。  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**：退出码 **0**（HM-04c / HM-03e / HM-05d 后）。最近一次落盘机器记录仍为 **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**；需要新日志时勿设 **`QA_SKIP_LOG=1`** 后重跑（见 **QA_REGRESSION_LOGGING**）。
 

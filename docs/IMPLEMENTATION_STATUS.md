@@ -42,7 +42,7 @@ High-level only; details live in **`PRODUCT_PLAN.zh-CN.md`** §0.2 / §3.2 and *
 ## Latest regression run (QA)
 
 - **Date**: 2026-04-25 (repo root `D:\gitrepo\Cai_Agent`, local timezone).  
-- **`pytest cai-agent/tests`** (repo root: **`python -m pytest -q cai-agent/tests`**): **825 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.
+- **`pytest cai-agent/tests`** (repo root: **`python -m pytest -q cai-agent/tests`**): **826 passed**, **3 subtests passed**; **`PYTHONPATH=cai-agent\src`**.
 - **`python scripts/smoke_new_features.py`**: **NEW_FEATURE_CHECKS_OK**.  
 - **`QA_SKIP_LOG=1 python scripts/run_regression.py`**: exit **0** (after HM-04c / HM-03e / HM-05d). Latest checked-in machine log remains **[`docs/qa/runs/regression-20260424-191511.md`](qa/runs/regression-20260424-191511.md)**; unset **`QA_SKIP_LOG=1`** to write a fresh log (see **QA_REGRESSION_LOGGING**).
 

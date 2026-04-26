@@ -14,7 +14,7 @@
 
 1. **上一轮 roadmap / backlog 内定义的功能开发，已经基本完成。**
    - 证据见：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) §10、[COMPLETED_TASKS_ARCHIVE.zh-CN.md](COMPLETED_TASKS_ARCHIVE.zh-CN.md)、[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)。
-   - 自动化基线也已复核通过：`825 passed, 3 subtests passed`，smoke / regression 全绿。
+   - 自动化基线也已复核通过：`826 passed, 3 subtests passed`，smoke / regression 全绿。
 2. **相对三个上游仓库的当前公开能力面，本仓还没有“全部同步完成”。**
    - 当前更接近“**核心主链路已成型，产品化外表面仍需补齐**”。
    - 后续工作的重点，不再是补第一轮内部缺口，而是补“三上游最新能力面”的剩余对齐项。

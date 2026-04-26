@@ -30,7 +30,7 @@
 | 1 | `ECC-N01-D02/D03/D04` | Design -> Ready | home sync dry-run、doctor drift、repair 建议，把本地 catalog 变成可操作同步链路 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/ecc_layout.py`、`cai-agent/src/cai_agent/doctor.py` | 新增 sync-home dry-run / drift JSON snapshot 测试 |
 | 2 | `ECC-N02-D01/D02` | Design | asset pack manifest 与 export pack dry-run/checksum，为 import/install/repair 做地基 | `cai-agent/src/cai_agent/exporter.py`、`cai-agent/src/cai_agent/templates/ecc/`、`docs/schema/` | manifest schema 或 snapshot 测试 |
 | 3 | `CC-N01-D01`～`D04` | In progress | repair / `doctor.install` / `doctor.sync` / upgrade 叙事深化 | `cai-agent/src/cai_agent/__main__.py`、`cai-agent/src/cai_agent/doctor.py` | `pytest` repair/doctor 相关用例 |
-| 4 | `HM-N01-D03` | Ready | active profile 解析链路对齐 CLI、TUI、API、gateway | `profiles.py`、`api_http_server.py`、`gateway_maps.py` | pytest / smoke 覆盖多入口同一 active |
+| 4 | `HM-N01-D03` | Ready | active profile 多入口对齐：**`api serve --config` + `-w` 已与 CLI 同源**；继续核对 TUI、gateway 子进程 | `api_http_server.py`、`tui.py`、`gateway_*.py` | pytest `test_api_http_server`；其余入口手工或窄测 |
 
 ## 刚完成
 
