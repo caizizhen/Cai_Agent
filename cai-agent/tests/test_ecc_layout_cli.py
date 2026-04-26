@@ -10,6 +10,7 @@ from pathlib import Path
 
 from cai_agent.ecc_layout import build_ecc_asset_layout_payload, ecc_scaffold_workspace, iter_hooks_json_paths
 from cai_agent.config import Settings
+from cai_agent.exporter import build_export_ecc_dir_diff_report, build_ecc_home_sync_drift_v1
 from cai_agent.plugin_registry import build_local_catalog_payload
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
@@ -85,3 +86,53 @@ def test_ecc_catalog_cli_json(tmp_path: Path) -> None:
     pl = json.loads((out.stdout or "").strip())
     assert pl.get("schema_version") == "local_catalog_v1"
     assert isinstance(pl.get("assets"), list)
+
+
+def test_ecc_sync_home_dry_run_json(tmp_path: Path) -> None:
+    out = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "sync-home",
+        "--all-targets",
+        "--dry-run",
+        "--json",
+    )
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_home_sync_result_v1"
+    assert doc.get("dry_run") is True
+    plans = doc.get("plans") or []
+    assert len(plans) == 3
+    assert {p.get("schema_version") for p in plans if isinstance(p, dict)} == {"ecc_home_sync_plan_v1"}
+
+
+def test_ecc_pack_manifest_cli_json(tmp_path: Path) -> None:
+    out = _cli(tmp_path, "ecc", "-w", str(tmp_path), "pack-manifest", "--json")
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_asset_pack_manifest_v1"
+    targets = doc.get("targets") or []
+    assert len(targets) == 3
+    assert all(isinstance(t.get("pack_sha256"), str) and len(t["pack_sha256"]) == 64 for t in targets)
+
+
+def test_export_dry_run_json(tmp_path: Path) -> None:
+    out = _cli(tmp_path, "export", "-w", str(tmp_path), "--target", "codex", "--dry-run")
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_home_sync_plan_v1"
+    assert doc.get("target") == "codex"
+
+
+def test_export_ecc_dir_diff_opencode_and_drift(tmp_path: Path) -> None:
+    (tmp_path / "rules" / "common").mkdir(parents=True)
+    (tmp_path / "rules" / "common" / "a.md").write_text("x", encoding="utf-8")
+    s = Settings.from_env(config_path=None, workspace_hint=str(tmp_path))
+    rep = build_export_ecc_dir_diff_report(s, target="opencode")
+    assert rep.get("schema_version") == "export_ecc_dir_diff_v1"
+    assert rep.get("target") == "opencode"
+    drift = build_ecc_home_sync_drift_v1(s)
+    assert drift.get("schema_version") == "ecc_home_sync_drift_v1"
+    assert len(drift.get("diffs") or []) == 3

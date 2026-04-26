@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import tomllib
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -1093,3 +1093,19 @@ class Settings:
             skills_auto_improve_min_usage_count=skills_auto_improve_min_usage_count,
             skills_auto_improve_min_days_since_last_improve=skills_auto_improve_min_days_since_last_improve,
         )
+
+
+def load_agent_settings_for_workspace(
+    *,
+    workspace: str | Path,
+    config_path: str | Path | None = None,
+) -> Settings:
+    """与 ``AgentApiThreadingServer`` 一致：按可选 TOML 解析配置并固定 ``workspace``（gateway 等子进程）。"""
+    ws = Path(str(workspace)).expanduser().resolve()
+    cp: str | None = None
+    if config_path is not None:
+        raw = str(config_path).strip()
+        if raw:
+            cp = str(Path(raw).expanduser().resolve())
+    base = Settings.from_env(config_path=cp, workspace_hint=str(ws))
+    return replace(base, workspace=str(ws))

@@ -6,7 +6,7 @@ platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-r
 ``plugins --json --with-compat-matrix``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory provider --json`` + ``memory user-model --json`` + ``memory user-model export``
-+ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json``, plus
++ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -730,6 +730,26 @@ def main() -> int:
                 errs.append(f"ecc layout schema {elo.get('schema_version')!r}")
             if not isinstance(elo.get("entries"), list) or len(elo["entries"]) < 3:
                 errs.append("ecc layout entries missing")
+        psync = _run(
+            [*cli, "ecc", "-w", mh_td, "sync-home", "--target", "cursor", "--dry-run", "--json"],
+            cwd=mh_td,
+        )
+        if psync.returncode != 0:
+            errs.append(f"ecc sync-home dry-run exit {psync.returncode} stderr={psync.stderr!r}")
+        else:
+            sdoc = json.loads((psync.stdout or "").strip())
+            if sdoc.get("schema_version") != "ecc_home_sync_result_v1":
+                errs.append(f"ecc sync-home schema {sdoc.get('schema_version')!r}")
+        ppm = _run(
+            [*cli, "ecc", "-w", mh_td, "pack-manifest", "--target", "cursor", "--json"],
+            cwd=mh_td,
+        )
+        if ppm.returncode != 0:
+            errs.append(f"ecc pack-manifest exit {ppm.returncode} stderr={ppm.stderr!r}")
+        else:
+            pmd = json.loads((ppm.stdout or "").strip())
+            if pmd.get("schema_version") != "ecc_asset_pack_manifest_v1":
+                errs.append(f"ecc pack-manifest schema {pmd.get('schema_version')!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)

@@ -439,6 +439,7 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
     log_path: Path | None = None
     events_handled: list = []  # 共享计数器（list 可变）
     max_events: int = 0
+    agent_config_path: str | None = None
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002
         pass
@@ -508,9 +509,12 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
                 binding = m.get("bindings", {}).get(channel_id, {})
                 session_file = str(binding.get("session_file") or "") if isinstance(binding, dict) else ""
                 try:
-                    from cai_agent.config import Settings
+                    from cai_agent.config import load_agent_settings_for_workspace
                     from cai_agent.graph import build_app, initial_state
-                    s = Settings.from_env(workspace_hint=str(self.root))
+                    s = load_agent_settings_for_workspace(
+                        workspace=self.root,
+                        config_path=getattr(self, "agent_config_path", None),
+                    )
                     if session_file and Path(session_file).is_file():
                         from cai_agent.session import load_session, save_session
                         from cai_agent.graph import continue_state
@@ -568,6 +572,7 @@ def serve_slack_webhook(
     reply_on_execution: bool = False,
     log_file: str | None = None,
     max_events: int = 0,
+    agent_config_path: str | None = None,
 ) -> dict[str, Any]:
     """启动 Slack Events API Webhook 接收服务。
 
@@ -581,6 +586,7 @@ def serve_slack_webhook(
         reply_on_execution: 是否将执行结果回发到频道。
         log_file: 事件 JSONL 日志路径。
         max_events: 最大处理事件数（0 = 无限）。
+        agent_config_path: 可选 ``cai-agent.toml``（与 ``api serve --config`` 对齐）。
 
     Returns:
         ``gateway_slack_webhook_v1`` 结构。
@@ -603,6 +609,7 @@ def serve_slack_webhook(
     _Handler.log_path = log_path
     _Handler.events_handled = shared_events
     _Handler.max_events = max_events
+    _Handler.agent_config_path = agent_config_path
 
     server = HTTPServer((host, port), _Handler)
     try:

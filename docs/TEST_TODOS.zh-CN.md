@@ -23,10 +23,10 @@
 
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
-| 1 | `CC-N01` repair / doctor install / sync | 已新增 `test_repair_cli.py`，覆盖 `repair --dry-run --json` 与 `repair --apply --json`；`test_doctor_cli.py` 已覆盖 `doctor_install_v1` / `doctor_sync_v1` |
-| 2 | `HM-N01` profile home | **`HM-N01-D02`/`D04`/`D05`**：`test_profile_clone_alias_cli.py`；**`HM-N01-D03`（部分）**：`test_api_http_server` 已验 API `--config` + workspace；TUI/gateway 仍待补测 |
-| 3 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
-| 4 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
+| 1 | `CC-N03` plugin / sync-home | 仍缺 `plugins sync-home` 与 home drift 专用用例；可先扩展现有 `test_plugin_compat_matrix.py` / `test_ecc_layout_cli.py` 模式 |
+| 2 | `HM-N01` profile home | **`HM-N01-D01`**：schema 深化后补契约测试；**`D02`～`D05`/`D03`**：`test_profile_clone_alias_cli.py` + 全量 pytest + smoke |
+| 3 | `ECC-N02` pack import/repair | **`ECC-N02-D01`/`D02`**：`test_ecc_layout_cli.py` + smoke 已覆盖 **`ecc pack-manifest`** / **`ecc sync-home --dry-run`**；**`D03`/`D04`** 仍待用例 |
+| 4 | `ECC-N03` cross-harness doctor | 与已交付 **`ecc_home_sync_drift_v1`** 对齐，补 target inventory / 结构化 diff 快照测试 |
 
 `CC-N02`（含 **`CC-N02-D04`** bundle/export 脱敏与路径策略）、`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01`～`D03` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
 
@@ -211,11 +211,11 @@
 | 开发子任务 | 自动化覆盖 | 手工 / 真机覆盖 | 通过标准 |
 |---|---|---|---|
 | `ECC-N01-D01` | `test_catalog_snapshot_cli.py` 覆盖 schema 校验 | 打开 catalog 检查可读性 | catalog 稳定 |
-| `ECC-N01-D02` | `test_home_sync_doctor.py` 覆盖 Claude/Codex/Cursor/OpenCode dry-run | 对至少两个 harness home 执行 dry-run | add/update/skip/conflict 清楚 |
-| `ECC-N01-D03` | `test_home_sync_doctor.py` 覆盖 drift 检测 | 手工制造缺失/冲突资产 | doctor 能指出问题 |
-| `ECC-N01-D04` | repair 建议 snapshot | 按建议命令手工执行 | 诊断能转成行动 |
-| `ECC-N02-D01` | `test_asset_pack_manifest.py` 覆盖 manifest v1 | 检查 pack metadata | manifest 可校验 |
-| `ECC-N02-D02` | `test_asset_pack_import_export.py` 覆盖 export/checksum/dry-run | 打包后解压检查 | 打包可复现 |
+| `ECC-N01-D02` | **`test_ecc_layout_cli.py`** 覆盖 **`ecc sync-home --dry-run`** / **`export --dry-run`** | 对至少两个 harness 执行 dry-run | `ecc_home_sync_plan_v1` / `ecc_home_sync_result_v1` 稳定 |
+| `ECC-N01-D03` | **`test_ecc_layout_cli.py`** + **`test_doctor_cli.py`** 覆盖 **`ecc_home_sync_drift_v1`** 与 **`export_ecc_dir_diff_v1`**（含 opencode） | 手工制造缺失/冲突资产 | doctor 能指出问题 |
+| `ECC-N01-D04` | **`test_repair_cli.py`** 覆盖 **`repair_plan_v1.ecc_sync_commands`** | 按建议命令手工执行 | 诊断能转成行动 |
+| `ECC-N02-D01` | **`test_ecc_layout_cli.py`** 覆盖 **`ecc pack-manifest`**（`ecc_asset_pack_manifest_v1`） | 检查 pack metadata | manifest 可校验 |
+| `ECC-N02-D02` | 与 D01 同源：`test_ecc_layout_cli.py` + smoke | 打包后解压检查 | 打包可复现 |
 | `ECC-N02-D03` | `test_asset_pack_import_export.py` 覆盖 import/install | 新 workspace 手工安装 | 安装前能预览影响 |
 | `ECC-N02-D04` | `test_asset_pack_repair.py` 覆盖缺失/schema drift | 手工破坏 pack 后 repair | 能定位损坏原因 |
 | `ECC-N03-D01` | `test_harness_doctor_diff.py` 覆盖 target inventory | 检查输出路径 | 支持目标清晰 |

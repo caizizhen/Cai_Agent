@@ -35,6 +35,7 @@
 | `CC-03a` | `CC-03` | `tui_session_strip` 单源文案、会话继续与任务板体验统一 | pytest | roadmap §10 |
 | `CC-03b` | `CC-03` | 模型切换与 `/status` 提示 RFC | RFC 评审 | `docs/rfc/CC_03B_MODEL_STATUS_UX.zh-CN.md` |
 | `CC-03c` | `CC-03` | TUI `#context-label` route/migration 提示；CLI/TUI 共享 `profile_switched: <id>` | pytest | 2026-04-25 批次 |
+| `CC-N01-D04` | `CC-N01` | `doctor_upgrade_hints_v1`：统一 repair / ecc / export 与文档指针 | pytest `test_doctor_cli` | 2026-04-26 批次 |
 | `CC-N02-D04` | `CC-N02` | feedback bundle/export 脱敏强化、`dest_placement`、工作区外 dest 警告、runbook `feedback bundle` 步骤 | pytest `test_feedback_*` + `test_doctor_cli` + smoke | 2026-04-26 批次 |
 
 ## Hermes 线
@@ -67,6 +68,7 @@
 | `HM-06c-ssh` | `HM-06` | SSH runtime 诊断、timeout、key/known_hosts、`runtime_ssh_audit_v1` | pytest + smoke | 2026-04-25 批次 |
 | `HM-N11-D01` | `HM-N11` | 云后端条件立项门槛文档（`CLOUD_RUNTIME_OOS` 中英同步） | 文档一致性校对 + smoke | 2026-04-25 批次 |
 | `HM-N11-D02` | `HM-N11` | `runtime_backend_interface_v1` 接入 `runtime_registry_v1.interface`，对齐 `local/docker/ssh` 接口与配置键 | pytest + smoke | 2026-04-25 批次 |
+| `HM-N01-D03` | `HM-N01` | `load_agent_settings_for_workspace`；gateway **discord/slack** **`--config`** 与执行链路同源加载 | pytest 全量 + smoke | 2026-04-26 批次 |
 | `HM-07a` | `HM-07` | Voice 边界与 OOS RFC | 文档评审 | `docs/rfc/HM_07A_VOICE_BOUNDARY.zh-CN.md` |
 
 ## ECC 线
@@ -83,6 +85,11 @@
 | `ECC-N04-D01` | `ECC-N04` | `ecc_asset_registry_v1` 草案快照（source/license/signature/version/trust） | schema snapshot 校对 + smoke | 2026-04-25 批次 |
 | `ECC-N04-D02` | `ECC-N04` | ingest sanitizer 策略草案与 `ecc_ingest_sanitizer_policy_v1` 快照（危险 hook 隔离） | 文档审查 + schema snapshot + smoke | 2026-04-25 批次 |
 | `ECC-N04-D03` | `ECC-N04` | provenance/signature/trust 中英策略 + `ecc_ingest_provenance_trust_v1` 快照；registry `boundaries` 标注 provenance 已覆盖 | pytest `test_ecc_ingest_schema_snapshots` + smoke | 2026-04-26 批次 |
+| `ECC-N01-D02` | `ECC-N01` | `ecc sync-home`、`export --dry-run`（home sync 计划/结果契约） | pytest `test_ecc_layout_cli` + smoke | 2026-04-26 批次 |
+| `ECC-N01-D03` | `ECC-N01` | `ecc_home_sync_drift_v1`；`export_ecc_dir_diff_v1` 扩展 codex/opencode | pytest `test_ecc_layout_cli` + `test_doctor_cli` | 2026-04-26 批次 |
+| `ECC-N01-D04` | `ECC-N01` | `repair_plan_v1.ecc_sync_commands` | pytest `test_repair_cli` | 2026-04-26 批次 |
+| `ECC-N02-D01` | `ECC-N02` | `ecc pack-manifest` → `ecc_asset_pack_manifest_v1` | pytest `test_ecc_layout_cli` + smoke | 2026-04-26 批次 |
+| `ECC-N02-D02` | `ECC-N02` | export/ecc dry-run 与 D01 同源 checksum 出口 | pytest + smoke | 2026-04-26 批次 |
 
 ## 最新验证基线
 
@@ -90,7 +97,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **826 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **830 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS** |
 
@@ -102,3 +109,4 @@
 | `ECC-N04-D03` | 2026-04-26 | Deliver ECC-N04-D03 provenance/trust bilingual policy, ecc_ingest_provenance_trust_v1 snapshot, schema README and roadmap; add regression test for ingest draft JSON. | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `CC-N02-D04` | 2026-04-26 | Harden feedback bundle and JSONL export redaction: sanitize_feedback_text workspace/home paths and Slack tokens, sanitize append_feedback, redact export rows, feedback_bundle_export_v1 dest_placement and warnings for external --dest, release runbook bundle step. | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `HM-N01-D02`/`D04`/`D05` | 2026-04-26 | 交付 `models clone` / `clone-all` / `alias` 与 doctor **`profile_home_migration`**。 | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
+| `ECC-N01`/`ECC-N02`/`CC-N01-D04`/`HM-N01-D03` | 2026-04-26 | 交付 `ecc sync-home`/`pack-manifest`、`export --dry-run`、doctor drift+repair ecc 提示、`doctor_upgrade_hints_v1`、`load_agent_settings_for_workspace` 与 gateway discord/slack `--config`。 | python -m pytest -q cai-agent/tests: PASS (830 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮合入 |

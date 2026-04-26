@@ -11,6 +11,7 @@ from typing import Any
 from cai_agent import __version__
 from cai_agent.command_registry import build_command_discovery_payload
 from cai_agent.config import Settings
+from cai_agent.exporter import build_ecc_home_sync_drift_v1
 from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.ecc_layout import iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
@@ -27,6 +28,23 @@ from cai_agent.release_runbook import build_release_runbook_payload, resolve_rel
 from cai_agent.runtime.registry import get_runtime_backend
 from cai_agent.tool_provider import build_tool_provider_contract_payload
 from cai_agent.voice import build_voice_provider_contract_payload
+
+
+def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
+    """CC-N01-D04：升级/对齐叙事（短命令面，细节见 changelog 与跨 harness 文档）。"""
+    root = Path(settings.workspace).expanduser().resolve()
+    return {
+        "schema_version": "doctor_upgrade_hints_v1",
+        "workspace": str(root),
+        "recommended_commands": [
+            "cai-agent doctor --json",
+            "cai-agent repair --dry-run --json",
+            "cai-agent ecc catalog --json",
+            "cai-agent ecc sync-home --all-targets --dry-run --json",
+            "cai-agent export --target cursor --dry-run --json",
+        ],
+        "docs": ["CHANGELOG.zh-CN.md", "docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md"],
+    }
 
 
 def build_installation_guidance() -> dict[str, Any]:
@@ -287,6 +305,12 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
             "status": "skip_exists" if hooks_json_exists else "pending",
         },
     )
+    drift = build_ecc_home_sync_drift_v1(settings)
+    drift_targets = [str(x) for x in (drift.get("targets_with_drift") or [])]
+    ecc_sync_commands = [f"cai-agent ecc sync-home --target {x} --apply" for x in drift_targets]
+    if not ecc_sync_commands:
+        ecc_sync_commands = ["cai-agent ecc sync-home --all-targets --dry-run --json"]
+
     return {
         "schema_version": "repair_plan_v1",
         "workspace": str(root),
@@ -297,6 +321,8 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
             "actions_total": len(actions),
             "actions_needed": sum(1 for a in actions if bool(a.get("needed"))),
         },
+        "ecc_home_sync_drift_targets": drift_targets,
+        "ecc_sync_commands": ecc_sync_commands,
     }
 
 
@@ -577,6 +603,8 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             if isinstance(release_runbook.get("feedback"), dict)
             else feedback_stats(root)
         ),
+        "ecc_home_sync_drift": build_ecc_home_sync_drift_v1(settings),
+        "upgrade_hints": build_doctor_upgrade_hints_v1(settings),
     }
 
 
@@ -609,6 +637,11 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "voice": p.get("voice"),
         "tool_provider": p.get("tool_provider"),
         "installation_guidance": p.get("installation_guidance"),
+        "ecc_home_sync_drift_targets": (
+            (p.get("ecc_home_sync_drift") or {}).get("targets_with_drift")
+            if isinstance(p.get("ecc_home_sync_drift"), dict)
+            else None
+        ),
     }
 
 

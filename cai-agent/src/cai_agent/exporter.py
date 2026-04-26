@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 from cai_agent.config import Settings
 from cai_agent.memory import resolve_active_memory_provider
@@ -13,6 +15,18 @@ def _project_root(settings: Settings) -> Path:
     if settings.config_loaded_from:
         return Path(settings.config_loaded_from).expanduser().resolve().parent
     return Path.cwd().resolve()
+
+
+def ecc_export_root_for_target(root: Path, target: str) -> Path:
+    """跨 harness 导出根目录（与 ``export_target`` 写入路径一致）。"""
+    t = target.strip().lower()
+    if t == "cursor":
+        return root / ".cursor" / "cai-agent-export"
+    if t == "codex":
+        return root / ".codex" / "cai-agent-export"
+    if t == "opencode":
+        return root / ".opencode"
+    raise ValueError(f"unsupported target: {target}")
 
 
 def export_target(settings: Settings, target: str) -> dict[str, object]:
@@ -188,17 +202,25 @@ def _gather_rel_files(base: Path) -> frozenset[str]:
 
 
 def build_export_ecc_dir_diff_report(settings: Settings, *, target: str) -> dict[str, object]:
-    """对比仓库根 ``rules|skills|agents|commands`` 与 Cursor ECC 导出目录（``.cursor/cai-agent-export``）文件集合差分。"""
+    """对比仓库根 ``rules|skills|agents|commands`` 与各 harness ECC 导出目录的文件集合差分。"""
     root = _project_root(settings)
     t = str(target).strip().lower()
-    if t != "cursor":
+    if t not in {"cursor", "codex", "opencode"}:
         return {
             "schema_version": "export_ecc_dir_diff_v1",
             "target": t,
             "error": "unsupported_target",
-            "hint": "当前仅实现 --target cursor 与 .cursor/cai-agent-export 目录对比",
+            "hint": "支持 --target cursor|codex|opencode，对应 export 写入目录",
         }
-    ecc = root / ".cursor" / "cai-agent-export"
+    try:
+        ecc = ecc_export_root_for_target(root, t)
+    except ValueError as e:
+        return {
+            "schema_version": "export_ecc_dir_diff_v1",
+            "target": t,
+            "error": "unsupported_target",
+            "hint": str(e),
+        }
     dirs = ("rules", "skills", "agents", "commands")
     rows: list[dict[str, object]] = []
     for name in dirs:
@@ -225,4 +247,175 @@ def build_export_ecc_dir_diff_report(settings: Settings, *, target: str) -> dict
         "workspace": str(root),
         "ecc_export_root": str(ecc),
         "directories": rows,
+    }
+
+
+def plan_ecc_home_sync_v1(settings: Settings, *, target: str) -> dict[str, Any]:
+    """不写入磁盘：描述 ``export_target`` 将对单 harness 执行的操作。"""
+    root = _project_root(settings)
+    t = target.strip().lower()
+    if t not in {"cursor", "codex", "opencode"}:
+        raise ValueError(f"unsupported target: {target}")
+    out_dir = ecc_export_root_for_target(root, t)
+    copied: list[str] = []
+    if t != "codex":
+        for name in ("rules", "skills", "agents", "commands"):
+            src = root / name
+            if src.is_dir():
+                copied.append(name)
+    mode = "manifest" if t == "codex" else ("structured" if t == "cursor" else "copy")
+    return {
+        "schema_version": "ecc_home_sync_plan_v1",
+        "workspace": str(root),
+        "target": t,
+        "output_dir": str(out_dir),
+        "would_copy_directories": copied,
+        "would_write_manifest": True,
+        "would_write_local_catalog": True,
+        "mode": mode,
+    }
+
+
+def _normalize_ecc_sync_targets(raw: list[str]) -> list[str]:
+    out: list[str] = []
+    for item in raw:
+        x = str(item).strip().lower()
+        if x == "all":
+            return ["cursor", "codex", "opencode"]
+        if x in ("cursor", "codex", "opencode") and x not in out:
+            out.append(x)
+    return out
+
+
+def run_ecc_home_sync_v1(
+    settings: Settings,
+    targets: list[str],
+    *,
+    dry_run: bool,
+) -> dict[str, Any]:
+    """``ecc sync-home``：``dry_run`` 时仅返回计划，否则等价于顺序 ``export_target``。"""
+    norm = _normalize_ecc_sync_targets(targets)
+    if not norm:
+        return {
+            "schema_version": "ecc_home_sync_result_v1",
+            "ok": False,
+            "error": "no_targets",
+            "hint": "使用 --target cursor|codex|opencode（可重复）或 --all-targets",
+        }
+    if dry_run:
+        plans = [plan_ecc_home_sync_v1(settings, target=t) for t in norm]
+        return {
+            "schema_version": "ecc_home_sync_result_v1",
+            "ok": True,
+            "dry_run": True,
+            "targets": norm,
+            "plans": plans,
+        }
+    exports = [export_target(settings, t) for t in norm]
+    return {
+        "schema_version": "ecc_home_sync_result_v1",
+        "ok": True,
+        "dry_run": False,
+        "targets": norm,
+        "exports": exports,
+    }
+
+
+def build_ecc_home_sync_drift_v1(settings: Settings) -> dict[str, Any]:
+    """聚合各 harness 的 ``export_ecc_dir_diff_v1``，供 doctor / repair 引用。"""
+    root = _project_root(settings)
+    diffs: list[dict[str, Any]] = []
+    dirty: list[str] = []
+    for t in ("cursor", "codex", "opencode"):
+        rep = build_export_ecc_dir_diff_report(settings, target=t)
+        row: dict[str, Any] = {"target": t, "report": rep}
+        diffs.append(row)
+        if not isinstance(rep, dict):
+            continue
+        if rep.get("error"):
+            dirty.append(t)
+            continue
+        has_delta = False
+        for d in rep.get("directories") or []:
+            if not isinstance(d, dict):
+                continue
+            if d.get("only_in_source") or d.get("only_in_export"):
+                has_delta = True
+                break
+        if has_delta:
+            dirty.append(t)
+    return {
+        "schema_version": "ecc_home_sync_drift_v1",
+        "workspace": str(root),
+        "diffs": diffs,
+        "targets_with_drift": sorted(set(dirty)),
+    }
+
+
+def _sha256_bytes(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def build_ecc_asset_pack_manifest_v1(
+    settings: Settings,
+    *,
+    targets: tuple[str, ...] = ("cursor", "codex", "opencode"),
+) -> dict[str, Any]:
+    """ECC-N02：按源目录 + 合成 catalog JSON 计算各 harness 的 dry-run 校验和。"""
+    root = _project_root(settings)
+    local_catalog = build_local_catalog_payload(settings, root_override=root)
+    catalog_json = json.dumps(local_catalog, ensure_ascii=False, indent=2).encode("utf-8")
+    catalog_digest = _sha256_bytes(catalog_json)
+    target_payloads: list[dict[str, Any]] = []
+    for raw_t in targets:
+        t = str(raw_t).strip().lower()
+        if t not in {"cursor", "codex", "opencode"}:
+            continue
+        entries: list[dict[str, str | int]] = []
+        if t != "codex":
+            for name in ("rules", "skills", "agents", "commands"):
+                src = root / name
+                if not src.is_dir():
+                    continue
+                for p in sorted(src.rglob("*")):
+                    if p.is_file():
+                        rel = f"{name}/" + p.relative_to(src).as_posix()
+                        entries.append(
+                            {
+                                "path": rel,
+                                "sha256": _sha256_file(p),
+                                "size_bytes": int(p.stat().st_size),
+                            },
+                        )
+        entries.append(
+            {
+                "path": "__synthetic__/cai-local-catalog.json",
+                "sha256": catalog_digest,
+                "size_bytes": len(catalog_json),
+            },
+        )
+        mode = "manifest" if t == "codex" else ("structured" if t == "cursor" else "copy")
+        index = "\n".join(f'{e["path"]}\t{e["sha256"]}' for e in entries).encode("utf-8")
+        target_payloads.append(
+            {
+                "target": t,
+                "mode": mode,
+                "output_dir": str(ecc_export_root_for_target(root, t)),
+                "files": entries,
+                "files_count": len(entries),
+                "pack_sha256": _sha256_bytes(index),
+            },
+        )
+    return {
+        "schema_version": "ecc_asset_pack_manifest_v1",
+        "workspace": str(root),
+        "targets": target_payloads,
     }

@@ -361,6 +361,7 @@ def serve_discord_polling(
     execute_on_message: bool = False,
     reply_on_execution: bool = False,
     log_file: str | None = None,
+    agent_config_path: str | None = None,
 ) -> dict[str, Any]:
     """轮询指定频道（已绑定会话的频道）的新消息并可选执行。
 
@@ -372,6 +373,7 @@ def serve_discord_polling(
         execute_on_message: 是否对每条消息触发 `run`/`continue` 执行。
         reply_on_execution: 是否将执行结果回发到频道。
         log_file: 事件 JSONL 日志路径（None = 不落盘）。
+        agent_config_path: 可选 ``cai-agent.toml``，与 ``api serve --config`` 对齐以固定 profile 解析。
 
     Returns:
         ``gateway_discord_polling_v1`` 结构。
@@ -436,9 +438,12 @@ def serve_discord_polling(
                         if execute_on_message:
                             session_file = str(binding.get("session_file") or "")
                             try:
-                                from cai_agent.config import Settings
+                                from cai_agent.config import load_agent_settings_for_workspace
                                 from cai_agent.graph import build_app, initial_state
-                                s = Settings.from_env(workspace_hint=str(root))
+                                s = load_agent_settings_for_workspace(
+                                    workspace=root,
+                                    config_path=agent_config_path,
+                                )
                                 if session_file and Path(session_file).is_file():
                                     from cai_agent.session import load_session, save_session
                                     sess = load_session(Path(session_file))

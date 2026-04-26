@@ -72,7 +72,13 @@ from cai_agent.profiles import (
     remove_profile,
     write_models_to_toml,
 )
-from cai_agent.exporter import build_export_ecc_dir_diff_report, export_target
+from cai_agent.exporter import (
+    build_export_ecc_dir_diff_report,
+    export_target,
+    plan_ecc_home_sync_v1,
+    run_ecc_home_sync_v1,
+    build_ecc_asset_pack_manifest_v1,
+)
 from cai_agent.feedback import BUG_REPORT_CATEGORIES, feedback_path
 from cai_agent.memory import (
     annotate_memory_states,
@@ -4040,6 +4046,53 @@ def main(argv: list[str] | None = None) -> int:
     )
     ecc_catalog_p.add_argument("--json", action="store_true", dest="json_output")
 
+    ecc_sync_p = ecc_sub.add_parser(
+        "sync-home",
+        help="将仓库根 rules/skills/... 同步到各 harness 导出目录（与 export 同源；默认需显式 dry-run 或 apply）",
+    )
+    ecc_sync_p.add_argument(
+        "--target",
+        action="append",
+        dest="ecc_sync_targets",
+        metavar="T",
+        choices=["cursor", "codex", "opencode", "all"],
+        help="导出目标，可重复；或使用 --all-targets",
+    )
+    ecc_sync_p.add_argument(
+        "--all-targets",
+        action="store_true",
+        dest="ecc_sync_all",
+        help="等价于依次同步 cursor / codex / opencode",
+    )
+    ecc_sync_g = ecc_sync_p.add_mutually_exclusive_group(required=True)
+    ecc_sync_g.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="ecc_sync_dry_run",
+        help="仅输出 ecc_home_sync_result_v1（含 ecc_home_sync_plan_v1），不写盘",
+    )
+    ecc_sync_g.add_argument(
+        "--apply",
+        action="store_true",
+        dest="ecc_sync_apply",
+        help="执行写入（顺序调用与 export 相同的复制逻辑）",
+    )
+    ecc_sync_p.add_argument("--json", action="store_true", dest="json_output")
+
+    ecc_pack_p = ecc_sub.add_parser(
+        "pack-manifest",
+        help="输出 ecc_asset_pack_manifest_v1：各 harness dry-run 文件级 sha256（不写导出目录）",
+    )
+    ecc_pack_p.add_argument(
+        "--target",
+        action="append",
+        dest="ecc_pack_targets",
+        metavar="T",
+        choices=["cursor", "codex", "opencode"],
+        help="仅包含指定 harness；可重复；省略则三者",
+    )
+    ecc_pack_p.add_argument("--json", action="store_true", dest="json_output")
+
     plan_p = sub.add_parser(
         "plan",
         parents=[common],
@@ -6288,7 +6341,13 @@ def main(argv: list[str] | None = None) -> int:
         "--ecc-diff",
         action="store_true",
         dest="export_ecc_diff",
-        help="仅输出 export_ecc_dir_diff_v1 JSON（对比仓库与 .cursor/cai-agent-export；不写文件）",
+        help="仅输出 export_ecc_dir_diff_v1 JSON（对比仓库与各 harness 导出目录；不写文件）",
+    )
+    export_p.add_argument(
+        "--dry-run",
+        action="store_true",
+        dest="export_dry_run",
+        help="仅输出 ecc_home_sync_plan_v1（单 --target），不写导出目录",
     )
     export_p.add_argument(
         "-w",
@@ -6771,6 +6830,12 @@ def main(argv: list[str] | None = None) -> int:
     # ---- Discord Gateway MVP（§24 补齐）----
     gw_dc = gateway_sub.add_parser("discord", help="Discord Gateway MVP — Bot Polling 接入")
     gw_dc.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_dc.add_argument(
+        "--config",
+        default=None,
+        dest="gateway_agent_config",
+        help="cai-agent.toml 绝对或相对路径（与 api serve --config 一致，固定 active profile 解析根）",
+    )
     gw_dc_sub = gw_dc.add_subparsers(dest="gateway_discord_action", required=True)
 
     gw_dc_bind = gw_dc_sub.add_parser("bind", help="绑定 channel_id → session_file")
@@ -6865,6 +6930,12 @@ def main(argv: list[str] | None = None) -> int:
     # ---- Slack Gateway MVP（§24 补齐）----
     gw_sl = gateway_sub.add_parser("slack", help="Slack Gateway MVP — Events API Webhook 接入")
     gw_sl.add_argument("-w", "--workspace", default=None, help="工作区根目录")
+    gw_sl.add_argument(
+        "--config",
+        default=None,
+        dest="gateway_agent_config",
+        help="cai-agent.toml 绝对或相对路径（与 api serve --config 一致）",
+    )
     gw_sl_sub = gw_sl.add_subparsers(dest="gateway_slack_action", required=True)
 
     gw_sl_bind = gw_sl_sub.add_parser("bind", help="绑定 channel_id → session_file")
@@ -7231,6 +7302,50 @@ def main(argv: list[str] | None = None) -> int:
                 event="ecc.catalog",
                 latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
                 tokens=len(cdoc.get("assets") or []),
+                success=True,
+            )
+            return 0
+        if ecc_act == "sync-home":
+            tlist: list[str] = []
+            if bool(getattr(args, "ecc_sync_all", False)):
+                tlist = ["all"]
+            else:
+                tlist = list(getattr(args, "ecc_sync_targets", None) or [])
+            if not tlist:
+                print("ecc sync-home: 需要 --target（可重复）或 --all-targets", file=sys.stderr)
+                return 2
+            dry_run = bool(getattr(args, "ecc_sync_dry_run", False))
+            r_sync = run_ecc_home_sync_v1(settings_ecc, tlist, dry_run=dry_run)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(r_sync, ensure_ascii=False))
+            else:
+                print(
+                    f"[ecc sync-home] ok={r_sync.get('ok')} dry_run={dry_run} "
+                    f"targets={r_sync.get('targets')!r}",
+                )
+            ok_sync = bool(r_sync.get("ok"))
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.sync_home",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(r_sync.get("plans") or r_sync.get("exports") or []),
+                success=ok_sync,
+            )
+            return 0 if ok_sync else 2
+        if ecc_act == "pack-manifest":
+            ptlist = list(getattr(args, "ecc_pack_targets", None) or [])
+            tup = tuple(ptlist) if ptlist else ("cursor", "codex", "opencode")
+            r_pack = build_ecc_asset_pack_manifest_v1(settings_ecc, targets=tup)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(r_pack, ensure_ascii=False))
+            else:
+                nfiles = sum(int(x.get("files_count") or 0) for x in (r_pack.get("targets") or []) if isinstance(x, dict))
+                print(f"[ecc pack-manifest] targets={len(r_pack.get('targets') or [])} files_total={nfiles}")
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.pack_manifest",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(r_pack.get("targets") or []),
                 success=True,
             )
             return 0
@@ -11700,8 +11815,15 @@ def main(argv: list[str] | None = None) -> int:
         )
         t_exp = time.perf_counter()
         try:
+            if bool(getattr(args, "export_ecc_diff", False)) and bool(
+                getattr(args, "export_dry_run", False),
+            ):
+                print("不能同时使用 --ecc-diff 与 --dry-run", file=sys.stderr)
+                return 2
             if bool(getattr(args, "export_ecc_diff", False)):
                 result = build_export_ecc_dir_diff_report(settings, target=str(args.target))
+            elif bool(getattr(args, "export_dry_run", False)):
+                result = plan_ecc_home_sync_v1(settings, target=str(args.target))
             else:
                 result = export_target(settings, str(args.target))
         finally:
@@ -11712,11 +11834,16 @@ def main(argv: list[str] | None = None) -> int:
             )
         print(json.dumps(result, ensure_ascii=False))
         copied = result.get("copied") if isinstance(result.get("copied"), list) else []
+        would_copy = (
+            result.get("would_copy_directories") if isinstance(result.get("would_copy_directories"), list) else []
+        )
+        diff_rows = result.get("directories") if isinstance(result.get("directories"), list) else []
+        tok_exp = len(copied) or len(would_copy) or len(diff_rows)
         _maybe_metrics_cli(
             module="export",
             event="export.target",
             latency_ms=(time.perf_counter() - t_exp) * 1000.0,
-            tokens=len(copied),
+            tokens=tok_exp,
             success=True,
         )
         return 0
@@ -12958,6 +13085,7 @@ def main(argv: list[str] | None = None) -> int:
                     execute_on_message=bool(getattr(args, "execute_on_message", False)),
                     reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
                     log_file=getattr(args, "log_file", None),
+                    agent_config_path=getattr(args, "gateway_agent_config", None),
                 )
             else:
                 print(f"unknown discord action: {dc_act}", file=sys.stderr)
@@ -13045,6 +13173,7 @@ def main(argv: list[str] | None = None) -> int:
                     reply_on_execution=bool(getattr(args, "reply_on_execution", False)),
                     log_file=getattr(args, "log_file", None),
                     max_events=int(getattr(args, "max_events", 0)),
+                    agent_config_path=getattr(args, "gateway_agent_config", None),
                 )
             else:
                 print(f"unknown slack action: {sl_act}", file=sys.stderr)

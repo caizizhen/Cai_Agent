@@ -141,6 +141,12 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(tp, dict)
             self.assertEqual(tp.get("schema_version"), "tool_provider_contract_v1")
             self.assertIn("providers", tp)
+            ecc_d = pl.get("ecc_home_sync_drift")
+            self.assertIsInstance(ecc_d, dict)
+            self.assertEqual(ecc_d.get("schema_version"), "ecc_home_sync_drift_v1")
+            uh = pl.get("upgrade_hints")
+            self.assertIsInstance(uh, dict)
+            self.assertEqual(uh.get("schema_version"), "doctor_upgrade_hints_v1")
 
     def test_doctor_fail_on_missing_api_key_skipped_when_mock(self) -> None:
         with tempfile.TemporaryDirectory() as td:

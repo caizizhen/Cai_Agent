@@ -164,6 +164,7 @@ def test_api_doctor_summary_no_base_url(tmp_path: Path) -> None:
             assert mp.get("active_provider") == "local_entries_jsonl"
             tp = data.get("tool_provider") or {}
             assert tp.get("schema_version") == "tool_provider_contract_v1"
+            assert isinstance(data.get("ecc_home_sync_drift_targets"), (list, type(None)))
         finally:
             httpd.shutdown()
             httpd.server_close()
