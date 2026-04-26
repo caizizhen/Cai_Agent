@@ -61,7 +61,7 @@
 | `P2` 差异化能力补齐 | `ECC-N02`、`HM-N06` | **`HM-N08`～`HM-N10` 主路径已交付**；**`ECC-N04-D01`～`D03` 文档与机读草案已交付**，本组聚焦 **asset pack / import-install 执行链**、第二批 gateway 预研落地 |
 | `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N11`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |
 
-详细开发拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)。详细测试拆解见：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)。两页现在按 `CC-N* / HM-N* / ECC-N*` 维护能力级任务，并用 `*-Dxx` 原子任务覆盖可直接开工的开发与测试粒度。
+详细开发拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)（**仅未完成**）。详细测试拆解见：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)（**仅未完成**）。已从上述 TODO 拆出的 **Done** 表格行见 [TODOS_DONE_ARCHIVE.zh-CN.md](TODOS_DONE_ARCHIVE.zh-CN.md)。能力级仍按 `CC-N* / HM-N* / ECC-N*`，原子级用 `*-Dxx`。
 
 ## 5. 本轮明确不默认追求的能力
 

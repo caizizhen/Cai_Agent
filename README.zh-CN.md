@@ -12,7 +12,7 @@
 - **[新用户与 CI 路径](docs/ONBOARDING.zh-CN.md)**：`init` → `doctor` → `run`。
 - **[唯一执行清单](docs/PRODUCT_PLAN.zh-CN.md)**：当前能力、测试进度、开发项状态。
 - **[当前阶段开发计划](docs/ROADMAP_EXECUTION.zh-CN.md)**：下一阶段开发顺序与里程碑。
-- **[未来开发队列](docs/DEVELOPER_TODOS.zh-CN.md)**：只保留未完成项、未来方向与 OOS/条件立项。
+- **[未来开发队列](docs/DEVELOPER_TODOS.zh-CN.md)**：只保留未完成项、未来方向与 OOS/条件立项；已从 TODO 拆出的 **Done** 表格行见 [docs/TODOS_DONE_ARCHIVE.zh-CN.md](docs/TODOS_DONE_ARCHIVE.zh-CN.md)。
 - **[已完成任务归档](docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md)**：已交付任务的归档摘要。
 - **[缺口与边界](docs/PRODUCT_GAP_ANALYSIS.zh-CN.md)**：P1/P2 缺口、OOS、发版门禁。
 - **[Parity 矩阵](docs/PARITY_MATRIX.zh-CN.md)**：发版勾选与 `Done/Next/MCP/OOS`。

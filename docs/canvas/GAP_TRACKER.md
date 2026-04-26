@@ -49,5 +49,5 @@ When a roadmap item changes status:
 
 1. Update [`../ROADMAP_EXECUTION.zh-CN.md`](../ROADMAP_EXECUTION.zh-CN.md) first.
 2. Mirror the status here.
-3. Move completed task details to [`../COMPLETED_TASKS_ARCHIVE.zh-CN.md`](../COMPLETED_TASKS_ARCHIVE.zh-CN.md); keep [`../DEVELOPER_TODOS.zh-CN.md`](../DEVELOPER_TODOS.zh-CN.md) focused on unfinished work and future directions.
+3. Move completed task details to [`../COMPLETED_TASKS_ARCHIVE.zh-CN.md`](../COMPLETED_TASKS_ARCHIVE.zh-CN.md); move **Done** TODO table rows to [`../TODOS_DONE_ARCHIVE.zh-CN.md`](../TODOS_DONE_ARCHIVE.zh-CN.md); keep [`../DEVELOPER_TODOS.zh-CN.md`](../DEVELOPER_TODOS.zh-CN.md) / [`../TEST_TODOS.zh-CN.md`](../TEST_TODOS.zh-CN.md) focused on **unfinished** work and future directions.
 4. If an old canvas row becomes irrelevant, map it to `OOS` instead of inventing a new parallel bucket.

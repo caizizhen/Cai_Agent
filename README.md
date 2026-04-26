@@ -68,7 +68,7 @@ Do not commit real API keys.
 | [`docs/PARITY_MATRIX.zh-CN.md`](docs/PARITY_MATRIX.zh-CN.md) | Release review matrix |
 | [`docs/IMPLEMENTATION_STATUS.md`](docs/IMPLEMENTATION_STATUS.md) | Rolling one-page summary |
 | [`docs/ISSUE_BACKLOG.md`](docs/ISSUE_BACKLOG.md) / [`docs/ISSUE_BACKLOG.zh-CN.md`](docs/ISSUE_BACKLOG.zh-CN.md) | Issue drafts and recently closed implementation tickets |
-| [`docs/DEVELOPER_TODOS.zh-CN.md`](docs/DEVELOPER_TODOS.zh-CN.md) | Future developer queue, OOS items, and execution rules (Chinese-only) |
+| [`docs/DEVELOPER_TODOS.zh-CN.md`](docs/DEVELOPER_TODOS.zh-CN.md) | Open developer backlog + rules (Chinese-only); **Done** table rows live in [`docs/TODOS_DONE_ARCHIVE.zh-CN.md`](docs/TODOS_DONE_ARCHIVE.zh-CN.md) |
 | [`docs/COMPLETED_TASKS_ARCHIVE.md`](docs/COMPLETED_TASKS_ARCHIVE.md) / [`docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`](docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md) | Completed task archive |
 | [`docs/TEST_TODOS.zh-CN.md`](docs/TEST_TODOS.zh-CN.md) | Current QA baseline and focused testing queue (Chinese-only) |
 | [`docs/OPS_DYNAMIC_WEB_API.md`](docs/OPS_DYNAMIC_WEB_API.md) | Ops dashboard HTTP contract |

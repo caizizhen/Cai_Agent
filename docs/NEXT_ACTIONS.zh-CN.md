@@ -2,7 +2,7 @@
 
 > 低 token 开发入口。新的开发会话先读本页，再按本页指向读取少量文件。
 >
-> 最后同步：2026-04-26。状态来源：`DEVELOPER_TODOS.zh-CN.md`、`TEST_TODOS.zh-CN.md`、`PRODUCT_GAP_ANALYSIS.zh-CN.md`、`ROADMAP_EXECUTION.zh-CN.md`、`IMPLEMENTATION_STATUS.zh-CN.md`。
+> 最后同步：2026-04-26。状态来源：`DEVELOPER_TODOS.zh-CN.md`、`TEST_TODOS.zh-CN.md`（仅未完成）、`TODOS_DONE_ARCHIVE.zh-CN.md`（Done 行快照）、`PRODUCT_GAP_ANALYSIS.zh-CN.md`、`ROADMAP_EXECUTION.zh-CN.md`、`IMPLEMENTATION_STATUS.zh-CN.md`。
 
 ## 维护契约
 

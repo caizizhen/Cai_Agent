@@ -9,8 +9,9 @@ This page is the English docs entrypoint.
 | First-run path | [`ONBOARDING.md`](ONBOARDING.md) / [`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md) |
 | Current capabilities, completion state, and test baseline | [`PRODUCT_PLAN.md`](PRODUCT_PLAN.md) / [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md) |
 | Current product gaps and next-wave priorities | [`PRODUCT_GAP_ANALYSIS.md`](PRODUCT_GAP_ANALYSIS.md) / [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) |
-| Next-wave developer backlog | Chinese-only: [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
-| Next-wave test backlog | Chinese-only: [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) |
+| Next-wave developer backlog (open items only) | Chinese-only: [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) |
+| Done rows removed from the two TODO pages | Chinese-only: [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md) |
+| Next-wave test backlog (open items only) | Chinese-only: [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) |
 | Roadmap / milestone / status mapping | [`ROADMAP_EXECUTION.md`](ROADMAP_EXECUTION.md) / [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) |
 | Execution issue drafts | [`ISSUE_BACKLOG.md`](ISSUE_BACKLOG.md) / [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md) |
 | Completed task archive | [`COMPLETED_TASKS_ARCHIVE.md`](COMPLETED_TASKS_ARCHIVE.md) / [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md) |
@@ -62,8 +63,9 @@ Historical docs now live under [`archive/`](archive/). They remain for traceabil
 
 - Keep current-state completion and test baseline in `PRODUCT_PLAN`.
 - Keep product gaps, priorities, and OOS boundaries in `PRODUCT_GAP_ANALYSIS`.
-- Keep next-wave developer backlog in `DEVELOPER_TODOS`.
-- Keep next-wave QA backlog in `TEST_TODOS`.
+- Keep next-wave developer backlog (**open items only**) in `DEVELOPER_TODOS`.
+- Keep next-wave QA backlog (**open items only**) in `TEST_TODOS`.
+- When a TODO table row is **Done**, move it to `TODOS_DONE_ARCHIVE.zh-CN.md` (do not leave it in the two TODO pages).
 - Keep milestone / roadmap status in `ROADMAP_EXECUTION`.
 - Keep completed evidence in `COMPLETED_TASKS_ARCHIVE`.
 - Keep version history in `CHANGELOG`.
