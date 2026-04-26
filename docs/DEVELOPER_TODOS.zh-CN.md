@@ -30,7 +30,7 @@
 | 顺位 | 能力 | 状态 | 下一步原子任务 |
 |---|---|---|---|
 | 1 | `CC-N01` 安装 / 升级 / 修复 | `In progress` | `CC-N01-D01` repair CLI 已启动；继续补 `doctor.install` / `doctor.sync` 深化与文档回写 |
-| 2 | `CC-N02` 反馈与自助诊断 | `In progress` | `CC-N02-D01` feedback bundle 与 `CC-N02-D03` doctor -> repair -> feedback triage 已启动；继续补模板字段与导出策略深化 |
+| 2 | `CC-N02` 反馈与自助诊断 | `Done` | `CC-N02-D01`～`D04` 已交付；后续仅密钥形态扩展等维护项 |
 | 3 | `HM-N01` Profile home | `Ready` | `HM-N01-D02` clone、`HM-N01-D04` alias、`HM-N01-D05` migration doctor |
 | 4 | `ECC-N01` home sync / catalog | `Design` | `ECC-N01-D02` sync-home dry-run、`ECC-N01-D03` doctor drift、`ECC-N01-D04` repair 建议 |
 | 5 | `ECC-N02` asset pack 生命周期 | `Design` | pack manifest、export/import/install/repair |
@@ -80,7 +80,7 @@
 | ID | 状态 | 优先级 | 功能 | 当前差距 | 主要代码入口 | 本轮目标 | 本轮不做 | 完成标准 |
 |---|---|---|---|---|---|---|---|---|
 | `CC-N01` | `In progress` | `P0` | 安装 / 升级 / 修复一体化入口 | **`CC-N01-D05`（命令中心 / TUI slash / doctor-repair 同源）已交付**；仍缺 `D01`～`D04` 的 repair 深化、`doctor.install` / `doctor.sync` 与 upgrade 叙事统一 | `__main__.py`、`doctor.py`、`templates/`、`plugin_registry.py`、`command_registry.py` | 继续落地 `repair` 等价命令与 install/sync 诊断块，收口 onboarding 与 upgrade 路径 | 不做平台签名安装器，不做 GUI 安装器 | 新用户可从零跑通；旧用户配置损坏时能用 CLI 恢复最小可用状态 |
-| `CC-N02` | `In progress` | `P0` | `/bug` 等价反馈与自助诊断链路 | **`CC-N02-D02`（bug 模板字段）与 `CC-N02-D01/D03` 已交付**；待 **`CC-N02-D04`** 脱敏与导出目录策略收口 | `feedback.py`、`doctor.py`、`__main__.py`、`release_runbook.py` | 收口 bundle 脱敏、导出目录策略与用户自助 triage 提示 | 不做在线反馈平台，不做遥测后台 | 用户可在本地完成“诊断 -> 修复尝试 -> bug 反馈导出”一条链路 |
+| `CC-N02` | `Done` | `P0` | `/bug` 等价反馈与自助诊断链路 | **`CC-N02-D01`～`D04` 已交付**（bundle、triage、结构化 bug、`sanitize_feedback_text` 强化、**bundle/export 路径策略** 与 **JSONL 导出行级再脱敏**） | `feedback.py`、`doctor.py`、`__main__.py`、`release_runbook.py` | 后续仅回归与小步增强（例如更多密钥形态） | 不做在线反馈平台，不做遥测后台 | 用户可在本地完成“诊断 -> 修复尝试 -> bug 反馈导出”一条链路 |
 | `CC-N03` | `Design` | `P1` | Plugin / marketplace / home sync | 现在有 plugin compat 与 export，但没有 Claude Code 风格的 marketplace / install / sync 统一表面 | `plugin_registry.py`、`exporter.py`、`ecc_layout.py`、`__main__.py` | 落地 `plugins sync-home --dry-run`、本地 catalog snapshot、home drift doctor、最小 marketplace manifest | 不做公共付费 marketplace，不做远程依赖解析服务 | 资产可安全同步到 home，doctor 能发现漂移，插件/导出/同步口径统一 |
 | `CC-N04` | `Design` | `P1` | 更完整的 session / task / recap 体验 | 当前 `/tasks`、session strip、模型切换可用，但还缺 long-session recap、resume 提示、任务过滤和更强的继续体验 | `tui.py`、`tui_task_board.py`、`tui_session_strip.py`、`__main__.py` | 增加 recap / resume 摘要、任务筛选、session restore 提示、长会话继续引导 | 不做远程控制，不做官方云端 review 能力 | 用户离开长会话后，能快速恢复上下文并继续任务，不需要重新阅读整段历史 |
 | `CC-N05` | `Explore` | `P2` | 本地 Desktop / GUI 入口 | 当前只有 TUI 和只读/轻交互 Web；还没有真正的本地图形入口包装层 | `ops_http_server.py`、`ops_dashboard.py`、`tui.py` | 评估以本地 dashboard / embedded TUI 为基础做轻量 GUI 包装 | 不做跨平台原生桌面发行版 | 给出方案、依赖、风险与是否立项建议 |
@@ -136,7 +136,7 @@
 | `CC-N02-D01` | 反馈与诊断 | feedback bundle schema，自动附带 doctor 摘要、版本、平台、配置摘要 | `feedback.py`、`doctor.py` | **Done（2026-04-26）**：`feedback bundle --dest ... --json` 输出 `feedback_bundle_v1` / `feedback_bundle_export_v1` |
 | `CC-N02-D02` | 反馈与诊断 | `feedback bug` 模板补齐复现步骤、期望行为、实际行为、附件列表 | `feedback.py`、`__main__.py` | **Done（2026-04-26）**：CLI 交互和 JSON 输出都能表达同一结构 |
 | `CC-N02-D03` | 反馈与诊断 | 反馈前 triage 提示，串起 `doctor -> repair -> feedback bug` | `doctor.py`、`feedback.py` | **Done（2026-04-26）**：`doctor_feedback_triage_v1` 指向 doctor / repair / feedback bug / feedback bundle 流程 |
-| `CC-N02-D04` | 反馈与诊断 | 脱敏策略和导出目录策略收口 | `feedback.py`、`release_runbook.py` | token、path、email 等敏感字段不会直接出现在 bundle |
+| `CC-N02-D04` | 反馈与诊断 | 脱敏策略和导出目录策略收口 | `feedback.py`、`release_runbook.py` | **Done（2026-04-26）**：`sanitize_feedback_text` 扩展；`append_feedback`/JSONL export/bundle 递归脱敏；`feedback_bundle_export_v1` 不泄露绝对 workspace；`dest_placement` + `redaction.warnings`；见 ROADMAP `CC-N02-D04` |
 | `CC-N03-D01` | Plugin / marketplace / home sync | 本地 catalog schema，描述 plugin / skill / hook / rule 资产 | `plugin_registry.py`、`ecc_layout.py` | catalog 可生成、可校验、可版本化 |
 | `CC-N03-D02` | Plugin / marketplace / home sync | `plugins sync-home --dry-run`，展示将写入/跳过/冲突的文件 | `__main__.py`、`plugin_registry.py` | dry-run 不写文件，diff 可读 |
 | `CC-N03-D03` | Plugin / marketplace / home sync | home drift doctor，检测 `.claude` / `.codex` / 目标 harness 漂移 | `doctor.py`、`ecc_layout.py` | 能输出目标、差异、建议命令 |
@@ -224,18 +224,19 @@
 
 如果目标是“尽量贴近三上游”，建议按下面顺序推进（**已交付的 `HM-N05`～`HM-N10` 不再排入主序列**，与 [`NEXT_ACTIONS.zh-CN.md`](NEXT_ACTIONS.zh-CN.md) 一致）：
 
-1. `CC-N02`（优先收口 **`CC-N02-D04`** 脱敏与导出目录策略）
-2. `CC-N01`（继续 **`CC-N01-D01`～`D04`**：`repair` / `doctor.install` / `doctor.sync` / upgrade 叙事）
-3. `HM-N01`（profile home / clone / alias / migration doctor）
-4. `HM-N03`（API 路由族、OpenAPI、`HM-N03-D03` 与文档化一并收口）
-5. `HM-N04`（dashboard 可写化）
-6. `CC-N03`（plugin / home sync）
-7. `ECC-N01`（sync-home、drift、repair）
-8. `ECC-N03`（cross-harness doctor / diff）
-9. `CC-N04`（session / recap）
-10. `ECC-N02`（asset pack 生命周期；承接 ingest 执行链）
-11. `HM-N06`（第二批 gateway 平台，Explore）
-12. `HM-N11`（真实云 runtime，仅授权后）
+1. `CC-N01`（继续 **`CC-N01-D01`～`D04`**：`repair` / `doctor.install` / `doctor.sync` / upgrade 叙事）
+2. `HM-N01`（profile home / clone / alias / migration doctor）
+3. `HM-N03`（API 路由族、OpenAPI、`HM-N03-D03` 与文档化一并收口）
+4. `HM-N04`（dashboard 可写化）
+5. `CC-N03`（plugin / home sync）
+6. `ECC-N01`（sync-home、drift、repair）
+7. `ECC-N03`（cross-harness doctor / diff）
+8. `CC-N04`（session / recap）
+9. `ECC-N02`（asset pack 生命周期；承接 ingest 执行链）
+10. `HM-N06`（第二批 gateway 平台，Explore）
+11. `HM-N11`（真实云 runtime，仅授权后）
+
+（**`CC-N02` 能力线已 Done**，不再列入主序列。）
 
 解释：
 
@@ -245,22 +246,19 @@
 
 ### 8.1 第一批建议直接开工的原子任务
 
-第一批建议优先开这些原子任务，它们能最快把“别人怎么安装、怎么修复、怎么反馈、怎么隔离状态”补齐。已完成的大块 HM 项与 **`ECC-N04-D01`～`D03` 文档基线** 不再重复排入第一批：
+第一批建议优先开这些原子任务，它们能最快把“别人怎么安装、怎么修复、怎么反馈、怎么隔离状态”补齐。已完成的大块 HM 项、**`CC-N02-D01`～`D04`** 与 **`ECC-N04-D01`～`D03` 文档基线** 不再重复排入第一批：
 
 1. `CC-N01-D01`
 2. `CC-N01-D02`
 3. `CC-N01-D03`
-4. `CC-N02-D01`
-5. `CC-N02-D03`
-6. `CC-N02-D04`
-7. `HM-N01-D02`
-8. `HM-N01-D04`
-9. `HM-N01-D05`
-10. `ECC-N01-D02`
-11. `ECC-N01-D03`
-12. `ECC-N01-D04`
-13. `ECC-N02-D01`
-14. `ECC-N02-D02`
+4. `HM-N01-D02`
+5. `HM-N01-D04`
+6. `HM-N01-D05`
+7. `ECC-N01-D02`
+8. `ECC-N01-D03`
+9. `ECC-N01-D04`
+10. `ECC-N02-D01`
+11. `ECC-N02-D02`
 
 ## 9. OOS / 条件立项边界
 
@@ -296,6 +294,6 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **817 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **820 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |

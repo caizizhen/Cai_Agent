@@ -6,6 +6,7 @@
 
 ### Unreleased
 
+- **CC-N02-D04 feedback bundle/export 脱敏与导出路径策略**：扩展 **`sanitize_feedback_text`**（workspace/home 路径、`/home/<user>`、Slack **`xox*`**）；**`append_feedback`** 落盘前脱敏；**`feedback export`** 对每行再脱敏；**`feedback_stats` / `feedback_export_v1` / `feedback_bundle_export_v1`** 的 **`workspace`** 统一为 **`<workspace>`**；**`feedback bundle`** 的 CLI JSON 增加 **`dest_placement`** 与工作区外 **`redaction.warnings`**；**`release_runbook`** 增补 **`feedback bundle`** 步骤。测试：`test_feedback_cli`、`test_feedback_export`、`test_feedback_bundle_cli`、`test_doctor_cli`。
 - **ECC-N04-D03 ingest 来源/签名/信任策略草案**：新增中英文 **`docs/ECC_04C_INGEST_PROVENANCE_TRUST*.md`** 与 **`docs/schema/ecc_ingest_provenance_trust_v1.snapshot.json`**（`ecc_ingest_provenance_trust_v1`），定义与 **`ecc_asset_registry_v1`** 字段及 **`ecc_ingest_sanitizer_policy_v1`** 合流的保守门禁；更新 **`ecc_asset_registry_v1.snapshot.json`** 的 `boundaries`、`docs/schema/README*`、`ROADMAP_EXECUTION.zh-CN.md` §10、开发与缺口文档，并新增 **`test_ecc_ingest_schema_snapshots.py`** 保证草案 JSON 可解析。
 - **英文产品缺口摘要同步**：扩展 **`docs/PRODUCT_GAP_ANALYSIS.md`**，与中文版优先级表（P0～P3）及 `HM-N05`～`HM-N10` 已交付后的排期口径对齐。
 - **CC-N02 feedback bundle 与自助 triage 启动**：新增 `cai-agent feedback bundle --dest ... --json`，导出 `feedback_bundle_v1` 诊断包（最近反馈、`api_doctor_summary_v1`、`repair_plan_v1`、平台信息与脱敏策略），并返回 `feedback_bundle_export_v1`；`doctor --json` 新增 `doctor_feedback_triage_v1`，把 `doctor -> repair -> feedback bug -> feedback bundle` 串成固定本地排障链路。测试：`test_feedback_bundle_cli.py`、`test_feedback_cli.py`、`test_feedback_export.py`、`test_doctor_cli.py`。

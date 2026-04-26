@@ -14,7 +14,7 @@
 
 1. **上一轮 roadmap / backlog 内定义的功能开发，已经基本完成。**
    - 证据见：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md) §10、[COMPLETED_TASKS_ARCHIVE.zh-CN.md](COMPLETED_TASKS_ARCHIVE.zh-CN.md)、[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)。
-   - 自动化基线也已复核通过：`817 passed, 3 subtests passed`，smoke / regression 全绿。
+   - 自动化基线也已复核通过：`820 passed, 3 subtests passed`，smoke / regression 全绿。
 2. **相对三个上游仓库的当前公开能力面，本仓还没有“全部同步完成”。**
    - 当前更接近“**核心主链路已成型，产品化外表面仍需补齐**”。
    - 后续工作的重点，不再是补第一轮内部缺口，而是补“三上游最新能力面”的剩余对齐项。
@@ -56,7 +56,7 @@
 | 分组 | 最高优先项 | 说明 |
 |---|---|---|
 | `MODEL-P0` 模型接入地基 | `MODEL-P0-01` 到 `MODEL-P0-07` 已完成 | provider contract、capabilities、health、response、routing explain / fallback 与 onboarding runbook 已形成共同底座 |
-| `P0` 外部入口补齐 | `CC-N01`、`CC-N02`、`HM-N01` | 在模型地基稳定后，补安装/修复、profile home 这些最影响“别人怎么接入我们”的能力；`HM-N02` 已由 OpenAI-compatible API server 收口 |
+| `P0` 外部入口补齐 | `CC-N01`、`HM-N01` | 在模型地基稳定后，补安装/修复、profile home 这些最影响“别人怎么接入我们”的能力；**`CC-N02` 反馈线已 Done**；`HM-N02` 已由 OpenAI-compatible API server 收口 |
 | `P1` 产品外壳补齐 | `CC-N03`、`CC-N04`、`HM-N03`、`HM-N04`、`ECC-N01`、`ECC-N03` | 让 dashboard、plugin/home sync、session UX、API 可管理化更接近三上游；**`HM-N05`/`HM-N07` 等 gateway 扩面与联邦主路径已交付**，本组不再重复排为最高优先 |
 | `P2` 差异化能力补齐 | `ECC-N02`、`HM-N06` | **`HM-N08`～`HM-N10` 主路径已交付**；**`ECC-N04-D01`～`D03` 文档与机读草案已交付**，本组聚焦 **asset pack / import-install 执行链**、第二批 gateway 预研落地 |
 | `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N11`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |

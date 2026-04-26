@@ -76,7 +76,12 @@ def build_release_runbook_payload(
         {
             "id": "feedback_export",
             "command": "cai-agent feedback export --dest dist/feedback-export.jsonl --json",
-            "purpose": "archive recent user/operator feedback alongside the release notes",
+            "purpose": "archive recent user/operator feedback alongside the release notes (rows re-sanitized on export)",
+        },
+        {
+            "id": "feedback_bundle",
+            "command": "cai-agent feedback bundle --dest dist/feedback-bundle.json --json",
+            "purpose": "export a redacted doctor+repair triage bundle; keep --dest under the repo (dist/ or .cai/)",
         },
     ]
     writeback_targets = [

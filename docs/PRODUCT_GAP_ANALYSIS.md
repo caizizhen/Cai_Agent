@@ -34,7 +34,7 @@ The Chinese document now tracks a fuller grouped backlog:
 | Group | Top items | Notes |
 |-------|-----------|--------|
 | `MODEL-P0` | Completed | Model gateway, capabilities, health, routing explain, onboarding — see archive + roadmap. |
-| `P0` external entrypoints | `CC-N01`, `CC-N02`, `HM-N01` | Install/repair, feedback loop, isolated profile homes. |
+| `P0` external entrypoints | `CC-N01`, `HM-N01` | Install/repair and isolated profile homes. **`CC-N02` feedback line is `Done`** (bundle/export redaction landed in `CC-N02-D04`). |
 | `P1` product shells | `CC-N03`, `CC-N04`, `HM-N03`, `HM-N04`, `ECC-N01`, `ECC-N03` | Dashboard, plugin/home sync, session UX, API manageability. **`HM-N05`/`HM-N07` gateway expansion + federation are already `Done`** — do not keep re-scheduling them as P0. |
 | `P2` differentiation | `ECC-N02`, `HM-N06` | Asset pack lifecycle + second-wave gateway exploration. **`HM-N08`–`HM-N10` main paths are shipped**; **`ECC-N04-D01`–`D03` policy drafts are shipped`** — next work is **execution/import wiring**, not re-authoring the same policy docs. |
 | `P3` conditional / Explore | `CC-N05`, `CC-N07`, `HM-N11`, `ECC-N05` | Desktop GUI, remote/cloud surfaces, real cloud runtimes, operator console — default off without authorization. |

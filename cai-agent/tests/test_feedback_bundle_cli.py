@@ -41,6 +41,22 @@ def test_feedback_bundle_cli_exports_redacted_diagnostic_bundle(tmp_path: Path) 
     assert "<workspace>" in blob
 
 
+def test_feedback_bundle_warns_when_dest_outside_workspace(tmp_path: Path) -> None:
+    append_feedback(tmp_path, text="outside dest probe")
+    outside = tmp_path.parent / f"_fb_bundle_{tmp_path.name}.json"
+    buf = io.StringIO()
+    with patch("cai_agent.__main__.os.getcwd", return_value=str(tmp_path)):
+        with redirect_stdout(buf):
+            rc = main(["feedback", "bundle", "--dest", str(outside), "--json"])
+    assert rc == 0
+    out = json.loads(buf.getvalue().strip())
+    assert out.get("dest_placement") == "external"
+    assert out.get("workspace") == "<workspace>"
+    bundle = json.loads(outside.read_text(encoding="utf-8"))
+    warns = ((bundle.get("redaction") or {}).get("warnings")) or []
+    assert any("bundle_dest_outside_workspace" in str(w) for w in warns)
+
+
 def test_doctor_json_includes_feedback_triage(tmp_path: Path) -> None:
     buf = io.StringIO()
     with patch("cai_agent.__main__.os.getcwd", return_value=str(tmp_path)):

@@ -11,7 +11,7 @@
 
 | 检查项 | 命令 | 结果 |
 |---|---|---|
-| 全量单测 | `python -m pytest -q cai-agent/tests` | **817 passed**, **3 subtests passed** |
+| 全量单测 | `python -m pytest -q cai-agent/tests` | **820 passed**, **3 subtests passed** |
 | 冒烟 | `python scripts/smoke_new_features.py` | **PASS**，输出 `NEW_FEATURE_CHECKS_OK` |
 | 回归 | `QA_SKIP_LOG=1 python scripts/run_regression.py` | **PASS**，compileall / unittest / smoke / CLI 子集全绿 |
 
@@ -24,12 +24,11 @@
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
 | 1 | `CC-N01` repair / doctor install / sync | 已新增 `test_repair_cli.py`，覆盖 `repair --dry-run --json` 与 `repair --apply --json`；`test_doctor_cli.py` 已覆盖 `doctor_install_v1` / `doctor_sync_v1` |
-| 2 | `CC-N02` feedback bundle / triage | 已新增 `test_feedback_bundle_cli.py`，覆盖 `feedback_bundle_v1`、doctor 摘要、repair plan、路径/token/email 脱敏与 `doctor_feedback_triage_v1` |
-| 3 | `HM-N01` profile clone / alias / migration | 下一步补 profile clone/alias/migration doctor 测试 |
-| 4 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
-| 5 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
+| 2 | `HM-N01` profile clone / alias / migration | 下一步补 profile clone/alias/migration doctor 测试 |
+| 3 | `ECC-N01` sync-home / drift / repair 建议 | 下一步补 home sync dry-run、doctor drift、repair command snapshot |
+| 4 | `ECC-N02` asset pack 生命周期 | 下一步补 pack manifest、export/import/install/repair 测试 |
 
-`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01`～`D03` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
+`CC-N02`（含 **`CC-N02-D04`** bundle/export 脱敏与路径策略）、`HM-N05`、`HM-N07`、`HM-N08`、`HM-N09`、`HM-N10`、`HM-N11` 与 `ECC-N03-D01/D02`、`ECC-N04-D01`～`D03` 的实现状态以 `ROADMAP_EXECUTION.zh-CN.md` 和 `CHANGELOG.zh-CN.md` 为准：这些项已经进入已完成/持续维护口径，不再作为下一轮测试开工队列的默认头部。
 
 ## 2. 使用规则
 
@@ -263,3 +262,4 @@ $env:QA_SKIP_LOG='1'; python scripts/run_regression.py
 |---|---|---|---|
 | 2026-04-26 | `DOC-AUTO-FINALIZE` | pytest -q -p no:cacheprovider cai-agent/tests/test_finalize_task_script.py: 1 passed | [`docs/qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md`](qa/runs/task-finalize-20260426-194030-DOC-AUTO-FINALIZE.md) |
 | 2026-04-26 | `ECC-N04-D03` | python -m pytest -q cai-agent/tests: 817 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md`](docs/qa/runs/task-finalize-20260426-203353-ECC-N04-D03.md) |
+| 2026-04-26 | `CC-N02-D04` | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260426-212531-CC-N02-D04.md`](docs/qa/runs/task-finalize-20260426-212531-CC-N02-D04.md) |

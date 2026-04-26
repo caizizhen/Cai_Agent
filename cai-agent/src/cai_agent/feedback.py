@@ -24,9 +24,19 @@ def feedback_path(cwd: str | Path) -> Path:
     return Path(cwd).expanduser().resolve() / FEEDBACK_REL
 
 
-def sanitize_feedback_text(text: str, *, max_len: int = 8000) -> str:
-    """Best-effort redaction before persisting or posting feedback (tokens, obvious secrets)."""
-    s = (text or "")[:max_len]
+def sanitize_feedback_text(
+    text: str,
+    *,
+    max_len: int = 8000,
+    workspace: str | Path | None = None,
+) -> str:
+    """Best-effort redaction before persisting or posting feedback (tokens, obvious secrets).
+
+    When ``workspace`` is set, its absolute path (and common slash variants) is replaced with
+    ``<workspace>`` so support bundles do not leak project location. ``Path.home()`` is replaced
+    with ``<home>`` when it appears as a substring after other rules.
+    """
+    s = text or ""
     s = re.sub(r"(?i)sk-[a-z0-9_-]{10,}", "sk-<redacted>", s)
     s = re.sub(r"(?i)Bearer\s+[A-Za-z0-9._=-]{8,}", "Bearer <redacted>", s)
     s = re.sub(
@@ -50,7 +60,21 @@ def sanitize_feedback_text(text: str, *, max_len: int = 8000) -> str:
     s = re.sub(r"(https?://)[^/\s:@]+:[^/\s@]+@", r"\1<redacted>:<redacted>@", s)
     s = re.sub(r"(?i)([A-Za-z]:\\Users\\)[^\\]+\\", r"\1<user>\\", s)
     s = re.sub(r"/Users/[^/\s]+/", "/Users/<user>/", s)
-    return s
+    s = re.sub(r"/home/[^/\s]+/", "/home/<user>/", s)
+    s = re.sub(r"\bxox[bpears]-[A-Za-z0-9-]{10,}\b", "xox<slack-token-redacted>", s)
+    if workspace:
+        wp = Path(workspace).expanduser().resolve()
+        for fragment in {str(wp), str(wp).replace("\\", "/")}:
+            if fragment and fragment in s:
+                s = s.replace(fragment, "<workspace>")
+    try:
+        hm = Path.home().expanduser().resolve()
+        for fragment in {str(hm), str(hm).replace("\\", "/")}:
+            if len(fragment) > 2 and fragment in s:
+                s = s.replace(fragment, "<home>")
+    except Exception:
+        pass
+    return s[:max_len]
 
 
 def _sanitize_bundle_value(value: Any, *, workspace: Path) -> Any:
@@ -60,7 +84,7 @@ def _sanitize_bundle_value(value: Any, *, workspace: Path) -> Any:
             s = s.replace(str(workspace).replace("\\", "/"), "<workspace>")
         except Exception:
             pass
-        return sanitize_feedback_text(s, max_len=20_000)
+        return sanitize_feedback_text(s, max_len=20_000, workspace=workspace)
     if isinstance(value, list):
         return [_sanitize_bundle_value(v, workspace=workspace) for v in value]
     if isinstance(value, dict):
@@ -101,10 +125,12 @@ def append_feedback(
     source: str = "cli",
     extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    root = Path(cwd).expanduser().resolve()
+    safe_text = sanitize_feedback_text((text or "").strip(), max_len=4000, workspace=root)
     row = {
         "schema_version": "feedback_event_v1",
         "ts": datetime.now(UTC).isoformat(),
-        "text": (text or "")[:4000],
+        "text": safe_text[:4000],
         "source": str(source or "cli")[:80],
     }
     if extra:
@@ -128,17 +154,18 @@ def append_bug_report(
     cat = (category or "other").strip().lower()
     if cat not in _BUG_CATEGORY_SET:
         cat = "other"
-    summary_s = sanitize_feedback_text((summary or "").strip())[:800]
-    detail_s = sanitize_feedback_text((detail or "").strip())[:3500]
+    root = Path(cwd).expanduser().resolve()
+    summary_s = sanitize_feedback_text((summary or "").strip(), workspace=root)[:800]
+    detail_s = sanitize_feedback_text((detail or "").strip(), workspace=root)[:3500]
     steps_s = [
-        sanitize_feedback_text(str(step).strip())[:1000]
+        sanitize_feedback_text(str(step).strip(), workspace=root)[:1000]
         for step in (repro_steps or ())
         if str(step).strip()
     ][:50]
-    expected_s = sanitize_feedback_text((expected or "").strip())[:2000]
-    actual_s = sanitize_feedback_text((actual or "").strip())[:2000]
+    expected_s = sanitize_feedback_text((expected or "").strip(), workspace=root)[:2000]
+    actual_s = sanitize_feedback_text((actual or "").strip(), workspace=root)[:2000]
     attachments_s = [
-        sanitize_feedback_text(str(item).strip())[:1000]
+        sanitize_feedback_text(str(item).strip(), workspace=root)[:1000]
         for item in (attachments or ())
         if str(item).strip()
     ][:50]
@@ -196,7 +223,7 @@ def feedback_stats(cwd: str | Path) -> dict[str, Any]:
     return {
         "schema_version": "feedback_stats_v1",
         "generated_at": datetime.now(UTC).isoformat(),
-        "workspace": str(Path(cwd).expanduser().resolve()),
+        "workspace": "<workspace>",
         "total": len(rows),
         "latest_ts": latest_ts,
         "sources": sources,
@@ -212,17 +239,44 @@ def export_feedback_jsonl(
     """Copy recent feedback rows to a standalone JSONL file (``feedback_export_v1``)."""
     lim = 50_000 if limit is None else max(1, min(200_000, int(limit)))
     rows = list_feedback(cwd, limit=lim)
+    root = Path(cwd).expanduser().resolve()
     dest_p = Path(dest).expanduser().resolve()
     dest_p.parent.mkdir(parents=True, exist_ok=True)
-    body = "\n".join(json.dumps(r, ensure_ascii=False) for r in rows) + ("\n" if rows else "")
+    safe_rows: list[dict[str, Any]] = []
+    for r in rows:
+        if isinstance(r, dict):
+            clone = json.loads(json.dumps(r))
+            safe_rows.append(_sanitize_bundle_value(clone, workspace=root))
+        else:
+            continue
+    body = "\n".join(json.dumps(r, ensure_ascii=False) for r in safe_rows) + ("\n" if safe_rows else "")
     dest_p.write_text(body, encoding="utf-8")
     return {
         "schema_version": "feedback_export_v1",
         "generated_at": datetime.now(UTC).isoformat(),
-        "workspace": str(Path(cwd).expanduser().resolve()),
+        "workspace": "<workspace>",
         "dest": str(dest_p),
-        "rows": len(rows),
+        "rows": len(safe_rows),
     }
+
+
+def _describe_feedback_bundle_dest(dest: Path, workspace: Path) -> dict[str, Any]:
+    """Return display path + placement hints for ``feedback bundle`` exports (no raw workspace leak)."""
+    dest_r = dest.expanduser().resolve()
+    ws_r = workspace.expanduser().resolve()
+    warnings: list[str] = []
+    try:
+        rel = dest_r.relative_to(ws_r)
+        placement = "under_workspace"
+        display = rel.as_posix()
+    except ValueError:
+        placement = "external"
+        display = sanitize_feedback_text(str(dest_r), workspace=ws_r)[:2048]
+        warnings.append(
+            "bundle_dest_outside_workspace: prefer --dest under the project tree "
+            "(e.g. dist/feedback-bundle.json or .cai/exports/) so operator copies stay scoped.",
+        )
+    return {"placement": placement, "display_path": display, "warnings": warnings}
 
 
 def build_feedback_bundle_payload(
@@ -255,8 +309,10 @@ def build_feedback_bundle_payload(
             "strategy": "sanitize_feedback_text_v1",
             "workspace": "<workspace>",
             "notes": [
-                "feedback text is redacted for common tokens and emails",
-                "workspace absolute path is replaced with <workspace>",
+                "feedback text is redacted for common tokens, emails, and common chat secrets",
+                "workspace and user-home absolute paths are replaced with <workspace> / <home>",
+                "bundle JSONL export re-sanitizes each row before writing",
+                "feedback bundle --dest should live under the project (dist/ or .cai/) when possible",
             ],
         },
         "feedback": {
@@ -287,14 +343,22 @@ def export_feedback_bundle_json(
 ) -> dict[str, Any]:
     root = Path(cwd).expanduser().resolve()
     dest_p = Path(dest).expanduser().resolve()
+    dest_meta = _describe_feedback_bundle_dest(dest_p, root)
     bundle = build_feedback_bundle_payload(root, settings=settings, limit=limit)
+    if dest_meta.get("warnings"):
+        red = bundle.setdefault("redaction", {})
+        wlist = red.setdefault("warnings", [])
+        for item in dest_meta["warnings"]:
+            if item not in wlist:
+                wlist.append(item)
     dest_p.parent.mkdir(parents=True, exist_ok=True)
     dest_p.write_text(json.dumps(bundle, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return {
         "schema_version": "feedback_bundle_export_v1",
         "generated_at": datetime.now(UTC).isoformat(),
-        "workspace": str(root),
-        "dest": str(dest_p),
+        "workspace": "<workspace>",
+        "dest": str(dest_meta.get("display_path") or ""),
+        "dest_placement": str(dest_meta.get("placement") or ""),
         "bundle_schema_version": bundle.get("schema_version"),
         "rows": int((bundle.get("feedback") or {}).get("rows") or 0),
         "redaction": bundle.get("redaction"),
