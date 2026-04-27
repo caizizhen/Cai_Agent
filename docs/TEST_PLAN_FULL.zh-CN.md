@@ -2,14 +2,14 @@
 
 ## 1. 已完成测试（缩略）
 
-- 全量基线长期保持可运行（pytest/smoke/regression）。
+- 全量基线长期保持可运行（pytest/smoke/regression）；`ECC-N02-D03/D04` 已有 `test_ecc_layout_cli` / `test_asset_pack_repair` 等覆盖。
 - 已完成能力对应测试以 CHANGELOG + QA 运行记录为准。
 - 详细记录：`CHANGELOG.md` / `CHANGELOG.zh-CN.md` 与 `docs/qa/runs/`。
 
 ## 2. 当前测试
 
-- `ECC-N02-D03`：`ecc pack-import` dry-run/apply/force/no-backup
-- `ECC-N02-D04`：repair 场景待补
+- `ECC-N03-D01`：target inventory 输出与快照
+- `ECC-N03-D02`：结构化 home diff
 - 当前执行清单：`TEST_TODOS.zh-CN.md`
 
 ## 3. 未来测试

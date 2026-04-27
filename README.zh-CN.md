@@ -370,6 +370,7 @@ cai-agent ecc catalog …
 cai-agent ecc sync …
 cai-agent ecc pack …
 cai-agent ecc pack-import --from-workspace …   # 默认预览；需 --apply；冲突处理见 --help
+cai-agent ecc pack-repair --json               # 对照 manifest 与各 harness 导出；有 error 级问题时 exit 2
 ```
 
 **Plugins：**
@@ -486,3 +487,4 @@ python scripts/run_regression.py
 ## 许可证
 
 MIT License — 见仓库内许可证文件。
+ 

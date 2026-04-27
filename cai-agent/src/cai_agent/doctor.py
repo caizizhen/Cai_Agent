@@ -11,7 +11,7 @@ from typing import Any
 from cai_agent import __version__
 from cai_agent.command_registry import build_command_discovery_payload
 from cai_agent.config import Settings
-from cai_agent.exporter import build_ecc_home_sync_drift_v1
+from cai_agent.exporter import build_ecc_asset_pack_repair_report_v1, build_ecc_home_sync_drift_v1
 from cai_agent.context import INSTRUCTION_FILE_NAMES
 from cai_agent.ecc_layout import iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
@@ -44,6 +44,7 @@ def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
             "cai-agent doctor --json",
             "cai-agent repair --dry-run --json",
             "cai-agent ecc catalog --json",
+            "cai-agent ecc pack-repair --json",
             "cai-agent plugins sync-home --all-targets --json",
             "cai-agent ecc sync-home --all-targets --dry-run --json",
             "cai-agent export --target cursor --dry-run --json",
@@ -315,6 +316,9 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
     ecc_sync_commands = [f"cai-agent ecc sync-home --target {x} --apply" for x in drift_targets]
     if not ecc_sync_commands:
         ecc_sync_commands = ["cai-agent ecc sync-home --all-targets --dry-run --json"]
+    pack_rep = build_ecc_asset_pack_repair_report_v1(settings)
+    pack_sug = [str(x) for x in (pack_rep.get("repair_suggestions") or []) if str(x).strip()]
+    pack_sug = list(dict.fromkeys(pack_sug))[:16]
     ph = build_plugins_home_sync_drift_v1(settings)
     plugins_preview = ph.get("preview_commands") if isinstance(ph.get("preview_commands"), list) else []
     if not plugins_preview:
@@ -332,6 +336,8 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
         },
         "ecc_home_sync_drift_targets": drift_targets,
         "ecc_sync_commands": ecc_sync_commands,
+        "ecc_pack_repair_suggestions": pack_sug,
+        "ecc_pack_repair_ok": bool(pack_rep.get("ok")),
         "plugins_sync_home_preview_commands": plugins_preview,
     }
 
@@ -615,6 +621,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             else feedback_stats(root)
         ),
         "ecc_home_sync_drift": build_ecc_home_sync_drift_v1(settings),
+        "ecc_asset_pack_repair": build_ecc_asset_pack_repair_report_v1(settings),
         "upgrade_hints": build_doctor_upgrade_hints_v1(settings),
     }
 

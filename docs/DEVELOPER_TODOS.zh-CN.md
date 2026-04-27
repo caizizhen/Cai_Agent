@@ -7,18 +7,15 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| 1 | `ECC-N02-D03` | In progress | `ecc pack-import` 完整落地（dry-run/apply/force/no-backup） | `exporter.py`、`__main__.py` | 功能可用 + 测试通过 |
-| 2 | `ECC-N02-D04` | Ready | pack repair：缺失与 drift 诊断 + 修复建议 | `doctor.py`、`exporter.py` | 可定位损坏原因 |
-| 3 | `ECC-N03-D01` | Ready | target inventory 输出可读化 | `ecc_layout.py`、`doctor.py` | 结构化报告可消费 |
-| 4 | `ECC-N03-D02` | Ready | home diff（add/update/skip/conflict） | `exporter.py`、`doctor.py` | 差分语义稳定 |
-| 5 | `HM-N03-D01` | Design | API 状态路由扩展 | `api_http_server.py` | 契约先定后实现 |
-| 6 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract | `ops_http_server.py`、`ops_dashboard.py` | 写动作安全可审计 |
+| 1 | `ECC-N03-D01` | In progress | target inventory 输出可读化 | `ecc_layout.py`、`doctor.py` | 结构化报告可消费 |
+| 2 | `ECC-N03-D02` | Ready | home diff（add/update/skip/conflict） | `exporter.py`、`doctor.py` | 差分语义稳定 |
+| 3 | `HM-N03-D01` | Design | API 状态路由扩展 | `api_http_server.py` | 契约先定后实现 |
+| 4 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract | `ops_http_server.py`、`ops_dashboard.py` | 写动作安全可审计 |
 
 ## 未来开发（缩略）
 
 - `CC-N04`：session/recap
 - `HM-N03/HM-N04`：API + dashboard 收口
-- `ECC-N03`：doctor/diff 深化
+- `ECC-N03`：doctor/diff 深化（D01/D02 为当前切片）
 - `HM-N06` / `CC-N05` / `ECC-N05`：Explore
 - `CC-N07` / `HM-N11`：Conditional
-

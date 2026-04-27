@@ -6,20 +6,21 @@
 
 ## 当前目标
 
-- 收口 `ECC-N02`：完成 `D03`（pack-import）并进入 `D04`（pack-repair）。
-- 保持全量测试与 smoke 稳定通过。
+- 推进 `ECC-N03`：先做 **D01**（target inventory），再接 **D02**（home diff）。
+- 保持全量 pytest + smoke 稳定通过。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `ECC-N02-D03` | In progress | `test_ecc_layout_cli.py` + smoke |
-| 2 | `ECC-N02-D04` | Ready | repair 用例 + smoke |
+| 1 | `ECC-N03-D01` | In progress | 新增/扩展测试 + smoke 相关条 |
 
 ## 最近完成（缩略）
 
-- `CC-N03-D04`（plugins sync-home apply 收口）
-- `HM-N01-D01`（profile home schema 深化）
+- `ECC-N02-D03`（`ecc pack-import`）
+- `ECC-N02-D04`（`ecc pack-repair` + doctor/repair 挂钩）
+- `CC-N03-D04`（plugins sync-home apply）
+- `HM-N01-D01`（profile home schema）
 
 ## 条件与边界
 

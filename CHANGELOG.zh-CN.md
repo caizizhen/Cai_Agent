@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **ECC-N02-D04 asset pack 修复诊断**：新增 **`build_ecc_asset_pack_repair_report_v1`**（**`ecc_asset_pack_repair_report_v1`**），对照 **`ecc pack-manifest`** 与各 harness 导出目录，检测缺失文件、`cai-local-catalog.json` 哈希漂移、`cai-export-manifest.json` 中 catalog schema 过期、manifest JSON 损坏等；CLI **`cai-agent ecc pack-repair [--target …] --json`**；**`doctor --json`** 增加 **`ecc_asset_pack_repair`**；**`repair --dry-run --json`** 增加 **`ecc_pack_repair_suggestions` / `ecc_pack_repair_ok`**；**`doctor_upgrade_hints_v1`** 增补命令。测试：**`test_asset_pack_repair.py`**、**`test_doctor_cli.py`**、**`test_repair_cli.py`**；smoke 在独立 **`cai-agent.toml`** 工作区执行 **`export` + `ecc pack-repair`**。
+
 - **CC-N03-D04 plugins sync-home 安全 apply 启动**：`cai-agent plugins sync-home` 新增 `--apply` 写入路径，JSON 输出 **`plugins_sync_home_result_v1`**；默认遇到目标目录已存在且内容不同会拒绝覆盖并返回 `conflicts[]`，只有显式 `--force` 才替换，且默认先写 `.backup-*` 备份（可用 `--no-backup` 关闭）。已补 `test_plugin_compat_matrix.py` 用例；当前沙箱内 Python/uv 执行被拒，测试命令待可执行环境复跑。
 
 - **文档**：`DEVELOPER_TODOS.zh-CN.md` / `TEST_TODOS.zh-CN.md` 仅保留未完成项；已 **Done** 的表格行迁至 **`docs/TODOS_DONE_ARCHIVE.zh-CN.md`**；`docs/README.zh-CN.md` 与 `AGENTS.md` 已加索引。

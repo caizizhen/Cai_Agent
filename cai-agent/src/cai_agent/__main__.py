@@ -74,6 +74,7 @@ from cai_agent.profiles import (
 )
 from cai_agent.exporter import (
     build_ecc_asset_pack_import_plan_v1,
+    build_ecc_asset_pack_repair_report_v1,
     build_export_ecc_dir_diff_report,
     export_target,
     plan_ecc_home_sync_v1,
@@ -4124,6 +4125,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     ecc_pack_import_p.add_argument("--json", action="store_true", dest="json_output")
 
+    ecc_pack_repair_p = ecc_sub.add_parser(
+        "pack-repair",
+        help="ECC-N02-D04：对比 pack-manifest 期望与各 harness 导出目录，输出缺失/drift/修复建议",
+    )
+    ecc_pack_repair_p.add_argument(
+        "--target",
+        action="append",
+        dest="ecc_repair_targets",
+        metavar="T",
+        choices=["cursor", "codex", "opencode"],
+        help="仅检查指定 harness；可重复；省略则三者",
+    )
+    ecc_pack_repair_p.add_argument("--json", action="store_true", dest="json_output")
+
     plan_p = sub.add_parser(
         "plan",
         parents=[common],
@@ -7462,6 +7477,29 @@ def main(argv: list[str] | None = None) -> int:
                 success=ok_pi,
             )
             return 0 if ok_pi else 2
+        if ecc_act == "pack-repair":
+            rtlist = list(getattr(args, "ecc_repair_targets", None) or [])
+            rtup = tuple(rtlist) if rtlist else ("cursor", "codex", "opencode")
+            r_pr = build_ecc_asset_pack_repair_report_v1(settings_ecc, targets=rtup)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(r_pr, ensure_ascii=False))
+            else:
+                n_issues = len(r_pr.get("issues") or [])
+                print(
+                    f"[ecc pack-repair] ok={r_pr.get('ok')} issues={n_issues} "
+                    f"errors={r_pr.get('error_issues', 0)}",
+                )
+                for s in (r_pr.get("repair_suggestions") or [])[:8]:
+                    print(f"  suggest: {s}")
+            ok_pr = bool(r_pr.get("ok"))
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.pack_repair",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(r_pr.get("issues") or []),
+                success=ok_pr,
+            )
+            return 0 if ok_pr else 2
         print(f"unknown ecc action: {ecc_act}", file=sys.stderr)
         return 2
 

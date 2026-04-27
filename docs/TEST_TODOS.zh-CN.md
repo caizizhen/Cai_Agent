@@ -7,12 +7,10 @@
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| 1 | `ECC-N02-D03` | In progress | 覆盖 pack-import 的 dry-run/apply-force-backup/参数约束 | `test_ecc_layout_cli.py` | 聚焦 pytest 通过 |
-| 2 | `ECC-N02-D04` | Ready | 覆盖 pack-repair（缺失文件/schema drift/兼容性） | `test_asset_pack_repair.py`（新增） | 失败原因可定位 |
-| 3 | `ECC-N03-D01` | Ready | 覆盖 target inventory 输出 | `test_harness_doctor_diff.py`（新增） | 输出字段稳定 |
-| 4 | `ECC-N03-D02` | Ready | 覆盖结构化 home diff | `test_export_sync_diff.py`（新增） | add/update/skip/conflict 清晰 |
-| 5 | `HM-N03-D01` | Design | API 路由状态测试 | `test_api_status_routes.py`（新增） | health/status/profiles 可回归 |
-| 6 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
+| 1 | `ECC-N03-D01` | In progress | 覆盖 target inventory 输出 | `test_harness_doctor_diff.py`（新增） | 输出字段稳定 |
+| 2 | `ECC-N03-D02` | Ready | 覆盖结构化 home diff | `test_export_sync_diff.py`（新增） | add/update/skip/conflict 清晰 |
+| 3 | `HM-N03-D01` | Design | API 路由状态测试 | `test_api_status_routes.py`（新增） | health/status/profiles 可回归 |
+| 4 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
 
 ## 自动验证记录（由 finalize 脚本追加）
 

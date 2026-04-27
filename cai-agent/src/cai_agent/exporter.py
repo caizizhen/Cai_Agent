@@ -591,3 +591,174 @@ def run_ecc_asset_pack_import_v1(
         "backups": backups,
         "conflicts": [],
     }
+
+
+def _export_join(out_dir: Path, rel_posix: str) -> Path:
+    parts = [p for p in str(rel_posix).strip("/").split("/") if p]
+    return out_dir.joinpath(*parts) if parts else out_dir
+
+
+def build_ecc_asset_pack_repair_report_v1(
+    settings: Settings,
+    *,
+    targets: tuple[str, ...] = ("cursor", "codex", "opencode"),
+) -> dict[str, Any]:
+    """ECC-N02-D04: compare pack manifest expectations vs on-disk export + workspace catalog.
+
+    Emits structured ``issues[]`` and deduplicated ``repair_suggestions`` (shell-oriented hints).
+    """
+    root = _project_root(settings)
+    manifest = build_ecc_asset_pack_manifest_v1(settings, targets=targets)
+    local_cat = build_local_catalog_payload(settings, root_override=root)
+    cat_schema = str(local_cat.get("schema_version") or "")
+    issues: list[dict[str, Any]] = []
+    suggestions: list[str] = []
+
+    for asset in local_cat.get("assets") or []:
+        if not isinstance(asset, dict):
+            continue
+        aid = str(asset.get("id") or "").strip()
+        if aid in {"rules", "skills"}:
+            p = root / aid
+            if not p.is_dir():
+                issues.append(
+                    {
+                        "kind": "workspace_component_missing",
+                        "component": aid,
+                        "path": str(p),
+                        "severity": "info",
+                    },
+                )
+                suggestions.append("cai-agent ecc scaffold  # or add rules/ and skills/")
+
+    for tp in manifest.get("targets") or []:
+        if not isinstance(tp, dict):
+            continue
+        target = str(tp.get("target") or "").strip().lower()
+        if target not in {"cursor", "codex", "opencode"}:
+            continue
+        out_dir = Path(str(tp.get("output_dir") or "")).expanduser().resolve()
+        for fe in tp.get("files") or []:
+            if not isinstance(fe, dict):
+                continue
+            rel = str(fe.get("path") or "")
+            exp_hash = str(fe.get("sha256") or "")
+            if rel.startswith("__synthetic__/"):
+                cat_path = out_dir / "cai-local-catalog.json"
+                if not cat_path.is_file():
+                    issues.append(
+                        {
+                            "kind": "missing_export_file",
+                            "target": target,
+                            "path": str(cat_path),
+                            "role": "local_catalog_json",
+                            "severity": "error",
+                        },
+                    )
+                    suggestions.append(f"cai-agent export --target {target}")
+                elif exp_hash:
+                    act_hash = _sha256_file(cat_path)
+                    if act_hash != exp_hash:
+                        issues.append(
+                            {
+                                "kind": "export_catalog_drift",
+                                "target": target,
+                                "path": str(cat_path),
+                                "expected_sha256": exp_hash,
+                                "actual_sha256": act_hash,
+                                "severity": "warning",
+                            },
+                        )
+                        suggestions.append(f"cai-agent export --target {target}  # refresh cai-local-catalog.json")
+                continue
+            fp = _export_join(out_dir, rel)
+            if not fp.is_file():
+                issues.append(
+                    {
+                        "kind": "missing_export_file",
+                        "target": target,
+                        "path": str(fp),
+                        "manifest_path": rel,
+                        "severity": "error",
+                    },
+                )
+                suggestions.append(f"cai-agent export --target {target}")
+                continue
+            if exp_hash:
+                act_hash = _sha256_file(fp)
+                if act_hash != exp_hash:
+                    issues.append(
+                        {
+                            "kind": "export_content_drift",
+                            "target": target,
+                            "path": str(fp),
+                            "manifest_path": rel,
+                            "expected_sha256": exp_hash,
+                            "actual_sha256": act_hash,
+                            "severity": "warning",
+                        },
+                    )
+                    suggestions.append(f"cai-agent export --target {target}  # resync export tree")
+
+        man_path = out_dir / "cai-export-manifest.json"
+        if man_path.is_file():
+            try:
+                man = json.loads(man_path.read_text(encoding="utf-8"))
+                if isinstance(man, dict):
+                    stored = str(man.get("local_catalog_schema_version") or "")
+                    if stored and cat_schema and stored != cat_schema:
+                        issues.append(
+                            {
+                                "kind": "export_manifest_schema_drift",
+                                "target": target,
+                                "path": str(man_path),
+                                "stored_catalog_schema": stored,
+                                "current_catalog_schema": cat_schema,
+                                "severity": "info",
+                            },
+                        )
+                        suggestions.append(
+                            "cai-agent export --target "
+                            + target
+                            + "  # align cai-export-manifest.json with current catalog schema",
+                        )
+            except json.JSONDecodeError:
+                issues.append(
+                    {
+                        "kind": "export_manifest_corrupt",
+                        "target": target,
+                        "path": str(man_path),
+                        "severity": "warning",
+                    },
+                )
+                suggestions.append(f"cai-agent export --target {target}  # rewrite manifest")
+
+    compat_hints = [
+        "cai-agent plugins --json --with-compat-matrix",
+        "python scripts/gen_plugin_compat_snapshot.py --check",
+    ]
+    dedup_sug: list[str] = []
+    seen: set[str] = set()
+    for s in suggestions:
+        if s not in seen:
+            seen.add(s)
+            dedup_sug.append(s)
+
+    err_n = sum(1 for i in issues if str(i.get("severity") or "") == "error")
+    ok = err_n == 0
+    kinds: dict[str, int] = {}
+    for i in issues:
+        k = str(i.get("kind") or "unknown")
+        kinds[k] = kinds.get(k, 0) + 1
+
+    return {
+        "schema_version": "ecc_asset_pack_repair_report_v1",
+        "ok": ok,
+        "workspace": str(root),
+        "catalog_schema_version": cat_schema,
+        "issues": issues,
+        "issues_by_kind": kinds,
+        "error_issues": err_n,
+        "repair_suggestions": dedup_sug,
+        "compat_hints": compat_hints,
+    }

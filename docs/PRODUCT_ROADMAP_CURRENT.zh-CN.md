@@ -2,17 +2,16 @@
 
 ## 当前阶段目标
 
-- 完成 `ECC-N02` 执行链收口（import/install + repair）
+- 推进 `ECC-N03`（inventory + home diff）
 - 保持主干稳定（全量 pytest + smoke + 必要 regression）
-- 为下一阶段 `ECC-N03` / `HM-N03` 做可落地入口
+- 为 `HM-N03` / `HM-N04` 契约实现预留入口
 
 ## 当前优先级（按顺序）
 
-1. `ECC-N02-D03`（In progress）
-2. `ECC-N02-D04`（Ready）
-3. `ECC-N03-D01/D02`（Ready）
-4. `HM-N03-D01`（Design）
-5. `HM-N04-D01`（Design）
+1. `ECC-N03-D01`（In progress）
+2. `ECC-N03-D02`（Ready）
+3. `HM-N03-D01`（Design）
+4. `HM-N04-D01`（Design）
 
 ## 当前不做
 

@@ -9,16 +9,17 @@
 - `CC-N02`：反馈与诊断链路
 - `HM-N05`~`HM-N10`：gateway 扩展、联邦、voice、memory/tool contracts 主路径
 - `ECC-N01` + `ECC-N02-D01/D02`：home sync 与 pack-manifest 基线
+- `ECC-N02-D03` / `ECC-N02-D04`：`ecc pack-import` 与 `ecc pack-repair`（manifest 对照导出目录 + doctor/repair）
 - `ECC-N04-D01~D03`：ingest 文档与契约草案
 
 ## 2. 正在实现（In progress）
 
-- `ECC-N02-D03`：asset pack import/install（`ecc pack-import`）
-- `ECC-N02-D04`：asset pack repair（紧随 D03）
+- `ECC-N03-D01`：target inventory 可读化
 
 ## 3. 未来实现（Ready / Design / Explore / Conditional）
 
-- `ECC-N03`：cross-harness doctor/diff 深化
+- `ECC-N03-D02`：home diff 结构化输出
+- `ECC-N03`：cross-harness doctor/diff 深化（D01/D02 为当前切片）
 - `HM-N03`：API 路由/OpenAPI/auth 收口
 - `HM-N04`：dashboard 可写化（preview/apply/audit）
 - `CC-N04`：session/recap 长会话体验
