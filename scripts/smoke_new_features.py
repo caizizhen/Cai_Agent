@@ -6,7 +6,7 @@ platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-r
 ``plugins --json --with-compat-matrix`` + ``plugins sync-home --json``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory provider --json`` + ``memory user-model --json`` + ``memory user-model export``
-+ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json`` + ``export``/``ecc pack-repair --json`` + ``ecc inventory --json``, plus
++ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json`` + ``export``/``ecc pack-repair --json`` + ``ecc inventory --json`` + ``ecc home-diff --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -823,6 +823,25 @@ def main() -> int:
             invd = json.loads((pinv.stdout or "").strip())
             if invd.get("schema_version") != "ecc_harness_target_inventory_v1":
                 errs.append(f"ecc inventory schema {invd.get('schema_version')!r}")
+        phd = _run(
+            [
+                *cli,
+                "ecc",
+                "--config",
+                str(mh_cfg),
+                "-w",
+                mh_td,
+                "home-diff",
+                "--json",
+            ],
+            cwd=mh_td,
+        )
+        if phd.returncode != 0:
+            errs.append(f"ecc home-diff exit {phd.returncode} stderr={phd.stderr!r}")
+        else:
+            hdd = json.loads((phd.stdout or "").strip())
+            if hdd.get("schema_version") != "ecc_structured_home_diff_bundle_v1":
+                errs.append(f"ecc home-diff schema {hdd.get('schema_version')!r}")
 
     with tempfile.TemporaryDirectory(prefix="cai-smoke-init-") as ini_td:
         pi = _run([*cli, "init", "--json"], cwd=ini_td)

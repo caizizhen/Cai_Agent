@@ -6,17 +6,17 @@
 
 ## 当前目标
 
-- 推进 `ECC-N03`：**D03**（harness target inventory，`ecc_harness_target_inventory_v1` + `ecc inventory`）已合入；下一项 **D02**（结构化 home diff）。
-- 保持全量 pytest + smoke 稳定通过。
+- 推进 **`HM-N03-D01`**（API 状态路由扩展）契约与实现；保持全量 pytest + smoke 稳定通过。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `ECC-N03-D02` | Ready | home diff 语义稳定 + 新增/扩展测试 |
+| 1 | `HM-N03-D01` | Design | API 路由契约评审后再编码 |
 
 ## 最近完成（缩略）
 
+- `ECC-N03-D04`（`ecc home-diff` / structured add·update·skip·conflict + doctor + repair hints）
 - `ECC-N03-D03`（`ecc inventory` / `doctor` → `ecc_harness_target_inventory`）
 - `ECC-N02-D03`（`ecc pack-import`）
 - `ECC-N02-D04`（`ecc pack-repair` + doctor/repair 挂钩）

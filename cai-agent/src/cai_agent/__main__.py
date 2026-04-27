@@ -75,7 +75,9 @@ from cai_agent.profiles import (
 from cai_agent.exporter import (
     build_ecc_asset_pack_import_plan_v1,
     build_ecc_asset_pack_repair_report_v1,
+    build_ecc_structured_home_diff_bundle_v1,
     build_export_ecc_dir_diff_report,
+    build_export_ecc_structured_home_diff_v1,
     export_target,
     plan_ecc_home_sync_v1,
     run_ecc_home_sync_v1,
@@ -4145,6 +4147,20 @@ def main(argv: list[str] | None = None) -> int:
     )
     ecc_inventory_p.add_argument("--json", action="store_true", dest="json_output")
 
+    ecc_home_diff_p = ecc_sub.add_parser(
+        "home-diff",
+        help="ECC-N03-D04：结构化对比 workspace 与 harness 导出（add/update/skip/conflict）",
+    )
+    ecc_home_diff_p.add_argument(
+        "--target",
+        action="append",
+        dest="ecc_home_diff_targets",
+        metavar="T",
+        choices=["cursor", "codex", "opencode"],
+        help="仅输出指定 harness；可重复；省略则输出三目标 bundle",
+    )
+    ecc_home_diff_p.add_argument("--json", action="store_true", dest="json_output")
+
     plan_p = sub.add_parser(
         "plan",
         parents=[common],
@@ -7510,6 +7526,46 @@ def main(argv: list[str] | None = None) -> int:
                 success=ok_pr,
             )
             return 0 if ok_pr else 2
+        if ecc_act == "home-diff":
+            hdt = list(getattr(args, "ecc_home_diff_targets", None) or [])
+            if not hdt:
+                doc = build_ecc_structured_home_diff_bundle_v1(settings_ecc)
+            elif len(hdt) == 1:
+                doc = build_export_ecc_structured_home_diff_v1(settings_ecc, target=hdt[0])
+            else:
+                reports = [build_export_ecc_structured_home_diff_v1(settings_ecc, target=t) for t in hdt]
+                ws0 = str((reports[0] or {}).get("workspace") or "") if reports else ""
+                doc = {
+                    "schema_version": "ecc_structured_home_diff_multi_v1",
+                    "workspace": ws0,
+                    "targets_requested": hdt,
+                    "reports": reports,
+                }
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(doc, ensure_ascii=False))
+            else:
+                if not hdt:
+                    print(
+                        f"[ecc home-diff] workspace={doc.get('workspace')} "
+                        f"pending={doc.get('targets_with_pending_actions')}",
+                    )
+                elif len(hdt) == 1 and isinstance(doc, dict):
+                    tot = doc.get("totals") or {}
+                    print(
+                        f"[ecc home-diff] target={doc.get('target')} "
+                        f"add={tot.get('add')} update={tot.get('update')} "
+                        f"skip={tot.get('skip')} conflict={tot.get('conflict')}",
+                    )
+                else:
+                    print(f"[ecc home-diff] targets={hdt} multi=1")
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.home_diff",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(hdt or doc.get("targets") or doc.get("reports") or []),
+                success=True,
+            )
+            return 0
         if ecc_act == "inventory":
             inv = build_ecc_harness_target_inventory_v1(settings_ecc, root_override=root_ecc)
             if bool(getattr(args, "json_output", False)):

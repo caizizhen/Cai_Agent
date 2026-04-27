@@ -29,6 +29,9 @@ def test_repair_dry_run_json_reports_needed_actions(tmp_path: Path) -> None:
     assert payload.get("plugins_sync_home_preview_commands")
     assert isinstance(payload.get("ecc_pack_repair_ok"), bool)
     assert isinstance(payload.get("ecc_pack_repair_suggestions"), list)
+    assert isinstance(payload.get("ecc_structured_home_diff_pending_targets"), list)
+    assert isinstance(payload.get("ecc_home_diff_preview_commands"), list)
+    assert payload.get("ecc_home_diff_preview_commands")
     assert not (tmp_path / "cai-agent.toml").exists()
 
 

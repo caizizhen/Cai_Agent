@@ -251,6 +251,123 @@ def build_export_ecc_dir_diff_report(settings: Settings, *, target: str) -> dict
     }
 
 
+_STRUCTURED_HOME_DIFF_EXAMPLE_CAP = 24
+
+
+def _structured_home_diff_one_component(src: Path, dst: Path) -> dict[str, Any]:
+    """单组件目录：相对路径级 add/update/skip/conflict（文件内容 SHA256）。"""
+    src_fp = _relative_file_fingerprint(src) if src.is_dir() else {}
+    dst_fp = _relative_file_fingerprint(dst) if dst.is_dir() else {}
+    paths = sorted(set(src_fp) | set(dst_fp))
+    add_paths: list[str] = []
+    update_paths: list[str] = []
+    skip_paths: list[str] = []
+    conflict_paths: list[str] = []
+    for rel in paths:
+        s = src_fp.get(rel)
+        d = dst_fp.get(rel)
+        if s is None and d is not None:
+            conflict_paths.append(rel)
+        elif s is not None and d is None:
+            add_paths.append(rel)
+        elif s is not None and d is not None:
+            if s == d:
+                skip_paths.append(rel)
+            else:
+                update_paths.append(rel)
+
+    def _examples(paths: list[str]) -> tuple[list[dict[str, str]], int]:
+        head = paths[:_STRUCTURED_HOME_DIFF_EXAMPLE_CAP]
+        return [{"path": p} for p in head], max(0, len(paths) - _STRUCTURED_HOME_DIFF_EXAMPLE_CAP)
+
+    ae, at = _examples(add_paths)
+    ue, ut = _examples(update_paths)
+    ce, ct = _examples(conflict_paths)
+    return {
+        "counts": {
+            "add": len(add_paths),
+            "update": len(update_paths),
+            "skip": len(skip_paths),
+            "conflict": len(conflict_paths),
+        },
+        "examples": {
+            "add": ae,
+            "update": ue,
+            "conflict": ce,
+        },
+        "truncated": {
+            "add": at,
+            "update": ut,
+            "conflict": ct,
+            "skip": 0,
+        },
+    }
+
+
+def build_export_ecc_structured_home_diff_v1(settings: Settings, *, target: str) -> dict[str, Any]:
+    """ECC-N03-D04：仓库 ``rules|skills|agents|commands`` 与各 harness 导出目录的结构化差分（add/update/skip/conflict）。"""
+    root = _project_root(settings)
+    t = str(target).strip().lower()
+    if t not in {"cursor", "codex", "opencode"}:
+        return {
+            "schema_version": "ecc_structured_home_diff_v1",
+            "target": t,
+            "error": "unsupported_target",
+            "hint": "支持 --target cursor|codex|opencode，对应 export 写入目录",
+        }
+    try:
+        ecc = ecc_export_root_for_target(root, t)
+    except ValueError as e:
+        return {
+            "schema_version": "ecc_structured_home_diff_v1",
+            "target": t,
+            "error": "unsupported_target",
+            "hint": str(e),
+        }
+    dirs = ("rules", "skills", "agents", "commands")
+    rows: list[dict[str, Any]] = []
+    totals = {"add": 0, "update": 0, "skip": 0, "conflict": 0}
+    for name in dirs:
+        row = {"name": name, **_structured_home_diff_one_component(root / name, ecc / name)}
+        rows.append(row)
+        cts = row.get("counts") or {}
+        if isinstance(cts, dict):
+            for k in totals:
+                totals[k] += int(cts.get(k) or 0)
+    return {
+        "schema_version": "ecc_structured_home_diff_v1",
+        "target": t,
+        "workspace": str(root),
+        "ecc_export_root": str(ecc),
+        "directories": rows,
+        "totals": totals,
+    }
+
+
+def build_ecc_structured_home_diff_bundle_v1(settings: Settings) -> dict[str, Any]:
+    """聚合三 harness 的结构化 home diff，供 doctor / repair 引用。"""
+    root = _project_root(settings)
+    targets: list[dict[str, Any]] = []
+    pending: list[str] = []
+    for t in ("cursor", "codex", "opencode"):
+        rep = build_export_ecc_structured_home_diff_v1(settings, target=t)
+        targets.append({"target": t, "report": rep})
+        if not isinstance(rep, dict) or rep.get("error"):
+            continue
+        tot = rep.get("totals") or {}
+        if not isinstance(tot, dict):
+            continue
+        n = int(tot.get("add") or 0) + int(tot.get("update") or 0) + int(tot.get("conflict") or 0)
+        if n > 0:
+            pending.append(t)
+    return {
+        "schema_version": "ecc_structured_home_diff_bundle_v1",
+        "workspace": str(root),
+        "targets": targets,
+        "targets_with_pending_actions": sorted(set(pending)),
+    }
+
+
 def plan_ecc_home_sync_v1(settings: Settings, *, target: str) -> dict[str, Any]:
     """不写入磁盘：描述 ``export_target`` 将对单 harness 执行的操作。"""
     root = _project_root(settings)
