@@ -1,12 +1,12 @@
 # 已完成任务归档
 
-> 本页归档已经完成的开发 / 设计 / 文档任务（叙述摘要与按主题留档）。**从 `DEVELOPER_TODOS` / `TEST_TODOS` 表格拆出的 Done 行**另见 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。
+> 本页归档已经完成的开发 / 设计 / 文档任务（叙述摘要与按主题留档）。从开发 TODO / 测试 TODO 拆出的 Done 行另见 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。
 >
 > 当前状态源仍以 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §10 为准；本页只做完成项回溯与交付摘要。
 
 ## 2026-04-25 从 TODO 迁移的 Done 项
 
-为保证 `DEVELOPER_TODOS` / `TEST_TODOS` 只保留未完成事项，叙述型完成项在本页留档；**表格级 Done 行**另集中在 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。以下为历史迁移说明中曾列出的条目：
+为保证 `DEVELOPER_TODOS` 只保留未完成事项，叙述型完成项在本页留档；**表格级 Done 行**另集中在 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。以下为历史迁移说明中曾列出的条目：
 
 - `MODEL-P0-01`～`MODEL-P0-07`（能力级）；
 - `MODEL-P0-D01`～`MODEL-P0-D14`（原子级）；
@@ -112,3 +112,5 @@
 | `CC-N02-D04` | 2026-04-26 | Harden feedback bundle and JSONL export redaction: sanitize_feedback_text workspace/home paths and Slack tokens, sanitize append_feedback, redact export rows, feedback_bundle_export_v1 dest_placement and warnings for external --dest, release runbook bundle step. | python -m pytest -q cai-agent/tests/test_feedback_cli.py cai-agent/tests/test_feedback_export.py cai-agent/tests/test_feedback_bundle_cli.py cai-agent/tests/test_doctor_cli.py: PASS<br>python -m pytest -q cai-agent/tests: 820 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `HM-N01-D02`/`D04`/`D05` | 2026-04-26 | 交付 `models clone` / `clone-all` / `alias` 与 doctor **`profile_home_migration`**。 | python -m pytest -q cai-agent/tests: PASS (825 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `ECC-N01`/`ECC-N02`/`CC-N01-D04`/`HM-N01-D03` | 2026-04-26 | 交付 `ecc sync-home`/`pack-manifest`、`export --dry-run`、doctor drift+repair ecc 提示、`doctor_upgrade_hints_v1`、`load_agent_settings_for_workspace` 与 gateway discord/slack `--config`。 | python -m pytest -q cai-agent/tests: PASS (830 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮合入 |
+| `CC-N03-D04` | 2026-04-27 | Harden plugins sync-home apply flow with strict force/no-backup gating and conflict hint parity for text output; add regression tests for CLI flag contracts and conflict hint rendering. | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
+| `HM-N01-D01` | 2026-04-27 | Deepen profile home schema with config_dir, enforce legal profile IDs for home layout/clone to prevent path traversal, and add isolation regression tests. | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |

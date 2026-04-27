@@ -288,6 +288,77 @@ class PluginsSyncHomeTests(unittest.TestCase):
             self.assertFalse(doc.get("dry_run"))
             self.assertTrue((root / ".opencode" / "skills" / "s.md").is_file())
 
+    def test_plugins_sync_home_force_requires_apply(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with patch("sys.stderr", err):
+                    rc = main(
+                        [
+                            "plugins",
+                            "--config",
+                            cfg,
+                            "sync-home",
+                            "--target",
+                            "opencode",
+                            "--force",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            self.assertIn("--force 仅可与 --apply 联用", err.getvalue())
+
+    def test_plugins_sync_home_no_backup_requires_apply_force(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            err = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with patch("sys.stderr", err):
+                    rc = main(
+                        [
+                            "plugins",
+                            "--config",
+                            cfg,
+                            "sync-home",
+                            "--target",
+                            "opencode",
+                            "--apply",
+                            "--no-backup",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            self.assertIn("--no-backup 仅可与 --apply --force 联用", err.getvalue())
+
+    def test_plugins_sync_home_text_shows_hint_when_conflicts(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "rules").mkdir()
+            (root / "rules" / "a.md").write_text("source", encoding="utf-8")
+            dest = root / ".opencode" / "rules"
+            dest.mkdir(parents=True)
+            (dest / "a.md").write_text("edited", encoding="utf-8")
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "plugins",
+                            "--config",
+                            cfg,
+                            "sync-home",
+                            "--target",
+                            "opencode",
+                            "--apply",
+                        ],
+                    )
+            self.assertEqual(rc, 2)
+            text = buf.getvalue()
+            self.assertIn("conflicts=1", text)
+            self.assertIn("hint: resolve conflicts or rerun with --force", text)
+
 
 class PluginCompatMatrixSnapshotTests(unittest.TestCase):
     def test_checked_in_snapshot_matches_generator(self) -> None:

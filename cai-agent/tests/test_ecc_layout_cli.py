@@ -118,6 +118,76 @@ def test_ecc_pack_manifest_cli_json(tmp_path: Path) -> None:
     assert all(isinstance(t.get("pack_sha256"), str) and len(t["pack_sha256"]) == 64 for t in targets)
 
 
+def test_ecc_pack_import_dry_run_json(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    (src / "rules" / "common").mkdir(parents=True)
+    (src / "rules" / "common" / "a.md").write_text("x", encoding="utf-8")
+    out = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "pack-import",
+        "--from-workspace",
+        str(src),
+        "--json",
+    )
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_asset_pack_import_plan_v1"
+    comps = doc.get("components") or []
+    rules = next((x for x in comps if isinstance(x, dict) and x.get("component") == "rules"), None)
+    assert isinstance(rules, dict)
+    assert rules.get("action") == "add"
+
+
+def test_ecc_pack_import_apply_force_backs_up_conflict(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    (src / "skills").mkdir(parents=True)
+    (src / "skills" / "a.md").write_text("source", encoding="utf-8")
+    dst = tmp_path / "skills"
+    dst.mkdir()
+    (dst / "a.md").write_text("old", encoding="utf-8")
+    out = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "pack-import",
+        "--from-workspace",
+        str(src),
+        "--apply",
+        "--force",
+        "--json",
+    )
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_asset_pack_import_result_v1"
+    assert doc.get("ok") is True
+    assert (tmp_path / "skills" / "a.md").read_text(encoding="utf-8") == "source"
+    backups = doc.get("backups") or []
+    assert backups
+    bpath = Path(str(backups[0].get("backup_path")))
+    assert (bpath / "a.md").read_text(encoding="utf-8") == "old"
+
+
+def test_ecc_pack_import_no_backup_requires_apply_force(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    src.mkdir(parents=True)
+    out = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "pack-import",
+        "--from-workspace",
+        str(src),
+        "--no-backup",
+    )
+    assert out.returncode == 2
+    assert "--no-backup 仅可与 --apply --force 联用" in (out.stderr or "")
+
+
 def test_export_dry_run_json(tmp_path: Path) -> None:
     out = _cli(tmp_path, "export", "-w", str(tmp_path), "--target", "codex", "--dry-run")
     assert out.returncode == 0, out.stderr

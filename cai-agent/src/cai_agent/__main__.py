@@ -73,11 +73,13 @@ from cai_agent.profiles import (
     write_models_to_toml,
 )
 from cai_agent.exporter import (
+    build_ecc_asset_pack_import_plan_v1,
     build_export_ecc_dir_diff_report,
     export_target,
     plan_ecc_home_sync_v1,
     run_ecc_home_sync_v1,
     build_ecc_asset_pack_manifest_v1,
+    run_ecc_asset_pack_import_v1,
 )
 from cai_agent.feedback import BUG_REPORT_CATEGORIES, feedback_path
 from cai_agent.memory import (
@@ -4092,6 +4094,35 @@ def main(argv: list[str] | None = None) -> int:
         help="仅包含指定 harness；可重复；省略则三者",
     )
     ecc_pack_p.add_argument("--json", action="store_true", dest="json_output")
+    ecc_pack_import_p = ecc_sub.add_parser(
+        "pack-import",
+        help="ECC-N02-D03：从 source workspace 导入 asset pack 目录（默认 dry-run 预览）",
+    )
+    ecc_pack_import_p.add_argument(
+        "--from-workspace",
+        required=True,
+        dest="ecc_pack_from_workspace",
+        help="源 workspace 路径（读取其 rules/skills/agents/commands）",
+    )
+    ecc_pack_import_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="ecc_pack_apply",
+        help="实际写入当前 workspace；默认仅预览计划",
+    )
+    ecc_pack_import_p.add_argument(
+        "--force",
+        action="store_true",
+        dest="ecc_pack_force",
+        help="与 --apply 联用：覆盖已有差异目录；默认先写 .backup-* 备份",
+    )
+    ecc_pack_import_p.add_argument(
+        "--no-backup",
+        action="store_true",
+        dest="ecc_pack_no_backup",
+        help="与 --apply --force 联用：直接替换，不保留 .backup-*（谨慎）",
+    )
+    ecc_pack_import_p.add_argument("--json", action="store_true", dest="json_output")
 
     plan_p = sub.add_parser(
         "plan",
@@ -4680,7 +4711,7 @@ def main(argv: list[str] | None = None) -> int:
     plugins_sub = plugins_p.add_subparsers(dest="plugins_action", required=False)
     plugins_sync_p = plugins_sub.add_parser(
         "sync-home",
-        help="预览将 rules/skills/agents/commands 同步到各 harness 导出目录（CC-N03-D02；与 export/ecc sync-home 同源；仅 dry-run）",
+        help="预览或应用 rules/skills/agents/commands 到各 harness 导出目录（CC-N03-D02/D04；与 export/ecc sync-home 同源）",
     )
     plugins_sync_p.add_argument(
         "--target",
@@ -7387,6 +7418,50 @@ def main(argv: list[str] | None = None) -> int:
                 success=True,
             )
             return 0
+        if ecc_act == "pack-import":
+            apply_pi = bool(getattr(args, "ecc_pack_apply", False))
+            force_pi = bool(getattr(args, "ecc_pack_force", False))
+            no_backup_pi = bool(getattr(args, "ecc_pack_no_backup", False))
+            src_ws = str(getattr(args, "ecc_pack_from_workspace", "") or "").strip()
+            if not src_ws:
+                print("ecc pack-import: 需要 --from-workspace", file=sys.stderr)
+                return 2
+            if force_pi and not apply_pi:
+                print("ecc pack-import: --force 仅可与 --apply 联用", file=sys.stderr)
+                return 2
+            if no_backup_pi and (not apply_pi or not force_pi):
+                print("ecc pack-import: --no-backup 仅可与 --apply --force 联用", file=sys.stderr)
+                return 2
+            if apply_pi:
+                r_pi = run_ecc_asset_pack_import_v1(
+                    settings_ecc,
+                    from_workspace=src_ws,
+                    apply=True,
+                    force=force_pi,
+                    backup=not no_backup_pi,
+                )
+            else:
+                r_pi = build_ecc_asset_pack_import_plan_v1(settings_ecc, from_workspace=src_ws)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(r_pi, ensure_ascii=False))
+            else:
+                conflicts_pi = len(r_pi.get("conflicts") or [])
+                comps_pi = len(r_pi.get("components") or (r_pi.get("plan") or {}).get("components") or [])
+                print(
+                    f"[ecc pack-import] ok={r_pi.get('ok')} apply={apply_pi} "
+                    f"components={comps_pi} conflicts={conflicts_pi}",
+                )
+                if not bool(r_pi.get("ok")) and r_pi.get("hint"):
+                    print(f"hint: {r_pi.get('hint')}")
+            ok_pi = bool(r_pi.get("ok"))
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.pack_import",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(r_pi.get("components") or (r_pi.get("plan") or {}).get("components") or []),
+                success=ok_pi,
+            )
+            return 0 if ok_pi else 2
         print(f"unknown ecc action: {ecc_act}", file=sys.stderr)
         return 2
 
@@ -8013,13 +8088,21 @@ def main(argv: list[str] | None = None) -> int:
                 print("plugins sync-home: 需要 --target（可重复）或 --all-targets", file=sys.stderr)
                 return 2
             apply_sh = bool(getattr(args, "plugins_sync_apply", False))
+            force_sh = bool(getattr(args, "plugins_sync_force", False))
+            no_backup_sh = bool(getattr(args, "plugins_sync_no_backup", False))
+            if force_sh and not apply_sh:
+                print("plugins sync-home: --force 仅可与 --apply 联用", file=sys.stderr)
+                return 2
+            if no_backup_sh and (not apply_sh or not force_sh):
+                print("plugins sync-home: --no-backup 仅可与 --apply --force 联用", file=sys.stderr)
+                return 2
             if apply_sh:
                 plan_sh = run_plugins_sync_home_v1(
                     settings,
                     targets=tuple(tlist_sh),
                     apply=True,
-                    force=bool(getattr(args, "plugins_sync_force", False)),
-                    backup=not bool(getattr(args, "plugins_sync_no_backup", False)),
+                    force=force_sh,
+                    backup=not no_backup_sh,
                 )
             else:
                 plan_sh = build_plugins_sync_home_plan_v1(settings, targets=tuple(tlist_sh))
@@ -8031,6 +8114,8 @@ def main(argv: list[str] | None = None) -> int:
                     f"apply={apply_sh} targets={len(plan_sh.get('targets') or [])} "
                     f"conflicts={len(plan_sh.get('conflicts') or [])}",
                 )
+                if not bool(plan_sh.get("ok")) and plan_sh.get("hint"):
+                    print(f"hint: {plan_sh.get('hint')}")
             ok_sh = bool(plan_sh.get("ok"))
             tok_sh = sum(
                 len(tr.get("components") or [])

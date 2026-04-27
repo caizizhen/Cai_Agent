@@ -673,9 +673,11 @@ def profile_to_public_dict(p: Profile, *, include_resolved_key: bool = False) ->
 
 def _build_profile_home_layout(workspace_root: str | Path, profile_id: str) -> dict[str, str]:
     root = Path(workspace_root).expanduser().resolve()
-    home = root / ".cai" / "profiles" / profile_id
+    pid = ensure_profile_id_legal(profile_id, context="profile home layout")
+    home = root / ".cai" / "profiles" / pid
     return {
         "root": str(home),
+        "config_dir": str(home / "config"),
         "sessions_dir": str(home / "sessions"),
         "memory_dir": str(home / "memory"),
         "gateway_dir": str(home / "gateway"),
@@ -683,7 +685,7 @@ def _build_profile_home_layout(workspace_root: str | Path, profile_id: str) -> d
     }
 
 
-PROFILE_HOME_SUBDIR_NAMES: tuple[str, ...] = ("sessions", "memory", "gateway", "state")
+PROFILE_HOME_SUBDIR_NAMES: tuple[str, ...] = ("config", "sessions", "memory", "gateway", "state")
 
 
 def profile_home_root_path(workspace_root: str | Path, profile_id: str) -> Path:
@@ -716,13 +718,15 @@ def clone_profile_home_tree(
     - ``dst`` 已存在且非空：除非 ``force_home``，否则返回 ``reason=dst_profile_home_nonempty``。
     """
     ws = Path(workspace_root).expanduser().resolve()
-    src_root = profile_home_root_path(ws, src_profile_id)
-    dst_root = profile_home_root_path(ws, dst_profile_id)
+    src_pid = ensure_profile_id_legal(src_profile_id, context="clone source")
+    dst_pid = ensure_profile_id_legal(dst_profile_id, context="clone destination")
+    src_root = profile_home_root_path(ws, src_pid)
+    dst_root = profile_home_root_path(ws, dst_pid)
     out: dict[str, Any] = {
         "schema_version": "profile_home_clone_result_v1",
         "workspace": str(ws),
-        "src_profile_id": src_profile_id,
-        "dst_profile_id": dst_profile_id,
+        "src_profile_id": src_pid,
+        "dst_profile_id": dst_pid,
         "dry_run": dry_run,
         "skipped": False,
         "reason": None,

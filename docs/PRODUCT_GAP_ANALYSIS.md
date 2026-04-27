@@ -27,7 +27,7 @@ The Chinese document now tracks a fuller grouped backlog:
 - **`CC-N*`**: install/repair, feedback + redaction/export policy, plugin/home sync, richer session UX.
 - **`HM-N*`**: `HM-N01` profile home; `HM-N03`/`HM-N04` API+dashboard; **`HM-N05`–`HM-N10` delivered** (gateway expansion batch, voice, memory registry, tool gateway); `HM-N06` second-wave platforms (Explore); `HM-N11` cloud runtime (Conditional).
 - **`ECC-N*`**: `ECC-N01`/`ECC-N02` sync and pack lifecycle; `ECC-N03` cross-harness doctor/diff; **`ECC-N04` policy drafts D01–D03 done**, next is import/install execution chains tied to packs.
-- **`*-Dxx`**: atomic tasks for sprint breakdown — see [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) and [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md).
+- **`*-Dxx`**: atomic tasks for sprint breakdown — see unified backlog [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md).
 
 ## Priority table (mirrors Chinese §4)
 
@@ -48,5 +48,5 @@ The Chinese document now tracks a fuller grouped backlog:
 ## Maintenance
 
 - Keep this file aligned with [`PRODUCT_GAP_ANALYSIS.zh-CN.md`](PRODUCT_GAP_ANALYSIS.zh-CN.md) whenever priorities or “already shipped” posture changes.
-- Execution detail: [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md), [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md).
+- Execution detail: [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md); test migration note and finalize records: [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md).
 - Release checklist cross-links: [`PRODUCT_PLAN.zh-CN.md`](PRODUCT_PLAN.zh-CN.md), [`PARITY_MATRIX.zh-CN.md`](PARITY_MATRIX.zh-CN.md).

@@ -61,7 +61,7 @@
 | `P2` 差异化能力补齐 | `ECC-N02`、`HM-N06` | **`HM-N08`～`HM-N10` 主路径已交付**；**`ECC-N04-D01`～`D03` 文档与机读草案已交付**，本组聚焦 **asset pack / import-install 执行链**、第二批 gateway 预研落地 |
 | `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N11`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |
 
-详细开发拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)（**仅未完成**）。详细测试拆解见：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)（**仅未完成**）。已从上述 TODO 拆出的 **Done** 表格行见 [TODOS_DONE_ARCHIVE.zh-CN.md](TODOS_DONE_ARCHIVE.zh-CN.md)。能力级仍按 `CC-N* / HM-N* / ECC-N*`，原子级用 `*-Dxx`。
+详细执行拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)（开发待办）与 [TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)（测试待办）。已从 TODO 拆出的 **Done** 表格行见 [TODOS_DONE_ARCHIVE.zh-CN.md](TODOS_DONE_ARCHIVE.zh-CN.md)。能力级仍按 `CC-N* / HM-N* / ECC-N*`，原子级用 `*-Dxx`。
 
 ## 5. 本轮明确不默认追求的能力
 
@@ -83,7 +83,7 @@
 每次进入下一轮对齐开发后，发版前至少满足：
 
 - **分析页一致**：本页、[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)、[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md) 不互相打架。
-- **TODO 一致**：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md) 与 [TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md) 中同一 ID 的状态、范围、验收一致。
+- **TODO 一致**：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md) 与 [TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md) 对同一任务的状态、范围、验收保持一致。
 - **实现路径明确**：每个 `Ready` 项至少有一处代码入口、一处自动化验证入口、一处文档回写入口。
 - **边界明确**：如果某项降级为 `Explore` 或 `OOS`，必须同步写回 `PARITY_MATRIX` 或相关 RFC。
 
@@ -91,7 +91,7 @@
 
 - 先补“**别人怎么接入我们**”，再补“**我们自己内部还能更强什么**”。
 - 先补“**默认路径可用**”，再补“**高级能力更完整**”。
-- 不再扩散新的独立 backlog 文档；统一从本页、[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)、[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md) 三份推进。
+- 不再扩散新的独立 backlog 文档；统一从本页、[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)、[NEXT_ACTIONS.zh-CN.md](NEXT_ACTIONS.zh-CN.md) 三份推进。
 
 ## 8. 相关文档
 
@@ -99,5 +99,5 @@
 - 当前执行清单：[PRODUCT_PLAN.zh-CN.md](PRODUCT_PLAN.zh-CN.md)
 - 当前路线图：[ROADMAP_EXECUTION.zh-CN.md](ROADMAP_EXECUTION.zh-CN.md)
 - 开发待办：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)
-- 测试待办：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)
+- 测试迁移说明与自动验证记录：[TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)
 - 发版勾选矩阵：[PARITY_MATRIX.zh-CN.md](PARITY_MATRIX.zh-CN.md)

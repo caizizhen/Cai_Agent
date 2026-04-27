@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -364,6 +365,31 @@ def _sha256_file(path: Path) -> str:
     return h.hexdigest()
 
 
+def _relative_file_fingerprint(root: Path) -> dict[str, tuple[int, str]]:
+    if not root.is_dir():
+        return {}
+    out: dict[str, tuple[int, str]] = {}
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        rel = p.relative_to(root).as_posix()
+        out[rel] = (int(p.stat().st_size), _sha256_file(p))
+    return out
+
+
+def _directory_matches(src: Path, dst: Path) -> bool:
+    return _relative_file_fingerprint(src) == _relative_file_fingerprint(dst)
+
+
+def _backup_path(path: Path, stamp: str) -> Path:
+    candidate = path.with_name(f"{path.name}.backup-{stamp}")
+    idx = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}.backup-{stamp}-{idx}")
+        idx += 1
+    return candidate
+
+
 def build_ecc_asset_pack_manifest_v1(
     settings: Settings,
     *,
@@ -418,4 +444,150 @@ def build_ecc_asset_pack_manifest_v1(
         "schema_version": "ecc_asset_pack_manifest_v1",
         "workspace": str(root),
         "targets": target_payloads,
+    }
+
+
+def build_ecc_asset_pack_import_plan_v1(
+    settings: Settings,
+    *,
+    from_workspace: str | Path,
+) -> dict[str, Any]:
+    """ECC-N02-D03: 预览将源 workspace 的资产目录导入当前 workspace。"""
+    dst_root = Path(settings.workspace).expanduser().resolve() if settings.workspace else _project_root(settings)
+    src_root = Path(from_workspace).expanduser().resolve()
+    if not src_root.is_dir():
+        return {
+            "schema_version": "ecc_asset_pack_import_plan_v1",
+            "ok": False,
+            "error": "source_workspace_missing",
+            "hint": "使用 --from-workspace 指向存在的目录",
+            "source_workspace": str(src_root),
+            "dest_workspace": str(dst_root),
+        }
+    rows: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
+    for name in ("rules", "skills", "agents", "commands"):
+        src = src_root / name
+        dst = dst_root / name
+        src_exists = src.is_dir()
+        dst_exists = dst.is_dir()
+        row: dict[str, Any] = {
+            "component": name,
+            "source_path": str(src),
+            "dest_path": str(dst),
+            "source_exists": src_exists,
+            "dest_exists": dst_exists,
+        }
+        if not src_exists:
+            row["action"] = "skip"
+            row["reason"] = "source_missing"
+        elif not dst_exists:
+            row["action"] = "add"
+        elif _directory_matches(src, dst):
+            row["action"] = "skip"
+            row["reason"] = "up_to_date"
+        else:
+            row["action"] = "conflict"
+            row["reason"] = "destination_exists_and_differs"
+            conflicts.append(
+                {
+                    "component": name,
+                    "dest_path": str(dst),
+                    "reason": "destination_exists_and_differs",
+                    "resolution": "rerun with --apply --force to back up and replace",
+                },
+            )
+        rows.append(row)
+    return {
+        "schema_version": "ecc_asset_pack_import_plan_v1",
+        "ok": True,
+        "source_workspace": str(src_root),
+        "dest_workspace": str(dst_root),
+        "components": rows,
+        "conflicts": conflicts,
+    }
+
+
+def run_ecc_asset_pack_import_v1(
+    settings: Settings,
+    *,
+    from_workspace: str | Path,
+    apply: bool,
+    force: bool = False,
+    backup: bool = True,
+) -> dict[str, Any]:
+    """ECC-N02-D03: import/install pack assets into current workspace."""
+    plan = build_ecc_asset_pack_import_plan_v1(settings, from_workspace=from_workspace)
+    if not bool(plan.get("ok")):
+        return {
+            "schema_version": "ecc_asset_pack_import_result_v1",
+            "ok": False,
+            "dry_run": not apply,
+            "plan": plan,
+            "error": plan.get("error") or "plan_failed",
+            "hint": plan.get("hint"),
+        }
+    if not apply:
+        return {
+            "schema_version": "ecc_asset_pack_import_result_v1",
+            "ok": True,
+            "dry_run": True,
+            "plan": plan,
+            "applied": [],
+            "backups": [],
+            "conflicts": plan.get("conflicts") or [],
+        }
+    if (plan.get("conflicts") or []) and not force:
+        return {
+            "schema_version": "ecc_asset_pack_import_result_v1",
+            "ok": False,
+            "dry_run": False,
+            "force": False,
+            "backup": bool(backup),
+            "plan": plan,
+            "applied": [],
+            "backups": [],
+            "conflicts": plan.get("conflicts") or [],
+            "hint": "resolve conflicts or rerun with --force",
+        }
+    src_root = Path(str(plan.get("source_workspace") or "")).expanduser().resolve()
+    dst_root = Path(str(plan.get("dest_workspace") or "")).expanduser().resolve()
+    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    applied: list[dict[str, Any]] = []
+    backups: list[dict[str, Any]] = []
+    for row in plan.get("components") or []:
+        if not isinstance(row, dict):
+            continue
+        if str(row.get("action") or "") not in {"add", "conflict"}:
+            continue
+        name = str(row.get("component") or "")
+        src = src_root / name
+        dst = dst_root / name
+        if not src.is_dir():
+            continue
+        backup_record: dict[str, Any] | None = None
+        if dst.exists():
+            if backup:
+                bpath = _backup_path(dst, stamp)
+                shutil.move(str(dst), str(bpath))
+                backup_record = {"component": name, "from": str(dst), "backup_path": str(bpath)}
+                backups.append(backup_record)
+            elif dst.is_dir():
+                shutil.rmtree(dst)
+            else:
+                dst.unlink()
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dst)
+        applied_row = {"component": name, "dest_path": str(dst), "backup": backup_record}
+        applied.append(applied_row)
+    return {
+        "schema_version": "ecc_asset_pack_import_result_v1",
+        "ok": True,
+        "dry_run": False,
+        "force": bool(force),
+        "backup": bool(backup),
+        "plan": plan,
+        "applied": applied,
+        "backups": backups,
+        "conflicts": [],
     }

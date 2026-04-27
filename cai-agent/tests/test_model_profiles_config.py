@@ -335,6 +335,8 @@ class PickActiveTests(unittest.TestCase):
         self.assertIsInstance(beta_home, dict)
         root_norm = str((beta_home or {}).get("root", "")).replace("/", "\\")
         self.assertTrue(root_norm.endswith(".cai\\profiles\\beta"))
+        cfg_norm = str((beta_home or {}).get("config_dir", "")).replace("/", "\\")
+        self.assertTrue(cfg_norm.endswith(".cai\\profiles\\beta\\config"))
         self.assertEqual(contract.get("active_profile_home"), beta_home)
 
     def test_get_profile_by_id_returns_none_on_unknown(self) -> None:

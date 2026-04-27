@@ -183,7 +183,7 @@
 
 为避免再出现“路线图一份、画布一份、专题文档一份”三套口径，下面这张表就是当前建议的**开 issue 顺序**。规则是：
 
-完整 issue 草案见 [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md)。已完成任务的归档摘要见 [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)；从 **`DEVELOPER_TODOS` / `TEST_TODOS` 拆出的 Done 表格行**见 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。[`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 与 [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) **只保留未完成项**及规则、OOS/条件立项等。
+完整 issue 草案见 [`ISSUE_BACKLOG.zh-CN.md`](ISSUE_BACKLOG.zh-CN.md)。已完成任务的归档摘要见 [`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)；从双 TODO 拆出的 Done 表格行见 [`TODOS_DONE_ARCHIVE.zh-CN.md`](TODOS_DONE_ARCHIVE.zh-CN.md)。[`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 与 [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) 作为当前开发/测试执行基准。
 
 - `Done`：本轮已经收口，不再单独开开发单，只保留回归和维护。
 - `Ready`：边界清晰，可以直接开开发 issue。

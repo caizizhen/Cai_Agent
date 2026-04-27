@@ -1,6 +1,6 @@
 # TODOS 已完成项归档
 
-> 本页承接已从 **[`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md)**、**[`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md)** 正文中**移除**的 **Done** 表格行与批次留档，使上述两份 TODO **只保留未完成项**。  
+> 本页承接已从 [`DEVELOPER_TODOS.zh-CN.md`](DEVELOPER_TODOS.zh-CN.md) 与 [`TEST_TODOS.zh-CN.md`](TEST_TODOS.zh-CN.md) 移除的 **Done** 表格行与批次留档。  
 > **交付与里程碑真源**仍以 [`ROADMAP_EXECUTION.zh-CN.md`](ROADMAP_EXECUTION.zh-CN.md) §10、[`COMPLETED_TASKS_ARCHIVE.zh-CN.md`](COMPLETED_TASKS_ARCHIVE.zh-CN.md)、`CHANGELOG.zh-CN.md` 为准；本页为拆页后的**可追溯快照**。
 
 迁移日期：**2026-04-26**。
