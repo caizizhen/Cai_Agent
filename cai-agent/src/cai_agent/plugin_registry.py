@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -20,6 +22,7 @@ COMPAT_MATRIX_SCHEMA = "plugin_compat_matrix_v1"
 COMPAT_MATRIX_CHECK_SCHEMA = "plugin_compat_matrix_check_v1"
 LOCAL_CATALOG_SCHEMA = "local_catalog_v1"
 PLUGINS_SYNC_HOME_PLAN_SCHEMA = "plugins_sync_home_plan_v1"
+PLUGINS_SYNC_HOME_RESULT_SCHEMA = "plugins_sync_home_result_v1"
 PLUGINS_HOME_SYNC_DRIFT_SCHEMA = "plugins_home_sync_drift_v1"
 # 与 ``export_target`` / ``ecc sync-home`` 复制的顶层目录一致（不含独立 hooks 树；hooks 见 ecc scaffold）。
 PLUGINS_SYNC_HOME_EXPORT_DIRS = ("rules", "skills", "agents", "commands")
@@ -131,6 +134,234 @@ def build_plugins_sync_home_plan_v1(
         "alignment_note": (
             "与 cai-agent export / ecc sync-home 一致：repo 根 rules|skills|agents|commands → 各 harness 导出根"
         ),
+    }
+
+
+def _sha256_file(path: Path) -> str:
+    h = hashlib.sha256()
+    with path.open("rb") as f:
+        for chunk in iter(lambda: f.read(65536), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def _relative_file_fingerprint(root: Path) -> dict[str, tuple[int, str]]:
+    if root.is_file():
+        stat = root.stat()
+        return {"": (int(stat.st_size), _sha256_file(root))}
+    if not root.is_dir():
+        return {}
+    out: dict[str, tuple[int, str]] = {}
+    for p in sorted(root.rglob("*")):
+        if not p.is_file():
+            continue
+        stat = p.stat()
+        out[p.relative_to(root).as_posix()] = (int(stat.st_size), _sha256_file(p))
+    return out
+
+
+def _directory_matches(src: Path, dst: Path) -> bool:
+    return _relative_file_fingerprint(src) == _relative_file_fingerprint(dst)
+
+
+def _backup_path(path: Path, stamp: str) -> Path:
+    candidate = path.with_name(f"{path.name}.backup-{stamp}")
+    idx = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}.backup-{stamp}-{idx}")
+        idx += 1
+    return candidate
+
+
+def run_plugins_sync_home_v1(
+    settings: Settings,
+    *,
+    targets: tuple[str, ...],
+    apply: bool,
+    force: bool = False,
+    backup: bool = True,
+) -> dict[str, Any]:
+    """CC-N03-D04: safe apply for plugins sync-home with conflict protection."""
+    plan = build_plugins_sync_home_plan_v1(settings, targets=targets)
+    if not bool(plan.get("ok")):
+        return {
+            "schema_version": PLUGINS_SYNC_HOME_RESULT_SCHEMA,
+            "ok": False,
+            "dry_run": not apply,
+            "plan": plan,
+            "error": plan.get("error") or "plan_failed",
+            "hint": plan.get("hint"),
+        }
+    if not apply:
+        return {
+            "schema_version": PLUGINS_SYNC_HOME_RESULT_SCHEMA,
+            "ok": True,
+            "dry_run": True,
+            "plan": plan,
+            "targets": plan.get("targets") or [],
+            "conflicts": [],
+            "applied": [],
+            "backups": [],
+        }
+
+    from datetime import UTC, datetime
+
+    root = _project_root(settings)
+    stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
+    target_results: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
+    applied: list[dict[str, Any]] = []
+    backups: list[dict[str, Any]] = []
+
+    if not force:
+        for target_row in plan.get("targets") or []:
+            if not isinstance(target_row, dict):
+                continue
+            tgt = str(target_row.get("target") or "").strip()
+            for comp in target_row.get("components") or []:
+                if not isinstance(comp, dict) or not bool(comp.get("would_copy")):
+                    continue
+                name = str(comp.get("component") or "")
+                src = root / name
+                dst = Path(str(comp.get("dest_path") or ""))
+                if src.is_dir() and dst.exists() and not _directory_matches(src, dst):
+                    conflicts.append(
+                        {
+                            "target": tgt,
+                            "component": name,
+                            "dest_path": str(dst),
+                            "reason": "destination_exists_and_differs",
+                            "resolution": "rerun with --force to back up and replace this component",
+                        },
+                    )
+        if conflicts:
+            return {
+                "schema_version": PLUGINS_SYNC_HOME_RESULT_SCHEMA,
+                "ok": False,
+                "dry_run": False,
+                "force": False,
+                "backup": bool(backup),
+                "workspace": str(root),
+                "targets": plan.get("targets") or [],
+                "conflicts": conflicts,
+                "applied": [],
+                "backups": [],
+                "hint": "resolve conflicts or rerun with --force",
+            }
+
+    for target_row in plan.get("targets") or []:
+        if not isinstance(target_row, dict):
+            continue
+        tgt = str(target_row.get("target") or "").strip()
+        dest_root = Path(str(target_row.get("export_root") or ""))
+        dest_root.mkdir(parents=True, exist_ok=True)
+        target_result: dict[str, Any] = {
+            "target": tgt,
+            "export_root": str(dest_root),
+            "components": [],
+        }
+        target_blocked = False
+
+        for comp in target_row.get("components") or []:
+            if not isinstance(comp, dict):
+                continue
+            name = str(comp.get("component") or "")
+            src = root / name
+            dst = dest_root / name
+            row: dict[str, Any] = {
+                "component": name,
+                "source_path": str(src),
+                "dest_path": str(dst),
+            }
+            if not bool(comp.get("would_copy")):
+                row.update({"action": "skipped", "reason": comp.get("skip_reason") or "not_copyable"})
+                target_result["components"].append(row)
+                continue
+            if not src.is_dir():
+                row.update({"action": "skipped", "reason": "source_missing"})
+                target_result["components"].append(row)
+                continue
+            if dst.exists() and _directory_matches(src, dst):
+                row.update({"action": "skipped", "reason": "up_to_date"})
+                target_result["components"].append(row)
+                continue
+            if dst.exists() and not force:
+                conflict = {
+                    "target": tgt,
+                    "component": name,
+                    "dest_path": str(dst),
+                    "reason": "destination_exists_and_differs",
+                    "resolution": "rerun with --force to back up and replace this component",
+                }
+                conflicts.append(conflict)
+                target_blocked = True
+                row.update({"action": "blocked", **conflict})
+                target_result["components"].append(row)
+                continue
+            backup_record: dict[str, Any] | None = None
+            if dst.exists():
+                if backup:
+                    bpath = _backup_path(dst, stamp)
+                    shutil.move(str(dst), str(bpath))
+                    backup_record = {
+                        "target": tgt,
+                        "component": name,
+                        "from": str(dst),
+                        "backup_path": str(bpath),
+                    }
+                    backups.append(backup_record)
+                elif dst.is_dir():
+                    shutil.rmtree(dst)
+                else:
+                    dst.unlink()
+            shutil.copytree(src, dst)
+            copied = {
+                "target": tgt,
+                "component": name,
+                "dest_path": str(dst),
+                "files_count": int(comp.get("source_file_count") or 0),
+            }
+            applied.append(copied)
+            row.update({"action": "copied", "backup": backup_record, **copied})
+            target_result["components"].append(row)
+
+        if not target_blocked:
+            catalog = build_local_catalog_payload(settings, root_override=root)
+            catalog_path = dest_root / "cai-local-catalog.json"
+            manifest_path = dest_root / "cai-export-manifest.json"
+            catalog_path.write_text(json.dumps(catalog, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+            manifest_path.write_text(
+                json.dumps(
+                    {
+                        "exporter": "cai-agent",
+                        "schema": "plugins-sync-home-v1",
+                        "target": tgt,
+                        "local_catalog_schema_version": str(catalog.get("schema_version") or ""),
+                        "copied": [x["component"] for x in applied if x.get("target") == tgt],
+                        "local_catalog_file": catalog_path.name,
+                    },
+                    ensure_ascii=False,
+                    indent=2,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            target_result["manifest"] = str(manifest_path)
+            target_result["local_catalog"] = str(catalog_path)
+        target_results.append(target_result)
+
+    return {
+        "schema_version": PLUGINS_SYNC_HOME_RESULT_SCHEMA,
+        "ok": not conflicts,
+        "dry_run": False,
+        "force": bool(force),
+        "backup": bool(backup),
+        "workspace": str(root),
+        "targets": target_results,
+        "conflicts": conflicts,
+        "applied": applied,
+        "backups": backups,
+        "hint": "resolve conflicts or rerun with --force" if conflicts else None,
     }
 
 

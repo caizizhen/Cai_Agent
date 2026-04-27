@@ -8,10 +8,12 @@
 
 ## 1. 当前结论
 
-截至 2026-04-26：
+截至 2026-04-27：
 
 - 主干能力（模型、安装修复反馈、gateway、memory、tool、runtime、home sync、ingest 文档、plugins dry-run/drift 等）已交付；日常以回归与小步增强为主。
 - 当前增量主线见下表与 [`NEXT_ACTIONS.zh-CN.md`](NEXT_ACTIONS.zh-CN.md)。
+- 当前可开发功能池按能力级约 **9 条**：`Ready` 3 条（`CC-N03`、`ECC-N02`、`ECC-N03`），`Design` 4 条（`CC-N04`、`HM-N03`、`HM-N04`、`ECC-N04`），`Explore/Conditional/OOS` 约 6 条仅保留边界或预研，不进入默认实现。
+- 本轮执行 TODO：`CC-N03-D04` **In progress**，目标是把 `plugins sync-home` 从 dry-run/drift 推进到安全 `--apply`，默认拒绝覆盖冲突，显式 `--force` 时先备份再替换。
 
 ### 1.1 当前开工队列
 

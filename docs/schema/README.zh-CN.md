@@ -170,6 +170,14 @@
 
 ---
 
+## `plugins sync-home --json`
+
+- 默认输出 **`plugins_sync_home_plan_v1`** dry-run 计划。
+- 加 **`--apply --json`** 时输出 **`plugins_sync_home_result_v1`**：`ok`、`dry_run=false`、`force`、`backup`、`targets[]`、`conflicts[]`、`applied[]`、`backups[]`、`hint`。
+- 默认遇到目标目录已存在且内容不同会返回 `ok=false` 并不写入；显式 `--force` 时先写 `.backup-*` 后替换（除非加 `--no-backup`）。
+
+---
+
 ## `commands` / `agents` / `--json`
 
 - **`commands --json`**：对象 **`schema_version`=`commands_list_v1`**，**`commands`**：字符串数组（模板 **stem**，与文本模式 `/{name}` 对应的无斜杠名；实现 `list_command_names`）。

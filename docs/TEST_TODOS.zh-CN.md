@@ -22,7 +22,7 @@
 
 | 顺位 | 能力 | 当前测试动作 |
 |---|---|---|
-| 1 | `CC-N03` | 仍缺 **D04**（`plugins sync-home --apply`）专用用例 |
+| 1 | `CC-N03` | **D04 In progress**：已补 `plugins sync-home --apply` 冲突/备份用例；当前沙箱 Python/uv 被拒，待复跑 |
 | 2 | `HM-N01` | **`D01`**：schema 深化后的契约测试 |
 | 3 | `ECC-N02` | **`D03`/`D04`** 仍待用例（import/repair） |
 | 4 | `ECC-N03` | target inventory / 结构化 diff 快照测试 |

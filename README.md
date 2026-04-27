@@ -42,7 +42,7 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 | Observability | `cai-agent observe --json` (stable `schema_version` and aggregates); text mode prints `run_events_total` |
 | Ops dashboard | `cai-agent ops dashboard --format json|text|html` ( **`ops_dashboard_v1`** ); HTML supports **`--html-refresh-seconds`** ( **`meta refresh`** ); **`cai-agent ops serve`** exposes **`GET /v1/ops/dashboard`** and **`GET /v1/ops/dashboard.html`** (read-only HTTP sidecar; optional **`CAI_OPS_API_TOKEN`** ); see **`docs/OPS_DYNAMIC_WEB_API.md`** |
 | Cross-tool export | `cai-agent export --target cursor`, `codex`, or `opencode` (`-w` workspace; manifest + README; see `docs/CROSS_HARNESS_COMPATIBILITY.md` and `docs/CROSS_HARNESS_COMPATIBILITY.zh-CN.md`) |
-| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic); **`--with-compat-matrix`** emits **`plugin_compat_matrix_v1`**; **`plugins --compat-check`** and `python scripts/gen_plugin_compat_snapshot.py --check` provide the CI gate/snapshot |
+| Plugin surface | `cai-agent plugins --json` (`health_score` heuristic); **`--with-compat-matrix`** emits **`plugin_compat_matrix_v1`**; **`plugins sync-home --target opencode --json`** previews repo-local `rules` / `skills` / `agents` / `commands` sync, while **`--apply`** writes with conflict blocking and `.backup-*` backups when **`--force`** is used; **`plugins --compat-check`** and `python scripts/gen_plugin_compat_snapshot.py --check` provide the CI gate/snapshot |
 
 ### Permissions (tools)
 
@@ -301,6 +301,8 @@ cai-agent fix-build "Fix failing tests"
 cai-agent security-scan --json
 cai-agent security-scan --json --exclude-glob "**/*.md"
 cai-agent plugins
+cai-agent plugins sync-home --target opencode --json
+cai-agent plugins sync-home --target opencode --apply --force --json
 cai-agent quality-gate
 cai-agent quality-gate --lint --security-scan
 cai-agent quality-gate --no-test

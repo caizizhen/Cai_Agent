@@ -19,6 +19,7 @@ from cai_agent.plugin_registry import (
     build_plugin_compat_matrix_check_v1,
     build_plugins_home_sync_drift_v1,
     build_plugins_sync_home_plan_v1,
+    run_plugins_sync_home_v1,
 )
 
 
@@ -211,6 +212,81 @@ class PluginsSyncHomeTests(unittest.TestCase):
             doc = json.loads(buf.getvalue().strip())
             self.assertEqual(doc.get("schema_version"), "plugins_sync_home_plan_v1")
             self.assertTrue(doc.get("ok"))
+
+    def test_plugins_sync_home_apply_blocks_divergent_dest_without_force(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "rules").mkdir()
+            (root / "rules" / "a.md").write_text("source", encoding="utf-8")
+            dest = root / ".opencode" / "rules"
+            dest.mkdir(parents=True)
+            (dest / "a.md").write_text("user edit", encoding="utf-8")
+            s = Settings.from_env(config_path=cfg, workspace_hint=str(root))
+
+            result = run_plugins_sync_home_v1(s, targets=("opencode",), apply=True)
+
+            self.assertEqual(result.get("schema_version"), "plugins_sync_home_result_v1")
+            self.assertFalse(result.get("ok"))
+            self.assertEqual((dest / "a.md").read_text(encoding="utf-8"), "user edit")
+            conflicts = result.get("conflicts")
+            self.assertIsInstance(conflicts, list)
+            self.assertEqual(conflicts[0].get("component"), "rules")
+
+    def test_plugins_sync_home_apply_force_backs_up_and_replaces(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "commands").mkdir()
+            (root / "commands" / "review.md").write_text("source", encoding="utf-8")
+            dest = root / ".opencode" / "commands"
+            dest.mkdir(parents=True)
+            (dest / "review.md").write_text("old", encoding="utf-8")
+            s = Settings.from_env(config_path=cfg, workspace_hint=str(root))
+
+            result = run_plugins_sync_home_v1(
+                s,
+                targets=("opencode",),
+                apply=True,
+                force=True,
+            )
+
+            self.assertTrue(result.get("ok"))
+            self.assertEqual((dest / "review.md").read_text(encoding="utf-8"), "source")
+            backups = result.get("backups")
+            self.assertIsInstance(backups, list)
+            self.assertEqual(len(backups), 1)
+            backup_path = Path(str(backups[0].get("backup_path")))
+            self.assertTrue(backup_path.is_dir())
+            self.assertEqual((backup_path / "review.md").read_text(encoding="utf-8"), "old")
+            self.assertTrue((root / ".opencode" / "cai-export-manifest.json").is_file())
+
+    def test_plugins_sync_home_apply_cli_json(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = _write_min_config(root)
+            (root / "skills").mkdir()
+            (root / "skills" / "s.md").write_text("skill", encoding="utf-8")
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(
+                        [
+                            "plugins",
+                            "--config",
+                            cfg,
+                            "sync-home",
+                            "--target",
+                            "opencode",
+                            "--apply",
+                            "--json",
+                        ],
+                    )
+            self.assertEqual(rc, 0)
+            doc = json.loads(buf.getvalue().strip())
+            self.assertEqual(doc.get("schema_version"), "plugins_sync_home_result_v1")
+            self.assertFalse(doc.get("dry_run"))
+            self.assertTrue((root / ".opencode" / "skills" / "s.md").is_file())
 
 
 class PluginCompatMatrixSnapshotTests(unittest.TestCase):

@@ -2,7 +2,7 @@
 
 > 低 token 开发入口。新的开发会话先读本页，再按本页指向读取少量文件。
 >
-> 最后同步：2026-04-26。状态来源：`DEVELOPER_TODOS.zh-CN.md`、`TEST_TODOS.zh-CN.md`（仅未完成）、`TODOS_DONE_ARCHIVE.zh-CN.md`（Done 行快照）、`PRODUCT_GAP_ANALYSIS.zh-CN.md`、`ROADMAP_EXECUTION.zh-CN.md`、`IMPLEMENTATION_STATUS.zh-CN.md`。
+> 最后同步：2026-04-27。状态来源：`DEVELOPER_TODOS.zh-CN.md`、`TEST_TODOS.zh-CN.md`（仅未完成）、`TODOS_DONE_ARCHIVE.zh-CN.md`（Done 行快照）、`PRODUCT_GAP_ANALYSIS.zh-CN.md`、`ROADMAP_EXECUTION.zh-CN.md`、`IMPLEMENTATION_STATUS.zh-CN.md`。
 
 ## 维护契约
 
@@ -28,6 +28,7 @@
 | 顺位 | ID | 状态 | 目标 | 主要入口 | 最小验证 |
 |---|---|---|---|---|---|
 | 1 | `CC-N03-D04` | Ready | **`plugins sync-home --apply`**：冲突策略、备份/回滚提示（承接 D02 计划 + D03 drift） | `plugin_registry.py`、`exporter.py`、`__main__.py` | pytest + smoke；与 **`plugins_sync_home_plan_v1`** / **`plugins_home_sync_drift_v1`** 对齐 |
+| 1a | `CC-N03-D04` | In progress | 本轮实现安全 apply：默认阻断 divergent dest；`--force` 覆盖前写 `.backup-*`；JSON 输出 `plugins_sync_home_result_v1` | `plugin_registry.py`、`__main__.py`、`test_plugin_compat_matrix.py` | 聚焦 pytest + CLI JSON smoke |
 
 ## 刚完成
 

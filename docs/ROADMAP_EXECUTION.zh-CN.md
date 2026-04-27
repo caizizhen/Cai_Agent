@@ -280,6 +280,7 @@
 | `CC-N01-D04` | `Done` | `CC-N01` | upgrade 叙事命令面 | **`doctor_v1.upgrade_hints`**（**`doctor_upgrade_hints_v1`**）：统一列出 repair / ecc / export 与文档指针 | `CC-N01-D05` | pytest `test_doctor_cli` |
 | `CC-N03-D02` | `Done` | `CC-N03` | plugins sync-home dry-run | 新增 **`cai-agent plugins sync-home`**（**`plugins_sync_home_plan_v1`**）：按 harness 预览将 repo 根 **rules/skills/agents/commands** 同步到与 **`export`/`ecc sync-home`** 一致的导出根；**codex** 标记 **manifest_only**（与 `export_target` 行为对齐） | `ECC-N03-D02` | pytest `test_plugin_compat_matrix` + smoke |
 | `CC-N03-D03` | `Done` | `CC-N03` | plugins home drift（doctor/repair/API） | 新增 **`plugins_home_sync_drift_v1`**：复用 **`ecc_home_sync_drift_v1`** 的 **`export_ecc_dir_diff_v1`** 聚合；**`doctor_v1.plugins.home_sync_drift`**；人类 **`doctor`** 插件区漂移摘要；**`repair_plan_v1.plugins_sync_home_preview_commands`**；**`api_doctor_summary_v1.plugins_home_sync_drift_targets`** | `CC-N03-D02` | pytest `test_plugin_compat_matrix` + `test_doctor_cli` + `test_repair_cli` + `test_api_http_server` + smoke |
+| `CC-N03-D04` | `In progress` | `CC-N03` | plugins sync-home safe apply | 新增 **`plugins_sync_home_result_v1`** 与 **`plugins sync-home --apply`**：默认阻断目标目录已存在且内容不同的写入，返回 `conflicts[]`；显式 **`--force`** 时先写 `.backup-*` 再替换，`--no-backup` 可关闭备份 | `CC-N03-D03` | 已补 `test_plugin_compat_matrix` 用例；当前沙箱 Python/uv 执行被拒，待复跑 pytest / smoke 后转 Done |
 | `DOC-01c` | `Done` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 根 README 与 docs README 补 Teams/runtime/plugin snapshot 入口；中英入口互指实现摘要、测试清单与 snapshot | — | 手工 + `rg` |
 
 ### 10.1 建议开单顺序

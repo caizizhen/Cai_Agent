@@ -271,6 +271,8 @@ cai-agent fix-build "修复当前仓库测试失败问题"
 cai-agent security-scan --json
 cai-agent security-scan --json --exclude-glob "**/*.md"
 cai-agent plugins
+cai-agent plugins sync-home --target opencode --json
+cai-agent plugins sync-home --target opencode --apply --force --json
 cai-agent quality-gate
 cai-agent quality-gate --lint --security-scan
 cai-agent quality-gate --no-test

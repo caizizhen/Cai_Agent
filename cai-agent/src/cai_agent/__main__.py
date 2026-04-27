@@ -4696,6 +4696,24 @@ def main(argv: list[str] | None = None) -> int:
         dest="plugins_sync_all",
         help="等价于 cursor + codex + opencode",
     )
+    plugins_sync_p.add_argument(
+        "--apply",
+        action="store_true",
+        dest="plugins_sync_apply",
+        help="实际写入目标 harness 导出目录；默认遇到差异冲突会拒绝覆盖",
+    )
+    plugins_sync_p.add_argument(
+        "--force",
+        action="store_true",
+        dest="plugins_sync_force",
+        help="与 --apply 联用：覆盖已有差异目录；默认先写 .backup-* 备份",
+    )
+    plugins_sync_p.add_argument(
+        "--no-backup",
+        action="store_true",
+        dest="plugins_sync_no_backup",
+        help="与 --apply --force 联用：直接替换，不保留 .backup-*（谨慎）",
+    )
     plugins_sync_p.add_argument("--json", action="store_true", dest="json_output")
     skills_p = sub.add_parser(
         "skills",
@@ -7984,7 +8002,7 @@ def main(argv: list[str] | None = None) -> int:
             settings = replace(settings, workspace=os.path.abspath(str(args.workspace).strip()))
         plg_act = str(getattr(args, "plugins_action", "") or "").strip().lower()
         if plg_act == "sync-home":
-            from cai_agent.plugin_registry import build_plugins_sync_home_plan_v1
+            from cai_agent.plugin_registry import build_plugins_sync_home_plan_v1, run_plugins_sync_home_v1
 
             t_plg_sh = time.perf_counter()
             if bool(getattr(args, "plugins_sync_all", False)):
@@ -7994,13 +8012,24 @@ def main(argv: list[str] | None = None) -> int:
             if not tlist_sh:
                 print("plugins sync-home: 需要 --target（可重复）或 --all-targets", file=sys.stderr)
                 return 2
-            plan_sh = build_plugins_sync_home_plan_v1(settings, targets=tuple(tlist_sh))
+            apply_sh = bool(getattr(args, "plugins_sync_apply", False))
+            if apply_sh:
+                plan_sh = run_plugins_sync_home_v1(
+                    settings,
+                    targets=tuple(tlist_sh),
+                    apply=True,
+                    force=bool(getattr(args, "plugins_sync_force", False)),
+                    backup=not bool(getattr(args, "plugins_sync_no_backup", False)),
+                )
+            else:
+                plan_sh = build_plugins_sync_home_plan_v1(settings, targets=tuple(tlist_sh))
             if bool(getattr(args, "json_output", False)):
                 print(json.dumps(plan_sh, ensure_ascii=False))
             else:
                 print(
                     f"[plugins sync-home] ok={plan_sh.get('ok')} "
-                    f"targets={len(plan_sh.get('targets') or [])}",
+                    f"apply={apply_sh} targets={len(plan_sh.get('targets') or [])} "
+                    f"conflicts={len(plan_sh.get('conflicts') or [])}",
                 )
             ok_sh = bool(plan_sh.get("ok"))
             tok_sh = sum(

@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **CC-N03-D04 plugins sync-home 安全 apply 启动**：`cai-agent plugins sync-home` 新增 `--apply` 写入路径，JSON 输出 **`plugins_sync_home_result_v1`**；默认遇到目标目录已存在且内容不同会拒绝覆盖并返回 `conflicts[]`，只有显式 `--force` 才替换，且默认先写 `.backup-*` 备份（可用 `--no-backup` 关闭）。已补 `test_plugin_compat_matrix.py` 用例；当前沙箱内 Python/uv 执行被拒，测试命令待可执行环境复跑。
+
 - **文档**：`DEVELOPER_TODOS.zh-CN.md` / `TEST_TODOS.zh-CN.md` 仅保留未完成项；已 **Done** 的表格行迁至 **`docs/TODOS_DONE_ARCHIVE.zh-CN.md`**；`docs/README.zh-CN.md` 与 `AGENTS.md` 已加索引。
 - **CC-N03-D03（plugins home drift）**：新增 **`plugins_home_sync_drift_v1`**（与 **`ecc_home_sync_drift_v1`** 同源差分）：**`doctor --json`** 的 **`plugins.home_sync_drift`**、文本 doctor 摘要、**`repair_plan_v1.plugins_sync_home_preview_commands`**、**`api_doctor_summary_v1.plugins_home_sync_drift_targets`**。测试：`test_plugin_compat_matrix.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_api_http_server.py`；smoke 校验 doctor JSON。
 - **CC-N03-D02（plugins sync-home dry-run）**：新增 **`cai-agent plugins sync-home`**，输出 **`plugins_sync_home_plan_v1`**（与 **`export`/`ecc sync-home`** 同源的 rules/skills/agents/commands → harness 导出根；**codex** 为 manifest_only）；**`doctor_upgrade_hints_v1`** 增补推荐命令；smoke 覆盖 **`plugins sync-home --json`**。测试：`test_plugin_compat_matrix.py`。
