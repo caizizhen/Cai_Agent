@@ -13,7 +13,7 @@ from cai_agent.command_registry import build_command_discovery_payload
 from cai_agent.config import Settings
 from cai_agent.exporter import build_ecc_asset_pack_repair_report_v1, build_ecc_home_sync_drift_v1
 from cai_agent.context import INSTRUCTION_FILE_NAMES
-from cai_agent.ecc_layout import iter_hooks_json_paths
+from cai_agent.ecc_layout import build_ecc_harness_target_inventory_v1, iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
 from cai_agent.models import ping_profile
 from cai_agent.profiles import (
@@ -45,6 +45,7 @@ def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
             "cai-agent repair --dry-run --json",
             "cai-agent ecc catalog --json",
             "cai-agent ecc pack-repair --json",
+            "cai-agent ecc inventory --json",
             "cai-agent plugins sync-home --all-targets --json",
             "cai-agent ecc sync-home --all-targets --dry-run --json",
             "cai-agent export --target cursor --dry-run --json",
@@ -620,6 +621,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
             if isinstance(release_runbook.get("feedback"), dict)
             else feedback_stats(root)
         ),
+        "ecc_harness_target_inventory": build_ecc_harness_target_inventory_v1(settings),
         "ecc_home_sync_drift": build_ecc_home_sync_drift_v1(settings),
         "ecc_asset_pack_repair": build_ecc_asset_pack_repair_report_v1(settings),
         "upgrade_hints": build_doctor_upgrade_hints_v1(settings),

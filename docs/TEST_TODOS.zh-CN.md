@@ -7,10 +7,9 @@
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| 1 | `ECC-N03-D01` | In progress | 覆盖 target inventory 输出 | `test_harness_doctor_diff.py`（新增） | 输出字段稳定 |
-| 2 | `ECC-N03-D02` | Ready | 覆盖结构化 home diff | `test_export_sync_diff.py`（新增） | add/update/skip/conflict 清晰 |
-| 3 | `HM-N03-D01` | Design | API 路由状态测试 | `test_api_status_routes.py`（新增） | health/status/profiles 可回归 |
-| 4 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
+| 1 | `ECC-N03-D02` | Ready | 覆盖结构化 home diff | `test_export_sync_diff.py`（新增） | add/update/skip/conflict 清晰 |
+| 2 | `HM-N03-D01` | Design | API 路由状态测试 | `test_api_status_routes.py`（新增） | health/status/profiles 可回归 |
+| 3 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
 
 ## 自动验证记录（由 finalize 脚本追加）
 
@@ -23,3 +22,4 @@
 | 2026-04-27 | `CC-N03-D04` + `HM-N01-D01`（增量并行） | python -m pytest -q cai-agent/tests/test_plugin_compat_matrix.py cai-agent/tests/test_model_profiles_config.py cai-agent/tests/test_profile_home_isolation.py: 46 passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮并行增量验证（未 finalize 归档） |
 | 2026-04-27 | `CC-N03-D04` | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260427-225218-CC-N03-D04.md`](docs/qa/runs/task-finalize-20260427-225218-CC-N03-D04.md) |
 | 2026-04-27 | `HM-N01-D01` | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260427-225222-HM-N01-D01.md`](docs/qa/runs/task-finalize-20260427-225222-HM-N01-D01.md) |
+| 2026-04-28 | `ECC-N03-D03` | python -m pytest -q cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_doctor_cli.py: 20 passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮会话验证（未跑 finalize_task） |

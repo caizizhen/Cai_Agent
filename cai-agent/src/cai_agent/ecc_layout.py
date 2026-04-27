@@ -105,6 +105,82 @@ def build_ecc_asset_layout_payload(
     }
 
 
+def _harness_export_root(root: Path, target: str) -> Path:
+    """与 ``exporter.ecc_export_root_for_target`` / ``plugin_registry`` 路径一致（避免 ecc_layout 依赖 exporter）。"""
+    t = target.strip().lower()
+    if t == "cursor":
+        return root / ".cursor" / "cai-agent-export"
+    if t == "codex":
+        return root / ".codex" / "cai-agent-export"
+    if t == "opencode":
+        return root / ".opencode"
+    raise ValueError(f"unsupported harness target: {target}")
+
+
+def _count_files_recursive(dir_path: Path) -> int:
+    if not dir_path.is_dir():
+        return 0
+    return sum(1 for p in dir_path.rglob("*") if p.is_file())
+
+
+def build_ecc_harness_target_inventory_v1(
+    settings: Settings,
+    *,
+    root_override: Path | None = None,
+) -> dict[str, Any]:
+    """ECC-N03-D01：跨 harness 导出目标与 workspace 源 assets 的机读清单。"""
+    root = root_override if root_override is not None else project_root_for_ecc(settings)
+    modes = {"cursor": "structured", "codex": "manifest", "opencode": "copy"}
+    targets: list[dict[str, Any]] = []
+    for t in ("cursor", "codex", "opencode"):
+        er = _harness_export_root(root, t)
+        man = er / "cai-export-manifest.json"
+        cat = er / "cai-local-catalog.json"
+        comps: list[dict[str, Any]] = []
+        for name in ("rules", "skills", "agents", "commands"):
+            p = er / name
+            comps.append(
+                {
+                    "component": name,
+                    "path": str(p),
+                    "exists": p.exists(),
+                    "is_directory": p.is_dir(),
+                    "file_count": _count_files_recursive(p) if p.is_dir() else 0,
+                },
+            )
+        targets.append(
+            {
+                "target": t,
+                "mode": modes[t],
+                "export_root": str(er),
+                "export_root_exists": er.is_dir(),
+                "manifest_path": str(man),
+                "manifest_exists": man.is_file(),
+                "local_catalog_path": str(cat),
+                "local_catalog_exists": cat.is_file(),
+                "export_components": comps,
+            },
+        )
+    sources: list[dict[str, Any]] = []
+    for name in ("rules", "skills", "agents", "commands"):
+        p = root / name
+        sources.append(
+            {
+                "component": name,
+                "path": str(p),
+                "exists": p.exists(),
+                "is_directory": p.is_dir(),
+                "file_count": _count_files_recursive(p) if p.is_dir() else 0,
+            },
+        )
+    return {
+        "schema_version": "ecc_harness_target_inventory_v1",
+        "workspace": str(root.resolve()),
+        "targets": targets,
+        "workspace_sources": sources,
+    }
+
+
 def _tpl_bytes(name: str) -> bytes:
     base = resources.files("cai_agent").joinpath("templates", "ecc", name)
     return base.read_bytes()

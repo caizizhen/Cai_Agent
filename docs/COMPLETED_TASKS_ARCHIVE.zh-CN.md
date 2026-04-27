@@ -92,6 +92,7 @@
 | `ECC-N01-D04` | `ECC-N01` | `repair_plan_v1.ecc_sync_commands` | pytest `test_repair_cli` | 2026-04-26 批次 |
 | `ECC-N02-D01` | `ECC-N02` | `ecc pack-manifest` → `ecc_asset_pack_manifest_v1` | pytest `test_ecc_layout_cli` + smoke | 2026-04-26 批次 |
 | `ECC-N02-D02` | `ECC-N02` | export/ecc dry-run 与 D01 同源 checksum 出口 | pytest + smoke | 2026-04-26 批次 |
+| `ECC-N03-D03` | `ECC-N03` | **`ecc_harness_target_inventory_v1`**、`cai-agent ecc inventory --json`、**`doctor_v1.ecc_harness_target_inventory`**（各 harness 导出根 + workspace 源 assets 摘要） | pytest `test_ecc_layout_cli` + `test_doctor_cli` + smoke | 2026-04-28 |
 
 ## 最新验证基线
 
@@ -114,3 +115,4 @@
 | `ECC-N01`/`ECC-N02`/`CC-N01-D04`/`HM-N01-D03` | 2026-04-26 | 交付 `ecc sync-home`/`pack-manifest`、`export --dry-run`、doctor drift+repair ecc 提示、`doctor_upgrade_hints_v1`、`load_agent_settings_for_workspace` 与 gateway discord/slack `--config`。 | python -m pytest -q cai-agent/tests: PASS (830 passed, 3 subtests)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮合入 |
 | `CC-N03-D04` | 2026-04-27 | Harden plugins sync-home apply flow with strict force/no-backup gating and conflict hint parity for text output; add regression tests for CLI flag contracts and conflict hint rendering. | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
 | `HM-N01-D01` | 2026-04-27 | Deepen profile home schema with config_dir, enforce legal profile IDs for home layout/clone to prevent path traversal, and add isolation regression tests. | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | finalize_task |
+| `ECC-N03-D03` | 2026-04-28 | Add `ecc_harness_target_inventory_v1`, `cai-agent ecc inventory --json`, and `doctor --json.ecc_harness_target_inventory` for cross-harness export roots and workspace source asset counts. | python -m pytest -q cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_doctor_cli.py: PASS (20 passed)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 会话合入 |

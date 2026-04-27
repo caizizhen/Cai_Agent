@@ -8,7 +8,12 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cai_agent.ecc_layout import build_ecc_asset_layout_payload, ecc_scaffold_workspace, iter_hooks_json_paths
+from cai_agent.ecc_layout import (
+    build_ecc_asset_layout_payload,
+    build_ecc_harness_target_inventory_v1,
+    ecc_scaffold_workspace,
+    iter_hooks_json_paths,
+)
 from cai_agent.config import Settings
 from cai_agent.exporter import build_export_ecc_dir_diff_report, build_ecc_home_sync_drift_v1
 from cai_agent.plugin_registry import build_local_catalog_payload
@@ -60,6 +65,25 @@ def test_ecc_layout_cli_json(tmp_path: Path) -> None:
     assert out.returncode == 0, out.stderr
     pl = json.loads((out.stdout or "").strip())
     assert pl.get("schema_version") == "ecc_asset_layout_v1"
+
+
+def test_build_ecc_harness_target_inventory_v1_schema(tmp_path: Path) -> None:
+    s = Settings.from_env(config_path=None, workspace_hint=str(tmp_path))
+    inv = build_ecc_harness_target_inventory_v1(s, root_override=tmp_path)
+    assert inv.get("schema_version") == "ecc_harness_target_inventory_v1"
+    assert inv.get("workspace") == str(tmp_path.resolve())
+    targets = inv.get("targets")
+    assert isinstance(targets, list) and len(targets) == 3
+    assert {t.get("target") for t in targets if isinstance(t, dict)} == {"cursor", "codex", "opencode"}
+    ws = inv.get("workspace_sources")
+    assert isinstance(ws, list) and len(ws) == 4
+
+
+def test_ecc_inventory_cli_json(tmp_path: Path) -> None:
+    out = _cli(tmp_path, "ecc", "-w", str(tmp_path), "inventory", "--json")
+    assert out.returncode == 0, out.stderr
+    inv = json.loads((out.stdout or "").strip())
+    assert inv.get("schema_version") == "ecc_harness_target_inventory_v1"
 
 
 def test_ecc_scaffold_cli_json(tmp_path: Path) -> None:

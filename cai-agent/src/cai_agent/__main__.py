@@ -4139,6 +4139,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     ecc_pack_repair_p.add_argument("--json", action="store_true", dest="json_output")
 
+    ecc_inventory_p = ecc_sub.add_parser(
+        "inventory",
+        help="ECC-N03-D01：输出 ecc_harness_target_inventory_v1（各 harness 导出根与 workspace 源机读摘要）",
+    )
+    ecc_inventory_p.add_argument("--json", action="store_true", dest="json_output")
+
     plan_p = sub.add_parser(
         "plan",
         parents=[common],
@@ -7311,7 +7317,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "ecc":
         t_ecc = time.perf_counter()
-        from cai_agent.ecc_layout import build_ecc_asset_layout_payload, ecc_scaffold_workspace
+        from cai_agent.ecc_layout import (
+            build_ecc_asset_layout_payload,
+            build_ecc_harness_target_inventory_v1,
+            ecc_scaffold_workspace,
+        )
 
         ws_ecc = getattr(args, "workspace", None)
         root_ecc = Path(str(ws_ecc)).expanduser().resolve() if ws_ecc else None
@@ -7500,6 +7510,26 @@ def main(argv: list[str] | None = None) -> int:
                 success=ok_pr,
             )
             return 0 if ok_pr else 2
+        if ecc_act == "inventory":
+            inv = build_ecc_harness_target_inventory_v1(settings_ecc, root_override=root_ecc)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(inv, ensure_ascii=False))
+            else:
+                print(f"[ecc inventory] workspace={inv.get('workspace')}")
+                for row in inv.get("targets") or []:
+                    if isinstance(row, dict):
+                        print(
+                            f"- {row.get('target')}: root={row.get('export_root')} "
+                            f"exists={row.get('export_root_exists')} manifest={row.get('manifest_exists')}",
+                        )
+            _maybe_metrics_cli(
+                module="ecc",
+                event="ecc.inventory",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(inv.get("targets") or []),
+                success=True,
+            )
+            return 0
         print(f"unknown ecc action: {ecc_act}", file=sys.stderr)
         return 2
 
