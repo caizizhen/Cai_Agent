@@ -380,6 +380,13 @@ cai-agent ecc pack-import --from-workspace …   # dry-run by default; --apply -
 cai-agent ecc pack-repair --json               # manifest vs export dirs; exit 2 if error-level issues
 ```
 
+**`ecc pack-import` ingest gate (ECC-N02-D05)**
+
+- **`--json` plans** include **`ingest_gate`** (**`ecc_pack_ingest_gate_v1`**): scans **`hooks.json`** under the source workspace **`rules` / `skills` / `agents` / `commands`** and applies the same dangerous-command heuristics as runtime **`hook_runtime`** for resolved **`command` / `script`** argv; **`script` paths that escape the source root** are rejected.
+- **`--apply`** bails with **`ok=false`**, **`error=ingest_gate_rejected`**, and **no writes** when the gate fails (use the default dry-run / plan JSON to inspect **`ingest_gate`** first).
+- The same gate as a **readiness summary for “am I a safe pack source?”**: **`cai-agent doctor --json`** → **`ecc_pack_ingest_gate`**; **`GET /v1/doctor/summary`** → **`ecc_pack_ingest_gate`** (redacted shape).
+- Policy context: **`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`** / **`docs/ECC_04B_INGEST_SANITIZER_POLICY.md`** and **`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`**.
+
 **Plugins**:
 
 ```bash

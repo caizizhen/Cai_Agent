@@ -11,6 +11,7 @@
 
 ## 未来开发（缩略）
 
+- `ECC-N02-D06`：README + doctor/API **`ecc_pack_ingest_gate`** 暴露已合入
 - `ECC-N02-D05`：pack **`--apply`** × **`ecc_pack_ingest_gate_v1`**（hooks.json + hook_runtime 危险命令规则）已合入
 - `CC-N04`：session/recap 收口已合入（`session_recap_v1` + `sessions --recap` + TUI `/recap`）
 - `HM-N03`：**`HM-N03-D01`**（API 状态路由）已合入 roadmap；`HM-N04`：**`HM-N04-D01`**（dashboard preview/apply/audit contract）已合入

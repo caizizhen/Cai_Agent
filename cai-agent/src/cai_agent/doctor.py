@@ -17,6 +17,7 @@ from cai_agent.exporter import (
     build_ecc_structured_home_diff_bundle_v1,
 )
 from cai_agent.context import INSTRUCTION_FILE_NAMES
+from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_v1
 from cai_agent.ecc_layout import build_ecc_harness_target_inventory_v1, iter_hooks_json_paths
 from cai_agent.model_gateway import KNOWN_MODEL_HEALTH_STATUSES, build_model_capabilities_payload
 from cai_agent.models import ping_profile
@@ -49,6 +50,7 @@ def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
             "cai-agent repair --dry-run --json",
             "cai-agent ecc catalog --json",
             "cai-agent ecc pack-repair --json",
+            "cai-agent ecc pack-import --from-workspace <DIR> --json",
             "cai-agent ecc inventory --json",
             "cai-agent ecc home-diff --json",
             "cai-agent plugins sync-home --all-targets --json",
@@ -639,7 +641,25 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "ecc_structured_home_diff": build_ecc_structured_home_diff_bundle_v1(settings),
         "ecc_home_sync_drift": build_ecc_home_sync_drift_v1(settings),
         "ecc_asset_pack_repair": build_ecc_asset_pack_repair_report_v1(settings),
+        "ecc_pack_ingest_gate": build_ecc_pack_ingest_gate_v1(root),
         "upgrade_hints": build_doctor_upgrade_hints_v1(settings),
+    }
+
+
+def _api_ecc_pack_ingest_gate_summary(doctor_payload: dict[str, Any]) -> dict[str, Any] | None:
+    """`GET /v1/doctor/summary` 用精简视图（无逐条 violation 路径细节）。"""
+    g = doctor_payload.get("ecc_pack_ingest_gate")
+    if not isinstance(g, dict):
+        return None
+    viol = g.get("violations")
+    n_v = len(viol) if isinstance(viol, list) else 0
+    return {
+        "schema_version": "api_ecc_pack_ingest_gate_summary_v1",
+        "allow": bool(g.get("allow")),
+        "decision": g.get("decision"),
+        "violations_count": n_v,
+        "hooks_files_scanned": int(g.get("hooks_files_scanned") or 0),
+        "hooks_entries_seen": int(g.get("hooks_entries_seen") or 0),
     }
 
 
@@ -683,6 +703,7 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
             and isinstance((p.get("plugins") or {}).get("home_sync_drift"), dict)
             else None
         ),
+        "ecc_pack_ingest_gate": _api_ecc_pack_ingest_gate_summary(p),
     }
 
 
@@ -892,6 +913,15 @@ def run_doctor(
     if dtargets and isinstance(apply_cmds, list) and apply_cmds:
         print(f"  写回（等价 export）: {apply_cmds[0]}")
     print("  机读: doctor --json -> plugins.home_sync_drift")
+    print()
+    pig_txt = build_ecc_pack_ingest_gate_v1(root)
+    print("ECC / pack-import 源侧 ingest 预检（本工作区）:")
+    print(
+        f"  allow={pig_txt.get('allow')} decision={pig_txt.get('decision')} "
+        f"violations={len(pig_txt.get('violations') or [])} "
+        f"hooks_json_scanned={pig_txt.get('hooks_files_scanned')}",
+    )
+    print("  机读: doctor --json -> ecc_pack_ingest_gate")
     print()
     mepd = int(getattr(settings, "memory_policy_max_entries_per_day", 10_000) or 0)
     mtd = getattr(settings, "memory_policy_default_ttl_days", None)

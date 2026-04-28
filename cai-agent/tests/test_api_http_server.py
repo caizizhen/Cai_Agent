@@ -169,6 +169,10 @@ def test_api_doctor_summary_no_base_url(tmp_path: Path) -> None:
             assert tp.get("schema_version") == "tool_provider_contract_v1"
             assert isinstance(data.get("ecc_home_sync_drift_targets"), (list, type(None)))
             assert isinstance(data.get("plugins_home_sync_drift_targets"), (list, type(None)))
+            eg = data.get("ecc_pack_ingest_gate")
+            assert isinstance(eg, dict)
+            assert eg.get("schema_version") == "api_ecc_pack_ingest_gate_summary_v1"
+            assert "allow" in eg and "violations_count" in eg
         finally:
             httpd.shutdown()
             httpd.server_close()

@@ -373,6 +373,13 @@ cai-agent ecc pack-import --from-workspace …   # 默认预览；需 --apply；
 cai-agent ecc pack-repair --json               # 对照 manifest 与各 harness 导出；有 error 级问题时 exit 2
 ```
 
+**`ecc pack-import` 与 ingest 门禁（ECC-N02-D05）**
+
+- 默认 **`--json` 计划**里会附带 **`ingest_gate`**（**`ecc_pack_ingest_gate_v1`**）：扫描源工作区 **`rules` / `skills` / `agents` / `commands`** 下各 **`hooks.json`**，对可解析的 **`command` / `script`** 使用与运行时 **`hook_runtime`** 一致的危险命令规则；**`script` 路径越出源根**也会阻断。
+- 使用 **`--apply`** 写入前若门禁未通过，则 **`ok=false`**、**`error=ingest_gate_rejected`**，且**不落盘**（可先按默认 dry-run 看 **`ingest_gate`**）。
+- 当前工作区作为「他人 `pack-import` 的源」时的同一套预检摘要：**`cai-agent doctor --json`** → **`ecc_pack_ingest_gate`**；**`GET /v1/doctor/summary`** → **`ecc_pack_ingest_gate`**（精简字段）。
+- 策略背景见 **`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`** 与快照 **`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`**。
+
 **Plugins：**
 
 ```bash

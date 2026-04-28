@@ -16,6 +16,7 @@
 
 ## 最近完成（缩略）
 
+- `ECC-N02-D06`（README + **`doctor`/`api` summary** 暴露 **`ecc_pack_ingest_gate`**）
 - `ECC-N02-D05`（**`ecc_pack_ingest_gate_v1`**：`ecc pack-import` 计划附带 ingest 门禁，`--apply` 与 **`hook_runtime`** 危险命令规则对齐）
 - `CC-N04`（`session_recap_v1`、`sessions --recap`、TUI `/recap` 收口）
 - `HM-N04-D01`（ops interactions 收口：GET 仅 preview/audit，POST 承载 apply，审计链路保留）

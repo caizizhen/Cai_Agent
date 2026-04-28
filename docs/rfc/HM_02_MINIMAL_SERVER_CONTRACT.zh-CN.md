@@ -22,7 +22,7 @@
 | `GET` | `/v1/health` | **`api_health_v1`**：版本、**`workspace`**、**`auth_enforced`**（是否配置了 **`CAI_API_TOKEN`**）；需 Bearer（当 token 已配置） |
 | `GET` | `/v1/ready` | **`api_ready_v1`**：**`mock`**、**`has_config_file`**、**`profiles_count`**、**`active_profile_id`**（不含密钥）；需 Bearer（当 token 已配置） |
 | `GET` | `/v1/status` | 与 CLI **`gateway status --json`** 同源的 **`gateway_summary_v1`** 子集 + **`schema_version`: `api_status_v1`** |
-| `GET` | `/v1/doctor/summary` | 复用 **`build_doctor_payload`** 中仅白名单字段（版本、mock、profile_contract 摘要、memory_policy 摘要），避免泄露密钥 |
+| `GET` | `/v1/doctor/summary` | 复用 **`build_doctor_payload`** 中仅白名单字段（版本、mock、profile_contract 摘要、memory_policy 摘要、**`ecc_pack_ingest_gate`** → **`api_ecc_pack_ingest_gate_summary_v1`** 等），避免泄露密钥 |
 | `POST` | `/v1/tasks/run-due` | **可选波次 2**：若需要「任务触发」，则 body **`{ "dry_run": true }`** 时仅返回将运行项列表；默认 **`dry_run`** 为 true |
 
 ## 4. 版本与错误

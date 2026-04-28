@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **ECC-N02-D06 README + doctor/API 暴露 pack ingest 预检**：根 **`README.md` / `README.zh-CN.md`** 增补 **`ecc pack-import`** 的 **`ingest_gate`**、**`ingest_gate_rejected`** 与 **`doctor` / `GET /v1/doctor/summary`** 字段说明；**`doctor_v1.ecc_pack_ingest_gate`**（完整 **`ecc_pack_ingest_gate_v1`**）；**`api_doctor_summary_v1.ecc_pack_ingest_gate`**（**`api_ecc_pack_ingest_gate_summary_v1`** 精简计数）；人类 **`doctor`** 增加「ECC / pack-import 源侧 ingest」摘要；**`doctor_upgrade_hints_v1`** 增补 **`ecc pack-import --from-workspace <DIR> --json`**。RFC **`HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** 表格已注明。测试：**`test_doctor_cli`**、**`test_api_http_server`**。
+
 - **ECC-N02-D05 pack ingest 门禁（与 hook_runtime 对齐）**：新增 **`ecc_pack_ingest_gate_v1`**（`ecc_ingest_gate.build_ecc_pack_ingest_gate_v1`），递归扫描源 workspace 的 **`rules`/`skills`/`agents`/`commands`** 下 **`hooks.json`**，对每条可解析 **`command`/`script`** argv 复用 **`hook_runtime`** 危险片段规则（**`list_hook_argv_danger_matches`** / **`hook_argv_matches_ingest_denylist`**），并阻断 **`script_outside_workspace`**；**`ecc pack-import`** 的 **`ecc_asset_pack_import_plan_v1`** 附带 **`ingest_gate`**；**`--apply`** 若 **`ingest_gate.allow`** 为 false 则拒绝写入并返回 **`error=ingest_gate_rejected`**。**`ecc pack-repair`** 仍为只读无 `--apply`**。测试：**`test_ecc_pack_ingest_gate.py`**；smoke 增补 **`ecc pack-import --json`** 校验 **`ingest_gate`**。
 
 - **CC-N04 session/recap 收口**：新增 **`session_recap_v1`**（`context.build_session_recap_v1`）、CLI **`sessions --recap [--json]`** 与 TUI **`/recap`**，统一输出最近会话回放摘要（latest、错误/消耗聚合、replay 命令提示）；并在会话 strip 文案统一暴露 `/recap`。测试：**`test_session_recap.py`**、**`test_tui_session_strip.py`**。
