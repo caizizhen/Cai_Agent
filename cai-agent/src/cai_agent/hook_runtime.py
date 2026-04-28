@@ -172,6 +172,36 @@ def _command_looks_dangerous(argv: list[str], *, strict: bool) -> bool:
     return False
 
 
+def list_hook_argv_danger_matches(argv: list[str], *, strict: bool = False) -> list[str]:
+    """列出与 ``_command_looks_dangerous`` 一致的危险片段命中（用于 pack ingest 机读输出）。"""
+    norm = _normalize_hook_argv_for_platform(list(argv))
+    joined = " ".join(norm).lower()
+    hits: list[str] = []
+    for frag in _DANGEROUS_STANDARD:
+        if frag in joined:
+            hits.append(frag)
+    if strict:
+        for frag in _DANGEROUS_STRICT_EXTRA:
+            if frag in joined:
+                hits.append(frag)
+    return hits
+
+
+def hook_argv_matches_ingest_denylist(argv: list[str], *, strict: bool = False) -> bool:
+    """外部 pack ingest 预检：与运行时 hook 分类同一套危险命令规则（默认 standard，非 strict）。"""
+    return bool(list_hook_argv_danger_matches(argv, strict=strict))
+
+
+def resolve_hook_argv_for_pack_scan(
+    hook: dict[str, Any],
+    *,
+    hooks_file: Path,
+    project_root: Path,
+) -> tuple[list[str] | None, str | None]:
+    """解析单条 hook 的 argv（供 pack ingest 扫描，与 ``_hook_argv_for_hook`` 语义一致）。"""
+    return _hook_argv_for_hook(hook, hooks_file=hooks_file, project_root=project_root)
+
+
 def enabled_hook_ids(
     settings: Settings,
     event: str,

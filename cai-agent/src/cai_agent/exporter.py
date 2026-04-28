@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
+from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_v1
 from cai_agent.memory import resolve_active_memory_provider
 from cai_agent.plugin_registry import build_local_catalog_payload
 
@@ -615,7 +616,7 @@ def build_ecc_asset_pack_import_plan_v1(
                 },
             )
         rows.append(row)
-    return {
+    plan_out: dict[str, Any] = {
         "schema_version": "ecc_asset_pack_import_plan_v1",
         "ok": True,
         "source_workspace": str(src_root),
@@ -623,6 +624,8 @@ def build_ecc_asset_pack_import_plan_v1(
         "components": rows,
         "conflicts": conflicts,
     }
+    plan_out["ingest_gate"] = build_ecc_pack_ingest_gate_v1(src_root)
+    return plan_out
 
 
 def run_ecc_asset_pack_import_v1(
@@ -650,6 +653,22 @@ def run_ecc_asset_pack_import_v1(
             "ok": True,
             "dry_run": True,
             "plan": plan,
+            "applied": [],
+            "backups": [],
+            "conflicts": plan.get("conflicts") or [],
+        }
+    ingate = plan.get("ingest_gate")
+    if not isinstance(ingate, dict):
+        ingate = build_ecc_pack_ingest_gate_v1(str(plan.get("source_workspace") or ""))
+    if not bool(ingate.get("allow", True)):
+        return {
+            "schema_version": "ecc_asset_pack_import_result_v1",
+            "ok": False,
+            "dry_run": False,
+            "error": "ingest_gate_rejected",
+            "hint": "源 workspace 的 hooks.json 命中 ingest 与 hook_runtime 一致的危险命令规则，或存在 script 越界；请清理后再 --apply",
+            "plan": plan,
+            "ingest_gate": ingate,
             "applied": [],
             "backups": [],
             "conflicts": plan.get("conflicts") or [],

@@ -6,7 +6,7 @@ platforms + ops dashboard + skills hub manifest + ``skills hub suggest``, repo-r
 ``plugins --json --with-compat-matrix`` + ``plugins sync-home --json``/``doctor``/``release-changelog --json --semantic``/``mcp-check``/``security-scan --json``, empty cwd ``sessions`` +
 ``observe-report --json`` + ``observe report --format json --days 1`` + ``observe export --format json --days 2``, ``hooks list`` + ``run-event --dry-run --json``,
 ``insights``/``insights --json --cross-domain``/``board --json``, ``memory health`` + ``memory state`` + ``memory provider --json`` + ``memory user-model --json`` + ``memory user-model export``
-+ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json`` + ``export``/``ecc pack-repair --json`` + ``ecc inventory --json`` + ``ecc home-diff --json``, plus
++ ``memory user-model store init/list`` + ``learn``/``query`` + ``export --with-store``, ``ecc -w <dir> layout --json`` + ``ecc sync-home --dry-run`` + ``ecc pack-manifest --json`` + ``ecc pack-import --json`` (``ingest_gate``) + ``export``/``ecc pack-repair --json`` + ``ecc inventory --json`` + ``ecc home-diff --json``, plus
 init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
@@ -772,6 +772,33 @@ def main() -> int:
             pmd = json.loads((ppm.stdout or "").strip())
             if pmd.get("schema_version") != "ecc_asset_pack_manifest_v1":
                 errs.append(f"ecc pack-manifest schema {pmd.get('schema_version')!r}")
+        import_src = Path(mh_td) / "_smoke_pack_import_src"
+        (import_src / "rules").mkdir(parents=True, exist_ok=True)
+        (import_src / "rules" / "smoke.md").write_text("smoke", encoding="utf-8")
+        ppi = _run(
+            [
+                *cli,
+                "ecc",
+                "-w",
+                mh_td,
+                "pack-import",
+                "--from-workspace",
+                str(import_src),
+                "--json",
+            ],
+            cwd=mh_td,
+        )
+        if ppi.returncode != 0:
+            errs.append(f"ecc pack-import dry-run exit {ppi.returncode} stderr={ppi.stderr!r}")
+        else:
+            pimd = json.loads((ppi.stdout or "").strip())
+            if pimd.get("schema_version") != "ecc_asset_pack_import_plan_v1":
+                errs.append(f"ecc pack-import plan schema {pimd.get('schema_version')!r}")
+            ig = pimd.get("ingest_gate")
+            if not isinstance(ig, dict) or ig.get("schema_version") != "ecc_pack_ingest_gate_v1":
+                errs.append(f"ecc pack-import missing ingest_gate {ig!r}")
+            elif ig.get("allow") is not True:
+                errs.append(f"ecc pack-import ingest_gate blocked unexpectedly {ig!r}")
         mh_cfg = Path(mh_td) / "cai-agent.toml"
         mh_cfg.write_text(
             '[llm]\nprovider = "openai_compatible"\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n[agent]\nmock = true\n',

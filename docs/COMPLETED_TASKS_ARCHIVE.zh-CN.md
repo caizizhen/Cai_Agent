@@ -95,6 +95,7 @@
 | `ECC-N01-D04` | `ECC-N01` | `repair_plan_v1.ecc_sync_commands` | pytest `test_repair_cli` | 2026-04-26 批次 |
 | `ECC-N02-D01` | `ECC-N02` | `ecc pack-manifest` → `ecc_asset_pack_manifest_v1` | pytest `test_ecc_layout_cli` + smoke | 2026-04-26 批次 |
 | `ECC-N02-D02` | `ECC-N02` | export/ecc dry-run 与 D01 同源 checksum 出口 | pytest + smoke | 2026-04-26 批次 |
+| `ECC-N02-D05` | `ECC-N02` | **`ecc_pack_ingest_gate_v1`**；**`ecc pack-import`** 计划嵌 **`ingest_gate`**，**`--apply`** 前阻断危险 hook argv / script 越界（**`ingest_gate_rejected`**） | pytest `test_ecc_pack_ingest_gate` + `test_ecc_layout_cli` + smoke | 2026-04-28 |
 | `ECC-N03-D03` | `ECC-N03` | **`ecc_harness_target_inventory_v1`**、`cai-agent ecc inventory --json`、**`doctor_v1.ecc_harness_target_inventory`**（各 harness 导出根 + workspace 源 assets 摘要） | pytest `test_ecc_layout_cli` + `test_doctor_cli` + smoke | 2026-04-28 |
 | `ECC-N03-D04` | `ECC-N03` | **`ecc_structured_home_diff_v1`** / **`ecc_structured_home_diff_bundle_v1`**、**`cai-agent ecc home-diff`**、**`doctor_v1.ecc_structured_home_diff`**、**`repair_plan_v1`** 增补 home-diff 预览与 pending targets | pytest `test_export_sync_diff` + `test_doctor_cli` + `test_repair_cli` + smoke | 2026-04-28 |
 

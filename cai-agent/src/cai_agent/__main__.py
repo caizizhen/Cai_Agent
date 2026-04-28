@@ -7500,6 +7500,10 @@ def main(argv: list[str] | None = None) -> int:
                 )
                 if not bool(r_pi.get("ok")) and r_pi.get("hint"):
                     print(f"hint: {r_pi.get('hint')}")
+                if not bool(r_pi.get("ok")) and r_pi.get("error") == "ingest_gate_rejected":
+                    ig = r_pi.get("ingest_gate") or {}
+                    n_v = len(ig.get("violations") or [])
+                    print(f"ingest_gate: decision={ig.get('decision')} violations={n_v}", file=sys.stderr)
             ok_pi = bool(r_pi.get("ok"))
             _maybe_metrics_cli(
                 module="ecc",

@@ -6,16 +6,17 @@
 
 ## 当前目标
 
-- 交付 **`ECC-N02-D05`**：asset pack 的 **`--apply`** 与 **`ecc_ingest_sanitizer_policy_v1`** 合流，补齐 P2「import-install 执行链」中的写前门禁。
+- 保持主干稳定（全量 pytest + smoke），并等待用户指定下一优先级（非 Explore）。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `ECC-N02-D05` | Ready | apply 前 sanitizer 等价检查；阻断时机读原因；pytest + smoke |
+| 1 | `（待排期）` | Ready | 用户指定下一条非 Explore 主线任务 |
 
 ## 最近完成（缩略）
 
+- `ECC-N02-D05`（**`ecc_pack_ingest_gate_v1`**：`ecc pack-import` 计划附带 ingest 门禁，`--apply` 与 **`hook_runtime`** 危险命令规则对齐）
 - `CC-N04`（`session_recap_v1`、`sessions --recap`、TUI `/recap` 收口）
 - `HM-N04-D01`（ops interactions 收口：GET 仅 preview/audit，POST 承载 apply，审计链路保留）
 - `HM-N03-D01`（`/v1/health`、`/v1/ready`、`api_liveness_v1` 与 RFC 更新）

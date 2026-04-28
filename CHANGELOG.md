@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **ECC-N02-D05 pack ingest gate (hook_runtime-aligned)**: Added **`ecc_pack_ingest_gate_v1`** (`ecc_ingest_gate.build_ecc_pack_ingest_gate_v1`) scanning **`hooks.json`** under source **`rules`/`skills`/`agents`/`commands`**, classifying hook argv with the same dangerous-command substring rules as **`hook_runtime`** (**`list_hook_argv_danger_matches`** / **`hook_argv_matches_ingest_denylist`**) and blocking **`script_outside_workspace`**. **`ecc pack-import`** plans now embed **`ingest_gate`**; **`--apply`** aborts with **`ingest_gate_rejected`** when the gate fails. **`ecc pack-repair`** stays read-only (no `--apply`). Tests: **`test_ecc_pack_ingest_gate.py`**; smoke asserts **`ecc pack-import --json`** includes a passing **`ingest_gate`**.
+
 - **CC-N04 session/recap convergence**: Added **`session_recap_v1`** via `context.build_session_recap_v1`, CLI **`sessions --recap [--json]`**, and TUI **`/recap`** for stable recent-session replay summaries (latest path, aggregate errors/tokens, replay command hints). Updated session-strip UX copy to surface `/recap` consistently. Tests: **`test_session_recap.py`**, **`test_tui_session_strip.py`**.
 
 - **HM-N04-D01 dashboard interaction contract hardening**: `ops serve` now enforces **GET** `/v1/ops/dashboard/interactions` as preview/audit-only and returns `execute_forbidden` for `mode=apply`; write actions are routed through **POST** `/v1/ops/dashboard/interactions` (supports `mode=apply|preview|audit`) to keep mutation paths explicit and audit-aligned with `ops_dashboard_action_audit_v1`. Tests updated in **`test_ops_http_server.py`**.

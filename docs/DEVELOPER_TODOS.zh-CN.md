@@ -7,11 +7,11 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| 1 | `ECC-N02-D05` | Ready | pack apply 路径接入 ingest sanitizer 等价门禁，与 `PRODUCT_GAP` P2「import-install 执行链」对齐 | `__main__.py`（`ecc pack-import` / `ecc pack-repair` apply）、可选 `skills.py` / ingest 辅助模块 | pytest + smoke；回写 `CHANGELOG` / `PARITY_MATRIX` / `OPS` 或 schema 说明（若新增契约字段） |
+| 1 | `（待排期）` | Ready | 等待用户指定下一优先级（非 Explore） | — | 立项后执行 |
 
 ## 未来开发（缩略）
 
-- `ECC-N02-D05`：pack apply × ingest sanitizer（见 `ROADMAP_EXECUTION` §10）
+- `ECC-N02-D05`：pack **`--apply`** × **`ecc_pack_ingest_gate_v1`**（hooks.json + hook_runtime 危险命令规则）已合入
 - `CC-N04`：session/recap 收口已合入（`session_recap_v1` + `sessions --recap` + TUI `/recap`）
 - `HM-N03`：**`HM-N03-D01`**（API 状态路由）已合入 roadmap；`HM-N04`：**`HM-N04-D01`**（dashboard preview/apply/audit contract）已合入
 - `ECC-N03`：doctor/diff 深化（**D03** inventory、**D04** structured home diff 已合入 roadmap）

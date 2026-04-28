@@ -2,13 +2,13 @@
 
 ## 当前阶段目标
 
-- 交付 **`ECC-N02-D05`**（pack apply × ingest sanitizer），对齐 **`PRODUCT_GAP`** P2「import-install 执行链」
-- 保持主干稳定（全量 pytest + smoke + 必要 regression）
+- 保持主干稳定（全量 pytest + smoke + 必要 regression），等待下一非 Explore 主线立项
+- **`ECC-N02-D05`**（pack-import **`ingest_gate`** + **`--apply`** 写前阻断）已合入 roadmap
 - **`CC-N04`**（session/recap 收口）、**`HM-N03-D01`**、**`HM-N04-D01`** 已合入 roadmap
 
 ## 当前优先级（按顺序）
 
-1. `ECC-N02-D05`
+1. `（待排期）`
 
 ## 当前不做
 
