@@ -132,7 +132,7 @@ api_key_env = "VENDOR_API_KEY"
 
 1. API key 放环境变量，TOML 只写 `api_key_env`。
 2. 先运行 `cai-agent models ping <id> --json`，再决定是否做真实 `--chat-smoke`。
-3. 运行 `cai-agent models capabilities <id> --json`；如果 provider 不暴露上下文窗口，手动补 `context_window`。
+3. 运行 `cai-agent models capabilities <id> --json`；内置主流家族（OpenAI/Anthropic/Gemini/xAI/DeepSeek/Kimi/MiniMax/Qwen/GLM/Mistral/Groq/Perplexity 等）会自动推断默认上下文窗口，未知或本地模型再手动补 `context_window`。
 4. active、subagent、planner 可以拆成不同 profile，便于成本和能力分层。
 5. 对非 OpenAI 原生协议的厂商，在 profile `notes` 中写清楚经过哪个网关转接。
 

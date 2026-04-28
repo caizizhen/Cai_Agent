@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Context-window auto-inference expanded to broad integrable model families**: Added OpenRouter vendor-prefix routing and model-family rules so supported integrations infer defaults across mainstream providers (including Qwen, MiniMax, Kimi, Zhipu GLM, Mistral, Volcengine/Doubao, Meta Llama, and Perplexity) while keeping unknown or localhost/self-hosted endpoints manual.
+
 - **Built-in third-party presets now carry official context-window defaults**: Added explicit `context_window` values for bundled hosted presets (`nous_portal`, `nvidia_nim`, `xiaomi_mimo`, `kimi_moonshot`, `minimax`, `huggingface`) so onboarding/apply flows auto-fill provider model limits out of the box. Inference fallback rules were aligned for these model IDs as well. Local/self-hosted endpoints still require manual configuration and are intentionally not auto-pinned.
 
 - **Context window now auto-infers for legacy third-party `[llm]` configs**: `synthesize_default_profile` now applies `infer_default_context_window()` for hosted providers, so legacy single-model integrations automatically use provider/model context defaults (for example `gpt-4o` → `128000`) without manually setting `[llm].context_window`. Local/self-hosted OpenAI-compatible endpoints remain unchanged (`context_window` stays unknown unless explicitly configured). Tests updated in `test_context_usage_bar.py` and `test_model_profiles_config.py`.

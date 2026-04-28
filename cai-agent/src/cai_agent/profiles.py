@@ -146,6 +146,22 @@ def infer_default_context_window(
             return 128_000
         if model_l.startswith("x-ai/") or model_l.startswith("xai/"):
             return infer_default_context_window(provider="openai_compatible", base_url="https://api.x.ai/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("moonshot/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://api.moonshot.cn/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("minimax/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://api.minimax.chat/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("zhipu/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://open.bigmodel.cn/api/paas/v4", model=model_l.split("/", 1)[1])
+        if model_l.startswith("mistralai/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://api.mistral.ai/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("qwen/") or model_l.startswith("alibaba/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("bytedance/") or model_l.startswith("doubao/") or model_l.startswith("volcengine/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://ark.cn-beijing.volces.com/api/v3", model=model_l.split("/", 1)[1])
+        if model_l.startswith("meta-llama/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://integrate.api.nvidia.com/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("perplexity/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://api.perplexity.ai", model=model_l.split("/", 1)[1])
         return None
 
     return None

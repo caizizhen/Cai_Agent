@@ -248,7 +248,7 @@ def _cai_brand_markup() -> str:
 
 # 说明里勿写「[llm]」等方括号：RichLog 会当作样式标记，界面会显示错乱。
 _CONTEXT_WINDOW_SOURCE_LABELS: dict[str, str] = {
-    "profile": "来自 TOML：models.profile（当前激活 profile 的 context_window）",
+    "profile": "来自当前激活 profile（TOML 显式 context_window 或第三方模型默认值）",
     "llm": "来自 TOML：llm.context_window",
     "env": "来自环境变量 CAI_CONTEXT_WINDOW",
     "default": (

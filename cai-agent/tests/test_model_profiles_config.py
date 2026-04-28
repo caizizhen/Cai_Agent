@@ -84,6 +84,38 @@ class ProfilesParsingTests(unittest.TestCase):
         self.assertEqual(s.context_window, 256000)
         self.assertEqual(s.context_window_source, "profile")
 
+    def test_legacy_llm_infers_context_window_for_openrouter_qwen(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _write(
+                Path(d),
+                """
+                [llm]
+                provider = "openai_compatible"
+                base_url = "https://openrouter.ai/api/v1"
+                model = "qwen/qwen3-235b-a22b"
+                api_key = "sk-test"
+                """,
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.context_window, 131072)
+        self.assertEqual(s.context_window_source, "profile")
+
+    def test_legacy_llm_infers_context_window_for_openrouter_minimax(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _write(
+                Path(d),
+                """
+                [llm]
+                provider = "openai_compatible"
+                base_url = "https://openrouter.ai/api/v1"
+                model = "minimax/minimax-m2.1"
+                api_key = "sk-test"
+                """,
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.context_window, 204800)
+        self.assertEqual(s.context_window_source, "profile")
+
     def test_profiles_projection_overrides_llm_section(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             cfg = _write(

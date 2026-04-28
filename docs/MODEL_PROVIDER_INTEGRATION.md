@@ -132,7 +132,7 @@ api_key_env = "VENDOR_API_KEY"
 
 1. Put credentials in environment variables and use `api_key_env` in TOML.
 2. Prefer `cai-agent models ping <id> --json` before a real chat smoke.
-3. Run `cai-agent models capabilities <id> --json` and fill `context_window` manually when the provider does not expose it.
+3. Run `cai-agent models capabilities <id> --json`; built-in mainstream families (OpenAI/Anthropic/Gemini/xAI/DeepSeek/Kimi/MiniMax/Qwen/GLM/Mistral/Groq/Perplexity, etc.) auto-infer a default context window, while unknown or local models should still set `context_window` manually.
 4. Use separate profiles for routing roles: active, subagent, planner.
 5. For providers with non-OpenAI-native semantics, connect through a gateway and document the translation layer in the profile `notes`.
 
