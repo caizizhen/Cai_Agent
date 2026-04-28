@@ -386,6 +386,7 @@ cai-agent ecc pack-repair --json               # manifest vs export dirs; exit 2
 - **`--apply`** bails with **`ok=false`**, **`error=ingest_gate_rejected`**, and **no writes** when the gate fails (use the default dry-run / plan JSON to inspect **`ingest_gate`** first).
 - The same gate as a **readiness summary for “am I a safe pack source?”**: **`cai-agent doctor --json`** → **`ecc_pack_ingest_gate`**; **`GET /v1/doctor/summary`** → **`ecc_pack_ingest_gate`** (redacted shape).
 - Policy context: **`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`** / **`docs/ECC_04B_INGEST_SANITIZER_POLICY.md`** and **`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`**.
+- **`cai-agent skills hub install`**: when the manifest includes **`hooks.json`** files to copy, JSON output includes the same **`ecc_pack_ingest_gate_v1`** gate (**`ingest_scan_kind=explicit_hooks`**). Non-**`--dry-run`** installs abort with **`ingest_gate_rejected`** (no writes) if the gate fails.
 
 **Plugins**:
 

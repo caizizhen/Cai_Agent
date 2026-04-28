@@ -379,6 +379,7 @@ cai-agent ecc pack-repair --json               # 对照 manifest 与各 harness 
 - 使用 **`--apply`** 写入前若门禁未通过，则 **`ok=false`**、**`error=ingest_gate_rejected`**，且**不落盘**（可先按默认 dry-run 看 **`ingest_gate`**）。
 - 当前工作区作为「他人 `pack-import` 的源」时的同一套预检摘要：**`cai-agent doctor --json`** → **`ecc_pack_ingest_gate`**；**`GET /v1/doctor/summary`** → **`ecc_pack_ingest_gate`**（精简字段）。
 - 策略背景见 **`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`** 与快照 **`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`**。
+- **`cai-agent skills hub install`**：若 manifest 条目含待复制的 **`hooks.json`**，会在 **`--json` 输出**中附带同一 **`ecc_pack_ingest_gate_v1`**（**`ingest_scan_kind=explicit_hooks`**）；非 **`--dry-run`** 写入前若未通过则 **`error=ingest_gate_rejected`** 且不落盘。
 
 **Plugins：**
 

@@ -8624,14 +8624,17 @@ def main(argv: list[str] | None = None) -> int:
                     f"skills install: dry_run={out_ins.get('dry_run')} "
                     f"copied={len(out_ins.get('copied') or [])} skipped={len(out_ins.get('skipped') or [])}",
                 )
+                if out_ins.get("error") == "ingest_gate_rejected":
+                    print(str(out_ins.get("hint") or ""), file=sys.stderr)
+            ok_ins = bool(out_ins.get("ok", True))
             _maybe_metrics_cli(
                 module="skills",
                 event="skills.hub_install",
                 latency_ms=(time.perf_counter() - t_ins) * 1000.0,
                 tokens=len(out_ins.get("copied") or []),
-                success=True,
+                success=ok_ins,
             )
-            return 0
+            return 0 if ok_ins else 2
         if hub_act == "serve":
             from cai_agent.skills import serve_skills_hub
 

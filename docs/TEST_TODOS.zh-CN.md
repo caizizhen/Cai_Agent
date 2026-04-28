@@ -27,3 +27,4 @@
 | 2026-04-28 | `CC-N04` | python -m pytest -q cai-agent/tests/test_session_recap.py cai-agent/tests/test_tui_session_strip.py: PASS | 本轮会话验证 |
 | 2026-04-28 | `ECC-N02-D05` | python -m pytest -q cai-agent/tests: 866 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮会话验证 |
 | 2026-04-28 | `ECC-N02-D06` | pytest `test_doctor_cli` + `test_api_http_server`（doctor JSON / `/v1/doctor/summary` 含 **`ecc_pack_ingest_gate`**） | 本轮会话验证 |
+| 2026-04-28 | `ECC-N02-D07` | python -m pytest -q cai-agent/tests: 869 passed, 3 subtests passed | 本轮会话验证 |

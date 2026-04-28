@@ -660,6 +660,7 @@ def _api_ecc_pack_ingest_gate_summary(doctor_payload: dict[str, Any]) -> dict[st
         "violations_count": n_v,
         "hooks_files_scanned": int(g.get("hooks_files_scanned") or 0),
         "hooks_entries_seen": int(g.get("hooks_entries_seen") or 0),
+        "ingest_scan_kind": g.get("ingest_scan_kind"),
     }
 
 

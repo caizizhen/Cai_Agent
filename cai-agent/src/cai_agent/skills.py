@@ -11,6 +11,8 @@ from pathlib import Path
 import os
 from typing import Any, Iterable, List
 
+from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_for_explicit_hooks_v1
+
 
 @dataclass(frozen=True)
 class Skill:
@@ -582,7 +584,7 @@ def apply_skills_hub_manifest_selection(
     if not isinstance(entries, list):
         msg = "manifest.entries 须为数组"
         raise ValueError(msg)
-    copied: list[dict[str, str]] = []
+    ops: list[tuple[Path, Path, str]] = []
     skipped: list[dict[str, str]] = []
     for e in entries:
         if not isinstance(e, dict):
@@ -601,17 +603,44 @@ def apply_skills_hub_manifest_selection(
             skipped.append({"name": name, "reason": "missing_source"})
             continue
         out = dest / src.name
+        ops.append((src, out, name))
+
+    hooks_sources = [src for src, _o, _n in ops if src.name == "hooks.json"]
+    gate_doc: dict[str, Any] | None = None
+    if hooks_sources:
+        gate_doc = build_ecc_pack_ingest_gate_for_explicit_hooks_v1(base, hooks_sources)
+        if not dry_run and not bool(gate_doc.get("allow", True)):
+            return {
+                "schema_version": "skills_hub_pack_install_v1",
+                "ok": False,
+                "dry_run": False,
+                "error": "ingest_gate_rejected",
+                "hint": "manifest 中的 hooks.json 命中 ingest 与 hook_runtime 一致的危险规则，或路径越界；已拒绝写入",
+                "ingest_gate": gate_doc,
+                "dest": str(dest),
+                "copied": [],
+                "skipped": skipped,
+            }
+
+    copied: list[dict[str, str]] = []
+    for src, out, _name in ops:
         if not dry_run:
             out.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, out)
         copied.append({"from": str(src), "to": str(out)})
-    return {
+
+    out_payload: dict[str, Any] = {
         "schema_version": "skills_hub_pack_install_v1",
         "dry_run": dry_run,
         "dest": str(dest),
         "copied": copied,
         "skipped": skipped,
     }
+    if gate_doc is not None:
+        out_payload["ingest_gate"] = gate_doc
+    if not dry_run:
+        out_payload["ok"] = True
+    return out_payload
 
 
 # ---------------------------------------------------------------------------

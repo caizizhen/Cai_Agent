@@ -11,6 +11,7 @@
 
 ## 未来开发（缩略）
 
+- `ECC-N02-D07`：**`skills hub install`** 与 **`ecc_pack_ingest_gate`**（显式 **`hooks.json`** 路径）已合入
 - `ECC-N02-D06`：README + doctor/API **`ecc_pack_ingest_gate`** 暴露已合入
 - `ECC-N02-D05`：pack **`--apply`** × **`ecc_pack_ingest_gate_v1`**（hooks.json + hook_runtime 危险命令规则）已合入
 - `CC-N04`：session/recap 收口已合入（`session_recap_v1` + `sessions --recap` + TUI `/recap`）

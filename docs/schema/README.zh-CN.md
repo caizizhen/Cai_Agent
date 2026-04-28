@@ -375,7 +375,7 @@
 ## `skills hub install`（`--json` / `--dry-run`）
 
 - **实现**：`cai_agent.skills.apply_skills_hub_manifest_selection`；从 **`skills_hub_manifest_v1`** 输入文件选择性拷贝 **`entries[]`** 至目标目录（**`--dest`**、**`--only`** 名称列表、**`--dry-run`**）。
-- **`schema_version`**：**`skills_hub_pack_install_v1`**（字段以实现为准：`planned[]` / `copied[]` / `skipped[]` 等）。
+- **`schema_version`**：**`skills_hub_pack_install_v1`**（字段以实现为准：`copied[]` / `skipped[]` / **`ingest_gate`**（**`ecc_pack_ingest_gate_v1`**，manifest 含 **`hooks.json`** 时）/ **`ok`** / **`error=ingest_gate_rejected`** 等）。
 
 **Exit**：成功 → **`0`**；参数或 manifest 无效 → **`2`**。
 

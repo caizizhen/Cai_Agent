@@ -8,7 +8,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_v1
+from cai_agent.ecc_ingest_gate import (
+    build_ecc_pack_ingest_gate_for_explicit_hooks_v1,
+    build_ecc_pack_ingest_gate_v1,
+)
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
@@ -49,6 +52,7 @@ def test_build_ecc_pack_ingest_gate_clean(tmp_path: Path) -> None:
     assert gate.get("schema_version") == "ecc_pack_ingest_gate_v1"
     assert gate.get("allow") is True
     assert gate.get("decision") == "allow_metadata_only"
+    assert gate.get("ingest_scan_kind") == "workspace_components"
 
 
 def test_build_ecc_pack_ingest_gate_dangerous_command(tmp_path: Path) -> None:

@@ -173,6 +173,7 @@ def test_api_doctor_summary_no_base_url(tmp_path: Path) -> None:
             assert isinstance(eg, dict)
             assert eg.get("schema_version") == "api_ecc_pack_ingest_gate_summary_v1"
             assert "allow" in eg and "violations_count" in eg
+            assert eg.get("ingest_scan_kind") == "workspace_components"
         finally:
             httpd.shutdown()
             httpd.server_close()
