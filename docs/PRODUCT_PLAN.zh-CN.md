@@ -28,8 +28,8 @@
 | **LLM 健壮性** | HTTP 重试、`max_http_retries`、Transport / 畸形 JSON 等重试路径；**`compact_hint`** 与 **`cost_budget_max_tokens`** 联动（约 **85%** 预算时追加成本提示） |
 | **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway discord`** Bot Polling MVP（`serve-polling` + bind/allow）；**`gateway slack`** Events API Webhook MVP（`serve-webhook` + bind/allow）；**`gateway teams`** Bot Framework Activity Webhook MVP（映射 / allow / health / manifest / serve-webhook）；**`gateway platforms list --json`**（Discord/Slack/Teams 状态为 `mvp`）；**`gateway status --json`**；**`gateway prod-status --json`**（`gateway_production_summary_v1`） |
 | **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest）；**`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**，源目录 vs **`.cursor/cai-agent-export`** 差异报告，不写盘） |
-| **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；`api serve` 已含 OpenAI-compatible **`/v1/models`** 与非流式 / SSE **`/v1/chat/completions`**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
-| **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)） |
+| **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；`api serve` 已含 OpenAI-compatible **`/v1/models`** 与非流式 / SSE **`/v1/chat/completions`**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；Browser provider `browser_provider_check_v1` / `browser_task_v1`；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
+| **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)）；Browser automation **MCP first**（[`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)、[`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)） |
 | **技能 Hub** | **`skills hub manifest --json`**；**`skills hub suggest`**；**`skills hub install`**（manifest 选择性安装，`--only`/`--dry-run`）；**`skills hub serve`**；**`auto_extract_skill_after_task`**；**`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 后 dry-run 落盘演进草稿 |
 | **子代理 / RPC** | `parallel_group`、**`subagent_io`**（**`subagent_io_schema_version`=`1.1`**，每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、`on_error`、预算控制；**RPC 标准 IO TypedDict**；**`agent_templates`** 与 **`workflow --templates`**（三套内置模板） |
 
@@ -71,6 +71,7 @@
 | 6 | `board --json` 与 `observe` 同源、`observe_schema_version` | **完成** | |
 | 7 | `fetch_url` + MCP Web 配方 | **完成** | [`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md) |
 | 8 | WebSearch/Notebook | **定案 MCP 优先** | [`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md) |
+| 8b | Browser automation | **定案 MCP first / 契约已落地** | [`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)、[`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)；`tools browser-check --json`、`browser check/task --json` |
 | 9 | 记忆 CLI 全家桶 + **`memory user-model`**（**`behavior_extract`**）+ **`validate-entries`** / **`extract --structured`** | **完成（持续演进）** | `memory.py`、`user_model.py`、`test_memory_*`、`test_memory_validate_entries_cli.py` |
 | 10 | **S2-01** `memory health` | **完成** | `build_memory_health_payload`、`test_memory_health_cli.py`；PR #12 见 **§四** |
 | 11 | `insights`、`recall`、`recall-index` | **完成** | |

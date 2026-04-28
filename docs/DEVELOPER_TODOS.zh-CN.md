@@ -20,11 +20,9 @@
 
 ## 执行顺序
 
-1. 先做 `API-N01`，因为它把现有能力变成外部可发现、可调用的稳定契约。
-2. 再做 `OPS-N01`，把已有 dashboard interactions 从契约推进到受控闭环。
-3. 随后做 `CC-N05`，补齐安装、升级、恢复这条 Claude Code 风格体验线。
-4. 然后推进 `GW-N01`、`ECC-N05`、`ECC-N06`，把 Hermes gateway 与 ECC 资产治理从 MVP 推到可运营。
-5. `MEM-N01`、`RT-N01`、`WF-N01` 先保持 Design，完成契约或测试矩阵后再进入 Ready。
+1. 先做 `API-N01`，补齐 OpenAPI + API/ops 统一网关外部契约。
+2. 再做 `OPS-N01`、`CC-N05`，继续补受控运营面与安装/升级/恢复体验。
+3. 后续推进 `GW-N01`、`ECC-N05`、`ECC-N06`；`MEM-N01`、`RT-N01`、`WF-N01` 先保持 Design。
 
 ## 每个任务的统一要求
 
@@ -39,6 +37,7 @@
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
+| Browser automation | MCP first / Ready | 优先接 `microsoft/playwright-mcp`；原生 provider 只定义稳定契约与受控入口；`browser-use`、`Skyvern` 先作架构参考 |
 | 原生 WebSearch / Notebook | MCP | 保持 MCP 优先，不做内置重写 |
 | 默认云 runtime | Conditional | 仅在授权、安全、计费、隔离门槛明确后立项 |
 | Voice 默认交付 | OOS / MCP | 继续走 STT/TTS MCP 或外部桥接 |

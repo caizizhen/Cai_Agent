@@ -42,7 +42,7 @@
    - 对齐重点：Init / Doctor / Repair / Plugin / Export / Sync。
 3. **长期产品差异化面**
    - 这些不是最先挡路，但会决定产品后续高度。
-   - 对齐重点：**Asset pack 生命周期**、ingest **信任与 provenance（`ECC-N04-D03`）**、第二批 gateway、桌面化/operator 控制面；Voice / external memory / tool gateway **主路径已落地**，后续为边界内增量与维护。
+   - 对齐重点：**Asset pack 生命周期**、ingest **信任与 provenance（`ECC-N04-D03`）**、第二批 gateway、桌面化/operator 控制面；Voice / external memory / tool gateway / Browser automation **主路径已落地**，后续为边界内增量与维护。
 
 ## 4. 下一轮推荐优先级
 
@@ -61,6 +61,8 @@
 | `P2` 差异化能力补齐 | `ECC-N02`、`HM-N06` | **`HM-N08`～`HM-N10` 主路径已交付**；**`ECC-N04-D01`～`D03` 文档与机读草案已交付**，本组聚焦 **asset pack / import-install 执行链**、第二批 gateway 预研落地 |
 | `P3` 条件/预研项 | `CC-N05`、`CC-N07`、`HM-N11`、`ECC-N05` | 这类能力不是完全不重要，但不适合作为默认开发线 |
 
+**Browser automation 补充**：本轮已把浏览器能力定为 `MCP first`。默认路径见 [`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)，治理边界见 [`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)；当前不把 browser-use 或 Skyvern 作为默认依赖，后续执行器必须先满足凭据、下载、上传、allowlist、审计与许可证边界。
+
 详细执行拆解见：[DEVELOPER_TODOS.zh-CN.md](DEVELOPER_TODOS.zh-CN.md)（开发待办）与 [TEST_TODOS.zh-CN.md](TEST_TODOS.zh-CN.md)（测试待办）。已从 TODO 拆出的 **Done** 表格行见 [TODOS_DONE_ARCHIVE.zh-CN.md](TODOS_DONE_ARCHIVE.zh-CN.md)。能力级仍按 `CC-N* / HM-N* / ECC-N*`，原子级用 `*-Dxx`。
 
 ## 5. 本轮明确不默认追求的能力
@@ -69,6 +71,8 @@
 
 - **原生 WebSearch / Notebook 重实现**
   - 继续保持 `MCP 优先`，不和现有 MCP 生态重复造轮子。
+- **重型 Browser runtime 默认内置**
+  - Browser automation 继续保持 `MCP first`；`browser-use` / `Skyvern` 只作参考或可选适配，默认不把浏览器运行时、AGPL 工作流引擎或用户浏览器 profile 绑进核心分发。
 - **默认云运行后端**
   - 继续默认 local / docker / ssh；云后端继续按条件立项处理。
 - **一次性追平 Hermes 全平台 Gateway**

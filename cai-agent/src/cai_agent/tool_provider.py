@@ -6,7 +6,12 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
-from cai_agent.mcp_presets import build_mcp_preset_report, expand_mcp_preset_choice
+from cai_agent.mcp_presets import (
+    allowed_mcp_preset_choices,
+    build_mcp_preset_report,
+    expand_mcp_preset_choice,
+    mcp_preset_doc_path,
+)
 from cai_agent.tools import dispatch
 from cai_agent.voice import build_voice_provider_contract_payload
 
@@ -41,7 +46,15 @@ def build_tool_provider_contract_payload(settings: Settings) -> dict[str, Any]:
                 "configured": bool(settings.mcp_enabled and settings.mcp_base_url),
                 "provider": "mcp_bridge" if bool(settings.mcp_enabled and settings.mcp_base_url) else "none",
                 "permissions": {"key": "mcp_call_tool", "mode": "ask"},
-                "surface": {"mcp_enabled": bool(settings.mcp_enabled), "mcp_base_url_present": bool(settings.mcp_base_url)},
+                "surface": {
+                    "preset": "browser",
+                    "mcp_enabled": bool(settings.mcp_enabled),
+                    "mcp_base_url_present": bool(settings.mcp_base_url),
+                    "doc_path": mcp_preset_doc_path("browser"),
+                    "recommended_server": "microsoft/playwright-mcp",
+                    "recommended_command": "npx @playwright/mcp@latest --isolated",
+                    "isolation": "isolated browser session recommended",
+                },
             },
             "tts": {
                 "configured": tts_cfg,
@@ -172,7 +185,7 @@ def build_tool_mcp_bridge_payload(
             "ok": False,
             "error": "invalid_preset",
             "preset": raw,
-            "supported_presets": ["websearch", "notebook", "websearch/notebook"],
+            "supported_presets": list(allowed_mcp_preset_choices()),
         }
     try:
         txt = dispatch(settings, "mcp_list_tools", {"force": bool(force)})
@@ -200,6 +213,10 @@ def build_tool_mcp_bridge_payload(
     matches = list(dict.fromkeys(matches))
     missing = list(dict.fromkeys(missing))
     preset_ok = all(bool(r.get("ok")) for r in reports) if reports else False
+    doc_paths = list(dict.fromkeys(str(r.get("doc_path") or "") for r in reports if str(r.get("doc_path") or "").strip()))
+    isolation_hints = list(
+        dict.fromkeys(str(r.get("isolation_hint") or "") for r in reports if str(r.get("isolation_hint") or "").strip()),
+    )
     return {
         "schema_version": "tool_mcp_bridge_v1",
         "ok": bool(listed_ok and preset_ok),
@@ -212,10 +229,15 @@ def build_tool_mcp_bridge_payload(
         "matched_tools": matches,
         "missing_tools": missing,
         "reports": reports,
+        "doc_paths": doc_paths,
+        "isolation_hints": isolation_hints,
         "hint": {
-            "doc_path": "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md",
+            "doc_path": doc_paths[0] if len(doc_paths) == 1 else "docs/ONBOARDING.zh-CN.md",
+            "doc_paths": doc_paths,
             "onboarding_path": "docs/ONBOARDING.zh-CN.md",
             "suggested_command": f"cai-agent mcp-check --json --preset {raw} --list-only",
+            "print_template_command": f"cai-agent mcp-check --preset {raw} --print-template",
+            "isolation_hints": isolation_hints,
         },
     }
 

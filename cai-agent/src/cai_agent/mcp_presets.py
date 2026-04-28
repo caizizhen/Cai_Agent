@@ -4,6 +4,7 @@ from typing import Any
 
 
 _DOC_PATH = "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+_BROWSER_DOC_PATH = "docs/BROWSER_MCP.zh-CN.md"
 _ONBOARDING_PATH = "docs/ONBOARDING.zh-CN.md"
 
 MCP_PRESET_DEFS: dict[str, dict[str, Any]] = {
@@ -19,11 +20,29 @@ MCP_PRESET_DEFS: dict[str, dict[str, Any]] = {
         "summary": "MCP-first Jupyter / notebook controlled cell operations.",
         "template_comment": "推荐把 notebook/Jupyter 服务挂到 MCP，默认保持只读或受控单元执行。",
     },
+    "browser": {
+        "title": "Browser Automation",
+        "recommended_tools": [
+            "browser",
+            "playwright",
+            "navigate",
+            "click",
+            "type",
+            "screenshot",
+            "snapshot",
+            "evaluate",
+        ],
+        "summary": "MCP-first Playwright browser automation with isolated sessions.",
+        "template_comment": "推荐先接 microsoft/playwright-mcp，并使用 isolated 模式；所有浏览器动作默认走 mcp_call_tool=ask。",
+        "doc_path": _BROWSER_DOC_PATH,
+        "isolation_hint": "Use Playwright MCP with --isolated; keep credentials and downloads under explicit user control.",
+        "mcp_server_command": "npx @playwright/mcp@latest --isolated",
+    },
 }
 
 
 def allowed_mcp_preset_choices() -> tuple[str, ...]:
-    return ("websearch", "notebook", "websearch/notebook")
+    return ("websearch", "notebook", "websearch/notebook", "browser")
 
 
 def expand_mcp_preset_choice(preset: str | None) -> list[str]:
@@ -37,14 +56,26 @@ def expand_mcp_preset_choice(preset: str | None) -> list[str]:
     return []
 
 
+def mcp_preset_doc_path(name: str) -> str:
+    meta = MCP_PRESET_DEFS[name]
+    return str(meta.get("doc_path") or _DOC_PATH)
+
+
+def mcp_preset_isolation_hint(name: str) -> str | None:
+    meta = MCP_PRESET_DEFS[name]
+    hint = str(meta.get("isolation_hint") or "").strip()
+    return hint or None
+
+
 def build_mcp_preset_template(name: str) -> str:
     meta = MCP_PRESET_DEFS[name]
     recommended = ", ".join(meta["recommended_tools"])
-    return (
+    base = (
         "# cai-agent.toml (MCP preset template)\n"
         "[agent]\n"
-        "mcp_enabled = true\n"
-        "mcp_base_url = \"http://127.0.0.1:8787\"\n\n"
+        "mcp_enabled = true\n\n"
+        "[mcp]\n"
+        "base_url = \"http://127.0.0.1:8787\"\n\n"
         "[permissions]\n"
         "mcp_list_tools = \"allow\"\n"
         "mcp_call_tool = \"ask\"\n\n"
@@ -52,9 +83,17 @@ def build_mcp_preset_template(name: str) -> str:
         f"# title = {meta['title']}\n"
         f"# recommended_tools = {recommended}\n"
         f"# note = {meta['template_comment']}\n"
-        f"# docs = {_DOC_PATH}\n"
+        f"# docs = {mcp_preset_doc_path(name)}\n"
         f"# onboarding = {_ONBOARDING_PATH}\n"
     )
+    if name == "browser":
+        return base + (
+            "\n"
+            "# Playwright MCP server example (configure in your MCP launcher):\n"
+            "# command = \"npx\"\n"
+            "# args = [\"@playwright/mcp@latest\", \"--isolated\"]\n"
+        )
+    return base
 
 
 def format_tui_mcp_web_notebook_quickstart() -> str:
@@ -82,6 +121,8 @@ def build_mcp_preset_report(*, name: str, tool_list: list[str]) -> dict[str, Any
             missing_tools.append(kw)
     suggested_command = f"cai-agent mcp-check --json --preset {name} --list-only"
     print_template_command = f"cai-agent mcp-check --preset {name} --print-template"
+    doc_path = mcp_preset_doc_path(name)
+    isolation_hint = mcp_preset_isolation_hint(name)
     quickstart_commands = [
         suggested_command,
         print_template_command,
@@ -93,11 +134,12 @@ def build_mcp_preset_report(*, name: str, tool_list: list[str]) -> dict[str, Any
         next_step = {
             "kind": "preset_missing_tools",
             "message": f"未检测到 {name} 相关 MCP 工具；请先按文档和 onboarding 完成服务配置后重试。",
-            "doc_path": _DOC_PATH,
+            "doc_path": doc_path,
             "onboarding_path": _ONBOARDING_PATH,
             "recommended_keywords": list(meta["recommended_tools"]),
             "suggested_command": suggested_command,
             "print_template_command": print_template_command,
+            "isolation_hint": isolation_hint,
         }
     return {
         "name": name,
@@ -109,8 +151,10 @@ def build_mcp_preset_report(*, name: str, tool_list: list[str]) -> dict[str, Any
         "missing_tools": missing_tools,
         "missing_keywords": missing_tools,
         "ok": ok,
-        "doc_path": _DOC_PATH,
+        "doc_path": doc_path,
         "onboarding_path": _ONBOARDING_PATH,
+        "isolation_hint": isolation_hint,
+        "mcp_server_command": meta.get("mcp_server_command"),
         "suggested_command": suggested_command,
         "print_template_command": print_template_command,
         "quickstart_commands": quickstart_commands,

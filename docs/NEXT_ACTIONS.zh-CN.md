@@ -7,7 +7,7 @@
 
 ## 当前目标
 
-- 进入“三 repo 融合”下一轮产品化开发：优先补齐外部接入面、受控运营面、安装/升级/恢复体验，再推进 gateway 生产化与 ECC 资产治理。
+- Browser automation 入口链已完成（MCP preset、provider 契约、治理 RFC）。下一步回到“三 repo 融合”产品化主线：优先补齐外部接入面、受控运营面、安装/升级/恢复体验。
 
 ## 现在做
 
@@ -27,6 +27,15 @@
 ## 条件与边界
 
 - 原生 WebSearch / Notebook：保持 MCP 优先，不做内置重写
+- Browser automation：MCP first；先接 Playwright MCP，原生 provider 只做受控契约与显式入口
 - 默认云 runtime：授权、安全、计费、隔离门槛明确后才实现
 - Voice 默认交付：继续 OOS / MCP
 - 商业插件市场、签名分成、公证体系：当前不做
+
+## 刚完成
+
+| 任务 | 日期 | 摘要 | 验证 |
+|---|---|---|---|
+| `BRW-N03` | 2026-04-29 | Document browser governance, audit, artifact, and license boundaries | pytest browser MCP/provider tests: 8 passed<br>rg browser RFC/product/schema references: PASS |
+| `BRW-N02` | 2026-04-29 | Add browser provider readiness and task JSON contracts | pytest browser provider/browser MCP/mcp-check subset: 13 passed<br>compileall browser_provider/mcp_presets/tool_provider/__main__: PASS |
+| `BRW-N01` | 2026-04-29 | Browser MCP preset and Playwright isolated onboarding | pytest test_browser_mcp_cli.py + test_mcp_presets_tui_quickstart.py: 5 passed<br>pytest test_cli_misc.py -k mcp_check: 6 passed<br>compileall mcp_presets/tool_provider/__main__: PASS |

@@ -22,9 +22,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import statistics
 import sys
 import time
+import uuid
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -68,6 +71,18 @@ def _generate_sessions(root: Path, count: int, *, query_token: str) -> None:
             },
         )
         os.utime(p, (now, now))
+
+
+@contextmanager
+def _temporary_workspace(root: Path):
+    base = root / ".tmp"
+    base.mkdir(parents=True, exist_ok=True)
+    path = base / f"perf-recall-bench-{os.getpid()}-{uuid.uuid4().hex[:8]}"
+    path.mkdir(mode=0o777)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _bench_once(
@@ -261,11 +276,8 @@ def main() -> int:
     root = _repo_root()
     _ensure_src_on_path(root)
 
-    import tempfile
-
     rows: list[dict[str, float | int | bool]] = []
-    with tempfile.TemporaryDirectory() as td:
-        w = Path(td)
+    with _temporary_workspace(root) as w:
         for n in sizes:
             if n < 1:
                 continue

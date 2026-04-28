@@ -8,6 +8,7 @@
 2. **（可选）网络与 MCP**  
    若需要只读网页：在仓库根 `cai-agent.toml` 中配置 `[fetch_url]` 与 `[permissions].fetch_url`；或按 [`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md) 接入 MCP。
    若目标是 WebSearch / Notebook：先看 [`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)，然后执行 `cai-agent mcp-check --json --preset websearch/notebook --list-only`；需要模板时再用 `cai-agent mcp-check --preset websearch --print-template` 或 `--preset notebook --print-template`。
+   若目标是 Browser automation：先看 [`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)，优先接 `microsoft/playwright-mcp` 的 isolated 模式，然后执行 `cai-agent mcp-check --json --preset browser --list-only` 或 `cai-agent tools bridge --preset browser --json`。
 
 3. **初始化与自检**  
    - 先跑 `cai-agent onboarding`（或 `cai-agent onboarding --json`）拿到最短命令链。  

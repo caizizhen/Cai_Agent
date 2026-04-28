@@ -152,6 +152,37 @@ cai-agent init --preset starter
 cai-agent init --global
 ```
 
+### TUI quickstart (init -> model -> UI)
+
+For a first project-local TUI session, run this sequence:
+
+```bash
+# 1) Generate a starter config in the current workspace
+cai-agent init --preset starter
+
+# 2A) Local OpenAI-compatible endpoint (for example LM Studio / vLLM)
+cai-agent models add --preset lm_studio --id local --model qwen2.5-coder-7b-instruct --set-active
+
+# 2B) Or Xiaomi MiMo (prepare env var first)
+export MIMO_API_KEY="your-key"
+cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
+cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
+
+# 3) Connectivity check
+cai-agent models ping --json
+
+# 4) Start TUI in this workspace
+cai-agent ui -w "$PWD"
+```
+
+On PowerShell, the equivalent is:
+
+```powershell
+cai-agent ui -w "$PWD"
+# or
+cai-agent ui -w (Get-Location).Path
+```
+
 **Upgrade note:** if you rely on `--json` shapes from older releases, read [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) and [CHANGELOG.md](CHANGELOG.md).
 
 ---

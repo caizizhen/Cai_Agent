@@ -191,12 +191,26 @@
 
 - **实现**：`__main__.py` `mcp-check` 分支
 - **`schema_version`**：`mcp_check_result_v1`（`--json` 单行对象）
-- **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`presets[]`（组合 preset 时的明细）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint` / `next_step`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等
+- **主要字段（摘要）**：`ok`、`provider`、`model`、`mcp_enabled`、`mcp_base_url`、`force`、`tool`、`list_only`、`preset`（对象或 `null`）、`presets[]`（组合 preset 时的明细）、`elapsed_ms`、`result`（文本摘要）、`tool_names`、`preset_matches`、`preset_missing_keywords`、`fallback_hint` / `next_step`（如 `kind: preset_missing_tools`）、`template`、`probe_result` 等。`preset` 可为 `websearch`、`notebook`、`websearch/notebook`、`browser`；Browser MCP 场景会额外给出 `doc_paths` / `isolation_hints` 与 Playwright MCP isolated 模板提示。
 - **文本模式补充**：带 `--preset` 时会额外打印 `docs=`、`onboarding=`、`preset quickstart` 命令序列，以及在失败场景下打印 `fallback hint` 与 `template` 指令，作为非 JSON onboarding 入口。
 
 **Exit**：`ok == true` → `0`；否则 → `2`。
 
-**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`mcp-check --json --list-only`**，以及 **`--preset websearch/notebook --list-only`** / **`--preset notebook --print-template`**，接受 exit **`0`** 或 **`2`**，并断言 **`mcp_check_result_v1`**、**`mcp_enabled`**、`presets[]` / `onboarding_path` / `template` 等字段存在。
+**冒烟**：`scripts/smoke_new_features.py` 在仓库根以 **`--config <repo>/cai-agent.toml`** 执行 **`mcp-check --json --list-only`**，以及 **`--preset websearch/notebook --list-only`** / **`--preset notebook --print-template`**，接受 exit **`0`** 或 **`2`**，并断言 **`mcp_check_result_v1`**、**`mcp_enabled`**、`presets[]` / `onboarding_path` / `template` 等字段存在。`BRW-N01` 的 browser preset 由 `test_browser_mcp_cli.py` 覆盖，不要求 CI 启动真实浏览器。
+
+---
+
+## `tools browser-check` / `browser check` / `browser task`
+
+- **实现**：`browser_provider.py`，CLI 分支在 `__main__.py`
+- **`tools browser-check --json` / `browser check --json` schema_version**：`browser_provider_check_v1`
+- **主要字段（摘要）**：`ok`、`error`、`errors[]`、`provider`（当前为 `mcp_bridge`）、`preset=browser`、`permissions`（`mcp_call_tool: ask`）、`session`（`max_steps`、`allow_hosts`、`headless`、`isolated`）、`artifacts`（`root`、`screenshots_dir`、`downloads_dir`、`trace_dir`）、`steps[]`、`registry`、`bridge`。
+- **`browser task --json` schema_version**：`browser_task_v1`
+- **主要字段（摘要）**：`ok`、`error`、`errors[]`、`provider`、`preset`、`dry_run`、`url`、`goal`、`session`、`artifacts`、`steps[]`、`preflight`、`execution`。`BRW-N02` 只输出稳定任务计划，不启动真实浏览器；实际执行器后续再把 `steps[]` 映射到显式确认的 MCP tool calls。
+
+**Exit**：`ok == true` → `0`；否则 → `2`。
+
+**冒烟**：`test_browser_provider_cli.py` 覆盖 ready、参数门禁、task JSON 合约；不要求真实 Playwright 浏览器进程。
 
 ---
 

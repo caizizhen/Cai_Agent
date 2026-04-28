@@ -146,6 +146,37 @@ cai-agent init --preset starter
 cai-agent init --global
 ```
 
+### TUI 快速启动（从 init 到 UI）
+
+首次在项目里体验 TUI，可按下面顺序执行：
+
+```bash
+# 1) 在当前项目生成配置骨架（写入当前工作区）
+cai-agent init --preset starter
+
+# 2A) 本地 OpenAI 兼容服务（例如 LM Studio / vLLM）
+cai-agent models add --preset lm_studio --id local --model qwen2.5-coder-7b-instruct --set-active
+
+# 2B) 或者接入小米 MiMo（先准备环境变量）
+export MIMO_API_KEY="你的密钥"
+cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
+cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
+
+# 3) 连接自检
+cai-agent models ping --json
+
+# 4) 进入 TUI（以当前目录为 workspace）
+cai-agent ui -w "$PWD"
+```
+
+如果你在 PowerShell 中运行，等价写法是：
+
+```powershell
+cai-agent ui -w "$PWD"
+# 或
+cai-agent ui -w (Get-Location).Path
+```
+
 **升级注意：** 若流水线依赖 `--json` 字段形态，请先阅读根目录 `CHANGELOG.zh-CN.md` 与 [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)。
 缺配置、旧配置或资产漂移时，`cai-agent onboarding --json`、`cai-agent doctor --json`、`cai-agent repair --dry-run --json` 会输出同源 `install_recovery_flows_v1` / `next_steps`。
 

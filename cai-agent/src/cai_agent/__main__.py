@@ -55,6 +55,7 @@ from cai_agent.mcp_presets import (
     build_mcp_preset_report,
     build_mcp_preset_template,
     expand_mcp_preset_choice,
+    mcp_preset_doc_path,
 )
 from cai_agent.profiles import (
     PRESETS,
@@ -4497,7 +4498,7 @@ def main(argv: list[str] | None = None) -> int:
         "--preset",
         default="websearch/notebook",
         choices=list(allowed_mcp_preset_choices()),
-        help="MCP preset（websearch|notebook|websearch/notebook）",
+        help="MCP preset（websearch|notebook|websearch/notebook|browser）",
     )
     tools_bridge.add_argument("--force", action="store_true", help="强制刷新 mcp_list_tools 缓存")
     tools_bridge.add_argument("--json", action="store_true", dest="json_output")
@@ -4513,12 +4514,42 @@ def main(argv: list[str] | None = None) -> int:
         help="用于 cost guard 的估算 token（默认 200）",
     )
     tools_web_fetch.add_argument("--json", action="store_true", dest="json_output")
+    tools_browser_check = tools_sub.add_parser("browser-check", help="检查 browser provider / Browser MCP preset readiness（BRW-N02）")
+    tools_browser_check.add_argument("--max-steps", type=int, default=10, dest="max_steps")
+    tools_browser_check.add_argument("--allow-host", action="append", default=[], dest="allow_hosts")
+    tools_browser_check.add_argument("--headful", action="store_true", help="声明期望有头浏览器会话（仅进入契约，不启动浏览器）")
+    tools_browser_check.add_argument("--no-isolated", action="store_true", help="声明不使用 isolated 会话（不推荐，仅进入契约）")
+    tools_browser_check.add_argument("--force", action="store_true", help="强制刷新 mcp_list_tools 缓存")
+    tools_browser_check.add_argument("--json", action="store_true", dest="json_output")
     tools_enable = tools_sub.add_parser("enable", help="启用指定工具类别（web/image/browser/tts）")
     tools_enable.add_argument("category", choices=("web", "image", "browser", "tts"))
     tools_enable.add_argument("--json", action="store_true", dest="json_output")
     tools_disable = tools_sub.add_parser("disable", help="禁用指定工具类别（web/image/browser/tts）")
     tools_disable.add_argument("category", choices=("web", "image", "browser", "tts"))
     tools_disable.add_argument("--json", action="store_true", dest="json_output")
+
+    browser_p = sub.add_parser(
+        "browser",
+        parents=[common],
+        help="Browser provider contract and task planning（BRW-N02）",
+    )
+    browser_sub = browser_p.add_subparsers(dest="browser_action", required=True)
+    browser_check = browser_sub.add_parser("check", help="输出 browser_provider_check_v1")
+    browser_check.add_argument("--max-steps", type=int, default=10, dest="max_steps")
+    browser_check.add_argument("--allow-host", action="append", default=[], dest="allow_hosts")
+    browser_check.add_argument("--headful", action="store_true")
+    browser_check.add_argument("--no-isolated", action="store_true")
+    browser_check.add_argument("--force", action="store_true")
+    browser_check.add_argument("--json", action="store_true", dest="json_output")
+    browser_task = browser_sub.add_parser("task", help="输出 browser_task_v1 最小任务计划")
+    browser_task.add_argument("goal", nargs="+", help="浏览器任务目标")
+    browser_task.add_argument("--url", default=None, help="可选起始 URL")
+    browser_task.add_argument("--max-steps", type=int, default=10, dest="max_steps")
+    browser_task.add_argument("--allow-host", action="append", default=[], dest="allow_hosts")
+    browser_task.add_argument("--headful", action="store_true")
+    browser_task.add_argument("--no-isolated", action="store_true")
+    browser_task.add_argument("--force", action="store_true")
+    browser_task.add_argument("--json", action="store_true", dest="json_output")
 
     voice_p = sub.add_parser(
         "voice",
@@ -5419,10 +5450,10 @@ def main(argv: list[str] | None = None) -> int:
         parents=[common],
         help="检查 MCP Bridge 连通性并打印可用工具",
         epilog=(
-            "WebSearch·Notebook 预设：--preset websearch | notebook | websearch/notebook。"
+            "MCP 预设：--preset websearch | notebook | websearch/notebook | browser。"
             " 最短：--preset websearch/notebook --list-only ；"
-            "--preset websearch --print-template 。"
-            " 文档：docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+            "--preset browser --print-template 。"
+            " 文档：docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md / docs/BROWSER_MCP.zh-CN.md"
         ),
     )
     mcp_p.add_argument(
@@ -5457,7 +5488,7 @@ def main(argv: list[str] | None = None) -> int:
         "--preset",
         choices=list(allowed_mcp_preset_choices()),
         default=None,
-        help="按 WebSearch / Notebook 预设能力进行工具诊断；支持 websearch、notebook、websearch/notebook",
+        help="按 MCP 预设能力进行工具诊断；支持 websearch、notebook、websearch/notebook、browser",
     )
     mcp_p.add_argument(
         "--list-only",
@@ -7988,6 +8019,7 @@ def main(argv: list[str] | None = None) -> int:
             run_tool_provider_web_fetch,
             set_tool_provider_enabled,
         )
+        from cai_agent.browser_provider import build_browser_provider_check_payload
 
         if act_tools == "contract":
             payload = build_tool_provider_contract_payload(settings)
@@ -8051,6 +8083,24 @@ def main(argv: list[str] | None = None) -> int:
                     f"url={payload.get('url')} provider={payload.get('provider')}",
                 )
             return 0 if bool(payload.get("ok")) else 2
+        if act_tools == "browser-check":
+            payload = build_browser_provider_check_payload(
+                settings,
+                max_steps=int(getattr(args, "max_steps", 10) or 10),
+                allow_hosts=list(getattr(args, "allow_hosts", []) or []),
+                headless=not bool(getattr(args, "headful", False)),
+                isolated=not bool(getattr(args, "no_isolated", False)),
+                force=bool(getattr(args, "force", False)),
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                sess = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+                print(
+                    f"[tools browser-check] ok={payload.get('ok')} "
+                    f"provider={payload.get('provider')} max_steps={sess.get('max_steps')}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
         if act_tools in ("enable", "disable"):
             payload = set_tool_provider_enabled(
                 settings,
@@ -8066,6 +8116,54 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0 if bool(payload.get("ok")) else 2
         print(f"unknown tools action: {act_tools}", file=sys.stderr)
+        return 2
+
+    if args.command == "browser":
+        act_browser = str(getattr(args, "browser_action", "") or "").strip().lower()
+        try:
+            settings = Settings.from_env(
+                config_path=args.config,
+                workspace_hint=_settings_workspace_hint(args),
+            )
+        except FileNotFoundError as e:
+            _print_config_not_found_hint(e, command="browser")
+            return 2
+        from cai_agent.browser_provider import build_browser_provider_check_payload, build_browser_task_payload
+
+        common_kwargs = {
+            "max_steps": int(getattr(args, "max_steps", 10) or 10),
+            "allow_hosts": list(getattr(args, "allow_hosts", []) or []),
+            "headless": not bool(getattr(args, "headful", False)),
+            "isolated": not bool(getattr(args, "no_isolated", False)),
+            "force": bool(getattr(args, "force", False)),
+        }
+        if act_browser == "check":
+            payload = build_browser_provider_check_payload(settings, **common_kwargs)
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                sess = payload.get("session") if isinstance(payload.get("session"), dict) else {}
+                print(
+                    f"[browser check] ok={payload.get('ok')} "
+                    f"provider={payload.get('provider')} max_steps={sess.get('max_steps')}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
+        if act_browser == "task":
+            payload = build_browser_task_payload(
+                settings,
+                goal=" ".join(str(x) for x in (getattr(args, "goal", []) or [])),
+                url=getattr(args, "url", None),
+                **common_kwargs,
+            )
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                print(
+                    f"[browser task] ok={payload.get('ok')} dry_run={payload.get('dry_run')} "
+                    f"steps={len(payload.get('steps') or [])}",
+                )
+            return 0 if bool(payload.get("ok")) else 2
+        print(f"unknown browser action: {act_browser}", file=sys.stderr)
         return 2
 
     if args.command == "voice":
@@ -9139,9 +9237,11 @@ def main(argv: list[str] | None = None) -> int:
             for line in txt.splitlines():
                 s = line.strip()
                 if s.startswith("- "):
-                    name = s[2:].strip()
-                    if name:
-                        tool_list.append(name)
+                    s = s[2:].strip()
+                if "\t" in s:
+                    s = s.split("\t", 1)[0].strip()
+                if s and not s.startswith("[") and s != "(无 MCP 工具)":
+                    tool_list.append(s)
         preset = str(getattr(args, "preset", "") or "").strip().lower() or None
         preset_names = expand_mcp_preset_choice(preset)
         preset_reports = [build_mcp_preset_report(name=name, tool_list=tool_list) for name in preset_names]
@@ -9189,8 +9289,20 @@ def main(argv: list[str] | None = None) -> int:
                 "missing_tools": preset_missing,
                 "missing_keywords": preset_missing,
                 "ok": aggregate_ok,
-                "doc_path": "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md",
+                "doc_path": (
+                    mcp_preset_doc_path(preset_names[0])
+                    if len(preset_names) == 1
+                    else "docs/WEBSEARCH_NOTEBOOK_MCP.zh-CN.md"
+                ),
+                "doc_paths": list(
+                    dict.fromkeys(mcp_preset_doc_path(name) for name in preset_names),
+                ),
                 "onboarding_path": "docs/ONBOARDING.zh-CN.md",
+                "isolation_hints": [
+                    str(report.get("isolation_hint"))
+                    for report in preset_reports
+                    if str(report.get("isolation_hint") or "").strip()
+                ],
                 "quickstart_commands": [
                     str(cmd)
                     for report in preset_reports

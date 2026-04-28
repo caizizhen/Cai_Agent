@@ -762,9 +762,13 @@ def _workspace_trust_summary(root: Path) -> dict[str, Any]:
     gate = build_ecc_pack_ingest_gate_v1(root)
     decision = build_ecc_ingest_trust_decision_v1(root, sanitizer_gate=gate)
     allow = bool(decision.get("allow_apply"))
+    raw_level = str(decision.get("trust_level") or "").strip()
+    level = raw_level or ("local_reviewed" if allow else "blocked")
+    if not allow and level in {"", "unknown", "reviewed", "local_reviewed"}:
+        level = "blocked"
     return {
         "schema_version": "ecc_asset_trust_summary_v1",
-        "level": str(decision.get("trust_level") or ("reviewed" if allow else "unknown")),
+        "level": level,
         "decision": decision.get("combined_decision"),
         "allow": allow,
         "violations_count": len(gate.get("violations") or []),

@@ -41,12 +41,15 @@ cai-agent/memory/instincts/instincts-*.md
 # QA 临时驱动 / 实验脚本
 .tmp_qa/
 .tmp_qg/
+.tmp/
 .tmp-test/
 .tmp-test-*/
 .tmp-tests/
 .tmp-codex-pytest/
 cai-agent/tests/.tmp-pytest/
 tmp*/
+pytest-*-temp/
+scratch-test-dir/
 
 # 临时 plan / regression 工件
 .regression-workflow.json
