@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 import os
 import subprocess
 from pathlib import Path
+from typing import Any
 
 from cai_agent.config import Settings
+from cai_agent.session import list_session_files, load_session
 
 INSTRUCTION_FILE_NAMES = (
     "CAI.md",
@@ -103,3 +106,73 @@ def augment_system_prompt(settings: Settings, base: str) -> str:
         if g:
             parts.append(g)
     return "\n".join(parts).strip() + "\n"
+
+
+def _session_answer_preview(sess: dict[str, Any], *, limit: int = 120) -> str:
+    ans = sess.get("answer")
+    if not isinstance(ans, str):
+        return ""
+    s = ans.strip()
+    if not s:
+        return ""
+    return s[:limit] + ("…" if len(s) > limit else "")
+
+
+def build_session_recap_v1(
+    *,
+    workspace: str,
+    pattern: str = ".cai-session*.json",
+    limit: int = 20,
+) -> dict[str, Any]:
+    """CC-N04: stable recap payload for replaying recent session context."""
+    root = Path(workspace).expanduser().resolve()
+    files = list_session_files(cwd=str(root), pattern=pattern, limit=max(1, int(limit)))
+    items: list[dict[str, Any]] = []
+    parse_skipped = 0
+    for p in files:
+        try:
+            sess = load_session(str(p))
+        except Exception:
+            parse_skipped += 1
+            continue
+        mtime = datetime.fromtimestamp(p.stat().st_mtime, UTC).isoformat()
+        td = sess.get("task")
+        task_id = None
+        if isinstance(td, dict):
+            tid = str(td.get("task_id") or "").strip()
+            task_id = tid or None
+        items.append(
+            {
+                "name": p.name,
+                "path": str(p),
+                "mtime": mtime,
+                "goal": str(sess.get("goal") or "").strip() or None,
+                "task_id": task_id,
+                "total_tokens": int(sess.get("total_tokens") or 0),
+                "error_count": int(sess.get("error_count") or 0),
+                "answer_preview": _session_answer_preview(sess),
+            },
+        )
+    replay_commands = [
+        "cai-agent sessions --json --details --limit 20",
+        "cai-agent observe --json --limit 20",
+        "cai-agent continue --last --json",
+    ]
+    latest = items[0] if items else None
+    summary = {
+        "sessions_parsed": len(items),
+        "parse_skipped": parse_skipped,
+        "errors_total": sum(int(x.get("error_count") or 0) for x in items),
+        "tokens_total": sum(int(x.get("total_tokens") or 0) for x in items),
+        "latest_session_path": latest.get("path") if isinstance(latest, dict) else None,
+    }
+    return {
+        "schema_version": "session_recap_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(root),
+        "pattern": pattern,
+        "limit": max(1, int(limit)),
+        "summary": summary,
+        "sessions": items,
+        "replay_commands": replay_commands,
+    }

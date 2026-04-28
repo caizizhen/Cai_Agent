@@ -6,16 +6,18 @@
 
 ## 当前目标
 
-- 推进 **`HM-N04-D01`**（dashboard preview/apply/audit 契约，Design）；保持全量 pytest + smoke 稳定通过。
+- 交付 **`ECC-N02-D05`**：asset pack 的 **`--apply`** 与 **`ecc_ingest_sanitizer_policy_v1`** 合流，补齐 P2「import-install 执行链」中的写前门禁。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `HM-N04-D01` | Design | 契约评审后再编码 |
+| 1 | `ECC-N02-D05` | Ready | apply 前 sanitizer 等价检查；阻断时机读原因；pytest + smoke |
 
 ## 最近完成（缩略）
 
+- `CC-N04`（`session_recap_v1`、`sessions --recap`、TUI `/recap` 收口）
+- `HM-N04-D01`（ops interactions 收口：GET 仅 preview/audit，POST 承载 apply，审计链路保留）
 - `HM-N03-D01`（`/v1/health`、`/v1/ready`、`api_liveness_v1` 与 RFC 更新）
 - `ECC-N03-D04`（`ecc home-diff` / structured add·update·skip·conflict + doctor + repair hints）
 - `ECC-N03-D03`（`ecc inventory` / `doctor` → `ecc_harness_target_inventory`）

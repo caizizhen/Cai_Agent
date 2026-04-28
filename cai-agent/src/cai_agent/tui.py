@@ -20,6 +20,7 @@ from textual.worker import Worker, WorkerState
 from cai_agent import __version__
 from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
+from cai_agent.context import build_session_recap_v1
 from cai_agent.graph import build_app, build_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, get_last_usage
 from cai_agent.llm_factory import activate_profile_in_memory
@@ -61,6 +62,7 @@ _NATIVE_SLASH_COMMAND_SPECS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/save", "/save [path]", "Save the current chat session"),
     SlashCommandSpec("/load", "/load <path|latest>", "Load a saved chat session"),
     SlashCommandSpec("/sessions", "/sessions", "List recent session files"),
+    SlashCommandSpec("/recap", "/recap", "Summarize recent sessions for replay"),
     SlashCommandSpec("/tasks", "/tasks", "Open the read-only task board"),
     SlashCommandSpec("/use-model", "/use-model <profile_id|model_id>", "Switch the current TUI runtime model"),
     SlashCommandSpec("/reload", "/reload", "Reload the system prompt from disk"),
@@ -100,6 +102,7 @@ _NATIVE_TUI_COMMANDS: frozenset[str] = frozenset(
         "save",
         "load",
         "sessions",
+        "recap",
         "tasks",
         "use-model",
         "reload",
@@ -133,6 +136,7 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/load",
     "/load latest",
     "/sessions",
+    "/recap",
     "/tasks",
     "/use-model",
     "/reload",
@@ -1213,7 +1217,7 @@ class CaiAgentApp(App[None]):
         if not raw:
             return
         self._hide_slash_command_menu()
-        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/mcp-presets", "/stop"):
+        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/recap", "/mcp-presets", "/stop"):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
                 severity="warning",
@@ -1242,6 +1246,7 @@ class CaiAgentApp(App[None]):
                 "/save <path> — 保存当前会话为 JSON（不传 path 则自动命名；/save 后可补全已有会话文件）\n"
                 "/load <path|latest> — 从 JSON 加载会话（若文件含 active_profile_id 等字段且与当前配置一致则恢复运行时 profile）\n"
                 "/sessions — 列出最近会话文件\n"
+                "/recap — 汇总最近会话摘要（便于回放）\n"
                 "/tasks — 只读任务看板：调度任务 + 最近 workflow 快照（Ctrl+B）\n"
                 "/use-model <profile_id|model_id> — 临时切换模型（补全优先 profile id）\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
@@ -1551,6 +1556,28 @@ class CaiAgentApp(App[None]):
                 + "\n"
                 + tui_workbench_cheatsheet_rich(leading_nl=True),
             )
+            return
+
+        if raw == "/recap":
+            recap = build_session_recap_v1(workspace=".", pattern=".cai-session*.json", limit=20)
+            sm = recap.get("summary") or {}
+            lines = [
+                "\n[bold]会话回放摘要[/]",
+                (
+                    "[dim]"
+                    f"parsed={sm.get('sessions_parsed')} "
+                    f"skipped={sm.get('parse_skipped')} "
+                    f"errors={sm.get('errors_total')} "
+                    f"tokens={sm.get('tokens_total')}"
+                    "[/]"
+                ),
+            ]
+            latest = sm.get("latest_session_path")
+            if latest:
+                lines.append(f"[dim]latest:[/] {latest}")
+            for cmd in recap.get("replay_commands") or []:
+                lines.append(f"[cyan]{cmd}[/]")
+            self.query_one("#chat", RichLog).write("\n".join(lines) + "\n")
             return
 
         if raw == "/tasks":

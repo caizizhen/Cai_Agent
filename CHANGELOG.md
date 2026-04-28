@@ -4,6 +4,10 @@
 
 ### Unreleased
 
+- **CC-N04 session/recap convergence**: Added **`session_recap_v1`** via `context.build_session_recap_v1`, CLI **`sessions --recap [--json]`**, and TUI **`/recap`** for stable recent-session replay summaries (latest path, aggregate errors/tokens, replay command hints). Updated session-strip UX copy to surface `/recap` consistently. Tests: **`test_session_recap.py`**, **`test_tui_session_strip.py`**.
+
+- **HM-N04-D01 dashboard interaction contract hardening**: `ops serve` now enforces **GET** `/v1/ops/dashboard/interactions` as preview/audit-only and returns `execute_forbidden` for `mode=apply`; write actions are routed through **POST** `/v1/ops/dashboard/interactions` (supports `mode=apply|preview|audit`) to keep mutation paths explicit and audit-aligned with `ops_dashboard_action_audit_v1`. Tests updated in **`test_ops_http_server.py`**.
+
 - **HM-N03-D01 API status routes**: Added **`GET /v1/health`** (`api_health_v1`: version, workspace, `auth_enforced`) and **`GET /v1/ready`** (`api_ready_v1`: non-secret readiness fields from loaded `Settings`); **`GET /healthz`** / **`GET /health`** now return **`api_liveness_v1`** (still no Bearer). Updated **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** and `api serve` banner. Tests: **`test_api_http_server.py`**, **`test_api_status_routes.py`**.
 
 - **ECC-N03-D04 structured home diff**: Added **`ecc_structured_home_diff_v1`** / **`ecc_structured_home_diff_bundle_v1`** (file-level **add** / **update** / **skip** / **conflict** via SHA256 vs `export_ecc_dir_diff_v1` path sets), CLI **`cai-agent ecc home-diff [--target …] --json`**, multi-target **`ecc_structured_home_diff_multi_v1`**, **`doctor_v1.ecc_structured_home_diff`**, **`repair_plan_v1.ecc_structured_home_diff_pending_targets`** + **`ecc_home_diff_preview_commands`**, and **`doctor_upgrade_hints_v1`** entry. Tests: **`test_export_sync_diff.py`**, **`test_doctor_cli.py`**, **`test_repair_cli.py`**; smoke runs **`ecc home-diff --json`**.

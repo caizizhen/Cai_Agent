@@ -23,6 +23,7 @@ from cai_agent import __version__
 from cai_agent.agent_registry import list_agent_names, load_agent_text
 from cai_agent.command_registry import list_command_names, load_command_text
 from cai_agent.config import Settings
+from cai_agent.context import build_session_recap_v1
 from cai_agent.doctor import apply_repair_plan, build_repair_plan, run_doctor
 from cai_agent.graph import build_app, initial_state
 from cai_agent.board_state import (
@@ -5309,6 +5310,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="输出每个会话的摘要（消息数/工具调用数/最后回答预览）",
     )
+    sess_p.add_argument(
+        "--recap",
+        action="store_true",
+        help="输出 session_recap_v1（可回放摘要 + 推荐 replay 命令）",
+    )
 
     stats_p = sub.add_parser(
         "stats",
@@ -8995,6 +9001,34 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "sessions":
         t_sess = time.perf_counter()
+        if bool(getattr(args, "recap", False)):
+            recap = build_session_recap_v1(
+                workspace=os.getcwd(),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+            )
+            if args.json_output:
+                print(json.dumps(recap, ensure_ascii=False))
+            else:
+                sm = recap.get("summary") or {}
+                print(
+                    f"[sessions recap] parsed={sm.get('sessions_parsed')} "
+                    f"skipped={sm.get('parse_skipped')} "
+                    f"errors={sm.get('errors_total')} tokens={sm.get('tokens_total')}",
+                )
+                latest = sm.get("latest_session_path")
+                if latest:
+                    print(f"latest={latest}")
+                for cmd in recap.get("replay_commands") or []:
+                    print(f"  replay: {cmd}")
+            _maybe_metrics_cli(
+                module="sessions",
+                event="sessions.recap",
+                latency_ms=(time.perf_counter() - t_sess) * 1000.0,
+                tokens=len(recap.get("sessions") or []),
+                success=True,
+            )
+            return 0
         files = list_session_files(
             cwd=os.getcwd(),
             pattern=str(args.pattern),

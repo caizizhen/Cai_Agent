@@ -48,6 +48,27 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         raw = json.dumps(obj, ensure_ascii=False).encode("utf-8")
         self._send(code, raw, "application/json; charset=utf-8")
 
+    def _read_json_body(self, *, max_bytes: int = 262_144) -> dict[str, str]:
+        n = int(self.headers.get("Content-Length") or 0)
+        if n <= 0:
+            return {}
+        if n > max_bytes:
+            raise ValueError("body_too_large")
+        raw = self.rfile.read(n)
+        if len(raw) != n:
+            raise ValueError("short_read")
+        try:
+            obj = json.loads(raw.decode("utf-8"))
+        except json.JSONDecodeError as e:
+            raise ValueError(f"invalid_json:{e}") from e
+        if not isinstance(obj, dict):
+            raise ValueError("invalid_json_object")
+        out: dict[str, str] = {}
+        for k, v in obj.items():
+            if isinstance(k, str):
+                out[k] = "" if v is None else str(v)
+        return out
+
     def _auth_ok(self) -> bool:
         token = getattr(self.server, "api_token", None)
         if not token:
@@ -173,6 +194,16 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         if path == "/v1/ops/dashboard/interactions":
             action = str(one("action") or "").strip()
             mode = str(one("mode") or "preview").strip().lower()
+            if mode == "apply":
+                self._send_json(
+                    403,
+                    {
+                        "ok": False,
+                        "error": "execute_forbidden",
+                        "message": "GET /v1/ops/dashboard/interactions supports preview|audit only; use POST for apply",
+                    },
+                )
+                return
             params = {k: v[0] for k, v in q.items() if v and k not in {"workspace", "action", "mode"}}
             interaction = build_ops_dashboard_interactions_payload(
                 cwd=str(workspace),
@@ -293,6 +324,51 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        path = parsed.path or ""
+        if path != "/v1/ops/dashboard/interactions":
+            self._send_json(404, {"error": "not_found", "path": path})
+            return
+        if not self._auth_ok():
+            self._send_json(401, {"error": "unauthorized"})
+            return
+        try:
+            body = self._read_json_body()
+        except ValueError as e:
+            self._send_json(400, {"error": "bad_request", "detail": str(e)})
+            return
+        ws_raw = str(body.get("workspace") or "").strip()
+        if not ws_raw:
+            self._send_json(400, {"error": "missing_workspace"})
+            return
+        try:
+            workspace = Path(unquote(ws_raw)).expanduser().resolve()
+        except OSError:
+            self._send_json(400, {"error": "invalid_workspace"})
+            return
+        if not workspace.is_dir():
+            self._send_json(400, {"error": "workspace_not_a_directory"})
+            return
+        if not self._workspace_allowed(workspace):
+            self._send_json(403, {"error": "workspace_not_allowed"})
+            return
+
+        action = str(body.get("action") or "").strip()
+        mode = str(body.get("mode") or "apply").strip().lower()
+        params = {
+            k: v
+            for k, v in body.items()
+            if k not in {"workspace", "action", "mode"} and str(v).strip() != ""
+        }
+        interaction = build_ops_dashboard_interactions_payload(
+            cwd=str(workspace),
+            action=action,
+            mode=mode,
+            params=params,
+        )
+        self._send_json(200 if interaction.get("ok") else 400, interaction)
+
 
 def run_ops_api_server(
     *,
@@ -325,7 +401,9 @@ def run_ops_api_server(
         f"  allow workspaces ({len(allow)}): {', '.join(str(x) for x in sorted(allow))}\n"
         "  CAI_OPS_API_TOKEN/CAI_API_TOKEN: "
         f"{'set' if api_token else 'unset'}\n"
-        "  GET /v1/ops/dashboard?workspace=...&observe_pattern=...\n",
+        "  GET /v1/ops/dashboard?workspace=...&observe_pattern=...\n"
+        "  GET /v1/ops/dashboard/interactions?workspace=...&action=...&mode=preview|audit\n"
+        "  POST /v1/ops/dashboard/interactions  (mode=apply|preview|audit)\n",
     )
     try:
         httpd.serve_forever(poll_interval=0.5)

@@ -39,6 +39,7 @@
 | `CC-N03-D02` | `CC-N03` | `plugins sync-home` → `plugins_sync_home_plan_v1`（与 export/ecc 同源） | pytest `test_plugin_compat_matrix` + smoke | 2026-04-26 批次 |
 | `CC-N03-D03` | `CC-N03` | `plugins_home_sync_drift_v1`（doctor/repair/API，与 ecc drift 同源） | pytest 多套件 + smoke | 2026-04-26 批次 |
 | `CC-N02-D04` | `CC-N02` | feedback bundle/export 脱敏强化、`dest_placement`、工作区外 dest 警告、runbook `feedback bundle` 步骤 | pytest `test_feedback_*` + `test_doctor_cli` + smoke | 2026-04-26 批次 |
+| `CC-N04` | `CC-N04` | `session_recap_v1`、`sessions --recap`、TUI `/recap`，统一会话回放摘要与 replay 命令面 | pytest `test_session_recap` + `test_tui_session_strip` + 全量 + smoke | 2026-04-28 |
 
 ## Hermes 线
 
@@ -54,6 +55,7 @@
 | `HM-02c` | `HM-02` | API 只读扩展：models summary、plugins surface、release runbook | pytest | 2026-04-25 批次 |
 | `HM-02d-openai` | `HM-02` | OpenAI-compatible `/v1/models` 与 `/v1/chat/completions`（非流式 + `stream=true` SSE），复用 `model_response_v1` 并记录 `api.chat_completions` metrics | pytest `test_api_http_server` + smoke | 2026-04-25 MODEL-P0 批次 |
 | `HM-N03-D01` | `HM-02` | **`GET /v1/health`** / **`GET /v1/ready`**（**`api_health_v1`** / **`api_ready_v1`**）；**`/healthz`** / **`/health`** → **`api_liveness_v1`**；RFC 同步 | pytest `test_api_http_server` + `test_api_status_routes` | 2026-04-28 |
+| `HM-N04-D01` | `HM-04` | `ops interactions` 契约收口：GET 仅 preview/audit，POST 承载 apply；保留 `ops_dashboard_interactions_v1` + `ops_dashboard_action_audit_v1` | pytest `test_ops_http_server` | 2026-04-28 |
 | `HM-03a` | `HM-03` | Discord gateway 生产路径：mapping、health、排障 | gateway smoke + `doctor` | roadmap §10 |
 | `HM-03b` | `HM-03` | Slack gateway：health、Slash/Interactivity、mapping metadata、`--execute-on-slash` | gateway smoke + `doctor` | roadmap §10 |
 | `HM-03c` | `HM-03` | 下一批 gateway 平台评估 RFC | 文档评审 | `docs/rfc/HM_03C_NEXT_GATEWAY_PLATFORMS.zh-CN.md` |
@@ -120,3 +122,5 @@
 | `ECC-N03-D03` | 2026-04-28 | Add `ecc_harness_target_inventory_v1`, `cai-agent ecc inventory --json`, and `doctor --json.ecc_harness_target_inventory` for cross-harness export roots and workspace source asset counts. | python -m pytest -q cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_doctor_cli.py: PASS (20 passed)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 会话合入 |
 | `ECC-N03-D04` | 2026-04-28 | Add structured home diff schemas (`ecc_structured_home_diff_v1` / bundle / multi), `ecc home-diff` CLI, doctor and repair_plan preview fields, SHA256-based add/update/skip/conflict per file. | python -m pytest -q cai-agent/tests/test_export_sync_diff.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py: PASS<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 会话合入 |
 | `HM-N03-D01` | 2026-04-28 | Add `GET /v1/health` and `GET /v1/ready` JSON contracts; extend `/healthz`/`/health` with `api_liveness_v1`; update HM-02 RFC. | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_api_status_routes.py: PASS | 会话合入 |
+| `HM-N04-D01` | 2026-04-28 | Harden dashboard interactions contract: GET is preview/audit-only and apply runs via POST /v1/ops/dashboard/interactions, keeping write path explicit and audit-aligned. | python -m pytest -q cai-agent/tests/test_ops_http_server.py: PASS | 会话合入 |
+| `CC-N04` | 2026-04-28 | Add `session_recap_v1` and `sessions --recap` plus TUI `/recap`, converging recent-session replay summary and command hints. | python -m pytest -q cai-agent/tests/test_session_recap.py cai-agent/tests/test_tui_session_strip.py: PASS<br>python -m pytest -q cai-agent/tests: PASS (861 passed, 3 subtests passed)<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 会话合入 |

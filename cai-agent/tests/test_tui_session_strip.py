@@ -13,6 +13,7 @@ from cai_agent.tui_session_strip import (
 def test_workbench_cheatsheet_covers_tasks_context_continue() -> None:
     s = tui_workbench_cheatsheet_rich(leading_nl=False)
     assert "/tasks" in s
+    assert "/recap" in s
     assert "Ctrl+B" in s
     assert "cai-agent continue" in s
     assert "进度条" in s or "token" in s
@@ -30,6 +31,7 @@ def test_task_board_line() -> None:
 
 def test_one_liner_after_load() -> None:
     assert "/save" in tui_session_continue_one_liner_rich()
+    assert "/recap" in tui_session_continue_one_liner_rich()
 
 
 def test_context_label_active_only() -> None:

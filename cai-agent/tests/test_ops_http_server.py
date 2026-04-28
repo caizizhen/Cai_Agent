@@ -30,6 +30,17 @@ def _url(httpd: OpsApiThreadingServer, path: str, query: dict[str, str]) -> str:
     return f"http://{host}:{port}{path}?{qs}"
 
 
+def _post_json(httpd: OpsApiThreadingServer, path: str, body: dict[str, object]) -> urllib.request.Request:
+    host, port = httpd.server_address
+    raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    return urllib.request.Request(
+        f"http://{host}:{port}{path}",
+        data=raw,
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+
+
 def test_ops_dashboard_missing_workspace(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start_server(frozenset({root}), None)
@@ -240,7 +251,7 @@ def test_ops_dashboard_interactions_schedule_reorder_apply(tmp_path: Path) -> No
     )
     httpd = _start_server(frozenset({root}), None)
     try:
-        url = _url(
+        req = _post_json(
             httpd,
             "/v1/ops/dashboard/interactions",
             {
@@ -251,7 +262,7 @@ def test_ops_dashboard_interactions_schedule_reorder_apply(tmp_path: Path) -> No
                 "before_task_id": "task-a",
             },
         )
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        with urllib.request.urlopen(req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["ok"] is True
         assert payload["applied"] is True
@@ -319,7 +330,7 @@ def test_ops_dashboard_interactions_gateway_bind_edit_apply_and_audit(tmp_path: 
     )
     httpd = _start_server(frozenset({root}), None)
     try:
-        apply_url = _url(
+        apply_req = _post_json(
             httpd,
             "/v1/ops/dashboard/interactions",
             {
@@ -332,7 +343,7 @@ def test_ops_dashboard_interactions_gateway_bind_edit_apply_and_audit(tmp_path: 
                 "label": "new",
             },
         )
-        with urllib.request.urlopen(apply_url, timeout=5) as resp:
+        with urllib.request.urlopen(apply_req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
         assert payload["ok"] is True
         assert payload["applied"] is True
@@ -450,7 +461,7 @@ def test_ops_dashboard_interactions_profile_switch_preview_and_apply(tmp_path: P
         assert preview["target_profile_id"] == "p2"
         assert preview["dry_run"] is True
 
-        apply_url = _url(
+        apply_req = _post_json(
             httpd,
             "/v1/ops/dashboard/interactions",
             {
@@ -460,7 +471,7 @@ def test_ops_dashboard_interactions_profile_switch_preview_and_apply(tmp_path: P
                 "target_profile_id": "p2",
             },
         )
-        with urllib.request.urlopen(apply_url, timeout=5) as resp:
+        with urllib.request.urlopen(apply_req, timeout=5) as resp:
             applied = json.loads(resp.read().decode("utf-8"))
         assert applied["ok"] is True
         assert applied["applied"] is True
@@ -477,6 +488,29 @@ def test_ops_dashboard_interactions_profile_switch_preview_and_apply(tmp_path: P
             os.environ.pop("CAI_WORKSPACE", None)
         else:
             os.environ["CAI_WORKSPACE"] = prev_ws
+
+
+def test_ops_dashboard_interactions_get_apply_forbidden(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        url = _url(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "schedule_reorder_preview",
+            },
+        )
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(url, timeout=5)
+        assert ei.value.code == 403
+        payload = json.loads(ei.value.read().decode("utf-8"))
+        assert payload.get("error") == "execute_forbidden"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
 
 
 def test_ops_not_found(tmp_path: Path) -> None:

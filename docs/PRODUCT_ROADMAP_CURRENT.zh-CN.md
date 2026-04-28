@@ -2,13 +2,13 @@
 
 ## 当前阶段目标
 
-- 推进 **`HM-N04-D01`**（dashboard preview/apply/audit 契约，Design）
+- 交付 **`ECC-N02-D05`**（pack apply × ingest sanitizer），对齐 **`PRODUCT_GAP`** P2「import-install 执行链」
 - 保持主干稳定（全量 pytest + smoke + 必要 regression）
-- **`HM-N03-D01`**（API 状态路由）已合入 **`HM-N03-D01` roadmap 行**；`ECC-N03` D03/D04 已交付
+- **`CC-N04`**（session/recap 收口）、**`HM-N03-D01`**、**`HM-N04-D01`** 已合入 roadmap
 
 ## 当前优先级（按顺序）
 
-1. `HM-N04-D01`（Design）
+1. `ECC-N02-D05`
 
 ## 当前不做
 

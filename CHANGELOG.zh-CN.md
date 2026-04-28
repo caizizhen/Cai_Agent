@@ -6,6 +6,10 @@
 
 ### Unreleased
 
+- **CC-N04 session/recap 收口**：新增 **`session_recap_v1`**（`context.build_session_recap_v1`）、CLI **`sessions --recap [--json]`** 与 TUI **`/recap`**，统一输出最近会话回放摘要（latest、错误/消耗聚合、replay 命令提示）；并在会话 strip 文案统一暴露 `/recap`。测试：**`test_session_recap.py`**、**`test_tui_session_strip.py`**。
+
+- **HM-N04-D01 dashboard 交互契约收口**：`ops serve` 侧 `GET /v1/ops/dashboard/interactions` 仅支持 `preview|audit`，若传 `mode=apply` 返回 `execute_forbidden`；写动作统一走 `POST /v1/ops/dashboard/interactions`（支持 `mode=apply|preview|audit`），使变更路径显式并与 `ops_dashboard_action_audit_v1` 审计链路一致。测试更新：**`test_ops_http_server.py`**。
+
 - **HM-N03-D01 API 状态路由扩展**：新增 **`GET /v1/health`**（**`api_health_v1`**：版本、工作区、**`auth_enforced`**）与 **`GET /v1/ready`**（**`api_ready_v1`**：基于已加载 **`Settings`** 的就绪摘要，不含密钥）；**`/healthz`** / **`/health`** 现返回 **`api_liveness_v1`**（仍无 Bearer）。更新 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** 与 **`api serve`** 启动提示。测试：**`test_api_http_server.py`**、**`test_api_status_routes.py`**。
 
 - **ECC-N03-D04 structured home diff**：新增 **`ecc_structured_home_diff_v1`** / **`ecc_structured_home_diff_bundle_v1`**（相对路径级 **add** / **update** / **skip** / **conflict**，内容以 SHA256 对比，与 **`export_ecc_dir_diff_v1`** 路径集合互补）；CLI **`cai-agent ecc home-diff [--target …] --json`**；多 **`--target`** 时输出 **`ecc_structured_home_diff_multi_v1`**；**`doctor --json`** 增加 **`ecc_structured_home_diff`**；**`repair --dry-run --json`** 增加 **`ecc_structured_home_diff_pending_targets`**、**`ecc_home_diff_preview_commands`**；**`doctor_upgrade_hints_v1`** 增补 **`ecc home-diff`**。测试：**`test_export_sync_diff.py`**、**`test_doctor_cli.py`**、**`test_repair_cli.py`**；smoke 执行 **`ecc home-diff --json`**。

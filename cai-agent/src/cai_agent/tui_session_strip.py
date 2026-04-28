@@ -67,7 +67,7 @@ def tui_workbench_cheatsheet_rich(*, leading_nl: bool = True) -> str:
         "收到模型 usage 后为实测）[/]\n"
         "[dim]继续会话：[/]在此直接输入下一条即可；跨终端 CLI 用 "
         "[cyan]cai-agent continue …[/][dim]；快照：[/][cyan]/save[/][dim] · [/][cyan]/load[/]"
-        "[dim] · [/][cyan]/load latest[/][dim] · [/][cyan]/sessions[/]\n"
+        "[dim] · [/][cyan]/load latest[/][dim] · [/][cyan]/sessions[/][dim] · [/][cyan]/recap[/]\n"
     )
     return ("\n" if leading_nl else "") + body
 
@@ -76,7 +76,7 @@ def tui_session_continue_one_liner_rich() -> str:
     """加载会话后一行提示，与欢迎页 / 工作台口径一致。"""
     return (
         "[dim]继续：直接输入下一条 · [/][cyan]/save[/][dim] · [/][cyan]/tasks[/]"
-        "[dim] · CLI:[/] [cyan]cai-agent continue[/]\n"
+        "[dim] · [/][cyan]/recap[/][dim] · CLI:[/] [cyan]cai-agent continue[/]\n"
     )
 
 
