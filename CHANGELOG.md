@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **HM-N03-D01 API status routes**: Added **`GET /v1/health`** (`api_health_v1`: version, workspace, `auth_enforced`) and **`GET /v1/ready`** (`api_ready_v1`: non-secret readiness fields from loaded `Settings`); **`GET /healthz`** / **`GET /health`** now return **`api_liveness_v1`** (still no Bearer). Updated **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** and `api serve` banner. Tests: **`test_api_http_server.py`**, **`test_api_status_routes.py`**.
+
 - **ECC-N03-D04 structured home diff**: Added **`ecc_structured_home_diff_v1`** / **`ecc_structured_home_diff_bundle_v1`** (file-level **add** / **update** / **skip** / **conflict** via SHA256 vs `export_ecc_dir_diff_v1` path sets), CLI **`cai-agent ecc home-diff [--target …] --json`**, multi-target **`ecc_structured_home_diff_multi_v1`**, **`doctor_v1.ecc_structured_home_diff`**, **`repair_plan_v1.ecc_structured_home_diff_pending_targets`** + **`ecc_home_diff_preview_commands`**, and **`doctor_upgrade_hints_v1`** entry. Tests: **`test_export_sync_diff.py`**, **`test_doctor_cli.py`**, **`test_repair_cli.py`**; smoke runs **`ecc home-diff --json`**.
 
 - **ECC-N03-D03 harness target inventory**: Added **`ecc_harness_target_inventory_v1`** via **`build_ecc_harness_target_inventory_v1`** (`ecc_layout.py`): per-harness export root (cursor/codex/opencode), manifest/catalog flags, component file counts, plus **`workspace_sources`** for repo **`rules`/`skills`/`agents`/`commands`**. New CLI **`cai-agent ecc inventory --json`**; **`doctor_v1.ecc_harness_target_inventory`** and **`doctor_upgrade_hints_v1`** entry. Tests: **`test_ecc_layout_cli.py`**, **`test_doctor_cli.py`**; smoke runs **`ecc inventory --json`** after export in the isolated workspace.

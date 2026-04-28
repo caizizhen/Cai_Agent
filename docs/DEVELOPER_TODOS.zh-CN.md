@@ -7,13 +7,12 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| 1 | `HM-N03-D01` | Design | API 状态路由扩展 | `api_http_server.py` | 契约先定后实现 |
-| 2 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract | `ops_http_server.py`、`ops_dashboard.py` | 写动作安全可审计 |
+| 1 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract | `ops_http_server.py`、`ops_dashboard.py` | 写动作安全可审计 |
 
 ## 未来开发（缩略）
 
 - `CC-N04`：session/recap
-- `HM-N03/HM-N04`：API + dashboard 收口
+- `HM-N03`：**`HM-N03-D01`**（API 状态路由）已合入 roadmap；`HM-N04`：dashboard 收口
 - `ECC-N03`：doctor/diff 深化（**D03** inventory、**D04** structured home diff 已合入 roadmap）
 - `HM-N06` / `CC-N05` / `ECC-N05`：Explore
 - `CC-N07` / `HM-N11`：Conditional

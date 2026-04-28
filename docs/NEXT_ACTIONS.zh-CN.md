@@ -6,16 +6,17 @@
 
 ## 当前目标
 
-- 推进 **`HM-N03-D01`**（API 状态路由扩展）契约与实现；保持全量 pytest + smoke 稳定通过。
+- 推进 **`HM-N04-D01`**（dashboard preview/apply/audit 契约，Design）；保持全量 pytest + smoke 稳定通过。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `HM-N03-D01` | Design | API 路由契约评审后再编码 |
+| 1 | `HM-N04-D01` | Design | 契约评审后再编码 |
 
 ## 最近完成（缩略）
 
+- `HM-N03-D01`（`/v1/health`、`/v1/ready`、`api_liveness_v1` 与 RFC 更新）
 - `ECC-N03-D04`（`ecc home-diff` / structured add·update·skip·conflict + doctor + repair hints）
 - `ECC-N03-D03`（`ecc inventory` / `doctor` → `ecc_harness_target_inventory`）
 - `ECC-N02-D03`（`ecc pack-import`）

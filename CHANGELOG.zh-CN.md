@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **HM-N03-D01 API 状态路由扩展**：新增 **`GET /v1/health`**（**`api_health_v1`**：版本、工作区、**`auth_enforced`**）与 **`GET /v1/ready`**（**`api_ready_v1`**：基于已加载 **`Settings`** 的就绪摘要，不含密钥）；**`/healthz`** / **`/health`** 现返回 **`api_liveness_v1`**（仍无 Bearer）。更新 **`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** 与 **`api serve`** 启动提示。测试：**`test_api_http_server.py`**、**`test_api_status_routes.py`**。
+
 - **ECC-N03-D04 structured home diff**：新增 **`ecc_structured_home_diff_v1`** / **`ecc_structured_home_diff_bundle_v1`**（相对路径级 **add** / **update** / **skip** / **conflict**，内容以 SHA256 对比，与 **`export_ecc_dir_diff_v1`** 路径集合互补）；CLI **`cai-agent ecc home-diff [--target …] --json`**；多 **`--target`** 时输出 **`ecc_structured_home_diff_multi_v1`**；**`doctor --json`** 增加 **`ecc_structured_home_diff`**；**`repair --dry-run --json`** 增加 **`ecc_structured_home_diff_pending_targets`**、**`ecc_home_diff_preview_commands`**；**`doctor_upgrade_hints_v1`** 增补 **`ecc home-diff`**。测试：**`test_export_sync_diff.py`**、**`test_doctor_cli.py`**、**`test_repair_cli.py`**；smoke 执行 **`ecc home-diff --json`**。
 
 - **ECC-N03-D03 harness 导出目标 inventory**：新增 **`ecc_harness_target_inventory_v1`**（**`build_ecc_harness_target_inventory_v1`**，`ecc_layout.py`）：按 **cursor/codex/opencode** 列出导出根、manifest/catalog 是否存在、各组件目录文件数，以及工作区 **`rules`/`skills`/`agents`/`commands`** 源侧摘要（**`workspace_sources`**）。CLI **`cai-agent ecc inventory --json`**；**`doctor --json`** 增加 **`ecc_harness_target_inventory`**；**`doctor_upgrade_hints_v1`** 增补推荐命令。测试：**`test_ecc_layout_cli.py`**、**`test_doctor_cli.py`**；smoke 在独立工作区 **`export`** 后执行 **`ecc inventory --json`**。

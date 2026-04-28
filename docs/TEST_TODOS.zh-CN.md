@@ -7,8 +7,7 @@
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| 1 | `HM-N03-D01` | Design | API 路由状态测试 | `test_api_status_routes.py`（新增） | health/status/profiles 可回归 |
-| 2 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
+| 1 | `HM-N04-D01` | Design | dashboard preview/apply/audit contract 测试 | `test_ops_apply_actions.py`（新增） | 写动作先 preview |
 
 ## 自动验证记录（由 finalize 脚本追加）
 
@@ -23,3 +22,4 @@
 | 2026-04-27 | `HM-N01-D01` | python -m pytest -q cai-agent/tests: PASS (841 passed, 3 subtests passed); python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/task-finalize-20260427-225222-HM-N01-D01.md`](docs/qa/runs/task-finalize-20260427-225222-HM-N01-D01.md) |
 | 2026-04-28 | `ECC-N03-D03` | python -m pytest -q cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_doctor_cli.py: 20 passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮会话验证（未跑 finalize_task） |
 | 2026-04-28 | `ECC-N03-D04` | python -m pytest -q cai-agent/tests/test_export_sync_diff.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py: PASS<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | 本轮会话验证 |
+| 2026-04-28 | `HM-N03-D01` | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_api_status_routes.py: PASS | 本轮会话验证 |

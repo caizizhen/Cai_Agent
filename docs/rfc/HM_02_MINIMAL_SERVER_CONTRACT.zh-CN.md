@@ -10,14 +10,17 @@
 ## 2. 进程与配置
 
 - **入口**：建议独立子命令 **`cai-agent api serve`**（与 **`ops serve`** 端口不冲突；默认端口 **`CAI_API_PORT`**，如 **`8788`**）。
-- **鉴权**：环境变量 **`CAI_API_TOKEN`** 非空时，所有路径（除 **`GET /healthz`**）要求 **`Authorization: Bearer <token>`**。
+- **鉴权**：环境变量 **`CAI_API_TOKEN`** 非空时，所有路径（除 **`GET /healthz`**、**`GET /health`**）要求 **`Authorization: Bearer <token>`**。
 - **工作区**：启动时 **`cwd`** 为唯一工作区根；禁止路径参数越界到上级目录。
 
 ## 3. 建议路由（v0）
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| `GET` | `/healthz` | **`{ "ok": true }`**，无鉴权 |
+| `GET` | `/healthz` | **`api_liveness_v1`**（**`ok`**、**`cai_agent_version`**、**`schema_version`**），无鉴权 |
+| `GET` | `/health` | 与 **`/healthz`** 相同（别名），无鉴权 |
+| `GET` | `/v1/health` | **`api_health_v1`**：版本、**`workspace`**、**`auth_enforced`**（是否配置了 **`CAI_API_TOKEN`**）；需 Bearer（当 token 已配置） |
+| `GET` | `/v1/ready` | **`api_ready_v1`**：**`mock`**、**`has_config_file`**、**`profiles_count`**、**`active_profile_id`**（不含密钥）；需 Bearer（当 token 已配置） |
 | `GET` | `/v1/status` | 与 CLI **`gateway status --json`** 同源的 **`gateway_summary_v1`** 子集 + **`schema_version`: `api_status_v1`** |
 | `GET` | `/v1/doctor/summary` | 复用 **`build_doctor_payload`** 中仅白名单字段（版本、mock、profile_contract 摘要、memory_policy 摘要），避免泄露密钥 |
 | `POST` | `/v1/tasks/run-due` | **可选波次 2**：若需要「任务触发」，则 body **`{ "dry_run": true }`** 时仅返回将运行项列表；默认 **`dry_run`** 为 true |

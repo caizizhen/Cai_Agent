@@ -92,6 +92,8 @@ def test_api_healthz_without_bearer_when_token_set(tmp_path: Path) -> None:
             assert (resp.headers.get("X-Cai-Agent-Api-Version") or "") == "0"
             body = json.loads(resp.read().decode("utf-8"))
         assert body.get("ok") is True
+        assert body.get("schema_version") == "api_liveness_v1"
+        assert isinstance(body.get("cai_agent_version"), str)
     finally:
         httpd.shutdown()
         httpd.server_close()
@@ -105,6 +107,7 @@ def test_api_health_alias_without_bearer_when_token_set(tmp_path: Path) -> None:
             assert resp.status == 200
             body = json.loads(resp.read().decode("utf-8"))
         assert body.get("ok") is True
+        assert body.get("schema_version") == "api_liveness_v1"
     finally:
         httpd.shutdown()
         httpd.server_close()

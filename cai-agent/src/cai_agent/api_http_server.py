@@ -8,7 +8,8 @@
 ``GET /v1/models/capabilities``（``api_models_capabilities_v1``，仅暴露非敏感模型能力元数据），
 ``GET /v1/plugins/surface``（``api_plugins_surface_v1``，复用 ``list_plugin_surface``，可选 ``?compat=1`` 附加
 ``plugin_compat_matrix_v1``），以及 ``GET /v1/release/runbook``（``api_release_runbook_v1``，复用 release
-runbook 摘要，不含仓库绝对路径）。均不扩大写操作面、不改默认鉴权策略。
+runbook 摘要，不含仓库绝对路径）。**HM-N03-D01**：``GET /v1/health``（``api_health_v1``）、``GET /v1/ready``（``api_ready_v1``）；
+``GET /healthz`` / ``GET /health`` 返回 ``api_liveness_v1``（仍无 Bearer）。均不扩大写操作面、不改默认鉴权策略。
 """
 
 from __future__ import annotations
@@ -25,6 +26,7 @@ from pathlib import Path
 from typing import Any, TextIO, cast
 from urllib.parse import parse_qs, urlparse
 
+from cai_agent import __version__
 from cai_agent.config import Settings
 from cai_agent.doctor import build_api_doctor_summary_v1
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload, build_status_payload
@@ -353,6 +355,43 @@ def _release_runbook_whitelist(payload: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def build_api_liveness_v1() -> dict[str, Any]:
+    """``GET /healthz`` / ``GET /health``：无鉴权存活探针（兼容原有 ``ok: true``）。"""
+    return {
+        "schema_version": "api_liveness_v1",
+        "ok": True,
+        "cai_agent_version": __version__,
+    }
+
+
+def build_api_health_v1(*, workspace: Path, auth_enforced: bool) -> dict[str, Any]:
+    """``GET /v1/health``：需 Bearer（与 ``CAI_API_TOKEN`` 策略一致时）的进程/工作区摘要。"""
+    root = workspace.expanduser().resolve()
+    return {
+        "schema_version": "api_health_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "ok": True,
+        "cai_agent_version": __version__,
+        "workspace": str(root),
+        "auth_enforced": bool(auth_enforced),
+    }
+
+
+def build_api_ready_v1(settings: Settings, *, workspace: Path) -> dict[str, Any]:
+    """``GET /v1/ready``：配置可加载后的就绪摘要（不含密钥与 ``base_url``）。"""
+    root = workspace.expanduser().resolve()
+    return {
+        "schema_version": "api_ready_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "ok": True,
+        "workspace": str(root),
+        "mock": bool(settings.mock),
+        "has_config_file": bool(str(settings.config_loaded_from or "").strip()),
+        "profiles_count": len(getattr(settings, "profiles", ()) or ()),
+        "active_profile_id": str(settings.active_profile_id or ""),
+    }
+
+
 def build_api_release_runbook_v1(workspace: Path) -> dict[str, Any]:
     """HTTP ``GET /v1/release/runbook`` 视图；包裹 ``release_runbook_v1`` 白名单字段。"""
     root = workspace
@@ -448,7 +487,18 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
         api_srv = cast(AgentApiThreadingServer, self.server)
         try:
             if path in ("/healthz", "/health"):
-                self._send_json(200, {"ok": True})
+                self._send_json(200, build_api_liveness_v1())
+                return
+            if path == "/v1/health":
+                tok = getattr(self.server, "api_token", None)
+                self._send_json(
+                    200,
+                    build_api_health_v1(workspace=ws, auth_enforced=bool(tok)),
+                )
+                return
+            if path == "/v1/ready":
+                settings = load_settings_for_agent_api_server(api_srv)
+                self._send_json(200, build_api_ready_v1(settings, workspace=ws))
                 return
             if path == "/v1/status":
                 st = build_status_payload(ws)
@@ -646,7 +696,7 @@ def run_agent_api_server(
         f"  config: {cfg_resolved or '(discover from workspace + CAI_CONFIG)'}\n"
         "  CAI_API_TOKEN/CAI_OPS_API_TOKEN: "
         f"{'set' if api_token else 'unset'}\n"
-        "  GET /healthz | GET /health | GET /v1/status | GET /v1/profiles | GET /v1/doctor/summary\n"
+        "  GET /healthz | GET /health | GET /v1/health | GET /v1/ready | GET /v1/status | GET /v1/profiles | GET /v1/doctor/summary\n"
         "  GET /v1/models | GET /v1/models/summary | GET /v1/plugins/surface[?compat=1] | GET /v1/release/runbook\n"
         "  GET /v1/gateway/federation-summary\n"
         "  POST /v1/chat/completions (non-streaming or stream=true SSE)\n"
