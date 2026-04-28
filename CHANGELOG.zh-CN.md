@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **ECC-N02-D08 ingest 门禁 smoke + CLI 回归补强**：新增 `skills hub install` 的端到端 smoke 覆盖（安全 dry-run JSON + 危险 hooks 拒绝路径，校验 `ingest_gate_rejected` / exit 2），并在 `test_skills_lint_cli.py` 增加 CLI 回归测试。该项把 ingest 门禁从 helper 级验证补强到命令面回归。
+
 - **ECC-N02-D07 skills hub install × ingest 门禁**：**`apply_skills_hub_manifest_selection`** 在 manifest 含待复制 **`hooks.json`** 时调用 **`build_ecc_pack_ingest_gate_for_explicit_hooks_v1`**（**`ingest_scan_kind=explicit_hooks`**）；**`skills_hub_pack_install_v1`** 附带 **`ingest_gate`**；非 **`dry_run`** 且未通过时 **`ok=false`**、**`error=ingest_gate_rejected`** 且不落盘；CLI **`skills hub install`** 对应 **exit 2** 与 stderr 提示。**`ecc_pack_ingest_gate_v1`** 增加 **`ingest_scan_kind`** / **`explicit_scanned_paths`**（显式扫描时）。测试：**`test_skills_hub_install_ingest.py`**、**`test_ecc_pack_ingest_gate`**、**`test_api_http_server`**（summary 含 **`ingest_scan_kind`**）。
 
 - **ECC-N02-D06 README + doctor/API 暴露 pack ingest 预检**：根 **`README.md` / `README.zh-CN.md`** 增补 **`ecc pack-import`** 的 **`ingest_gate`**、**`ingest_gate_rejected`** 与 **`doctor` / `GET /v1/doctor/summary`** 字段说明；**`doctor_v1.ecc_pack_ingest_gate`**（完整 **`ecc_pack_ingest_gate_v1`**）；**`api_doctor_summary_v1.ecc_pack_ingest_gate`**（**`api_ecc_pack_ingest_gate_summary_v1`** 精简计数）；人类 **`doctor`** 增加「ECC / pack-import 源侧 ingest」摘要；**`doctor_upgrade_hints_v1`** 增补 **`ecc pack-import --from-workspace <DIR> --json`**。RFC **`HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** 表格已注明。测试：**`test_doctor_cli`**、**`test_api_http_server`**。

@@ -16,6 +16,7 @@
 
 ## 最近完成（缩略）
 
+- `ECC-N02-D08`（`skills hub install` ingest 门禁 smoke + CLI 回归）
 - `ECC-N02-D07`（**`skills hub install`** × **`hooks.json`** ingest 门禁，**`ingest_scan_kind=explicit_hooks`**）
 - `ECC-N02-D06`（README + **`doctor`/`api` summary** 暴露 **`ecc_pack_ingest_gate`**）
 - `ECC-N02-D05`（**`ecc_pack_ingest_gate_v1`**：`ecc pack-import` 计划附带 ingest 门禁，`--apply` 与 **`hook_runtime`** 危险命令规则对齐）

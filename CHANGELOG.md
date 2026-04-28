@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **ECC-N02-D08 ingest gate smoke + CLI regression**: Added end-to-end smoke coverage for `skills hub install` ingest gating (safe dry-run JSON path + dangerous hooks rejection path with `ingest_gate_rejected` / exit 2), and added CLI regression test coverage in `test_skills_lint_cli.py`. This hardens the install-path contract beyond unit-level helper tests.
+
 - **ECC-N02-D07 skills hub install ingest gate**: **`apply_skills_hub_manifest_selection`** now runs **`build_ecc_pack_ingest_gate_for_explicit_hooks_v1`** when the manifest copies **`hooks.json`** entries (**`ingest_scan_kind=explicit_hooks`**), attaches **`ingest_gate`** to **`skills_hub_pack_install_v1`**, and refuses non-**`dry_run`** writes with **`ingest_gate_rejected`**. CLI **`skills hub install`** exits **2** on failure. **`ecc_pack_ingest_gate_v1`** now carries **`ingest_scan_kind`** / **`explicit_scanned_paths`**. Tests: **`test_skills_hub_install_ingest.py`**, **`test_ecc_pack_ingest_gate`**, **`test_api_http_server`**.
 
 - **ECC-N02-D06 README + doctor/API pack ingest visibility**: Root **`README.md` / `README.zh-CN.md`** now document **`ecc pack-import`** **`ingest_gate`**, **`ingest_gate_rejected`**, and how to read the gate from **`doctor --json`** / **`GET /v1/doctor/summary`**. **`doctor_v1`** adds **`ecc_pack_ingest_gate`** (full **`ecc_pack_ingest_gate_v1`**); **`api_doctor_summary_v1`** adds **`ecc_pack_ingest_gate`** as **`api_ecc_pack_ingest_gate_summary_v1`** (counts only); human **`doctor`** prints a short ECC ingest summary; **`doctor_upgrade_hints_v1`** recommends **`ecc pack-import --from-workspace <DIR> --json`**. RFC **`HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`** table updated. Tests: **`test_doctor_cli`**, **`test_api_http_server`**.
