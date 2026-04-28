@@ -461,15 +461,6 @@ class CaiAgentApp(App[None]):
 
     CSS = """
     Screen { layout: vertical; }
-    #cai-brand {
-        height: auto;
-        margin: 0 1 0 1;
-        padding: 0 0 1 0;
-        text-align: center;
-        background: $boost;
-        border: heavy $primary;
-        color: $text;
-    }
     #chat {
         height: 1fr;
         border: tall $primary;
@@ -831,7 +822,6 @@ class CaiAgentApp(App[None]):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield Static(_cai_brand_markup(), id="cai-brand")
         yield RichLog(id="chat", highlight=True, markup=True, wrap=True, auto_scroll=True)
         with Vertical(id="bottom-stack"):
             with Horizontal(id="context-row"):
@@ -921,6 +911,8 @@ class CaiAgentApp(App[None]):
         if self._settings.mock:
             mock_line = "[yellow]Mock LLM 已开启（不真实请求模型）[/]\n"
         log.write(
+            _cai_brand_markup()
+            + "\n"
             f"[bold]CAI Agent {__version__}[/] — LangGraph 会话\n"
             f"工作区: [cyan]{self._settings.workspace}[/]\n"
             f"当前 profile: [cyan]{self._settings.active_profile_id}[/]\n"

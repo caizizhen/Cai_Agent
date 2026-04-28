@@ -6,6 +6,8 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 
 **Planning / backlog (short pointers):** [docs/README.zh-CN.md](docs/README.zh-CN.md) · [CHANGELOG.md](CHANGELOG.md)
 
+**Model provider integration:** [docs/MODEL_PROVIDER_INTEGRATION.md](docs/MODEL_PROVIDER_INTEGRATION.md) · 中文：[docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md](docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md)
+
 ---
 
 ## Table of contents
@@ -321,6 +323,8 @@ cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-se
 ---
 
 ## Models and profiles
+
+For mainstream cloud, router, and local model backends, see the provider-by-provider setup guide: [docs/MODEL_PROVIDER_INTEGRATION.md](docs/MODEL_PROVIDER_INTEGRATION.md).
 
 ```bash
 cai-agent models                    # default: list profiles

@@ -4,6 +4,8 @@
 
 **文档与计划索引：** [docs/README.zh-CN.md](docs/README.zh-CN.md) · 版本历史：[CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md)
 
+**主流大模型接入指南：** [docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md](docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md) · English: [docs/MODEL_PROVIDER_INTEGRATION.md](docs/MODEL_PROVIDER_INTEGRATION.md)
+
 ---
 
 ## 目录
@@ -315,6 +317,8 @@ cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-se
 ---
 
 ## 模型与 Profile
+
+主流云厂商、聚合网关与本地运行时的逐项接入方式，见：[docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md](docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md)。
 
 ```bash
 cai-agent models
