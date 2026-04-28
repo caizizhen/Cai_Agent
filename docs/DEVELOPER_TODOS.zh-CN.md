@@ -11,6 +11,12 @@
 
 ## 未来开发（缩略）
 
+- `UX-N01-D06`：体验层第六阶段已合入（plan/workflow/release-ga 失败 hints 收口）
+- `UX-N01-D05`：体验层第五阶段已合入（run 家族失败 hints 扩展到 command/agent/fix-build）
+- `UX-N01-D04`：体验层第四阶段已合入（run/continue 失败 hints 统一：JSON + 文本）
+- `UX-N01-D03`：体验层第三阶段已合入（`sessions/continue` help quickstart + sessions 下一步 continue 提示）
+- `UX-N01-D02`：体验层第二阶段已合入（root help quickstart + 缺配置失败统一 onboarding hint）
+- `UX-N01-D01`：体验层第一阶段（Onboarding 优先）已合入（`onboarding` 聚合入口、help/doctor/README 对齐、TUI `/recap` discoverability）
 - `ECC-N02-D08`：`skills hub install` ingest 门禁 smoke + CLI 回归已合入
 - `ECC-N02-D07`：**`skills hub install`** 与 **`ecc_pack_ingest_gate`**（显式 **`hooks.json`** 路径）已合入
 - `ECC-N02-D06`：README + doctor/API **`ecc_pack_ingest_gate`** 暴露已合入

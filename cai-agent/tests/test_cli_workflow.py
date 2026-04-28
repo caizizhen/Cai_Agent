@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -22,6 +22,13 @@ class WorkflowCliTests(unittest.TestCase):
             rc = main(["workflow", missing, "--json"])
 
         self.assertEqual(rc, 2)
+
+    def test_workflow_missing_usage_prints_hints(self) -> None:
+        err = io.StringIO()
+        with redirect_stderr(err):
+            rc = main(["workflow"])
+        self.assertEqual(rc, 2)
+        self.assertIn("hint: cai-agent workflow --list-templates --json", err.getvalue())
 
     def test_workflow_json_happy_path_in_mock_mode(self) -> None:
         """Workflow should succeed and emit JSON in mock mode."""

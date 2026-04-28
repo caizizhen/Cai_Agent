@@ -25,7 +25,7 @@
 ### 4. 文档同步
 
 - 每次新增或调整配置项，都应同步更新：
-  - `README.md`
+  - `README.md` 与 `README.zh-CN.md`
   - 示例 TOML 模板
-  - `CHANGELOG.md`
+  - `CHANGELOG.md` 与 `CHANGELOG.zh-CN.md`
 

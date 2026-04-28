@@ -124,9 +124,14 @@ cai-agent --version
 **最短路径：**
 
 ```bash
-cai-agent init
-cai-agent doctor
+cai-agent onboarding
 cai-agent run "请总结当前仓库目录结构"
+```
+
+如需查看完整 dry-run 引导链路（含模型 onboarding、TUI、会话继续），使用：
+
+```bash
+cai-agent onboarding --json
 ```
 
 **多 profile 预设**（LM Studio / Ollama / vLLM / OpenRouter / 智谱 / 自建网关占位）：

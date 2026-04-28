@@ -6,6 +6,18 @@
 
 ### Unreleased
 
+- **UX-N01-D06 体验层第六阶段（plan/workflow/release-ga 失败提示收口）**：`plan` 的 `config_not_found`/`goal_empty`/`llm_error` 失败返回新增 `hints`（JSON + 文本）；`workflow` 的模板缺失、缺文件、缺配置与执行失败路径补充标准化 `hint:`；`release-ga` 失败态新增 `hints[]`（JSON）并在文本输出 failed checks 后追加 hint 行，统一排障下一步。测试：`test_plan_sessions_cli.py`、`test_cli_workflow.py`、`test_release_ga_cli.py`、`test_cli_misc.py`，并通过全量 `pytest` 与 smoke。
+
+- **UX-N01-D05 体验层第五阶段（run 家族失败提示补齐）**：将统一失败 hints 扩展到 `run/continue/command/agent/fix-build` 家族中的 `config_not_found`、`goal_empty`、`command_not_found`、`agent_not_found` 场景；JSON 失败载荷统一含 `hints[]`，文本 stderr 同步 `hint:` 行，且命令/子代理缺失时直接提示 `commands --json` / `agents --json`。测试：`test_cli_misc.py` 增加 `command_not_found` 与 `agent_not_found` 回归断言，并通过全量 `pytest` 与 smoke。
+
+- **UX-N01-D04 体验层第四阶段（run/continue 失败提示统一）**：`run/continue` 在 `--plan-file` 读取失败、`load_session_failed`、`invalid_session` 场景统一输出下一步 hints；JSON 失败载荷增加 `hints[]`，文本 stderr 同步打印 `hint:` 行，减少失败后排障路径不一致。新增 `_run_continue_failure_hints` 统一维护该语义。测试：`test_cli_misc.py` 增加 continue 失败 JSON/text 提示断言，并通过全量 `pytest` 与 smoke。
+
+- **UX-N01-D03 体验层第三阶段（sessions/continue 可发现性）**：`sessions --help` 与 `continue --help` 新增 quickstart/定位会话提示；`sessions` 文本输出在无会话时补生成路径提示，在有会话时直接给出 `continue` 下一步示例命令，降低“有会话但不知道怎么续聊”的操作成本。测试：`test_cli_misc.py` 新增 `sessions --help`/`continue --help` 断言，并通过全量 `pytest` 与 smoke。
+
+- **UX-N01-D02 体验层第二阶段（失败提示与 help 可发现性）**：顶层 `cai-agent --help` 新增 onboarding quickstart 段；为 `models`/`ecc`/`doctor`/`repair`/`tools` 的缺配置失败统一输出 onboarding 导向提示，减少“报错后无下一步”的断层。新增 `_print_config_not_found_hint` 统一文案收口。测试：`test_cli_misc.py` 增加 root help 与 doctor 缺配置提示断言，并通过全量 `pytest` 与 smoke。
+
+- **UX-N01-D01 体验层第一阶段（Onboarding 优先）**：新增 `cai-agent onboarding` 聚合入口（`onboarding_quickstart_v1`），以 dry-run 指令链统一输出 `init -> doctor -> models onboarding -> run/ui/sessions-recap`；`init`/`doctor`/README/ONBOARDING 文案统一为“先看 onboarding，再执行下一步”；TUI 会话提示补齐 `/recap` 在任务看板场景的高频可见入口。测试：`test_cli_misc.py`（Onboarding CLI）、`test_doctor_cli.py`、`test_tui_session_strip.py`，并通过全量 `pytest` 与 smoke。
+
 - **ECC-N02-D08 ingest 门禁 smoke + CLI 回归补强**：新增 `skills hub install` 的端到端 smoke 覆盖（安全 dry-run JSON + 危险 hooks 拒绝路径，校验 `ingest_gate_rejected` / exit 2），并在 `test_skills_lint_cli.py` 增加 CLI 回归测试。该项把 ingest 门禁从 helper 级验证补强到命令面回归。
 
 - **ECC-N02-D07 skills hub install × ingest 门禁**：**`apply_skills_hub_manifest_selection`** 在 manifest 含待复制 **`hooks.json`** 时调用 **`build_ecc_pack_ingest_gate_for_explicit_hooks_v1`**（**`ingest_scan_kind=explicit_hooks`**）；**`skills_hub_pack_install_v1`** 附带 **`ingest_gate`**；非 **`dry_run`** 且未通过时 **`ok=false`**、**`error=ingest_gate_rejected`** 且不落盘；CLI **`skills hub install`** 对应 **exit 2** 与 stderr 提示。**`ecc_pack_ingest_gate_v1`** 增加 **`ingest_scan_kind`** / **`explicit_scanned_paths`**（显式扫描时）。测试：**`test_skills_hub_install_ingest.py`**、**`test_ecc_pack_ingest_gate`**、**`test_api_http_server`**（summary 含 **`ingest_scan_kind`**）。

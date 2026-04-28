@@ -229,6 +229,177 @@ class ObserveCliTests(unittest.TestCase):
         self.assertIn("sessions_with_events", ag)
 
 
+class OnboardingCliTests(unittest.TestCase):
+    def test_onboarding_json_without_config(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["onboarding", "-w", str(root), "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "onboarding_quickstart_v1")
+            self.assertEqual(payload.get("workspace"), str(root.resolve()))
+            self.assertFalse(payload.get("config_exists"))
+            flow = payload.get("recommended_flow") or []
+            self.assertTrue(isinstance(flow, list) and flow)
+            self.assertEqual(flow[0], "cai-agent init --preset starter")
+            self.assertIn("cai-agent sessions --recap --json", flow)
+
+    def test_onboarding_json_with_config(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "cai-agent.toml").write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["onboarding", "--config", str(root / "cai-agent.toml"), "-w", str(root), "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertTrue(payload.get("config_exists"))
+            flow = payload.get("recommended_flow") or []
+            self.assertTrue(isinstance(flow, list))
+            self.assertEqual(flow[0], "cai-agent doctor")
+            self.assertIn("cai-agent ui", flow)
+
+
+class ExperiencePhase2CliTests(unittest.TestCase):
+    def test_root_help_shows_onboarding_quickstart(self) -> None:
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        out = buf.getvalue() + err.getvalue()
+        self.assertIn("Quickstart", out)
+        self.assertIn("cai-agent onboarding", out)
+
+    def test_doctor_missing_config_prints_onboarding_hint(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            missing_cfg = str(Path(td) / "missing.toml")
+            out = io.StringIO()
+            err = io.StringIO()
+            with redirect_stdout(out), redirect_stderr(err):
+                rc = main(["doctor", "--config", missing_cfg])
+            self.assertEqual(rc, 2)
+            em = err.getvalue()
+            self.assertIn("doctor: 未检测到可用配置", em)
+            self.assertIn("cai-agent onboarding", em)
+
+    def test_sessions_help_shows_continue_quickstart(self) -> None:
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["sessions", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        out = buf.getvalue() + err.getvalue()
+        self.assertIn("Quickstart", out)
+        self.assertIn("sessions --recap --json", out)
+        self.assertIn("cai-agent continue", out)
+
+    def test_continue_help_shows_how_to_find_sessions(self) -> None:
+        buf = io.StringIO()
+        err = io.StringIO()
+        with redirect_stdout(buf), redirect_stderr(err):
+            with self.assertRaises(SystemExit) as ctx:
+                main(["continue", "--help"])
+        self.assertEqual(ctx.exception.code, 0)
+        out = buf.getvalue() + err.getvalue()
+        self.assertIn("sessions --details", out)
+        self.assertIn("sessions --recap --json", out)
+
+    def test_continue_json_load_session_failed_includes_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            missing_session = root / "missing-session.json"
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(
+                    [
+                        "continue",
+                        "--config",
+                        str(cfg),
+                        str(missing_session),
+                        "继续",
+                        "--json",
+                    ],
+                )
+            self.assertEqual(rc, 2)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("error"), "load_session_failed")
+            hints = payload.get("hints") or []
+            self.assertTrue(isinstance(hints, list) and hints)
+            self.assertIn("cai-agent sessions --details", hints)
+
+    def test_continue_text_invalid_session_prints_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            bad_session = root / "bad-session.json"
+            bad_session.write_text("{}", encoding="utf-8")
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main(
+                    [
+                        "continue",
+                        "--config",
+                        str(cfg),
+                        str(bad_session),
+                        "继续",
+                    ],
+                )
+            self.assertEqual(rc, 2)
+            em = err.getvalue()
+            self.assertIn("会话文件不合法", em)
+            self.assertIn("hint: cai-agent sessions --details", em)
+
+    def test_command_not_found_json_includes_discovery_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = main(["command", "--config", str(cfg), "not-exist", "执行任务", "--json"])
+            self.assertEqual(rc, 2)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("error"), "command_not_found")
+            hints = payload.get("hints") or []
+            self.assertIn("cai-agent commands --json", hints)
+
+    def test_agent_not_found_text_prints_hints(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            cfg = root / "cai-agent.toml"
+            cfg.write_text(
+                '[llm]\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n',
+                encoding="utf-8",
+            )
+            err = io.StringIO()
+            with redirect_stderr(err):
+                rc = main(["agent", "--config", str(cfg), "not-exist-agent", "执行任务"])
+            self.assertEqual(rc, 2)
+            em = err.getvalue()
+            self.assertIn("子代理模板不存在", em)
+            self.assertIn("hint: cai-agent agents --json", em)
+
+
 class CommandsAgentsJsonTests(unittest.TestCase):
     def setUp(self) -> None:
         root = Path.cwd() / ".tmp-tests" / f"commands-agents-{uuid.uuid4().hex}"

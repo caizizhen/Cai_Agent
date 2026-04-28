@@ -10,6 +10,7 @@
    若目标是 WebSearch / Notebook：先看 [`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)，然后执行 `cai-agent mcp-check --json --preset websearch/notebook --list-only`；需要模板时再用 `cai-agent mcp-check --preset websearch --print-template` 或 `--preset notebook --print-template`。
 
 3. **初始化与自检**  
+   - 先跑 `cai-agent onboarding`（或 `cai-agent onboarding --json`）拿到最短命令链。  
    - `cai-agent init`（或 `init --global`）生成配置骨架。  
    - 如果是升级后回来看差异，先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，再决定是否切到 `init --preset starter` 或补新的 profile。
    - `cai-agent doctor`：确认工作区、API Key（脱敏）、工具链可发现性。
@@ -22,6 +23,7 @@
 
 5. **第一次运行**  
    - `cai-agent run "你的目标"`，或使用 `cai-agent ui` 进入 TUI。  
+   - 会话继续建议：`cai-agent sessions --details`、`cai-agent sessions --recap --json`、`cai-agent continue <session.json>`。  
    - 需要规划而不执行工具时：`cai-agent plan "目标" --json`。
 
 6. **深入清单**  

@@ -1,11 +1,16 @@
 {
   "exporter": "cai-agent",
   "schema": "export-v2",
+  "manifest_version": "2.1.0",
   "target": "cursor",
+  "local_catalog_schema_version": "local_catalog_v1",
+  "active_memory_provider": "local_entries_jsonl",
+  "active_memory_provider_source": "default",
   "copied": [
     "rules",
     "skills",
     "agents",
     "commands"
-  ]
+  ],
+  "local_catalog_file": "cai-local-catalog.json"
 }

@@ -69,6 +69,7 @@ def build_installation_guidance() -> dict[str, Any]:
         "upgrade_docs": ["CHANGELOG.zh-CN.md", "CHANGELOG.md"],
         "repair_command": "cai-agent repair --dry-run --json",
         "recommended_flow": [
+            "cai-agent onboarding",
             "cai-agent init",
             "cai-agent doctor",
             "cai-agent repair --dry-run",
@@ -956,9 +957,10 @@ def run_doctor(
     print(f"  upgrade:    {' | '.join(str(x) for x in (install.get('upgrade_docs') or []))}")
     print()
     print("建议下一步:")
-    print("  1) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")
-    print("  2) 编辑 cai-agent.toml 中 [llm] 或 [[models.profile]]（base_url / model / api_key_env）")
-    print("  3) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
+    print("  1) 先跑: cai-agent onboarding（输出最短上手命令链）")
+    print("  2) 若尚未生成配置: cai-agent init（多后端入门: cai-agent init --preset starter）")
+    print("  3) 编辑 cai-agent.toml 中 [llm] 或 [[models.profile]]（base_url / model / api_key_env）")
+    print("  4) 试跑: cai-agent run \"用一句话描述当前工作区用途\"")
     print(
         "  4) 多模型: cai-agent models list；新增: models add --preset vllm|gateway|openrouter|zhipu …；"
         "新用户/CI 见 docs/ONBOARDING.zh-CN.md",

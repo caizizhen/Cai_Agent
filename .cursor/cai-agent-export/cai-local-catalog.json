@@ -1,0 +1,76 @@
+{
+  "schema_version": "local_catalog_v1",
+  "workspace": "D:\\gitrepo\\Cai_Agent",
+  "plugin_version": "0.1.0",
+  "assets": [
+    {
+      "id": "rules",
+      "kind": "directory",
+      "path": "D:\\gitrepo\\Cai_Agent\\rules",
+      "exists": true,
+      "items_count": 20
+    },
+    {
+      "id": "skills",
+      "kind": "directory",
+      "path": "D:\\gitrepo\\Cai_Agent\\skills",
+      "exists": true,
+      "items_count": 24
+    },
+    {
+      "id": "hooks",
+      "kind": "file",
+      "path": "D:\\gitrepo\\Cai_Agent\\hooks\\hooks.json",
+      "exists": true,
+      "items_count": 3,
+      "error": null
+    },
+    {
+      "id": "plugins",
+      "kind": "object",
+      "path": "D:\\gitrepo\\Cai_Agent",
+      "exists": true,
+      "items_count": 6,
+      "schema_version": "plugins_surface_v1",
+      "plugin_version": "0.1.0"
+    }
+  ],
+  "components": {
+    "skills": {
+      "exists": true,
+      "path": "D:\\gitrepo\\Cai_Agent\\skills",
+      "files_count": 25
+    },
+    "commands": {
+      "exists": true,
+      "path": "D:\\gitrepo\\Cai_Agent\\commands",
+      "files_count": 7
+    },
+    "agents": {
+      "exists": true,
+      "path": "D:\\gitrepo\\Cai_Agent\\agents",
+      "files_count": 6
+    },
+    "hooks": {
+      "exists": true,
+      "path": "D:\\gitrepo\\Cai_Agent\\hooks",
+      "files_count": 4
+    },
+    "rules": {
+      "exists": true,
+      "path": "D:\\gitrepo\\Cai_Agent\\rules",
+      "files_count": 23
+    },
+    "mcp-configs": {
+      "exists": false,
+      "path": "D:\\gitrepo\\Cai_Agent\\mcp-configs",
+      "files_count": 0
+    }
+  },
+  "compatibility": {
+    "cursor": "partial",
+    "codex": "partial",
+    "opencode": "partial"
+  },
+  "health_score": 100
+}

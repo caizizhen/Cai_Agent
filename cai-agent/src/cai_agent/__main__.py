@@ -198,6 +198,80 @@ def _run_continue_json_fail_payload(
     return out
 
 
+def _run_continue_failure_hints(error: str) -> list[str]:
+    err = str(error or "").strip().lower()
+    if err == "config_not_found":
+        return [
+            "cai-agent onboarding",
+            "cai-agent init --preset starter",
+        ]
+    if err == "goal_empty":
+        return [
+            '补充目标文本，例如：cai-agent run "修复测试失败"',
+            '或继续会话：cai-agent continue <session.json> "继续你的问题"',
+        ]
+    if err in {"load_session_failed", "invalid_session"}:
+        return [
+            "cai-agent sessions --details",
+            "cai-agent sessions --recap --json",
+            'cai-agent continue <session.json> "继续你的问题"',
+        ]
+    if err in {"command_not_found", "agent_not_found"}:
+        return [
+            "cai-agent commands --json",
+            "cai-agent agents --json",
+        ]
+    if err == "plan_file_error":
+        return [
+            "确认 --plan-file 路径存在且可读",
+            "先用不带 --plan-file 的 run/continue 验证基础链路",
+        ]
+    return ["cai-agent onboarding"]
+
+
+def _plan_failure_hints(error: str) -> list[str]:
+    err = str(error or "").strip().lower()
+    if err == "config_not_found":
+        return ["cai-agent onboarding", "cai-agent init --preset starter"]
+    if err == "goal_empty":
+        return ['补充目标，例如：cai-agent plan "优化体验层" --json']
+    if err == "llm_error":
+        return [
+            "cai-agent doctor --json",
+            '确认模型配置后重试：cai-agent plan "你的目标" --json',
+        ]
+    return ["cai-agent onboarding"]
+
+
+def _workflow_failure_hints(error: str) -> list[str]:
+    err = str(error or "").strip().lower()
+    if err == "workflow_file_missing":
+        return ["cai-agent workflow --list-templates --json", "cai-agent workflow <file.json>"]
+    if err == "template_not_found":
+        return ["cai-agent workflow --list-templates --json"]
+    if err == "config_not_found":
+        return ["cai-agent onboarding", "cai-agent init --preset starter"]
+    if err == "run_failed":
+        return ["检查 workflow JSON 结构与 step goal 字段", "cai-agent workflow --list-templates --json"]
+    return ["cai-agent onboarding"]
+
+
+def _release_ga_failure_hints(payload: dict[str, Any]) -> list[str]:
+    failed = {str(x) for x in (payload.get("failed_checks") or []) if str(x).strip()}
+    hints: list[str] = []
+    if "quality_gate" in failed:
+        hints.append("QA_SKIP_LOG=1 python scripts/run_regression.py")
+    if "session_failure_rate" in failed or "token_budget" in failed:
+        hints.append("cai-agent cost report --json")
+    if "doctor" in failed:
+        hints.append("cai-agent doctor --json")
+    if "security_scan" in failed:
+        hints.append("python -m pytest -q cai-agent/tests")
+    if not hints:
+        hints.append("cai-agent release-ga --json")
+    return hints
+
+
 def _session_file_json_extra(sess: dict[str, Any]) -> dict[str, Any]:
     """从已解析的会话 JSON 提取稳定字段（供 `sessions --json` 等使用）。"""
     ev = sess.get("events")
@@ -2959,11 +3033,20 @@ def _settings_workspace_hint(args: argparse.Namespace) -> str | None:
     return None
 
 
+def _print_config_not_found_hint(e: FileNotFoundError, *, command: str) -> None:
+    print(str(e), file=sys.stderr)
+    print(
+        f"{command}: 未检测到可用配置。建议先执行 `cai-agent onboarding`，"
+        "再按引导运行 `cai-agent init --preset starter`。",
+        file=sys.stderr,
+    )
+
+
 def _load_settings_for_models(config_path: str | None) -> Settings | int:
     try:
         return Settings.from_env(config_path=config_path)
     except FileNotFoundError as e:
-        print(str(e), file=sys.stderr)
+        _print_config_not_found_hint(e, command="models")
         return 2
     except ProfilesError as e:
         print(f"模型 profile 配置错误: {e}", file=sys.stderr)
@@ -3814,12 +3897,59 @@ def _install_support_docs() -> dict[str, str]:
 
 def _init_next_steps(*, preset: str) -> list[str]:
     steps = [
+        "cai-agent onboarding",
         "cai-agent doctor",
         'cai-agent run "用一句话描述当前工作区用途"',
     ]
     if preset == "starter":
         steps.insert(1, "cai-agent models use local-lmstudio")
     return steps
+
+
+def _build_onboarding_quickstart_v1(
+    *,
+    workspace: str,
+    config_exists: bool,
+    profile_ready: bool,
+    install_guidance: dict[str, Any],
+    install_diag: dict[str, Any] | None,
+    hints: list[str] | None = None,
+) -> dict[str, Any]:
+    cmd_init = "cai-agent init --preset starter"
+    cmd_doctor = "cai-agent doctor"
+    cmd_models = "cai-agent models onboarding --id my-model --preset openai --model gpt-4o-mini --json"
+    cmd_run = 'cai-agent run "用一句话描述当前工作区用途"'
+    cmd_ui = "cai-agent ui"
+    cmd_recap = "cai-agent sessions --recap --json"
+    cmd_repair = str(install_guidance.get("repair_command") or "cai-agent repair --dry-run --json")
+    flow: list[str] = []
+    if not config_exists:
+        flow.append(cmd_init)
+    flow.extend([cmd_doctor, cmd_models, cmd_run, cmd_ui, cmd_recap])
+    out: dict[str, Any] = {
+        "schema_version": "onboarding_quickstart_v1",
+        "workspace": workspace,
+        "config_exists": bool(config_exists),
+        "profile_ready": bool(profile_ready),
+        "recommended_flow": flow,
+        "repair_command": cmd_repair,
+        "docs": {
+            "onboarding": str(install_guidance.get("onboarding_doc") or "docs/ONBOARDING.zh-CN.md"),
+            "docs_index": str(install_guidance.get("docs_index") or "docs/README.zh-CN.md"),
+            "upgrade_docs": list(install_guidance.get("upgrade_docs") or []),
+        },
+        "session_tui_hints": [
+            "cai-agent ui  # Ctrl+M 模型面板 / Ctrl+B 任务看板",
+            "cai-agent sessions --details",
+            "cai-agent sessions --recap --json",
+            "cai-agent continue <session.json>",
+        ],
+    }
+    if isinstance(install_diag, dict):
+        out["install_diag"] = install_diag
+    if hints:
+        out["hints"] = list(hints)
+    return out
 
 
 def _cmd_init(
@@ -3846,7 +3976,7 @@ def _cmd_init(
                         "global": is_global,
                         "preset": preset_norm,
                         "support_docs": _install_support_docs(),
-                        "message": f"配置已存在: {dest}；若需覆盖请添加 --force",
+                        "message": f"配置已存在: {dest}；若需覆盖请添加 --force（建议先执行 cai-agent onboarding）",
                     },
                     ensure_ascii=False,
                 ),
@@ -3854,7 +3984,8 @@ def _cmd_init(
         else:
             label = "用户级全局" if is_global else "当前目录"
             print(
-                f"{label} 配置已存在: {dest}；若需覆盖请添加 --force",
+                f"{label} 配置已存在: {dest}；若需覆盖请添加 --force。"
+                "下一步建议：先执行 cai-agent onboarding 查看最短上手链路。",
                 file=sys.stderr,
             )
         # S1-03: logical / precondition failure → exit 2 (not 1).
@@ -3965,7 +4096,16 @@ def main(argv: list[str] | None = None) -> int:
         help="临时覆盖当前模型（优先级高于配置文件/环境变量）",
     )
 
-    parser = argparse.ArgumentParser(prog="cai-agent")
+    parser = argparse.ArgumentParser(
+        prog="cai-agent",
+        description="CAI Agent CLI",
+        epilog=(
+            "Quickstart:\n"
+            "  cai-agent onboarding\n"
+            "  cai-agent run \"用一句话描述当前工作区用途\""
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
+    )
     parser.add_argument(
         "--version",
         action="version",
@@ -4007,6 +4147,23 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         dest="json_output",
         help="stdout 仅输出 init_cli_v1 JSON（成功或 config_exists 等错误）",
+    )
+    onboarding_p = sub.add_parser(
+        "onboarding",
+        parents=[common],
+        help="体验层快速上手：输出 init→doctor→models onboarding→run 的最短命令链",
+    )
+    onboarding_p.add_argument(
+        "-w",
+        "--workspace",
+        default=None,
+        help="工作区根目录（默认当前目录或环境变量 CAI_WORKSPACE）",
+    )
+    onboarding_p.add_argument(
+        "--json",
+        action="store_true",
+        dest="json_output",
+        help="stdout 输出 onboarding_quickstart_v1 JSON",
     )
 
     ecc_p = sub.add_parser(
@@ -4351,6 +4508,12 @@ def main(argv: list[str] | None = None) -> int:
         "continue",
         parents=[common],
         help="基于历史会话 JSON 继续提问（等价于 run --load-session）",
+        epilog=(
+            "先用下列命令找会话文件：\n"
+            "  cai-agent sessions --details\n"
+            "  cai-agent sessions --recap --json"
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     cont_p.add_argument(
         "session",
@@ -5287,6 +5450,13 @@ def main(argv: list[str] | None = None) -> int:
     sess_p = sub.add_parser(
         "sessions",
         help="列出当前目录近期会话文件（默认 .cai-session-*.json）",
+        epilog=(
+            "Quickstart:\n"
+            "  cai-agent sessions --details\n"
+            "  cai-agent sessions --recap --json\n"
+            "  cai-agent continue <session.json> \"继续你的问题\""
+        ),
+        formatter_class=argparse.RawTextHelpFormatter,
     )
     sess_p.add_argument(
         "--pattern",
@@ -7337,6 +7507,57 @@ def main(argv: list[str] | None = None) -> int:
         )
         return rc_ini
 
+    if args.command == "onboarding":
+        from cai_agent.doctor import build_doctor_install_diagnostic, build_installation_guidance
+
+        t_onb = time.perf_counter()
+        ws_raw = str(getattr(args, "workspace", "") or "").strip()
+        root = Path(ws_raw).expanduser().resolve() if ws_raw else Path.cwd().resolve()
+        cfg = root / "cai-agent.toml"
+        cfg_exists = cfg.is_file()
+        hints: list[str] = []
+        install_diag: dict[str, Any] | None = None
+        profile_ready = False
+        try:
+            settings_onb = Settings.from_env(
+                config_path=getattr(args, "config", None),
+                workspace_hint=str(root),
+            )
+            if args.model:
+                settings_onb = replace(settings_onb, model=str(args.model).strip())
+            settings_onb = replace(settings_onb, workspace=str(root))
+            install_diag = build_doctor_install_diagnostic(settings_onb)
+            profile_ready = bool(str(settings_onb.active_profile_id or "").strip())
+        except FileNotFoundError:
+            hints.append("未检测到可用配置；先执行 `cai-agent init --preset starter`。")
+        guidance = build_installation_guidance()
+        doc = _build_onboarding_quickstart_v1(
+            workspace=str(root),
+            config_exists=cfg_exists,
+            profile_ready=profile_ready,
+            install_guidance=guidance,
+            install_diag=install_diag,
+            hints=hints,
+        )
+        if bool(getattr(args, "json_output", False)):
+            print(json.dumps(doc, ensure_ascii=False))
+        else:
+            print(f"[onboarding] workspace={doc.get('workspace')} config_exists={doc.get('config_exists')}")
+            for i, step in enumerate(doc.get("recommended_flow") or [], start=1):
+                print(f"{i}. {step}")
+            if doc.get("hints"):
+                for h in doc.get("hints") or []:
+                    print(f"hint: {h}")
+            print(f"docs: {((doc.get('docs') or {}).get('onboarding') or 'docs/ONBOARDING.zh-CN.md')}")
+        _maybe_metrics_cli(
+            module="onboarding",
+            event="onboarding.quickstart",
+            latency_ms=(time.perf_counter() - t_onb) * 1000.0,
+            tokens=len(doc.get("recommended_flow") or []),
+            success=True,
+        )
+        return 0
+
     if args.command == "ecc":
         t_ecc = time.perf_counter()
         from cai_agent.ecc_layout import (
@@ -7353,7 +7574,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_hint=str(root_ecc) if root_ecc else None,
             )
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            _print_config_not_found_hint(e, command="ecc")
             return 2
         ecc_act = str(getattr(args, "ecc_action", "") or "").strip().lower()
         if ecc_act == "layout":
@@ -7606,7 +7827,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_hint=_settings_workspace_hint(args),
             )
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            _print_config_not_found_hint(e, command="doctor")
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -7639,7 +7860,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_hint=_settings_workspace_hint(args),
             )
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            _print_config_not_found_hint(e, command="repair")
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -7690,7 +7911,7 @@ def main(argv: list[str] | None = None) -> int:
                 workspace_hint=_settings_workspace_hint(args),
             )
         except FileNotFoundError as e:
-            print(str(e), file=sys.stderr)
+            _print_config_not_found_hint(e, command="tools")
             return 2
         from cai_agent.tool_provider import (
             build_tool_gateway_guard_payload,
@@ -7843,6 +8064,7 @@ def main(argv: list[str] | None = None) -> int:
                             "ok": False,
                             "error": "config_not_found",
                             "message": str(e),
+                            "hints": _plan_failure_hints("config_not_found"),
                             "generated_at": datetime.now(UTC).isoformat(),
                         },
                         ensure_ascii=False,
@@ -7850,6 +8072,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(str(e), file=sys.stderr)
+                for hint in _plan_failure_hints("config_not_found"):
+                    print(f"hint: {hint}", file=sys.stderr)
             _maybe_metrics_cli(
                 module="plan",
                 event="plan.generate",
@@ -7875,6 +8099,7 @@ def main(argv: list[str] | None = None) -> int:
                             "ok": False,
                             "error": "goal_empty",
                             "message": "goal 不能为空",
+                            "hints": _plan_failure_hints("goal_empty"),
                             "generated_at": datetime.now(UTC).isoformat(),
                             "task": None,
                         },
@@ -7883,6 +8108,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print("goal 不能为空", file=sys.stderr)
+                for hint in _plan_failure_hints("goal_empty"):
+                    print(f"hint: {hint}", file=sys.stderr)
             _maybe_metrics_cli(
                 module="plan",
                 event="plan.generate",
@@ -7970,6 +8197,7 @@ def main(argv: list[str] | None = None) -> int:
                             "ok": False,
                             "error": "llm_error",
                             "message": str(e),
+                            "hints": _plan_failure_hints("llm_error"),
                             "generated_at": datetime.now(UTC).isoformat(),
                             "goal": goal,
                             "workspace": settings.workspace,
@@ -7983,6 +8211,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             else:
                 print(f"生成计划失败: {e}", file=sys.stderr)
+                for hint in _plan_failure_hints("llm_error"):
+                    print(f"hint: {hint}", file=sys.stderr)
             u_err = get_usage_counters()
             _maybe_metrics_cli(
                 module="plan",
@@ -9109,6 +9339,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             if not files:
                 print("(无会话文件)")
+                print("hint: 先用 `cai-agent run ... --save-session <path>` 生成会话文件。")
+                print("hint: 也可先执行 `cai-agent onboarding` 查看首轮最短链路。")
             for i, p in enumerate(files, start=1):
                 st = p.stat()
                 print(f"{i:>2}. {p.name}\t{st.st_size} bytes")
@@ -9128,6 +9360,8 @@ def main(argv: list[str] | None = None) -> int:
                         ap = d.get("answer_preview")
                         if isinstance(ap, str) and ap:
                             print(f"    answer={ap}")
+            if files:
+                print(f"next: cai-agent continue \"{files[0]}\" \"继续这个任务\"")
         _maybe_metrics_cli(
             module="sessions",
             event="sessions.list",
@@ -13901,6 +14135,8 @@ def main(argv: list[str] | None = None) -> int:
                     tpl = get_workflow_template(tpl_id, goal=goal_str)
                 except KeyError as e:
                     print(str(e), file=sys.stderr)
+                    for hint in _workflow_failure_hints("template_not_found"):
+                        print(f"hint: {hint}", file=sys.stderr)
                     return 2
                 if json_out:
                     print(json.dumps(tpl, ensure_ascii=False, indent=2))
@@ -13919,6 +14155,8 @@ def main(argv: list[str] | None = None) -> int:
         # --- 正常 workflow run ---
         if not getattr(args, "file", None):
             print("用法: cai-agent workflow <file.json> 或 cai-agent workflow templates", file=sys.stderr)
+            for hint in _workflow_failure_hints("workflow_file_missing"):
+                print(f"hint: {hint}", file=sys.stderr)
             return 2
         try:
             settings = Settings.from_env(
@@ -13927,6 +14165,8 @@ def main(argv: list[str] | None = None) -> int:
             )
         except FileNotFoundError as e:
             print(str(e), file=sys.stderr)
+            for hint in _workflow_failure_hints("config_not_found"):
+                print(f"hint: {hint}", file=sys.stderr)
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -13948,6 +14188,8 @@ def main(argv: list[str] | None = None) -> int:
             result = run_workflow(settings, args.file)
         except Exception as e:
             print(f"运行 workflow 失败: {e}", file=sys.stderr)
+            for hint in _workflow_failure_hints("run_failed"):
+                print(f"hint: {hint}", file=sys.stderr)
             _print_hook_status(
                 settings,
                 event="workflow_end",
@@ -14058,6 +14300,9 @@ def main(argv: list[str] | None = None) -> int:
             memory_state_stale_confidence=float(getattr(args, "memory_state_stale_confidence", 0.4)),
             with_memory_policy=bool(getattr(args, "with_memory_policy", False)),
         )
+        hints_rg = _release_ga_failure_hints(payload)
+        if str(payload.get("state")) != "pass":
+            payload["hints"] = hints_rg
         if bool(getattr(args, "json_output", False)):
             print(json.dumps(payload, ensure_ascii=False))
         else:
@@ -14073,6 +14318,8 @@ def main(argv: list[str] | None = None) -> int:
                 for x in failures:
                     if isinstance(x, dict):
                         print(f"- {x.get('name')}: {x.get('reason')}")
+                for hint in hints_rg:
+                    print(f"- hint: {hint}")
             rel = payload.get("release_runbook") if isinstance(payload.get("release_runbook"), dict) else {}
             print("[release-ga] runbook:")
             print("- cai-agent doctor --json")
@@ -14120,12 +14367,15 @@ def main(argv: list[str] | None = None) -> int:
                             message=str(e),
                             task=t0,
                             settings=None,
+                            extras={"hints": _run_continue_failure_hints("config_not_found")},
                         ),
                         ensure_ascii=False,
                     ),
                 )
             else:
                 print(str(e), file=sys.stderr)
+                for hint in _run_continue_failure_hints("config_not_found"):
+                    print(f"hint: {hint}", file=sys.stderr)
             return 2
         if args.model:
             settings = replace(settings, model=str(args.model).strip())
@@ -14149,12 +14399,15 @@ def main(argv: list[str] | None = None) -> int:
                             message="goal 不能为空",
                             task=tg,
                             settings=settings,
+                            extras={"hints": _run_continue_failure_hints("goal_empty")},
                         ),
                         ensure_ascii=False,
                     ),
                 )
             else:
                 print("goal 不能为空", file=sys.stderr)
+                for hint in _run_continue_failure_hints("goal_empty"):
+                    print(f"hint: {hint}", file=sys.stderr)
             return 2
         if args.command in ("command", "fix-build"):
             if args.command == "fix-build":
@@ -14176,12 +14429,15 @@ def main(argv: list[str] | None = None) -> int:
                                 message=f"命令模板不存在: /{cmd_name}",
                                 task=tc,
                                 settings=settings,
+                                extras={"hints": _run_continue_failure_hints("command_not_found")},
                             ),
                             ensure_ascii=False,
                         ),
                     )
                 else:
                     print(f"命令模板不存在: /{cmd_name}", file=sys.stderr)
+                    for hint in _run_continue_failure_hints("command_not_found"):
+                        print(f"hint: {hint}", file=sys.stderr)
                 return 2
             skill_texts = load_related_skill_texts(settings, cmd_name, goal_hint=goal[:500])
             skill_block = ""
@@ -14213,12 +14469,15 @@ def main(argv: list[str] | None = None) -> int:
                                 message=f"子代理模板不存在: {agent_name}",
                                 task=ta,
                                 settings=settings,
+                                extras={"hints": _run_continue_failure_hints("agent_not_found")},
                             ),
                             ensure_ascii=False,
                         ),
                     )
                 else:
                     print(f"子代理模板不存在: {agent_name}", file=sys.stderr)
+                    for hint in _run_continue_failure_hints("agent_not_found"):
+                        print(f"hint: {hint}", file=sys.stderr)
                 return 2
             skill_texts = load_related_skill_texts(settings, agent_name, goal_hint=goal[:500])
             skill_block = ""
@@ -14252,12 +14511,15 @@ def main(argv: list[str] | None = None) -> int:
                                 message=f"读取计划文件失败: {e}",
                                 task=tp,
                                 settings=settings,
+                                extras={"hints": _run_continue_failure_hints("plan_file_error")},
                             ),
                             ensure_ascii=False,
                         ),
                     )
                 else:
                     print(f"读取计划文件失败: {e}", file=sys.stderr)
+                    for hint in _run_continue_failure_hints("plan_file_error"):
+                        print(f"hint: {hint}", file=sys.stderr)
                 return 2
 
         auto_on = bool(getattr(args, "auto_approve", False))
@@ -14318,12 +14580,15 @@ def main(argv: list[str] | None = None) -> int:
                                     message=f"读取会话失败: {e}",
                                     task=task,
                                     settings=settings,
+                                    extras={"hints": _run_continue_failure_hints("load_session_failed")},
                                 ),
                                 ensure_ascii=False,
                             ),
                         )
                     else:
                         print(f"读取会话失败: {e}", file=sys.stderr)
+                        for hint in _run_continue_failure_hints("load_session_failed"):
+                            print(f"hint: {hint}", file=sys.stderr)
                     return 2
                 messages = sess.get("messages")
                 if not isinstance(messages, list) or not messages:
@@ -14336,12 +14601,15 @@ def main(argv: list[str] | None = None) -> int:
                                     message="会话文件不合法：messages 必须是非空数组",
                                     task=task,
                                     settings=settings,
+                                    extras={"hints": _run_continue_failure_hints("invalid_session")},
                                 ),
                                 ensure_ascii=False,
                             ),
                         )
                     else:
                         print("会话文件不合法：messages 必须是非空数组", file=sys.stderr)
+                        for hint in _run_continue_failure_hints("invalid_session"):
+                            print(f"hint: {hint}", file=sys.stderr)
                     return 2
                 state = {
                     "messages": list(messages) + [{"role": "user", "content": goal}],

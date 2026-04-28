@@ -27,6 +27,7 @@ def test_placeholder_mentions_continue_and_tasks() -> None:
 
 def test_task_board_line() -> None:
     assert "continue" in tui_task_board_session_line_rich()
+    assert "/recap" in tui_task_board_session_line_rich()
 
 
 def test_one_liner_after_load() -> None:

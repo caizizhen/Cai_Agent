@@ -12,7 +12,7 @@
 ### 2. 项目上下文来源
 
 - 项目级说明优先来源于：
-  - `README.md`
+  - `README.md`（英文默认）、`README.zh-CN.md`（中文）
   - `docs/ARCHITECTURE.zh-CN.md`
   - 未来专门的项目说明文件（如 `CAI.md` / `AGENTS.md`）
 - 引入上下文时应说明其来源，并注意避免过期文档误导模型。

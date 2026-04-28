@@ -83,7 +83,7 @@ def tui_session_continue_one_liner_rich() -> str:
 def tui_task_board_session_line_rich() -> str:
     """任务看板顶部一行，与会话条口径对齐。"""
     return (
-        "[dim]会话继续：本屏直接输入；[/][cyan]/load[/][dim]·[/][cyan]/sessions[/]"
+        "[dim]会话继续：本屏直接输入；[/][cyan]/load[/][dim]·[/][cyan]/sessions[/][dim]·[/][cyan]/recap[/]"
         "[dim]；CLI[/] [cyan]cai-agent continue[/]"
     )
 

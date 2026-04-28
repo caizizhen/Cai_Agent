@@ -68,6 +68,9 @@ class ReleaseGaCliTests(unittest.TestCase):
         self.assertIn("security_scan", failed)
         self.assertIn("session_failure_rate", failed)
         self.assertIn("token_budget", failed)
+        hints = payload.get("hints") or []
+        self.assertTrue(isinstance(hints, list) and hints)
+        self.assertIn("cai-agent cost report --json", hints)
         failed_details = payload.get("failed_check_details") or []
         self.assertTrue(any(isinstance(row, dict) and row.get("name") == "quality_gate" for row in failed_details))
 

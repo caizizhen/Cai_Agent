@@ -137,6 +137,8 @@ class PlanJsonSchemaTests(unittest.TestCase):
         payload = json.loads(buf.getvalue().strip())
         self.assertEqual(payload.get("error"), "config_not_found")
         self.assertIs(payload.get("ok"), False)
+        hints = payload.get("hints") or []
+        self.assertIn("cai-agent onboarding", hints)
 
     def test_plan_json_goal_empty_includes_task_none(self) -> None:
         buf = io.StringIO()
@@ -146,6 +148,8 @@ class PlanJsonSchemaTests(unittest.TestCase):
         payload = json.loads(buf.getvalue().strip())
         self.assertEqual(payload.get("error"), "goal_empty")
         self.assertIsNone(payload.get("task"))
+        hints = payload.get("hints") or []
+        self.assertTrue(isinstance(hints, list) and hints)
 
     def test_run_json_top_level_task_id_matches_task_object(self) -> None:
         prev_mock = os.environ.get("CAI_MOCK")

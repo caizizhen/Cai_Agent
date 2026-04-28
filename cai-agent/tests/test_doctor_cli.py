@@ -94,6 +94,9 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(install, dict)
             self.assertEqual(install.get("schema_version"), "doctor_installation_guidance_v1")
             self.assertEqual(install.get("onboarding_doc"), "docs/ONBOARDING.zh-CN.md")
+            flow = install.get("recommended_flow") or []
+            self.assertTrue(isinstance(flow, list) and flow)
+            self.assertEqual(flow[0], "cai-agent onboarding")
             install_diag = pl.get("install")
             self.assertIsInstance(install_diag, dict)
             self.assertEqual(install_diag.get("schema_version"), "doctor_install_v1")

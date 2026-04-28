@@ -128,9 +128,14 @@ cai-agent --version
 **Quick path:**
 
 ```bash
-cai-agent init
-cai-agent doctor
+cai-agent onboarding
 cai-agent run "Summarize this repository layout"
+```
+
+For the full dry-run onboarding chain (models onboarding, TUI, session continue/recap hints):
+
+```bash
+cai-agent onboarding --json
 ```
 
 **Preset with multiple profiles** (LM Studio / Ollama / vLLM / OpenRouter / Zhipu / gateway placeholder):
