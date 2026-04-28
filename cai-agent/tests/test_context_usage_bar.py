@@ -372,7 +372,20 @@ class GraphEmitsUsageTests(unittest.TestCase):
 
 
 class PresetAndSynthesizeDefaultsTests(unittest.TestCase):
-    def test_synthesize_default_has_context_window_none(self) -> None:
+    def test_synthesize_default_infers_hosted_provider_context_window(self) -> None:
+        from cai_agent.profiles import synthesize_default_profile
+
+        p = synthesize_default_profile(
+            provider="openai_compatible",
+            base_url="https://api.openai.com/v1",
+            model="gpt-4o",
+            api_key="x",
+            temperature=0.2,
+            timeout_sec=120.0,
+        )
+        self.assertEqual(p.context_window, 128000)
+
+    def test_synthesize_default_keeps_local_provider_context_window_unknown(self) -> None:
         from cai_agent.profiles import synthesize_default_profile
 
         p = synthesize_default_profile(

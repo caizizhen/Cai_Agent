@@ -6,6 +6,10 @@
 
 ### Unreleased
 
+- **内置第三方预设改为官方上下文窗口默认值**：为仓库内置托管第三方 preset（`nous_portal`、`nvidia_nim`、`xiaomi_mimo`、`kimi_moonshot`、`minimax`、`huggingface`）补齐显式 `context_window`，接入与 onboarding 流程会自动带入 provider 官方模型上限；并同步收敛这些模型 ID 的推断规则。本地/自建端点仍保持手动配置，不做自动钉死。
+
+- **legacy 第三方 `[llm]` 配置默认上下文窗口自动推断**：`synthesize_default_profile` 现在会对托管第三方模型调用 `infer_default_context_window()`，因此单模型 legacy 接入无需手填 `[llm].context_window` 也会自动使用 provider/model 默认值（例如 `gpt-4o` → `128000`）。本地/自建 OpenAI 兼容端点保持不变（未显式配置时仍为未知）。测试已同步到 `test_context_usage_bar.py` 与 `test_model_profiles_config.py`。
+
 - **MiMo provider 预设/文档更新**：`xiaomi_mimo` 默认模型更新为 `MiMo-V2.5-Pro`；README 补充官方 OpenCode 风格 key 映射（`MIMO_API_KEY`）与专属 `base_url` 覆盖流程（`models edit --api-key-env ... --base-url ... --model ...`）。
 
 - **UX-N01-D06 体验层第六阶段（plan/workflow/release-ga 失败提示收口）**：`plan` 的 `config_not_found`/`goal_empty`/`llm_error` 失败返回新增 `hints`（JSON + 文本）；`workflow` 的模板缺失、缺文件、缺配置与执行失败路径补充标准化 `hint:`；`release-ga` 失败态新增 `hints[]`（JSON）并在文本输出 failed checks 后追加 hint 行，统一排障下一步。测试：`test_plan_sessions_cli.py`、`test_cli_workflow.py`、`test_release_ga_cli.py`、`test_cli_misc.py`，并通过全量 `pytest` 与 smoke。

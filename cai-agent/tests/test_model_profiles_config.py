@@ -52,6 +52,38 @@ class ProfilesParsingTests(unittest.TestCase):
         self.assertEqual(s.model, "demo-model")
         self.assertAlmostEqual(s.temperature, 0.3, places=5)
 
+    def test_legacy_llm_infers_context_window_for_hosted_model(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _write(
+                Path(d),
+                """
+                [llm]
+                provider = "openai"
+                base_url = "https://api.openai.com/v1"
+                model = "gpt-4o"
+                api_key = "sk-test"
+                """,
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.context_window, 128000)
+        self.assertEqual(s.context_window_source, "profile")
+
+    def test_legacy_llm_infers_context_window_for_builtin_third_party_model(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            cfg = _write(
+                Path(d),
+                """
+                [llm]
+                provider = "openai_compatible"
+                base_url = "https://api.moonshot.cn/v1"
+                model = "kimi-k2-turbo-preview"
+                api_key = "sk-test"
+                """,
+            )
+            s = Settings.from_env(config_path=str(cfg))
+        self.assertEqual(s.context_window, 256000)
+        self.assertEqual(s.context_window_source, "profile")
+
     def test_profiles_projection_overrides_llm_section(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             cfg = _write(

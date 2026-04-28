@@ -4,6 +4,10 @@
 
 ### Unreleased
 
+- **Built-in third-party presets now carry official context-window defaults**: Added explicit `context_window` values for bundled hosted presets (`nous_portal`, `nvidia_nim`, `xiaomi_mimo`, `kimi_moonshot`, `minimax`, `huggingface`) so onboarding/apply flows auto-fill provider model limits out of the box. Inference fallback rules were aligned for these model IDs as well. Local/self-hosted endpoints still require manual configuration and are intentionally not auto-pinned.
+
+- **Context window now auto-infers for legacy third-party `[llm]` configs**: `synthesize_default_profile` now applies `infer_default_context_window()` for hosted providers, so legacy single-model integrations automatically use provider/model context defaults (for example `gpt-4o` → `128000`) without manually setting `[llm].context_window`. Local/self-hosted OpenAI-compatible endpoints remain unchanged (`context_window` stays unknown unless explicitly configured). Tests updated in `test_context_usage_bar.py` and `test_model_profiles_config.py`.
+
 - **MiMo provider preset/docs update**: Updated `xiaomi_mimo` default model to `MiMo-V2.5-Pro`, and documented the official OpenCode-style key mapping (`MIMO_API_KEY`) plus dedicated base URL override flow (`models edit --api-key-env ... --base-url ... --model ...`) in README.
 
 - **UX-N01-D06 experience layer phase 6 (plan/workflow/release-ga failure hints convergence)**: Added standardized next-step hints for `plan` failures (`config_not_found`, `goal_empty`, `llm_error`) across JSON/text outputs; added aligned `hint:` guidance for `workflow` template/missing-file/config/runtime failure paths; and added `hints[]` to failed `release-ga` JSON payloads plus text-mode hint lines after failed checks. Tests: `test_plan_sessions_cli.py`, `test_cli_workflow.py`, `test_release_ga_cli.py`, and `test_cli_misc.py`; full `pytest` and smoke are green.

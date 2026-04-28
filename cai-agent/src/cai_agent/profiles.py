@@ -33,6 +33,124 @@ KNOWN_PROVIDERS: tuple[str, ...] = (
 _ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-.]{0,63}$")
 
 
+_LOCAL_BASE_MARKERS = (
+    "localhost",
+    "127.0.0.1",
+    "0.0.0.0",
+    "[::1]",
+)
+
+
+def _is_local_base_url(base_url: str | None) -> bool:
+    base = str(base_url or "").strip().lower()
+    return base.startswith("http://") and any(marker in base for marker in _LOCAL_BASE_MARKERS)
+
+
+def infer_default_context_window(
+    *,
+    provider: str | None,
+    base_url: str | None,
+    model: str | None,
+) -> int | None:
+    """Best-effort non-local provider context-window defaults.
+
+    Local/self-hosted OpenAI-compatible servers can expose arbitrary models, so
+    this helper intentionally returns ``None`` for localhost/127.0.0.1.  For
+    hosted providers, values are conservative public API limits used only when
+    the user has not explicitly set ``context_window``.
+    """
+
+    provider_s = str(provider or "").strip().lower()
+    base = str(base_url or "").strip().lower()
+    model_l = str(model or "").strip().lower()
+    if not model_l or _is_local_base_url(base):
+        return None
+
+    # Explicit model-level defaults for built-in hosted third-party presets.
+    if "mimo-v2.5-pro" in model_l:
+        return 1_000_000
+    if model_l.startswith(("kimi-k2", "moonshot/kimi-k2")):
+        return 256_000
+    if model_l.startswith("minimax-m2.1"):
+        return 204_800
+    if "hermes-3-llama-3.1-8b" in model_l:
+        return 128_000
+    if model_l.startswith("meta/llama-3.1-8b-instruct"):
+        return 128_000
+    if model_l.endswith("meta-llama-3-8b-instruct"):
+        return 8_192
+
+    # Provider/protocol-wide defaults first.
+    if provider_s == "anthropic" or "api.anthropic.com" in base or model_l.startswith("claude-"):
+        return 200_000
+    if "open.bigmodel.cn" in base or model_l.startswith(("glm-5", "glm-4.6")):
+        return 200_000
+    if "api.deepseek.com" in base or model_l.startswith("deepseek-"):
+        return 128_000
+    if "generativelanguage.googleapis.com" in base or model_l.startswith("gemini-"):
+        return 1_048_576
+
+    # OpenAI family.
+    if model_l.startswith(("gpt-4.1", "gpt-4.5")):
+        return 1_047_576
+    if model_l.startswith(("gpt-4o", "chatgpt-4o")):
+        return 128_000
+    if model_l.startswith(("o1", "o3", "o4")):
+        return 200_000
+    if model_l.startswith("gpt-5"):
+        return 400_000
+
+    # xAI / Grok.
+    if "api.x.ai" in base or model_l.startswith("grok-"):
+        if "fast" in model_l or "4.1" in model_l or "4.20" in model_l:
+            return 2_000_000
+        if "4" in model_l:
+            return 256_000
+        return 131_072
+
+    # Common OpenAI-compatible hosted providers and open-model routers.
+    if "api.moonshot" in base or model_l.startswith("kimi-"):
+        return 128_000
+    if "api.minimax" in base or model_l.startswith("minimax-"):
+        return 1_000_000
+    if "api.perplexity.ai" in base or model_l.startswith("sonar"):
+        return 128_000
+    if "api.groq.com" in base:
+        if "llama-3.3" in model_l or "llama-4" in model_l:
+            return 131_072
+        return 32_768
+    if "mistral" in base or model_l.startswith(("mistral-", "codestral", "ministral")):
+        return 128_000
+    if "dashscope" in base or "aliyuncs.com" in base or model_l.startswith(("qwen-", "qwen2", "qwen3")):
+        return 131_072
+    if "ark.cn-" in base or "volces.com" in base or model_l.startswith(("doubao-", "seed-")):
+        return 128_000
+    if "siliconflow" in base or "together.xyz" in base or "fireworks.ai" in base:
+        if "deepseek" in model_l:
+            return 128_000
+        if "qwen" in model_l:
+            return 131_072
+        if "llama-4" in model_l or "llama-3.3" in model_l:
+            return 131_072
+        return None
+
+    # OpenRouter model ids often look like "vendor/model".
+    if "openrouter.ai" in base:
+        if model_l.startswith("openai/"):
+            return infer_default_context_window(provider="openai", base_url="https://api.openai.com/v1", model=model_l.split("/", 1)[1])
+        if model_l.startswith("anthropic/"):
+            return 200_000
+        if model_l.startswith("google/"):
+            return 1_048_576 if "gemini" in model_l else None
+        if model_l.startswith("deepseek/"):
+            return 128_000
+        if model_l.startswith("x-ai/") or model_l.startswith("xai/"):
+            return infer_default_context_window(provider="openai_compatible", base_url="https://api.x.ai/v1", model=model_l.split("/", 1)[1])
+        return None
+
+    return None
+
+
 class ProfilesError(ValueError):
     """Profile 解析 / 校验错误（向 CLI 报可读消息时使用）。"""
 
@@ -230,6 +348,12 @@ def build_profile(raw: dict[str, Any], *, hint: str = "") -> Profile:
     if max_tokens is not None:
         max_tokens = max(1, min(1_000_000, int(max_tokens)))
     context_window = _as_int(raw.get("context_window"), None)
+    if context_window is None:
+        context_window = infer_default_context_window(
+            provider=provider,
+            base_url=base_url,
+            model=model,
+        )
     if context_window is not None:
         context_window = max(256, min(10_000_000, int(context_window)))
 
@@ -312,6 +436,11 @@ def synthesize_default_profile(
     prov = (provider or "").lower()
     if prov not in KNOWN_PROVIDERS:
         prov = "openai_compatible"
+    inferred_context_window = infer_default_context_window(
+        provider=prov,
+        base_url=base_url,
+        model=model,
+    )
     return Profile(
         id="default",
         provider=prov,
@@ -323,7 +452,7 @@ def synthesize_default_profile(
         timeout_sec=timeout_sec,
         anthropic_version=None,
         max_tokens=None,
-        context_window=None,
+        context_window=inferred_context_window,
         notes=None,
     )
 

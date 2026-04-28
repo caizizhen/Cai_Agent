@@ -39,6 +39,18 @@ def test_providers_json_payload_schema() -> None:
     caps = hint["capabilities"]
     assert "streaming" in caps
     assert "local_private" in caps
+    expectations = {
+        "nous_portal": 128_000,
+        "nvidia_nim": 128_000,
+        "xiaomi_mimo": 1_000_000,
+        "kimi_moonshot": 256_000,
+        "minimax": 204_800,
+        "huggingface": 8_192,
+    }
+    for preset_id, expected_ctx in expectations.items():
+        preset_row = next(r for r in doc["providers"] if r["id"] == preset_id)
+        preset_hint = preset_row.get("capabilities_hint") or {}
+        assert preset_hint.get("context_window") == expected_ctx
 
 
 def test_provider_registry_v1_schema_file() -> None:
