@@ -219,12 +219,7 @@ def build_ops_dashboard_interactions_payload(
     mode: str = "preview",
     params: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Preview-only dashboard interaction contract.
-
-    HM-04c keeps the first advanced-interaction surface read-only: clients can
-    validate user intent and render a confirmation UI without mutating schedule
-    or gateway state.
-    """
+    """Dashboard interaction contract for preview/apply/audit flows."""
     base = Path(cwd or ".").expanduser().resolve()
     act = str(action or "").strip()
     op_mode = str(mode or "preview").strip().lower() or "preview"

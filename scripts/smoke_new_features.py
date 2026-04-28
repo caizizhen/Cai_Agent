@@ -11,8 +11,8 @@ init --json, schedule add + list + rm + stats --json, gateway telegram list
 --json, gateway discord list/health --json, gateway slack bind/health --json, gateway teams bind/health/manifest --json, gateway status/prod-status --json, gateway telegram continue-hint --json, recall --json, ``recall-index doctor --json`` (missing index → exit 2),
 ``recall-index info --json`` (missing index → ok false / index_not_found, exit 0),
 ``recall --evaluate --json`` (**recall_evaluation_v1**，无需 ``--query``），
-``runtime list --json``（含 docker/ssh 后端）、``models onboarding --json`` / ``models routing-test --json`` fallback candidates、``models clone --dry-run --json`` / ``models alias --json``、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在）与
-``api_http_server`` OpenAI-compatible payload builders（``/v1/models``、非流式与 SSE ``/v1/chat/completions``），
+``runtime list --json``（含 docker/ssh 后端）、``models onboarding --json`` / ``models routing-test --json`` fallback candidates、``models clone --dry-run --json`` / ``models alias --json``、``gen_plugin_compat_snapshot --check``、``api serve --help``（HM-02b 子命令存在）、``api openapi --json`` 与
+``api_http_server`` OpenAI-compatible/OpenAPI payload builders（``/v1/models``、非流式与 SSE ``/v1/chat/completions``、``/openapi.json``），
 ``workflow --json`` (``CAI_MOCK=1``, root ``task_id`` vs ``task.task_id``;
 ``summary.on_error`` + ``budget_limit``/``budget_used``/``budget_exceeded``),
 memory list/search/export-entries/export --json envelopes.
@@ -799,6 +799,46 @@ def main() -> int:
                 errs.append(f"ecc pack-import missing ingest_gate {ig!r}")
             elif ig.get("allow") is not True:
                 errs.append(f"ecc pack-import ingest_gate blocked unexpectedly {ig!r}")
+            td = pimd.get("trust_decision")
+            if not isinstance(td, dict) or td.get("schema_version") != "ecc_ingest_trust_decision_v1":
+                errs.append(f"ecc pack-import missing trust_decision {td!r}")
+            elif td.get("combined_decision") != "review" or td.get("allow_apply") is not False:
+                errs.append(f"ecc pack-import unknown trust decision unexpected {td!r}")
+        pam = _run([*cli, "ecc", "-w", mh_td, "assets", "catalog", "--json"], cwd=mh_td)
+        if pam.returncode != 0:
+            errs.append(f"ecc assets catalog exit {pam.returncode} stderr={pam.stderr!r}")
+        else:
+            amd = json.loads((pam.stdout or "").strip())
+            if amd.get("schema_version") != "ecc_asset_marketplace_catalog_v1":
+                errs.append(f"ecc assets catalog schema {amd.get('schema_version')!r}")
+            assets = amd.get("assets") if isinstance(amd.get("assets"), list) else []
+            if not any(isinstance(a, dict) and a.get("asset_id") == "rules" for a in assets):
+                errs.append("ecc assets catalog missing rules asset")
+            if not isinstance(amd.get("trust"), dict):
+                errs.append("ecc assets catalog missing trust summary")
+        pau = _run(
+            [
+                *cli,
+                "ecc",
+                "-w",
+                mh_td,
+                "assets",
+                "upgrade-plan",
+                "--from-workspace",
+                str(import_src),
+                "--json",
+            ],
+            cwd=mh_td,
+        )
+        if pau.returncode != 0:
+            errs.append(f"ecc assets upgrade-plan exit {pau.returncode} stderr={pau.stderr!r}")
+        else:
+            aud = json.loads((pau.stdout or "").strip())
+            if aud.get("schema_version") != "ecc_asset_marketplace_upgrade_plan_v1":
+                errs.append(f"ecc assets upgrade-plan schema {aud.get('schema_version')!r}")
+            recs = aud.get("recommendations") if isinstance(aud.get("recommendations"), list) else []
+            if not any(isinstance(r, dict) and r.get("asset_id") == "rules" for r in recs):
+                errs.append("ecc assets upgrade-plan missing rules recommendation")
         mh_cfg = Path(mh_td) / "cai-agent.toml"
         mh_cfg.write_text(
             '[llm]\nprovider = "openai_compatible"\nbase_url = "http://127.0.0.1:9/v1"\nmodel = "m"\napi_key = "k"\n[agent]\nmock = true\n',
@@ -1245,6 +1285,23 @@ def main() -> int:
             gsm = gpo.get("summary") if isinstance(gpo.get("summary"), dict) else {}
             if int(gsm.get("platforms_count") or 0) < 4:
                 errs.append(f"gateway prod-status platforms_count {gsm!r}")
+            if "diagnostics_count" not in gsm or "blocked_count" not in gsm:
+                errs.append(f"gateway prod-status readiness summary missing {gsm!r}")
+            platform_rows = {
+                str(r.get("id")): r
+                for r in (gpo.get("platforms") if isinstance(gpo.get("platforms"), list) else [])
+                if isinstance(r, dict)
+            }
+            for pid in ("discord", "slack", "teams"):
+                prow = platform_rows.get(pid) or {}
+                ready = prow.get("readiness") if isinstance(prow.get("readiness"), dict) else {}
+                diagnostics = prow.get("diagnostics") if isinstance(prow.get("diagnostics"), list) else []
+                if ready.get("schema_version") != "gateway_platform_readiness_v1":
+                    errs.append(f"gateway prod-status {pid} readiness schema {ready.get('schema_version')!r}")
+                if not isinstance(prow.get("readiness_checklist"), list):
+                    errs.append(f"gateway prod-status {pid} readiness_checklist missing")
+                if not diagnostics:
+                    errs.append(f"gateway prod-status {pid} diagnostics missing")
         gch = _run([*cli, "gateway", "telegram", "continue-hint", "--json"], cwd=gw_td)
         if gch.returncode != 0:
             errs.append(f"gateway continue-hint exit {gch.returncode} stderr={gch.stderr!r}")
@@ -1605,9 +1662,28 @@ def main() -> int:
     p_api = _run([*cli, "api", "serve", "--help"])
     if p_api.returncode != 0:
         errs.append(f"api serve --help exit {p_api.returncode} stderr={p_api.stderr!r}")
+    p_api_openapi = _run([*cli, "api", "openapi", "--json"])
+    if p_api_openapi.returncode != 0:
+        errs.append(f"api openapi json exit {p_api_openapi.returncode} stderr={p_api_openapi.stderr!r}")
+    else:
+        try:
+            api_oas = json.loads((p_api_openapi.stdout or "").strip())
+        except json.JSONDecodeError as e:
+            errs.append(f"api openapi json parse: {e}")
+        else:
+            if api_oas.get("openapi") != "3.1.0":
+                errs.append(f"api openapi version {api_oas.get('openapi')!r}")
+            contract = api_oas.get("x-cai-contract") if isinstance(api_oas.get("x-cai-contract"), dict) else {}
+            if contract.get("schema_version") != "api_openapi_v1":
+                errs.append(f"api openapi contract schema {contract.get('schema_version')!r}")
+            paths = api_oas.get("paths") if isinstance(api_oas.get("paths"), dict) else {}
+            for route in ("/v1/status", "/v1/doctor/summary", "/v1/models", "/v1/chat/completions", "/v1/ops/dashboard"):
+                if route not in paths:
+                    errs.append(f"api openapi missing route {route}")
 
     try:
         from cai_agent.api_http_server import (
+            build_api_openapi_v1,
             build_api_openai_chat_completion_v1,
             build_api_openai_chat_completion_stream_events_v1,
             build_api_openai_models_v1,
@@ -1654,6 +1730,12 @@ def main() -> int:
                     errs.append(f"api stream chunk schema {stream_events!r}")
                 if stream_events[-1].get("choices", [{}])[0].get("finish_reason") != "stop":
                     errs.append(f"api stream final chunk {stream_events[-1]!r}")
+                openapi_payload = build_api_openapi_v1()
+                openapi_paths = openapi_payload.get("paths") if isinstance(openapi_payload.get("paths"), dict) else {}
+                if (openapi_payload.get("x-cai-contract") or {}).get("schema_version") != "api_openapi_v1":
+                    errs.append("api openapi builder contract schema missing")
+                if "/v1/ops/dashboard/interactions" not in openapi_paths:
+                    errs.append("api openapi builder missing ops interactions")
             finally:
                 if prev_cfg is None:
                     os.environ.pop("CAI_CONFIG", None)

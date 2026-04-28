@@ -94,6 +94,10 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(install, dict)
             self.assertEqual(install.get("schema_version"), "doctor_installation_guidance_v1")
             self.assertEqual(install.get("onboarding_doc"), "docs/ONBOARDING.zh-CN.md")
+            flows = install.get("recovery_flows") or {}
+            self.assertEqual(flows.get("schema_version"), "install_recovery_flows_v1")
+            self.assertIn("cai-agent init --preset starter", flows.get("missing_config") or [])
+            self.assertIn("cai-agent ecc home-diff --json", flows.get("asset_drift") or [])
             flow = install.get("recommended_flow") or []
             self.assertTrue(isinstance(flow, list) and flow)
             self.assertEqual(flow[0], "cai-agent onboarding")
@@ -101,6 +105,8 @@ class DoctorCliTests(unittest.TestCase):
             self.assertIsInstance(install_diag, dict)
             self.assertEqual(install_diag.get("schema_version"), "doctor_install_v1")
             self.assertIsInstance(install_diag.get("checks"), list)
+            self.assertEqual((install_diag.get("recovery_flows") or {}).get("schema_version"), "install_recovery_flows_v1")
+            self.assertIsInstance(install_diag.get("next_steps"), list)
             sync_diag = pl.get("sync")
             self.assertIsInstance(sync_diag, dict)
             self.assertEqual(sync_diag.get("schema_version"), "doctor_sync_v1")

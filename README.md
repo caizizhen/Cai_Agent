@@ -138,6 +138,8 @@ For the full dry-run onboarding chain (models onboarding, TUI, session continue/
 cai-agent onboarding --json
 ```
 
+For missing config, legacy config, or local asset drift, `cai-agent onboarding --json`, `cai-agent doctor --json`, and `cai-agent repair --dry-run --json` expose the same `install_recovery_flows_v1` / `next_steps` command chains.
+
 **Preset with multiple profiles** (LM Studio / Ollama / vLLM / OpenRouter / Zhipu / gateway placeholder):
 
 ```bash
@@ -178,6 +180,8 @@ cai-agent init --global
 | `[models]` | `active` profile id; `[[models.profile]]` blocks for multi-backend setups |
 
 **Zhipu (GLM)** example: `provider = openai_compatible`, `base_url = https://open.bigmodel.cn/api/paas/v4` (no extra `/v1`; runtime normalizes). Use env `ZAI_API_KEY` with `api_key_env = "ZAI_API_KEY"` in the profile.
+
+**Xiaomi MiMo** (OpenAI-compatible): default preset id is `xiaomi_mimo` with model `MiMo-V2.5-Pro`. If your key comes from the official OpenCode-style setup, map it as `api_key_env = "MIMO_API_KEY"` and use your dedicated `base_url` (for example `https://token-plan-cn.xiaomimimo.com/v1`).
 
 **Copilot-style proxy:** set `llm.provider = copilot` and `[copilot]` or `COPILOT_BASE_URL` / `COPILOT_MODEL` / `COPILOT_API_KEY`.
 
@@ -293,8 +297,15 @@ cai-agent models list
 cai-agent models use <profile_id>
 cai-agent models add --preset vllm --id my-vllm --model <id>
 cai-agent models add --preset zhipu --id glm --set-active
+cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
 cai-agent models ping --json
 cai-agent models clone …            # clone profile home tree when configured
+```
+
+MiMo official-key mapping example:
+
+```bash
+cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
 ```
 
 Profiles live under `[models]` / `[[models.profile]]` in TOML; switching active profile updates which LLM endpoint the graph uses.

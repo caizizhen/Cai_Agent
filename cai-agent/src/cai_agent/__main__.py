@@ -74,6 +74,9 @@ from cai_agent.profiles import (
     write_models_to_toml,
 )
 from cai_agent.exporter import (
+    build_ecc_asset_marketplace_catalog_v1,
+    build_ecc_asset_marketplace_list_v1,
+    build_ecc_asset_marketplace_upgrade_plan_v1,
     build_ecc_asset_pack_import_plan_v1,
     build_ecc_asset_pack_repair_report_v1,
     build_ecc_structured_home_diff_bundle_v1,
@@ -3938,6 +3941,12 @@ def _build_onboarding_quickstart_v1(
             "docs_index": str(install_guidance.get("docs_index") or "docs/README.zh-CN.md"),
             "upgrade_docs": list(install_guidance.get("upgrade_docs") or []),
         },
+        "recovery_flows": install_guidance.get("recovery_flows"),
+        "next_steps": (
+            list((install_guidance.get("recovery_flows") or {}).get("missing_config") or [])
+            if not config_exists
+            else list((install_guidance.get("recovery_flows") or {}).get("validation") or flow)
+        ),
         "session_tui_hints": [
             "cai-agent ui  # Ctrl+M 模型面板 / Ctrl+B 任务看板",
             "cai-agent sessions --details",
@@ -4208,6 +4217,24 @@ def main(argv: list[str] | None = None) -> int:
         help="输出 local_catalog_v1（rules/skills/hooks/plugins 本地资产目录）",
     )
     ecc_catalog_p.add_argument("--json", action="store_true", dest="json_output")
+
+    ecc_assets_p = ecc_sub.add_parser(
+        "assets",
+        help="ECC-N05 marketplace-lite: asset catalog/list/upgrade-plan",
+    )
+    ecc_assets_sub = ecc_assets_p.add_subparsers(dest="ecc_assets_action", required=True)
+    ecc_assets_catalog_p = ecc_assets_sub.add_parser("catalog", help="output marketplace-lite catalog")
+    ecc_assets_catalog_p.add_argument("--json", action="store_true", dest="json_output")
+    ecc_assets_list_p = ecc_assets_sub.add_parser("list", help="output marketplace-lite asset list")
+    ecc_assets_list_p.add_argument("--json", action="store_true", dest="json_output")
+    ecc_assets_upgrade_p = ecc_assets_sub.add_parser("upgrade-plan", help="build install/upgrade recommendations")
+    ecc_assets_upgrade_p.add_argument(
+        "--from-workspace",
+        required=True,
+        dest="ecc_assets_from_workspace",
+        help="source workspace path",
+    )
+    ecc_assets_upgrade_p.add_argument("--json", action="store_true", dest="json_output")
 
     ecc_sync_p = ecc_sub.add_parser(
         "sync-home",
@@ -6414,6 +6441,11 @@ def main(argv: list[str] | None = None) -> int:
         help="最小只读 HTTP JSON API（HM-02b）；默认端口 CAI_API_PORT 或 8788，鉴权 CAI_API_TOKEN",
     )
     api_sub = api_p.add_subparsers(dest="api_action", required=True)
+    api_openapi = api_sub.add_parser(
+        "openapi",
+        help="输出 API/ops 统一 OpenAPI 契约（非敏感，可供外部系统发现能力）",
+    )
+    api_openapi.add_argument("--json", action="store_true", dest="json_output")
     api_serve = api_sub.add_parser("serve", help="启动 api HTTP 服务（阻塞）")
     api_serve.add_argument("--host", default="127.0.0.1")
     api_serve.add_argument(
@@ -7573,6 +7605,8 @@ def main(argv: list[str] | None = None) -> int:
                 config_path=getattr(args, "config", None),
                 workspace_hint=str(root_ecc) if root_ecc else None,
             )
+            if root_ecc is not None:
+                settings_ecc = replace(settings_ecc, workspace=str(root_ecc))
         except FileNotFoundError as e:
             _print_config_not_found_hint(e, command="ecc")
             return 2
@@ -7642,6 +7676,39 @@ def main(argv: list[str] | None = None) -> int:
                 success=True,
             )
             return 0
+        if ecc_act == "assets":
+            assets_act = str(getattr(args, "ecc_assets_action", "") or "").strip().lower()
+            if assets_act == "catalog":
+                adoc = build_ecc_asset_marketplace_catalog_v1(settings_ecc, root_override=root_ecc)
+            elif assets_act == "list":
+                adoc = build_ecc_asset_marketplace_list_v1(settings_ecc, root_override=root_ecc)
+            elif assets_act == "upgrade-plan":
+                src_assets = str(getattr(args, "ecc_assets_from_workspace", "") or "").strip()
+                adoc = build_ecc_asset_marketplace_upgrade_plan_v1(settings_ecc, from_workspace=src_assets)
+            else:
+                print(f"unknown ecc assets action: {assets_act}", file=sys.stderr)
+                return 2
+            if bool(getattr(args, "json_output", False)):
+                print(json.dumps(adoc, ensure_ascii=False))
+            else:
+                summary_assets = adoc.get("summary") if isinstance(adoc.get("summary"), dict) else {}
+                print(
+                    f"[ecc assets {assets_act}] schema={adoc.get('schema_version')} "
+                    f"assets={summary_assets.get('assets_count', summary_assets.get('recommendations_count', 0))} "
+                    f"trust={summary_assets.get('trust_level', summary_assets.get('trust_allow'))}",
+                )
+                for row in (adoc.get("assets") or adoc.get("recommendations") or [])[:8]:
+                    if isinstance(row, dict):
+                        print(f"- {row.get('asset_id')}: {row.get('recommendation') or row.get('install')}")
+            ok_assets = bool(adoc.get("ok", True))
+            _maybe_metrics_cli(
+                module="ecc",
+                event=f"ecc.assets.{assets_act}",
+                latency_ms=(time.perf_counter() - t_ecc) * 1000.0,
+                tokens=len(adoc.get("assets") or adoc.get("recommendations") or []),
+                success=ok_assets,
+            )
+            return 0 if ok_assets else 2
         if ecc_act == "sync-home":
             tlist: list[str] = []
             if bool(getattr(args, "ecc_sync_all", False)):
@@ -12100,6 +12167,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "api":
         aa = str(getattr(args, "api_action", "") or "").strip()
+        if aa == "openapi":
+            from cai_agent.api_http_server import build_api_openapi_v1
+
+            print(json.dumps(build_api_openapi_v1(), ensure_ascii=False))
+            return 0
         if aa != "serve":
             print("api: 未知子命令", file=sys.stderr)
             return 2

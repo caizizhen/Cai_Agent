@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **MiMo provider 预设/文档更新**：`xiaomi_mimo` 默认模型更新为 `MiMo-V2.5-Pro`；README 补充官方 OpenCode 风格 key 映射（`MIMO_API_KEY`）与专属 `base_url` 覆盖流程（`models edit --api-key-env ... --base-url ... --model ...`）。
+
 - **UX-N01-D06 体验层第六阶段（plan/workflow/release-ga 失败提示收口）**：`plan` 的 `config_not_found`/`goal_empty`/`llm_error` 失败返回新增 `hints`（JSON + 文本）；`workflow` 的模板缺失、缺文件、缺配置与执行失败路径补充标准化 `hint:`；`release-ga` 失败态新增 `hints[]`（JSON）并在文本输出 failed checks 后追加 hint 行，统一排障下一步。测试：`test_plan_sessions_cli.py`、`test_cli_workflow.py`、`test_release_ga_cli.py`、`test_cli_misc.py`，并通过全量 `pytest` 与 smoke。
 
 - **UX-N01-D05 体验层第五阶段（run 家族失败提示补齐）**：将统一失败 hints 扩展到 `run/continue/command/agent/fix-build` 家族中的 `config_not_found`、`goal_empty`、`command_not_found`、`agent_not_found` 场景；JSON 失败载荷统一含 `hints[]`，文本 stderr 同步 `hint:` 行，且命令/子代理缺失时直接提示 `commands --json` / `agents --json`。测试：`test_cli_misc.py` 增加 `command_not_found` 与 `agent_not_found` 回归断言，并通过全量 `pytest` 与 smoke。

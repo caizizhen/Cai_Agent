@@ -1,13 +1,16 @@
 # 测试 TODO（当前执行基准）
 
 > 与 `DEVELOPER_TODOS.zh-CN.md` 一起作为开发与测试的双基准。  
-> 仅维护未完成测试任务；已完成项统一记录到 `CHANGELOG.md` / `CHANGELOG.zh-CN.md`（并保留 QA run 记录）。
+> 仅维护未完成测试任务；已完成项统一记录到 `CHANGELOG.md` / `CHANGELOG.zh-CN.md`（并保留 QA run 记录）。  
+> 每完成一项任务，必须把验证命令与结果写入已完成记录：优先通过 `scripts/finalize_task.py` 追加 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/`，需要对外说明时同步 `CHANGELOG.md` / `CHANGELOG.zh-CN.md`。
 
 ## 当前测试队列
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| 1 | `（待排期）` | Ready | 等待下一开发任务立项后补齐对应测试入口与通过门槛 | — | 新任务立项后执行 |
+| 1 | `API-N01` | Ready | OpenAPI + API/ops 统一网关契约验证 | `test_api_http_server.py`、新增 openapi/schema 测试、`scripts/smoke_new_features.py` | 非敏感字段不泄漏；status/doctor/models/chat/ops 路由在契约中可发现；pytest + smoke |
+| 2 | `OPS-N01` | Ready | dashboard preview/apply/audit 闭环验证 | `test_ops_http_server.py`、`test_ops_dashboard_html.py` 或新增 interactions 测试 | schedule reorder 与 gateway bind-edit 至少两类 action 可 preview/apply/audit；审计记录稳定 |
+| 3 | `CC-N05` | Ready | 安装、升级、恢复体验验证 | `test_doctor_cli.py`、`test_repair_cli.py`、`test_cli_misc.py`、smoke | 缺配置、旧配置、资产漂移等场景给出一致下一步命令；文本与 JSON 输出同步 |
 
 ## 自动验证记录（由 finalize 脚本追加）
 

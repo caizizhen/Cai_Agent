@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
-from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_v1
+from cai_agent.ecc_ingest_gate import build_ecc_ingest_trust_decision_v1, build_ecc_pack_ingest_gate_v1
 from cai_agent.memory import resolve_active_memory_provider
 from cai_agent.plugin_registry import build_local_catalog_payload
 
@@ -625,6 +625,10 @@ def build_ecc_asset_pack_import_plan_v1(
         "conflicts": conflicts,
     }
     plan_out["ingest_gate"] = build_ecc_pack_ingest_gate_v1(src_root)
+    plan_out["trust_decision"] = build_ecc_ingest_trust_decision_v1(
+        src_root,
+        sanitizer_gate=plan_out["ingest_gate"],
+    )
     return plan_out
 
 
@@ -673,6 +677,24 @@ def run_ecc_asset_pack_import_v1(
             "backups": [],
             "conflicts": plan.get("conflicts") or [],
         }
+    src_root = Path(str(plan.get("source_workspace") or "")).expanduser().resolve()
+    trust_decision = plan.get("trust_decision")
+    if not isinstance(trust_decision, dict):
+        trust_decision = build_ecc_ingest_trust_decision_v1(src_root, sanitizer_gate=ingate)
+    if not bool(trust_decision.get("allow_apply", False)):
+        return {
+            "schema_version": "ecc_asset_pack_import_result_v1",
+            "ok": False,
+            "dry_run": False,
+            "error": "trust_gate_rejected",
+            "hint": "source workspace lacks reviewed provenance/trust metadata; inspect trust_decision and rerun after adding ecc_asset_registry_v1 metadata",
+            "plan": plan,
+            "ingest_gate": ingate,
+            "trust_decision": trust_decision,
+            "applied": [],
+            "backups": [],
+            "conflicts": plan.get("conflicts") or [],
+        }
     if (plan.get("conflicts") or []) and not force:
         return {
             "schema_version": "ecc_asset_pack_import_result_v1",
@@ -686,7 +708,6 @@ def run_ecc_asset_pack_import_v1(
             "conflicts": plan.get("conflicts") or [],
             "hint": "resolve conflicts or rerun with --force",
         }
-    src_root = Path(str(plan.get("source_workspace") or "")).expanduser().resolve()
     dst_root = Path(str(plan.get("dest_workspace") or "")).expanduser().resolve()
     stamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     applied: list[dict[str, Any]] = []
@@ -726,6 +747,179 @@ def run_ecc_asset_pack_import_v1(
         "applied": applied,
         "backups": backups,
         "conflicts": [],
+    }
+
+
+def _workspace_license_summary(root: Path) -> dict[str, Any]:
+    for name in ("LICENSE", "LICENSE.md", "LICENSE.txt", "COPYING"):
+        p = root / name
+        if p.is_file():
+            return {"spdx_id": "UNKNOWN", "license_file": str(p), "detected": True}
+    return {"spdx_id": "NOASSERTION", "license_file": None, "detected": False}
+
+
+def _workspace_trust_summary(root: Path) -> dict[str, Any]:
+    gate = build_ecc_pack_ingest_gate_v1(root)
+    decision = build_ecc_ingest_trust_decision_v1(root, sanitizer_gate=gate)
+    allow = bool(decision.get("allow_apply"))
+    return {
+        "schema_version": "ecc_asset_trust_summary_v1",
+        "level": str(decision.get("trust_level") or ("reviewed" if allow else "unknown")),
+        "decision": decision.get("combined_decision"),
+        "allow": allow,
+        "violations_count": len(gate.get("violations") or []),
+        "ingest_gate": gate,
+        "trust_decision": decision,
+    }
+
+
+def _market_asset_record(
+    row: dict[str, Any],
+    *,
+    root: Path,
+    license_summary: dict[str, Any],
+    trust_summary: dict[str, Any],
+) -> dict[str, Any]:
+    aid = str(row.get("id") or "").strip()
+    exists = bool(row.get("exists"))
+    return {
+        "asset_id": aid,
+        "asset_type": str(row.get("kind") or "unknown"),
+        "name": aid,
+        "version": str(row.get("plugin_version") or "workspace"),
+        "source": {"kind": "workspace", "origin": str(root)},
+        "license": license_summary,
+        "trust": {
+            "schema_version": trust_summary.get("schema_version"),
+            "level": trust_summary.get("level"),
+            "decision": trust_summary.get("decision"),
+            "allow": bool(trust_summary.get("allow")),
+            "violations_count": int(trust_summary.get("violations_count") or 0),
+        },
+        "install": {
+            "status": "installed" if exists else "missing",
+            "path": row.get("path"),
+            "items_count": int(row.get("items_count") or 0),
+        },
+    }
+
+
+def build_ecc_asset_marketplace_catalog_v1(
+    settings: Settings,
+    *,
+    root_override: str | Path | None = None,
+) -> dict[str, Any]:
+    """Marketplace-lite catalog over the local/workspace asset catalog."""
+    root = Path(root_override).expanduser().resolve() if root_override is not None else _project_root(settings)
+    local_catalog = build_local_catalog_payload(settings, root_override=root)
+    license_summary = _workspace_license_summary(root)
+    trust_summary = _workspace_trust_summary(root)
+    assets = [
+        _market_asset_record(row, root=root, license_summary=license_summary, trust_summary=trust_summary)
+        for row in (local_catalog.get("assets") or [])
+        if isinstance(row, dict)
+    ]
+    return {
+        "schema_version": "ecc_asset_marketplace_catalog_v1",
+        "marketplace_kind": "local_workspace",
+        "workspace": str(root),
+        "source": {"kind": "workspace", "origin": str(root)},
+        "generated_at": datetime.now(UTC).isoformat(),
+        "assets": assets,
+        "summary": {
+            "assets_count": len(assets),
+            "installed_count": sum(1 for a in assets if (a.get("install") or {}).get("status") == "installed"),
+            "missing_count": sum(1 for a in assets if (a.get("install") or {}).get("status") == "missing"),
+            "trust_level": trust_summary.get("level"),
+            "trust_allow": bool(trust_summary.get("allow")),
+        },
+        "license": license_summary,
+        "trust": trust_summary,
+        "local_catalog": local_catalog,
+    }
+
+
+def build_ecc_asset_marketplace_list_v1(
+    settings: Settings,
+    *,
+    root_override: str | Path | None = None,
+) -> dict[str, Any]:
+    catalog = build_ecc_asset_marketplace_catalog_v1(settings, root_override=root_override)
+    return {
+        "schema_version": "ecc_asset_marketplace_list_v1",
+        "workspace": catalog.get("workspace"),
+        "marketplace_kind": catalog.get("marketplace_kind"),
+        "assets": catalog.get("assets") or [],
+        "summary": catalog.get("summary") or {},
+    }
+
+
+def build_ecc_asset_marketplace_upgrade_plan_v1(
+    settings: Settings,
+    *,
+    from_workspace: str | Path,
+) -> dict[str, Any]:
+    src_root = Path(from_workspace).expanduser().resolve()
+    dst_root = Path(settings.workspace).expanduser().resolve() if settings.workspace else _project_root(settings)
+    if not src_root.is_dir():
+        return {
+            "schema_version": "ecc_asset_marketplace_upgrade_plan_v1",
+            "ok": False,
+            "error": "source_workspace_missing",
+            "source_workspace": str(src_root),
+            "dest_workspace": str(dst_root),
+            "recommendations": [],
+        }
+    catalog = build_ecc_asset_marketplace_catalog_v1(settings, root_override=src_root)
+    plan = build_ecc_asset_pack_import_plan_v1(settings, from_workspace=src_root)
+    assets_by_id = {
+        str(a.get("asset_id")): a
+        for a in (catalog.get("assets") or [])
+        if isinstance(a, dict)
+    }
+    recommendations: list[dict[str, Any]] = []
+    for row in plan.get("components") or []:
+        if not isinstance(row, dict):
+            continue
+        component = str(row.get("component") or "")
+        action = str(row.get("action") or "skip")
+        rec_action = {"add": "install", "conflict": "upgrade_with_force", "skip": "none"}.get(action, action)
+        recommendations.append(
+            {
+                "asset_id": component,
+                "asset": assets_by_id.get(component),
+                "current_status": "installed" if row.get("dest_exists") else "missing",
+                "source_status": "available" if row.get("source_exists") else "missing",
+                "recommendation": rec_action,
+                "reason": row.get("reason") or action,
+                "source_path": row.get("source_path"),
+                "dest_path": row.get("dest_path"),
+                "install_command": (
+                    f"cai-agent ecc pack-import --from-workspace {src_root} --apply --force --json"
+                    if rec_action == "upgrade_with_force"
+                    else f"cai-agent ecc pack-import --from-workspace {src_root} --apply --json"
+                    if rec_action == "install"
+                    else None
+                ),
+            },
+        )
+    trust = catalog.get("trust") if isinstance(catalog.get("trust"), dict) else {}
+    return {
+        "schema_version": "ecc_asset_marketplace_upgrade_plan_v1",
+        "ok": bool(plan.get("ok")),
+        "source_workspace": str(src_root),
+        "dest_workspace": plan.get("dest_workspace"),
+        "catalog": catalog,
+        "pack_import_plan": plan,
+        "trust": trust,
+        "recommendations": recommendations,
+        "summary": {
+            "recommendations_count": len(recommendations),
+            "install_count": sum(1 for r in recommendations if r.get("recommendation") == "install"),
+            "upgrade_with_force_count": sum(1 for r in recommendations if r.get("recommendation") == "upgrade_with_force"),
+            "up_to_date_count": sum(1 for r in recommendations if r.get("recommendation") == "none"),
+            "trust_allow": bool(trust.get("allow", True)),
+        },
     }
 
 

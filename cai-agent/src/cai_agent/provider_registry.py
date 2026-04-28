@@ -41,7 +41,7 @@ EXTRA_PRESETS: Final[dict[str, dict[str, Any]]] = {
         "provider": "openai_compatible",
         "base_url": "https://api.xiaomimimo.com/v1",
         "api_key_env": "XIAOMI_MIMO_API_KEY",
-        "model": "mimo-v2-flash",
+        "model": "MiMo-V2.5-Pro",
         "temperature": 0.2,
         "timeout_sec": 120.0,
     },

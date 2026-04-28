@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **MiMo provider preset/docs update**: Updated `xiaomi_mimo` default model to `MiMo-V2.5-Pro`, and documented the official OpenCode-style key mapping (`MIMO_API_KEY`) plus dedicated base URL override flow (`models edit --api-key-env ... --base-url ... --model ...`) in README.
+
 - **UX-N01-D06 experience layer phase 6 (plan/workflow/release-ga failure hints convergence)**: Added standardized next-step hints for `plan` failures (`config_not_found`, `goal_empty`, `llm_error`) across JSON/text outputs; added aligned `hint:` guidance for `workflow` template/missing-file/config/runtime failure paths; and added `hints[]` to failed `release-ga` JSON payloads plus text-mode hint lines after failed checks. Tests: `test_plan_sessions_cli.py`, `test_cli_workflow.py`, `test_release_ga_cli.py`, and `test_cli_misc.py`; full `pytest` and smoke are green.
 
 - **UX-N01-D05 experience layer phase 5 (run-family failure hints coverage)**: Extended standardized failure hints across the run-family commands (`run`/`continue`/`command`/`agent`/`fix-build`) for `config_not_found`, `goal_empty`, `command_not_found`, and `agent_not_found`. JSON failure payloads now consistently carry `hints[]`, and text mode emits aligned `hint:` lines; missing command/agent flows now point directly to `commands --json` / `agents --json`. Tests: `test_cli_misc.py` adds `command_not_found` and `agent_not_found` hint regressions; full `pytest` and smoke are green.

@@ -147,6 +147,7 @@ cai-agent init --global
 ```
 
 **升级注意：** 若流水线依赖 `--json` 字段形态，请先阅读根目录 `CHANGELOG.zh-CN.md` 与 [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md)。
+缺配置、旧配置或资产漂移时，`cai-agent onboarding --json`、`cai-agent doctor --json`、`cai-agent repair --dry-run --json` 会输出同源 `install_recovery_flows_v1` / `next_steps`。
 
 ---
 
@@ -174,6 +175,8 @@ cai-agent init --global
 | `[models]` | `active`；`[[models.profile]]` 多后端 |
 
 **智谱 GLM：** `provider=openai_compatible`，`base_url=https://open.bigmodel.cn/api/paas/v4`（不要再手动叠 `/v1`）。推荐环境变量 **`ZAI_API_KEY`**，profile 内 `api_key_env = "ZAI_API_KEY"`。
+
+**小米 MiMo：** OpenAI 兼容预设为 `xiaomi_mimo`，默认模型 `MiMo-V2.5-Pro`。若你使用官方 OpenCode 风格的 key，建议将 profile 改为 `api_key_env = "MIMO_API_KEY"`，并覆盖为你的专属 `base_url`（例如 `https://token-plan-cn.xiaomimimo.com/v1`）。
 
 **Copilot 代理：** `llm.provider = copilot`，并配置 `[copilot]` 或 `COPILOT_BASE_URL` / `COPILOT_MODEL` / `COPILOT_API_KEY`。注意：GitHub 官方不提供稳定通用 `chat/completions` 公共接口，工程上多为自建兼容代理。
 
@@ -288,8 +291,15 @@ cai-agent models list
 cai-agent models use <profile_id>
 cai-agent models add --preset vllm --id my-vllm --model <服务侧模型名>
 cai-agent models add --preset zhipu --id glm --set-active
+cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
 cai-agent models ping --json
 cai-agent models clone …          # 在启用 profile home 时克隆隔离目录
+```
+
+MiMo 官方 key 映射示例：
+
+```bash
+cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
 ```
 
 TUI 内 **`/models` 或 Ctrl+M`** 可在**当前进程**切换会话所用 profile；要下次启动仍生效，请使用 `models use` 或改 `[models].active`。

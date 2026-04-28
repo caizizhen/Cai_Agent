@@ -61,13 +61,46 @@ def build_doctor_upgrade_hints_v1(settings: Settings) -> dict[str, Any]:
     }
 
 
+def build_install_recovery_flows_v1() -> dict[str, Any]:
+    """Shared install/upgrade/recovery command chains for doctor, repair and onboarding."""
+
+    return {
+        "schema_version": "install_recovery_flows_v1",
+        "missing_config": [
+            "cai-agent onboarding",
+            "cai-agent init --preset starter",
+            "cai-agent repair --dry-run --json",
+            "cai-agent doctor --json",
+        ],
+        "legacy_config": [
+            "cai-agent doctor --json",
+            "cai-agent models onboarding --id my-model --preset openai --model gpt-4o-mini --json",
+            "cai-agent models routing-test --role active --goal \"smoke test\" --json",
+            "cai-agent repair --dry-run --json",
+        ],
+        "asset_drift": [
+            "cai-agent repair --dry-run --json",
+            "cai-agent ecc home-diff --json",
+            "cai-agent ecc sync-home --all-targets --dry-run --json",
+            "cai-agent plugins sync-home --all-targets --json",
+        ],
+        "validation": [
+            "cai-agent doctor --json",
+            "cai-agent repair --dry-run --json",
+            'cai-agent run "用一句话描述当前工作区用途"',
+        ],
+    }
+
+
 def build_installation_guidance() -> dict[str, Any]:
+    recovery_flows = build_install_recovery_flows_v1()
     return {
         "schema_version": "doctor_installation_guidance_v1",
         "onboarding_doc": "docs/ONBOARDING.zh-CN.md",
         "docs_index": "docs/README.zh-CN.md",
         "upgrade_docs": ["CHANGELOG.zh-CN.md", "CHANGELOG.md"],
         "repair_command": "cai-agent repair --dry-run --json",
+        "recovery_flows": recovery_flows,
         "recommended_flow": [
             "cai-agent onboarding",
             "cai-agent init",
@@ -143,6 +176,11 @@ def build_doctor_install_diagnostic(settings: Settings) -> dict[str, Any]:
             "repair_action": "create_cai_dir",
         },
     ]
+    recovery_flows = build_install_recovery_flows_v1()
+    if not config_exists:
+        next_steps = list(recovery_flows["missing_config"])
+    else:
+        next_steps = list(recovery_flows["validation"])
     return {
         "schema_version": "doctor_install_v1",
         "workspace": str(root),
@@ -151,6 +189,8 @@ def build_doctor_install_diagnostic(settings: Settings) -> dict[str, Any]:
         "python_version": os.sys.version.split()[0],
         "ok": all(bool(c.get("ok")) or c.get("severity") == "warning" for c in checks),
         "checks": checks,
+        "recovery_flows": recovery_flows,
+        "next_steps": next_steps,
         "recommended_commands": [
             "cai-agent repair --dry-run --json",
             "cai-agent repair --apply",
@@ -339,6 +379,12 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
     plugins_preview = ph.get("preview_commands") if isinstance(ph.get("preview_commands"), list) else []
     if not plugins_preview:
         plugins_preview = ["cai-agent plugins sync-home --all-targets --json"]
+    recovery_flows = build_install_recovery_flows_v1()
+    next_steps = list(recovery_flows["validation"])
+    if not config_exists:
+        next_steps = list(recovery_flows["missing_config"])
+    elif drift_targets or sd_pending:
+        next_steps = list(recovery_flows["asset_drift"])
 
     return {
         "schema_version": "repair_plan_v1",
@@ -350,6 +396,8 @@ def build_repair_plan(settings: Settings, *, preset: str = "default") -> dict[st
             "actions_total": len(actions),
             "actions_needed": sum(1 for a in actions if bool(a.get("needed"))),
         },
+        "recovery_flows": recovery_flows,
+        "next_steps": next_steps,
         "ecc_home_sync_drift_targets": drift_targets,
         "ecc_sync_commands": ecc_sync_commands,
         "ecc_structured_home_diff_pending_targets": sd_pending,
@@ -393,6 +441,8 @@ def apply_repair_plan(plan: dict[str, Any]) -> dict[str, Any]:
         "ok": not errors,
         "applied": applied,
         "errors": errors,
+        "recovery_flows": plan.get("recovery_flows"),
+        "next_steps": plan.get("next_steps"),
         "plan": plan,
     }
 

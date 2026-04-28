@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.1",
+  "tasks": [
+    {
+      "id": "task-c",
+      "goal": "c"
+    },
+    {
+      "id": "task-a",
+      "goal": "a"
+    },
+    {
+      "id": "task-b",
+      "goal": "b"
+    }
+  ]
+}

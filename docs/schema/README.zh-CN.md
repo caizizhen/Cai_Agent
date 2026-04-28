@@ -308,7 +308,7 @@
 - **`gateway setup`**：写入 **`.cai/gateway/telegram-config.json`**（**`schema_version`=`gateway_telegram_config_v1`**），可选 **`serve_webhook`** 字段（与 **`gateway telegram serve-webhook`** 对齐的开关/模板）；**`--allow-chat-id`** 可重复，合并进 **`telegram-session-map.json`** 的 **`allowed_chat_ids`**。stdout **`--json`** 含 **`ok`**、**`config_path`**、**`workspace`** 等。
 - **`gateway start`**：按配置文件组装 **`python -m cai_agent gateway telegram serve-webhook …`** 后台进程，写 **`.cai/gateway/telegram-webhook.pid`**（**`gateway_telegram_pid_v1`**）。stdout **`gateway_lifecycle_start_v1`**（**`ok`** / **`pid`** / **`pid_file`** / 日志路径等）。
 - **`gateway status`**：stdout **`gateway_lifecycle_status_v1`**（**`config_exists`**、**`webhook_pid`**、**`webhook_running`**、**`allowed_chat_ids`**、**`allowlist_enabled`** 等），并内嵌 **`gateway_summary`**（`gateway_summary_v1`）供 `board` / `ops dashboard` 复用。
-- **`gateway prod-status`（HM-03e）**：stdout **`gateway_production_summary_v1`**；统一汇总 Telegram / Discord / Slack / Teams 的本地 **`map`**、**`health`**、**`env_present`** 与 **`run_state`**，顶层 **`summary`** 含 `platforms_count` / `configured_count` / `running_count` / `bindings_count`。不调用外部平台 API，仅使用本地 map、env presence、Telegram PID/config 状态。
+- **`gateway prod-status`（HM-03e / GW-N01）**：stdout **`gateway_production_summary_v1`**；统一汇总 Telegram / Discord / Slack / Teams / Signal / Email / Matrix 的本地 **`map`**、**`health`**、**`env_present`** 与 **`run_state`**，每个平台行新增 **`readiness`**（`gateway_platform_readiness_v1`）、**`readiness_checklist`** 与 **`diagnostics`**（`gateway_platform_diagnostic_v1`）。Discord / Slack / Teams 至少提供 token/env/binding/manifest 等下一步诊断路径；顶层 **`summary`** 含 `platforms_count` / `configured_count` / `running_count` / `bindings_count` / `ready_count` / `warn_count` / `blocked_count` / `diagnostics_count`。不调用外部平台 API，仅使用本地 map、env presence、Telegram PID/config 状态。
 - **`gateway slack health --json`**：stdout **`gateway_slack_health_v1`**；顶层含 **`workspace`**、**`map_path`**、**`map_schema_version`**、**`bindings_count`**、**`allowlist_enabled`**、**`allowed_channel_ids_count`**、**`signing_secret_configured`** 与 **`token_check`**。未提供 token 时 **`token_check.performed=false`**；提供后走 Slack `auth.test`，成功时返回 `team` / `team_id` / `user` / `user_id` / `bot_id`。
 - **`gateway slack bind`**：stdout 仍为 **`gateway_slack_map_v1`** 生态中的绑定对象，但单个 **`binding`** 现可带 **`team_id`** 与 **`label`**，用于多 workspace / 多 team 运维映射。
 - **`gateway slack serve-webhook`**：除 Events API JSON 外，还支持 **`application/x-www-form-urlencoded`** 的 Slash / Interactivity 请求；`--execute-on-slash` 打开后，`/cai <goal>` 可复用与 Events 同源的执行链。
@@ -348,7 +348,7 @@
 - **实现**：`cai_agent.ops_dashboard.build_ops_dashboard_payload`；聚合 **`board_v1`**（含 **`observe`** 嵌套）、**`schedule_stats_v1`**（`compute_schedule_stats_from_audit`）、**`aggregate_sessions`**（成本 rollup）。
 - **`schema_version`**：**`ops_dashboard_v1`**；顶层 **`summary`**（`sessions_count` / `failure_rate` / `schedule_tasks_in_stats` / `cost_total_tokens`，以及 `gateway_status` / `gateway_bindings_count` / `gateway_webhook_running`）与 **`board`** / **`gateway_summary`** / **`schedule_stats`** / **`cost_aggregate`**。
 - **动态 Web / HTTP 侧车**：只读 REST 与 MVP 分阶段说明见 **[`OPS_DYNAMIC_WEB_API.zh-CN.md`](../OPS_DYNAMIC_WEB_API.zh-CN.md)**；**Phase A**：**`--format html`** 可选 **`--html-refresh-seconds`**（**`meta refresh`**）；**Phase B** 由 **`cai-agent ops serve`**（**`cai_agent.ops_http_server`**）暴露 **`GET /v1/ops/dashboard`** / **`dashboard.html`** / **`dashboard/events`**（HTML 路由可选 query **`html_refresh_seconds`**、`live_mode=sse|poll`、`live_interval_seconds`；SSE 路由支持 `max_events`），载荷与上表同源。
-- **高级交互预览（HM-04c）**：**`GET /v1/ops/dashboard/interactions`** 返回 **`ops_dashboard_interactions_v1`**，当前支持 **`schedule_reorder_preview`** 与 **`gateway_bind_edit_preview`**。该契约固定 **`dry_run=true`**、**`applied=false`**，只做查询验证和 preview，不执行不可逆写入。
+- **高级交互（OPS-N01）**：**`GET /v1/ops/dashboard/interactions`** 支持 **`preview` / `audit`**（不执行 `apply`）；**`POST /v1/ops/dashboard/interactions`** 支持 **`preview` / `apply` / `audit`**。返回 **`ops_dashboard_interactions_v1`**，当前覆盖 **`schedule_reorder_preview`**、**`gateway_bind_edit_preview`** 与 `profile_switch_preview`，所有 `apply` 都写入 **`ops_dashboard_action_audit_v1`** 审计行。
 
 **Exit**：成功 → **`0`**。
 
@@ -409,7 +409,7 @@
 - **实现**：`cai_agent.doctor.run_doctor` / `build_doctor_payload`
 - **`schema_version`**：`doctor_v1`（仅 `--json` 时打印的负载；文本模式无 JSON）
 
-顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`profile_contract`**（**`profile_contract_v1`**：profile 来源、激活优先级、fallback、迁移状态）、**`model_gateway`**（**`doctor_model_gateway_v1`**：嵌 `model_capabilities_list_v1`、健康状态枚举、接入 runbook 与推荐命令链）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`installation_guidance`**（**`doctor_installation_guidance_v1`**：onboarding、文档入口、升级查看点、推荐命令链）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
+顶层字段含：`cai_agent_version`、`workspace`、`provider`、`model`、`api_key_present`、`api_key_masked_line`、`mock`、`instruction_files`、`git_inside_work_tree`、`profile_ping_skipped`、`profile_pings`（`CAI_DOCTOR_PING=1` 时填充）、**`profile_contract`**（**`profile_contract_v1`**：profile 来源、激活优先级、fallback、迁移状态）、**`model_gateway`**（**`doctor_model_gateway_v1`**：嵌 `model_capabilities_list_v1`、健康状态枚举、接入 runbook 与推荐命令链）、**`cai_dir_health`**（**`.cai/`** 网关映射文件存在性、**`hooks.json`** 可解析性等摘要）、**`plugins`**（**`doctor_plugins_bundle_v1`**：`surface`=`plugins_surface_v1`、`compat_matrix`=`plugin_compat_matrix_v1`）、**`installation_guidance`**（**`doctor_installation_guidance_v1`**：onboarding、文档入口、升级查看点、推荐命令链；嵌 **`install_recovery_flows_v1`**，与 `repair` / `onboarding` 的 `next_steps` 同源）、**`release_runbook`**（**`release_runbook_v1`**：固定发版步骤、文档回写点、CHANGELOG/feedback 摘要）等。
 
 **Exit**：配置缺失 → `2`；默认 `0`。`--fail-on-missing-api-key`：非 `mock` 且 API Key 解析后为空 → `2`（可与 `--json` 同用于 CI）。
 
@@ -512,6 +512,7 @@
 | 路径 | `schema_version` / 说明 |
 |------|--------------------------|
 | `GET /healthz` | 无 schema；**`{"ok": true}`**；**不设** **`CAI_API_TOKEN`** 时全员可访问；设 token 时仍**免检** |
+| `GET /openapi.json` | **`api_openapi_v1`**（位于 OpenAPI 根 `x-cai-contract.schema_version`）；OpenAPI 3.1 非敏感发现契约，覆盖 API 与 ops HTTP surface；设 token 时需要 **`Authorization: Bearer`** |
 | `GET /v1/status` | **`api_status_v1`**；嵌 **`gateway_summary_v1`** 与 **`gateway_lifecycle`** 摘要字段 |
 | `GET /v1/doctor/summary` | **`api_doctor_summary_v1`**（白名单：无 **`base_url`** / **`model`** 明文） |
 | `GET /v1/models` | **`api_openai_models_v1`**；OpenAI-compatible `object=list` / `data[]` 模型列表，来自已配置 profile；不暴露 **`api_key`** / **`base_url`** |
@@ -520,8 +521,14 @@
 | `GET /v1/profiles` | **`api_profiles_v1`**；active/subagent/planner + profiles 列表 + `profile_contract_v1` |
 | `POST /v1/chat/completions` | **`api_openai_chat_completion_v1`**；OpenAI-compatible 非流式 chat completion；内部复用 **`model_response_v1`** 并在 `cai_model_response` 中暴露 provider/model/profile/usage/latency；`stream:true` 返回 **`text/event-stream`**，chunk 为 **`api_openai_chat_completion_chunk_v1`**，最后发送 `data: [DONE]` |
 | `POST /v1/tasks/run-due` | **`api_tasks_run_due_v1`**；默认 **`dry_run`**；**`dry_run:false`** → **HTTP 403**（请用 CLI **`schedule run-due --execute`**） |
+| `GET /v1/ops/dashboard` | **`ops_dashboard_v1`**；ops 侧车 JSON dashboard，OpenAPI 中作为统一外部契约列出 |
+| `GET /v1/ops/dashboard.html` | HTML dashboard；OpenAPI 中登记为 `text/html` |
+| `GET /v1/ops/dashboard/events` | dashboard SSE 事件流；OpenAPI 中登记为 `text/event-stream` |
+| `GET/POST /v1/ops/dashboard/interactions` | **`ops_dashboard_interactions_v1`**；preview/audit/apply 交互入口；`GET` 不允许 `apply`，`POST` 走受控交互执行 |
 
 默认端口 **`CAI_API_PORT`**（未设置则 **8788**）；可选 **`CAI_API_TOKEN`**（**`Authorization: Bearer`**）。`POST /v1/chat/completions` 支持 `model` 传 profile id 或模型名来选择已配置 profile；SSE streaming 是最小兼容实现（先完整生成一次 `ModelResponse`，再按 OpenAI chunk 形态分帧），本轮不做公网多租户托管或额外 OpenAI API 家族。契约：**`docs/rfc/HM_02_MINIMAL_SERVER_CONTRACT.zh-CN.md`**。
+
+**CLI 发现入口（API-N01）**：`cai-agent api openapi --json` 与 HTTP **`GET /openapi.json`** 共用 `build_api_openapi_v1()`；根为 OpenAPI **`3.1.0`**，`x-cai-contract.schema_version` 为 **`api_openapi_v1`**，`x-cai-contract.schema_versions[]` 汇总所有已公开的 JSON 契约版本。该契约只描述路径、方法、鉴权、请求体与响应 schema 版本，不输出运行时 `workspace`、`base_url`、密钥或 profile 明文配置。
 
 ---
 

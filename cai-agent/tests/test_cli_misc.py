@@ -15,6 +15,24 @@ from unittest.mock import patch
 from cai_agent.__main__ import main
 
 
+class ApiCliTests(unittest.TestCase):
+    def test_api_openapi_json_outputs_unified_contract(self) -> None:
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            rc = main(["api", "openapi", "--json"])
+
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue().strip())
+        self.assertEqual(payload.get("openapi"), "3.1.0")
+        self.assertEqual((payload.get("x-cai-contract") or {}).get("schema_version"), "api_openapi_v1")
+        paths = payload.get("paths") or {}
+        self.assertIn("/v1/status", paths)
+        self.assertIn("/v1/doctor/summary", paths)
+        self.assertIn("/v1/models", paths)
+        self.assertIn("/v1/chat/completions", paths)
+        self.assertIn("/v1/ops/dashboard", paths)
+
+
 class McpCheckCliTests(unittest.TestCase):
     def test_mcp_check_json_never_crashes(self) -> None:
         """mcp-check --json always prints one JSON line; exit 0 if probe ok else 2."""
@@ -245,6 +263,10 @@ class OnboardingCliTests(unittest.TestCase):
             self.assertTrue(isinstance(flow, list) and flow)
             self.assertEqual(flow[0], "cai-agent init --preset starter")
             self.assertIn("cai-agent sessions --recap --json", flow)
+            flows = payload.get("recovery_flows") or {}
+            self.assertEqual(flows.get("schema_version"), "install_recovery_flows_v1")
+            self.assertIn("cai-agent init --preset starter", payload.get("next_steps") or [])
+            self.assertIn("cai-agent repair --dry-run --json", payload.get("next_steps") or [])
 
     def test_onboarding_json_with_config(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -263,6 +285,8 @@ class OnboardingCliTests(unittest.TestCase):
             self.assertTrue(isinstance(flow, list))
             self.assertEqual(flow[0], "cai-agent doctor")
             self.assertIn("cai-agent ui", flow)
+            self.assertEqual((payload.get("recovery_flows") or {}).get("schema_version"), "install_recovery_flows_v1")
+            self.assertIn("cai-agent doctor --json", payload.get("next_steps") or [])
 
 
 class ExperiencePhase2CliTests(unittest.TestCase):

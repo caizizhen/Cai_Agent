@@ -13,6 +13,149 @@ from cai_agent.hook_runtime import (
 )
 
 _PACK_COMPONENTS = ("rules", "skills", "agents", "commands")
+_TRUST_ORDER = {
+    "unknown": 0,
+    "community": 1,
+    "publisher_verified": 1,
+    "reviewed": 2,
+    "local_reviewed": 2,
+}
+_TRUST_ORDER_MIN_REVIEWED = 2
+_REGISTRY_CANDIDATES = (
+    "ecc-asset-registry.json",
+    ".cai/ecc-asset-registry.json",
+    "cai-asset-registry.json",
+    ".cai/cai-asset-registry.json",
+)
+
+
+def _trust_rank(level: str) -> int:
+    return _TRUST_ORDER.get(str(level or "").strip().lower(), 0)
+
+
+def _load_asset_registry(root: Path) -> tuple[dict[str, Any] | None, str | None, str | None]:
+    for rel in _REGISTRY_CANDIDATES:
+        p = root / rel
+        if not p.is_file():
+            continue
+        try:
+            obj = json.loads(p.read_text(encoding="utf-8-sig"))
+        except Exception as e:
+            return None, str(p), f"registry_unparseable:{e}"
+        if not isinstance(obj, dict):
+            return None, str(p), "registry_not_object"
+        if obj.get("schema_version") != "ecc_asset_registry_v1":
+            return None, str(p), "registry_schema_mismatch"
+        return obj, str(p), None
+    return None, None, "registry_missing"
+
+
+def build_ecc_ingest_trust_decision_v1(
+    source_workspace: str | Path,
+    *,
+    sanitizer_gate: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Conservative provenance/trust gate for pack/import/install flows."""
+    root = Path(source_workspace).expanduser().resolve()
+    gate = sanitizer_gate if isinstance(sanitizer_gate, dict) else build_ecc_pack_ingest_gate_v1(root)
+    sanitizer_decision = str(gate.get("decision") or "unknown")
+    if not bool(gate.get("allow", False)):
+        return {
+            "schema_version": "ecc_ingest_trust_decision_v1",
+            "policy_status": "enforced_metadata_gate",
+            "source_workspace": str(root),
+            "registry_path": None,
+            "sanitizer_decision": sanitizer_decision,
+            "trust_level": "unknown",
+            "signature_scheme": "unknown",
+            "signature_verified": False,
+            "combined_decision": "reject",
+            "allow_apply": False,
+            "reason": "Sanitizer rejected this source before provenance/trust evaluation.",
+            "checks": [
+                {"id": "sanitizer", "status": "fail", "reason": sanitizer_decision},
+            ],
+        }
+
+    registry, registry_path, registry_error = _load_asset_registry(root)
+    checks: list[dict[str, Any]] = [
+        {"id": "sanitizer", "status": "pass", "reason": sanitizer_decision},
+    ]
+    if registry is None:
+        checks.append({"id": "registry", "status": "fail", "reason": registry_error or "registry_missing"})
+        return {
+            "schema_version": "ecc_ingest_trust_decision_v1",
+            "policy_status": "enforced_metadata_gate",
+            "source_workspace": str(root),
+            "registry_path": registry_path,
+            "sanitizer_decision": sanitizer_decision,
+            "trust_level": "unknown",
+            "signature_scheme": "none",
+            "signature_verified": False,
+            "combined_decision": "review",
+            "allow_apply": False,
+            "reason": "Source has no valid ecc_asset_registry_v1 provenance metadata; apply is blocked by default.",
+            "checks": checks,
+        }
+
+    assets = registry.get("assets") if isinstance(registry.get("assets"), list) else []
+    if not assets:
+        checks.append({"id": "registry.assets", "status": "fail", "reason": "assets_empty"})
+        min_level = "unknown"
+    else:
+        checks.append({"id": "registry.assets", "status": "pass", "reason": f"assets_count={len(assets)}"})
+        levels: list[str] = []
+        missing_required: list[str] = []
+        signature_verified = False
+        signature_scheme = "none"
+        for idx, asset in enumerate(assets):
+            if not isinstance(asset, dict):
+                continue
+            trust = asset.get("trust") if isinstance(asset.get("trust"), dict) else {}
+            source = asset.get("source") if isinstance(asset.get("source"), dict) else {}
+            integrity = asset.get("integrity") if isinstance(asset.get("integrity"), dict) else {}
+            signature = asset.get("signature") if isinstance(asset.get("signature"), dict) else {}
+            levels.append(str(trust.get("level") or "unknown").strip().lower() or "unknown")
+            if not str(source.get("kind") or "").strip():
+                missing_required.append(f"assets[{idx}].source.kind")
+            if not str(source.get("origin") or "").strip():
+                missing_required.append(f"assets[{idx}].source.origin")
+            if not str(integrity.get("hash_algo") or "").strip():
+                missing_required.append(f"assets[{idx}].integrity.hash_algo")
+            if not str(integrity.get("hash_value") or "").strip():
+                missing_required.append(f"assets[{idx}].integrity.hash_value")
+            if bool(signature.get("verified")):
+                signature_verified = True
+            if str(signature.get("scheme") or "").strip():
+                signature_scheme = str(signature.get("scheme")).strip()
+        min_level = min(levels or ["unknown"], key=_trust_rank)
+        if missing_required:
+            checks.append({"id": "provenance.minimum_fields", "status": "fail", "missing": missing_required})
+        else:
+            checks.append({"id": "provenance.minimum_fields", "status": "pass", "reason": "all_present"})
+
+    missing = next((c for c in checks if c.get("id") == "provenance.minimum_fields" and c.get("status") == "fail"), None)
+    trust_ok = _trust_rank(min_level) >= _TRUST_ORDER_MIN_REVIEWED
+    combined = "allow_metadata_only" if trust_ok and missing is None else "review"
+    reason = (
+        "Sanitizer passed and all assets declare reviewed-or-better provenance metadata."
+        if combined == "allow_metadata_only"
+        else "Sanitizer passed, but trust is below reviewed or provenance metadata is incomplete."
+    )
+    return {
+        "schema_version": "ecc_ingest_trust_decision_v1",
+        "policy_status": "enforced_metadata_gate",
+        "source_workspace": str(root),
+        "registry_path": registry_path,
+        "sanitizer_decision": sanitizer_decision,
+        "trust_level": min_level,
+        "signature_scheme": locals().get("signature_scheme", "none"),
+        "signature_verified": bool(locals().get("signature_verified", False)),
+        "combined_decision": combined,
+        "allow_apply": combined == "allow_metadata_only",
+        "reason": reason,
+        "checks": checks,
+    }
 
 
 def _scan_hooks_json_at(path: Path, project_root: Path, violations: list[dict[str, Any]]) -> int:

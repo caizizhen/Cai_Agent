@@ -9,11 +9,35 @@ import sys
 from pathlib import Path
 
 from cai_agent.ecc_ingest_gate import (
+    build_ecc_ingest_trust_decision_v1,
     build_ecc_pack_ingest_gate_for_explicit_hooks_v1,
     build_ecc_pack_ingest_gate_v1,
 )
 
 _SRC = Path(__file__).resolve().parents[1] / "src"
+
+
+def _write_reviewed_registry(root: Path) -> None:
+    (root / "ecc-asset-registry.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ecc_asset_registry_v1",
+                "assets": [
+                    {
+                        "asset_id": "rules",
+                        "asset_type": "directory",
+                        "version": "1.0.0",
+                        "source": {"kind": "file", "origin": str(root)},
+                        "integrity": {"hash_algo": "sha256", "hash_value": "0" * 64},
+                        "signature": {"scheme": "none", "verified": False},
+                        "trust": {"level": "reviewed"},
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
 
 
 def _cli(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -53,6 +77,30 @@ def test_build_ecc_pack_ingest_gate_clean(tmp_path: Path) -> None:
     assert gate.get("allow") is True
     assert gate.get("decision") == "allow_metadata_only"
     assert gate.get("ingest_scan_kind") == "workspace_components"
+
+
+def test_ecc_ingest_trust_decision_blocks_unknown_source(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    (src / "rules").mkdir(parents=True)
+    (src / "rules" / "x.md").write_text("x", encoding="utf-8")
+    gate = build_ecc_pack_ingest_gate_v1(src)
+    trust = build_ecc_ingest_trust_decision_v1(src, sanitizer_gate=gate)
+    assert trust.get("schema_version") == "ecc_ingest_trust_decision_v1"
+    assert trust.get("combined_decision") == "review"
+    assert trust.get("allow_apply") is False
+    assert trust.get("trust_level") == "unknown"
+
+
+def test_ecc_ingest_trust_decision_allows_reviewed_registry(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    (src / "rules").mkdir(parents=True)
+    (src / "rules" / "x.md").write_text("x", encoding="utf-8")
+    _write_reviewed_registry(src)
+    gate = build_ecc_pack_ingest_gate_v1(src)
+    trust = build_ecc_ingest_trust_decision_v1(src, sanitizer_gate=gate)
+    assert trust.get("combined_decision") == "allow_metadata_only"
+    assert trust.get("allow_apply") is True
+    assert trust.get("trust_level") == "reviewed"
 
 
 def test_build_ecc_pack_ingest_gate_dangerous_command(tmp_path: Path) -> None:
@@ -102,6 +150,31 @@ def test_ecc_pack_import_plan_includes_ingest_gate(tmp_path: Path) -> None:
     assert isinstance(ig, dict)
     assert ig.get("schema_version") == "ecc_pack_ingest_gate_v1"
     assert ig.get("allow") is True
+    trust = doc.get("trust_decision")
+    assert isinstance(trust, dict)
+    assert trust.get("combined_decision") == "review"
+    assert trust.get("allow_apply") is False
+
+
+def test_ecc_pack_import_apply_blocked_by_unknown_trust(tmp_path: Path) -> None:
+    src = tmp_path / "src-pack"
+    (src / "rules").mkdir(parents=True)
+    (src / "rules" / "x.md").write_text("x", encoding="utf-8")
+    out = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "pack-import",
+        "--from-workspace",
+        str(src),
+        "--apply",
+        "--json",
+    )
+    assert out.returncode == 2, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("error") == "trust_gate_rejected"
+    assert (doc.get("trust_decision") or {}).get("allow_apply") is False
 
 
 def test_ecc_pack_import_apply_blocked_by_ingest_gate(tmp_path: Path) -> None:

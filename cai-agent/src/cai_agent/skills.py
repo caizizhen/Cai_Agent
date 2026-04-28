@@ -11,7 +11,10 @@ from pathlib import Path
 import os
 from typing import Any, Iterable, List
 
-from cai_agent.ecc_ingest_gate import build_ecc_pack_ingest_gate_for_explicit_hooks_v1
+from cai_agent.ecc_ingest_gate import (
+    build_ecc_ingest_trust_decision_v1,
+    build_ecc_pack_ingest_gate_for_explicit_hooks_v1,
+)
 
 
 @dataclass(frozen=True)
@@ -621,6 +624,20 @@ def apply_skills_hub_manifest_selection(
                 "copied": [],
                 "skipped": skipped,
             }
+    trust_doc = build_ecc_ingest_trust_decision_v1(base, sanitizer_gate=gate_doc)
+    if not dry_run and not bool(trust_doc.get("allow_apply", False)):
+        return {
+            "schema_version": "skills_hub_pack_install_v1",
+            "ok": False,
+            "dry_run": False,
+            "error": "trust_gate_rejected",
+            "hint": "manifest source lacks reviewed ecc_asset_registry_v1 provenance/trust metadata; install remains dry-run until reviewed metadata is present",
+            "ingest_gate": gate_doc,
+            "trust_decision": trust_doc,
+            "dest": str(dest),
+            "copied": [],
+            "skipped": skipped,
+        }
 
     copied: list[dict[str, str]] = []
     for src, out, _name in ops:
@@ -638,6 +655,7 @@ def apply_skills_hub_manifest_selection(
     }
     if gate_doc is not None:
         out_payload["ingest_gate"] = gate_doc
+    out_payload["trust_decision"] = trust_doc
     if not dry_run:
         out_payload["ok"] = True
     return out_payload

@@ -113,6 +113,17 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             rows = {r.get("id"): r for r in payload.get("platforms") or []}
             self.assertEqual(rows["telegram"]["production_state"], "configured")
             self.assertEqual(rows["slack"]["health"]["bindings_count"], 1)
+            slack_ready = rows["slack"].get("readiness") or {}
+            self.assertEqual(slack_ready.get("schema_version"), "gateway_platform_readiness_v1")
+            self.assertEqual(slack_ready.get("state"), "blocked")
+            self.assertGreaterEqual(int(slack_ready.get("checks_total") or 0), 3)
+            self.assertTrue(rows["slack"].get("readiness_checklist"))
+            slack_diagnostics = rows["slack"].get("diagnostics") or []
+            self.assertTrue(any(d.get("check_id") == "slack_bot_token" for d in slack_diagnostics))
+            teams_diagnostics = rows["teams"].get("diagnostics") or []
+            self.assertTrue(any(d.get("check_id") == "cai_teams_app_id" for d in teams_diagnostics))
+            self.assertGreaterEqual(int(payload.get("summary", {}).get("blocked_count") or 0), 1)
+            self.assertGreaterEqual(int(payload.get("summary", {}).get("diagnostics_count") or 0), 1)
             tg_mon = rows["telegram"].get("channel_monitoring") or {}
             self.assertEqual(tg_mon.get("schema_version"), "gateway_channel_monitoring_v1")
             self.assertGreaterEqual(int(tg_mon.get("channels_count") or 0), 1)

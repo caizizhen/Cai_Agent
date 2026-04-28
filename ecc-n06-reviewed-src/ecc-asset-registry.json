@@ -1,0 +1,1 @@
+﻿{"schema_version":"ecc_asset_registry_v1","assets":[{"asset_id":"rules","asset_type":"directory","version":"1.0.0","source":{"kind":"file","origin":"ecc-n06-reviewed-src"},"integrity":{"hash_algo":"sha256","hash_value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},"signature":{"scheme":"none","verified":false},"trust":{"level":"reviewed"}}]}

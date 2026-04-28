@@ -115,6 +115,174 @@ def _channel_monitoring(
     }
 
 
+def _check(
+    *,
+    check_id: str,
+    label: str,
+    ok: bool,
+    severity: str,
+    message: str,
+    next_step: str | None = None,
+) -> dict[str, Any]:
+    row: dict[str, Any] = {
+        "id": check_id,
+        "label": label,
+        "ok": ok,
+        "severity": severity,
+        "message": message,
+    }
+    if next_step:
+        row["next_step"] = next_step
+    return row
+
+
+def _readiness_state(checks: list[dict[str, Any]]) -> str:
+    if any((not c.get("ok")) and c.get("severity") == "blocker" for c in checks):
+        return "blocked"
+    if any(not c.get("ok") for c in checks):
+        return "warn"
+    return "ready"
+
+
+def _diagnostics_from_checks(platform: str, checks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    diagnostics: list[dict[str, Any]] = []
+    for check in checks:
+        if check.get("ok"):
+            continue
+        diagnostics.append(
+            {
+                "schema_version": "gateway_platform_diagnostic_v1",
+                "platform": platform,
+                "check_id": check.get("id"),
+                "severity": check.get("severity"),
+                "message": check.get("message"),
+                "next_step": check.get("next_step"),
+            },
+        )
+    return diagnostics
+
+
+def _platform_readiness(
+    platform: str,
+    *,
+    env_present: dict[str, bool],
+    bindings_count: int,
+    allowlist_enabled: bool,
+    health_doc: dict[str, Any],
+    run_state: dict[str, Any],
+) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    route_ready = bool(bindings_count or allowlist_enabled)
+    route_label = "binding_or_allowlist"
+    route_message = "At least one bound channel or allowlist entry is configured."
+    route_next_step = f"cai-agent gateway {platform} bind <channel_id> <session_file> --json"
+    if platform == "teams":
+        route_next_step = "cai-agent gateway teams bind <conversation_id> <session_file> --json"
+    if platform == "telegram":
+        route_next_step = "cai-agent gateway setup --allow-chat-id <chat_id> --json"
+    checks.append(
+        _check(
+            check_id=route_label,
+            label="Route map",
+            ok=route_ready,
+            severity="blocker",
+            message=route_message if route_ready else "No routable channel is configured yet.",
+            next_step=None if route_ready else route_next_step,
+        ),
+    )
+
+    token_check = health_doc.get("token_check") if isinstance(health_doc.get("token_check"), dict) else {}
+    if platform == "discord":
+        has_token = bool(env_present.get("CAI_GATEWAY_DISCORD_BOT_TOKEN") or env_present.get("CAI_DISCORD_BOT_TOKEN"))
+        token_ok = has_token and token_check.get("ok") is not False
+        checks.append(
+            _check(
+                check_id="discord_bot_token",
+                label="Discord bot token",
+                ok=token_ok,
+                severity="blocker",
+                message="Discord bot token is configured." if token_ok else "Discord bot token is missing or failed validation.",
+                next_step=None
+                if token_ok
+                else "set CAI_DISCORD_BOT_TOKEN, then run: cai-agent gateway discord health --json",
+            ),
+        )
+    elif platform == "slack":
+        has_token = bool(env_present.get("CAI_SLACK_BOT_TOKEN"))
+        has_secret = bool(env_present.get("CAI_SLACK_SIGNING_SECRET")) or bool(health_doc.get("signing_secret_configured"))
+        checks.append(
+            _check(
+                check_id="slack_bot_token",
+                label="Slack bot token",
+                ok=has_token and token_check.get("ok") is not False,
+                severity="blocker",
+                message="Slack bot token is configured."
+                if has_token
+                else "Slack bot token is required before serving events.",
+                next_step=None if has_token else "set CAI_SLACK_BOT_TOKEN, then run: cai-agent gateway slack health --json",
+            ),
+        )
+        checks.append(
+            _check(
+                check_id="slack_signing_secret",
+                label="Slack signing secret",
+                ok=has_secret,
+                severity="blocker",
+                message="Slack signing secret is configured."
+                if has_secret
+                else "Slack signing secret is required to verify Events API requests.",
+                next_step=None
+                if has_secret
+                else "set CAI_SLACK_SIGNING_SECRET, then run: cai-agent gateway slack health --json",
+            ),
+        )
+    elif platform == "teams":
+        for env_name, field_name, label in (
+            ("CAI_TEAMS_APP_ID", "app_id_configured", "Teams app id"),
+            ("CAI_TEAMS_APP_PASSWORD", "app_password_configured", "Teams app password"),
+            ("CAI_TEAMS_TENANT_ID", "tenant_id_configured", "Teams tenant id"),
+            ("CAI_TEAMS_WEBHOOK_SECRET", "webhook_secret_configured", "Teams webhook secret"),
+        ):
+            ok = bool(env_present.get(env_name)) or bool(health_doc.get(field_name))
+            checks.append(
+                _check(
+                    check_id=env_name.lower(),
+                    label=label,
+                    ok=ok,
+                    severity="blocker" if env_name != "CAI_TEAMS_TENANT_ID" else "warning",
+                    message=f"{label} is configured." if ok else f"{label} is not configured.",
+                    next_step=None
+                    if ok
+                    else "cai-agent gateway teams manifest --app-id <APP_ID> --valid-domain <DOMAIN> --json",
+                ),
+            )
+    elif platform == "telegram":
+        configured = bool(run_state.get("configured"))
+        checks.append(
+            _check(
+                check_id="telegram_lifecycle_config",
+                label="Telegram lifecycle config",
+                ok=configured,
+                severity="warning",
+                message="Telegram lifecycle config exists." if configured else "Telegram lifecycle config is missing.",
+                next_step=None if configured else "cai-agent gateway setup --json",
+            ),
+        )
+
+    state = _readiness_state(checks)
+    diagnostics = _diagnostics_from_checks(platform, checks)
+    return {
+        "schema_version": "gateway_platform_readiness_v1",
+        "ready": state == "ready",
+        "state": state,
+        "checks_total": len(checks),
+        "checks_passed": sum(1 for c in checks if c.get("ok")),
+        "blocking_count": sum(1 for c in checks if (not c.get("ok")) and c.get("severity") == "blocker"),
+        "checks": checks,
+        "diagnostics": diagnostics,
+    }
+
+
 def build_gateway_production_summary_payload(workspace: str | Path | None = None) -> dict[str, Any]:
     """Return ``gateway_production_summary_v1`` without contacting vendor APIs."""
     base = Path(workspace or ".").expanduser().resolve()
@@ -203,6 +371,14 @@ def build_gateway_production_summary_payload(workspace: str | Path | None = None
         rs = _run_state(pid, telegram_summary)
         if pid == "telegram":
             configured = configured or bool(rs.get("configured"))
+        readiness = _platform_readiness(
+            pid,
+            env_present=env_present,
+            bindings_count=bindings_count,
+            allowlist_enabled=allowlist_enabled,
+            health_doc=h,
+            run_state=rs,
+        )
         rows.append(
             {
                 "id": pid,
@@ -215,6 +391,9 @@ def build_gateway_production_summary_payload(workspace: str | Path | None = None
                 "env_present": env_present,
                 "run_state": rs,
                 "channel_monitoring": _channel_monitoring(pid, m, h),
+                "readiness": readiness,
+                "readiness_checklist": readiness.get("checks") or [],
+                "diagnostics": readiness.get("diagnostics") or [],
                 "production_state": (
                     "running"
                     if rs.get("running") is True
@@ -238,6 +417,24 @@ def build_gateway_production_summary_payload(workspace: str | Path | None = None
             "bindings_count": sum(
                 int((r.get("health") if isinstance(r.get("health"), dict) else {}).get("bindings_count") or 0)
                 for r in rows
+            ),
+            "ready_count": sum(
+                1
+                for r in rows
+                if (r.get("readiness") if isinstance(r.get("readiness"), dict) else {}).get("state") == "ready"
+            ),
+            "warn_count": sum(
+                1
+                for r in rows
+                if (r.get("readiness") if isinstance(r.get("readiness"), dict) else {}).get("state") == "warn"
+            ),
+            "blocked_count": sum(
+                1
+                for r in rows
+                if (r.get("readiness") if isinstance(r.get("readiness"), dict) else {}).get("state") == "blocked"
+            ),
+            "diagnostics_count": sum(
+                len(r.get("diagnostics") if isinstance(r.get("diagnostics"), list) else []) for r in rows
             ),
         },
     }

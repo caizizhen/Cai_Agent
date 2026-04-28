@@ -21,6 +21,29 @@ from cai_agent.plugin_registry import build_local_catalog_payload
 _SRC = Path(__file__).resolve().parents[1] / "src"
 
 
+def _write_reviewed_registry(root: Path) -> None:
+    (root / "ecc-asset-registry.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "ecc_asset_registry_v1",
+                "assets": [
+                    {
+                        "asset_id": "rules",
+                        "asset_type": "directory",
+                        "version": "1.0.0",
+                        "source": {"kind": "file", "origin": str(root)},
+                        "integrity": {"hash_algo": "sha256", "hash_value": "1" * 64},
+                        "signature": {"scheme": "none", "verified": False},
+                        "trust": {"level": "reviewed"},
+                    },
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 def _cli(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = dict(os.environ)
     env["PYTHONPATH"] = str(_SRC)
@@ -165,10 +188,51 @@ def test_ecc_pack_import_dry_run_json(tmp_path: Path) -> None:
     assert rules.get("action") == "add"
 
 
+def test_ecc_assets_marketplace_catalog_and_upgrade_plan(tmp_path: Path) -> None:
+    (tmp_path / "skills").mkdir()
+    (tmp_path / "skills" / "demo.md").write_text("# Demo\n", encoding="utf-8")
+    out = _cli(tmp_path, "ecc", "-w", str(tmp_path), "assets", "catalog", "--json")
+    assert out.returncode == 0, out.stderr
+    doc = json.loads((out.stdout or "").strip())
+    assert doc.get("schema_version") == "ecc_asset_marketplace_catalog_v1"
+    assets = doc.get("assets") or []
+    skills = next((x for x in assets if isinstance(x, dict) and x.get("asset_id") == "skills"), None)
+    assert isinstance(skills, dict)
+    assert skills.get("source", {}).get("kind") == "workspace"
+    assert "license" in skills
+    assert skills.get("trust", {}).get("level") in {"local_reviewed", "blocked"}
+    assert skills.get("install", {}).get("status") == "installed"
+
+    src = tmp_path / "source-pack"
+    (src / "rules").mkdir(parents=True)
+    (src / "rules" / "common.md").write_text("rule", encoding="utf-8")
+    _write_reviewed_registry(src)
+    out2 = _cli(
+        tmp_path,
+        "ecc",
+        "-w",
+        str(tmp_path),
+        "assets",
+        "upgrade-plan",
+        "--from-workspace",
+        str(src),
+        "--json",
+    )
+    assert out2.returncode == 0, out2.stderr
+    plan = json.loads((out2.stdout or "").strip())
+    assert plan.get("schema_version") == "ecc_asset_marketplace_upgrade_plan_v1"
+    recs = plan.get("recommendations") or []
+    rules = next((x for x in recs if isinstance(x, dict) and x.get("asset_id") == "rules"), None)
+    assert isinstance(rules, dict)
+    assert rules.get("recommendation") == "install"
+    assert rules.get("asset", {}).get("trust", {}).get("allow") is True
+
+
 def test_ecc_pack_import_apply_force_backs_up_conflict(tmp_path: Path) -> None:
     src = tmp_path / "src-pack"
     (src / "skills").mkdir(parents=True)
     (src / "skills" / "a.md").write_text("source", encoding="utf-8")
+    _write_reviewed_registry(src)
     dst = tmp_path / "skills"
     dst.mkdir()
     (dst / "a.md").write_text("old", encoding="utf-8")

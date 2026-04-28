@@ -14,6 +14,7 @@
    - `cai-agent init`（或 `init --global`）生成配置骨架。  
    - 如果是升级后回来看差异，先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，再决定是否切到 `init --preset starter` 或补新的 profile。
    - `cai-agent doctor`：确认工作区、API Key（脱敏）、工具链可发现性。
+   - 如果缺配置、旧配置或资产漂移，`doctor --json`、`repair --dry-run --json` 与 `onboarding --json` 都会给出同源 `install_recovery_flows_v1` / `next_steps`。
    - 若已启用 MCP：`cai-agent mcp-check --json --preset websearch/notebook --list-only`，先确认工具列表是否具备目标能力，再做单工具探活。
 
 4. **接入或切换模型**
@@ -35,4 +36,5 @@
 
 1. 先看根目录 `CHANGELOG.zh-CN.md` / `CHANGELOG.md`，确认本轮新增命令、schema 或 runbook 是否影响你的使用方式。
 2. 再运行 `cai-agent doctor`，确认当前配置、MCP、profile、文档入口都还健康。
-3. 如果你之前只有单一 `[llm]`，但现在需要多后端或 profile 管理，再考虑 `cai-agent init --preset starter` 的迁移路径。
+3. 运行 `cai-agent repair --dry-run --json` 查看本地缺失目录、配置模板、ECC/Plugins home drift 与下一步命令。
+4. 如果你之前只有单一 `[llm]`，但现在需要多后端或 profile 管理，再考虑 `cai-agent init --preset starter` 或 `models onboarding` 的迁移路径。

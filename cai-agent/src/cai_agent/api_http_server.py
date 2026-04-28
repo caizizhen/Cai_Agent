@@ -47,6 +47,247 @@ from cai_agent.schedule import compute_due_tasks
 from cai_agent.server_auth import resolve_bearer_token
 
 
+def _json_schema_ref(schema_version: str) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "schema_version": {"const": schema_version},
+        },
+        "additionalProperties": True,
+    }
+
+
+def _error_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "properties": {
+            "ok": {"type": "boolean"},
+            "error": {"type": "string"},
+            "message": {"type": "string"},
+        },
+        "additionalProperties": True,
+    }
+
+
+def _json_response(description: str, schema: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "description": description,
+        "content": {
+            "application/json": {
+                "schema": schema,
+            },
+        },
+    }
+
+
+def _op(
+    *,
+    method: str,
+    summary: str,
+    schema_version: str | None = None,
+    security: bool = True,
+    request_schema: dict[str, Any] | None = None,
+    parameters: list[dict[str, Any]] | None = None,
+    content_type: str = "application/json",
+) -> dict[str, Any]:
+    responses: dict[str, Any] = {}
+    if content_type == "text/event-stream":
+        responses["200"] = {
+            "description": "Server-sent event stream",
+            "content": {
+                "text/event-stream": {
+                    "schema": {"type": "string"},
+                },
+            },
+        }
+    elif content_type == "text/html":
+        responses["200"] = {
+            "description": "HTML dashboard",
+            "content": {
+                "text/html": {
+                    "schema": {"type": "string"},
+                },
+            },
+        }
+    else:
+        responses["200"] = _json_response(
+            "OK",
+            _json_schema_ref(schema_version) if schema_version else {"type": "object"},
+        )
+    responses["400"] = _json_response("Bad request", _error_schema())
+    responses["401"] = _json_response("Bearer token required", _error_schema())
+    responses["403"] = _json_response("Forbidden", _error_schema())
+    responses["404"] = _json_response("Not found", _error_schema())
+    spec: dict[str, Any] = {
+        "summary": summary,
+        "operationId": method,
+        "responses": responses,
+    }
+    if parameters:
+        spec["parameters"] = parameters
+    if security:
+        spec["security"] = [{"bearerAuth": []}]
+    else:
+        spec["security"] = []
+    if request_schema is not None:
+        spec["requestBody"] = {
+            "required": False,
+            "content": {
+                "application/json": {
+                    "schema": request_schema,
+                },
+            },
+        }
+    if schema_version:
+        spec["x-cai-schema-version"] = schema_version
+    return spec
+
+
+def _workspace_query_param() -> dict[str, Any]:
+    return {
+        "name": "workspace",
+        "in": "query",
+        "required": True,
+        "schema": {"type": "string"},
+        "description": "Workspace path allowed by ops serve.",
+    }
+
+
+def build_api_openapi_v1() -> dict[str, Any]:
+    """Build the non-sensitive OpenAPI contract for API and ops HTTP surfaces."""
+
+    route_preview_body = {
+        "type": "object",
+        "properties": {
+            "platform": {"type": "string"},
+            "channel_id": {"type": ["string", "null"]},
+            "target_workspace": {"type": ["string", "null"]},
+            "target_profile_id": {"type": ["string", "null"]},
+            "dry_run": {"type": "boolean", "default": True},
+        },
+        "additionalProperties": False,
+    }
+    run_due_body = {
+        "type": "object",
+        "properties": {"dry_run": {"type": "boolean", "default": True}},
+        "additionalProperties": True,
+    }
+    chat_body = {
+        "type": "object",
+        "properties": {
+            "model": {"type": "string"},
+            "messages": {"type": "array", "items": {"type": "object"}},
+            "temperature": {"type": "number"},
+            "stream": {"type": "boolean"},
+        },
+        "required": ["messages"],
+        "additionalProperties": True,
+    }
+    ops_interaction_body = {
+        "type": "object",
+        "properties": {
+            "workspace": {"type": "string"},
+            "action": {"type": "string"},
+            "mode": {"type": "string", "enum": ["preview", "apply", "audit"]},
+        },
+        "required": ["workspace", "action"],
+        "additionalProperties": True,
+    }
+    ops_params = [
+        _workspace_query_param(),
+        {"name": "observe_pattern", "in": "query", "schema": {"type": "string"}},
+        {"name": "observe_limit", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+        {"name": "schedule_days", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+        {"name": "cost_session_limit", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+        {"name": "audit_file", "in": "query", "schema": {"type": "string"}},
+    ]
+    paths: dict[str, Any] = {
+        "/healthz": {"get": _op(method="getHealthz", summary="Liveness probe", schema_version="api_liveness_v1", security=False)},
+        "/health": {"get": _op(method="getHealth", summary="Liveness probe alias", schema_version="api_liveness_v1", security=False)},
+        "/openapi.json": {"get": _op(method="getOpenApi", summary="OpenAPI contract", security=True)},
+        "/v1/health": {"get": _op(method="getV1Health", summary="Authenticated health summary", schema_version="api_health_v1")},
+        "/v1/ready": {"get": _op(method="getV1Ready", summary="Configuration readiness summary", schema_version="api_ready_v1")},
+        "/v1/status": {"get": _op(method="getStatus", summary="Gateway status summary", schema_version="api_status_v1")},
+        "/v1/doctor/summary": {"get": _op(method="getDoctorSummary", summary="Sanitized doctor summary", schema_version="api_doctor_summary_v1")},
+        "/v1/models": {"get": _op(method="listModels", summary="OpenAI-compatible model list", schema_version="api_openai_models_v1")},
+        "/v1/models/summary": {"get": _op(method="getModelsSummary", summary="Profile contract summary", schema_version="api_models_summary_v1")},
+        "/v1/models/capabilities": {"get": _op(method="getModelsCapabilities", summary="Model capability metadata", schema_version="api_models_capabilities_v1")},
+        "/v1/profiles": {"get": _op(method="getProfiles", summary="Public profile list", schema_version="api_profiles_v1")},
+        "/v1/plugins/surface": {
+            "get": _op(
+                method="getPluginsSurface",
+                summary="Plugin surface summary",
+                schema_version="api_plugins_surface_v1",
+                parameters=[{"name": "compat", "in": "query", "schema": {"type": "boolean"}}],
+            ),
+        },
+        "/v1/release/runbook": {"get": _op(method="getReleaseRunbook", summary="Release runbook summary", schema_version="api_release_runbook_v1")},
+        "/v1/gateway/federation-summary": {"get": _op(method="getGatewayFederationSummary", summary="Gateway federation summary", schema_version="gateway_federation_summary_v1")},
+        "/v1/gateway/route-preview": {"post": _op(method="postGatewayRoutePreview", summary="Dry-run gateway route preview", schema_version="gateway_proxy_route_v1", request_schema=route_preview_body)},
+        "/v1/tasks/run-due": {"post": _op(method="postTasksRunDue", summary="Dry-run due schedule tasks", schema_version="api_tasks_run_due_v1", request_schema=run_due_body)},
+        "/v1/chat/completions": {"post": _op(method="postChatCompletions", summary="OpenAI-compatible chat completion", schema_version="api_openai_chat_completion_v1", request_schema=chat_body)},
+        "/v1/ops/dashboard": {"get": _op(method="getOpsDashboard", summary="Ops dashboard JSON", schema_version="ops_dashboard_v1", parameters=ops_params)},
+        "/v1/ops/dashboard.html": {"get": _op(method="getOpsDashboardHtml", summary="Ops dashboard HTML", parameters=ops_params, content_type="text/html")},
+        "/v1/ops/dashboard/events": {"get": _op(method="getOpsDashboardEvents", summary="Ops dashboard SSE events", parameters=ops_params, content_type="text/event-stream")},
+        "/v1/ops/dashboard/interactions": {
+            "get": _op(
+                method="getOpsDashboardInteractions",
+                summary="Preview or audit dashboard action",
+                schema_version="ops_dashboard_interactions_v1",
+                parameters=[
+                    *ops_params,
+                    {"name": "action", "in": "query", "required": True, "schema": {"type": "string"}},
+                    {"name": "mode", "in": "query", "schema": {"type": "string", "enum": ["preview", "audit"]}},
+                ],
+            ),
+            "post": _op(
+                method="postOpsDashboardInteractions",
+                summary="Preview, apply, or audit dashboard action",
+                schema_version="ops_dashboard_interactions_v1",
+                request_schema=ops_interaction_body,
+            ),
+        },
+    }
+    schema_versions = sorted(
+        {
+            str(op.get("x-cai-schema-version"))
+            for item in paths.values()
+            for op in item.values()
+            if isinstance(op, dict) and op.get("x-cai-schema-version")
+        },
+    )
+    return {
+        "openapi": "3.1.0",
+        "info": {
+            "title": "cai-agent API and Ops Gateway",
+            "version": __version__,
+            "description": "Non-sensitive discovery contract for cai-agent API and ops HTTP surfaces.",
+        },
+        "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
+        "paths": paths,
+        "components": {
+            "securitySchemes": {
+                "bearerAuth": {
+                    "type": "http",
+                    "scheme": "bearer",
+                    "bearerFormat": "CAI_API_TOKEN or CAI_OPS_API_TOKEN",
+                },
+            },
+        },
+        "x-cai-contract": {
+            "schema_version": "api_openapi_v1",
+            "generated_at": datetime.now(UTC).isoformat(),
+            "surfaces": ["api", "ops"],
+            "auth": {
+                "api": "CAI_API_TOKEN or CAI_OPS_API_TOKEN; /healthz and /health are liveness-only and unauthenticated",
+                "ops": "CAI_OPS_API_TOKEN or CAI_API_TOKEN",
+            },
+            "schema_versions": schema_versions,
+            "sensitive_fields_excluded": ["api_key", "base_url", "workspace_runtime_values"],
+        },
+    }
+
+
 def build_api_models_summary_v1(settings: Settings) -> dict[str, Any]:
     """HTTP ``GET /v1/models/summary`` 白名单视图：仅包含 ``profile_contract_v1`` 与 ID 列表。"""
     contract = build_profile_contract_payload(
@@ -489,6 +730,9 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
             if path in ("/healthz", "/health"):
                 self._send_json(200, build_api_liveness_v1())
                 return
+            if path == "/openapi.json":
+                self._send_json(200, build_api_openapi_v1())
+                return
             if path == "/v1/health":
                 tok = getattr(self.server, "api_token", None)
                 self._send_json(
@@ -696,6 +940,7 @@ def run_agent_api_server(
         f"  config: {cfg_resolved or '(discover from workspace + CAI_CONFIG)'}\n"
         "  CAI_API_TOKEN/CAI_OPS_API_TOKEN: "
         f"{'set' if api_token else 'unset'}\n"
+        "  GET /openapi.json\n"
         "  GET /healthz | GET /health | GET /v1/health | GET /v1/ready | GET /v1/status | GET /v1/profiles | GET /v1/doctor/summary\n"
         "  GET /v1/models | GET /v1/models/summary | GET /v1/plugins/surface[?compat=1] | GET /v1/release/runbook\n"
         "  GET /v1/gateway/federation-summary\n"

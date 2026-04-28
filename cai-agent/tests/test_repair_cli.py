@@ -32,6 +32,11 @@ def test_repair_dry_run_json_reports_needed_actions(tmp_path: Path) -> None:
     assert isinstance(payload.get("ecc_structured_home_diff_pending_targets"), list)
     assert isinstance(payload.get("ecc_home_diff_preview_commands"), list)
     assert payload.get("ecc_home_diff_preview_commands")
+    flows = payload.get("recovery_flows") or {}
+    assert flows.get("schema_version") == "install_recovery_flows_v1"
+    assert "cai-agent init --preset starter" in (flows.get("missing_config") or [])
+    assert "cai-agent ecc home-diff --json" in (flows.get("asset_drift") or [])
+    assert "cai-agent init --preset starter" in (payload.get("next_steps") or [])
     assert not (tmp_path / "cai-agent.toml").exists()
 
 
@@ -53,3 +58,5 @@ def test_repair_apply_json_creates_minimal_install_surface(tmp_path: Path) -> No
     assert (tmp_path / "hooks").is_dir()
     assert (tmp_path / "hooks" / "hooks.json").is_file()
     assert (tmp_path / "cai-agent.toml").is_file()
+    assert (payload.get("recovery_flows") or {}).get("schema_version") == "install_recovery_flows_v1"
+    assert isinstance(payload.get("next_steps"), list)

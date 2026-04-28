@@ -21,35 +21,6 @@ context_window = 200000
 
 # 智谱 OpenAI 兼容：https://docs.bigmodel.cn/cn/guide/develop/openai/introduction
 # 在 PowerShell 中设置密钥：  $env:ZAI_API_KEY = "你的 API Key"
-[models]
-active = "zhipu-glm51"
- 
-[[models.profile]]
-id = "zhipu-glm51"
-provider = "openai_compatible"
-base_url = "https://open.bigmodel.cn/api/paas/v4"
-model = "glm-5.1"
-api_key_env = "ZAI_API_KEY"
-temperature = 0.6
-timeout_sec = 500.0
-context_window = 200000
-notes = "Zhipu GLM-5.1; requires ZAI_API_KEY. Switch back to local: cai-agent models use local-lmstudio"
-
-[[models.profile]]
-id = "local-lmstudio"
-provider = "openai_compatible"
-base_url = "http://localhost:1234/v1"
-model = "google/gemma-4-31b"  
-api_key = "lm-studio"
-temperature = 0.2
-timeout_sec = 500.0
-context_window = 60000
-notes = "本机 LM Studio（原 [llm] 默认）；访问本机请在环境中设 NO_PROXY=localhost,127.0.0.1"
-
-# Copilot 集成（重要）
-# 说明：Copilot 官方不提供稳定公开的 chat/completions 接口。
-# 建议通过“OpenAI 兼容代理”接入（例如本地代理服务），然后把 llm.provider 设为 "copilot"。
-# provider=copilot 时，优先读取 COPILOT_* 环境变量，其次读取本节配置，再回退 llm.*
 [copilot]
 # base_url = "http://localhost:4141/v1"
 # model = "gpt-4o-mini"
@@ -163,3 +134,37 @@ fetch_url = "allow"
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）
 budget_max_tokens = 30000
+
+[models]
+active = "mimo-pro"
+
+[[models.profile]]
+id = "zhipu-glm51"
+provider = "openai_compatible"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-5.1"
+api_key_env = "ZAI_API_KEY"
+temperature = 0.6
+timeout_sec = 500.0
+context_window = 200000
+notes = "Zhipu GLM-5.1; requires ZAI_API_KEY. Switch back to local: cai-agent models use local-lmstudio"
+
+[[models.profile]]
+id = "local-lmstudio"
+provider = "openai_compatible"
+base_url = "http://localhost:1234/v1"
+model = "google/gemma-4-31b"
+api_key = "lm-studio"
+temperature = 0.2
+timeout_sec = 500.0
+context_window = 60000
+notes = "本机 LM Studio（原 [llm] 默认）；访问本机请在环境中设 NO_PROXY=localhost,127.0.0.1"
+
+[[models.profile]]
+id = "mimo-pro"
+provider = "openai_compatible"
+base_url = "https://token-plan-cn.xiaomimimo.com/v1"
+model = "mimo-v2.5-pro"
+api_key_env = "MIMO_API_KEY"
+temperature = 0.2
+timeout_sec = 120.0

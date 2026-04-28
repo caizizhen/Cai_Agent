@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from cai_agent.api_http_server import AgentApiRequestHandler, AgentApiThreadingServer
+from cai_agent.api_http_server import AgentApiRequestHandler, AgentApiThreadingServer, build_api_openapi_v1
 
 _SCHEMAS = Path(__file__).resolve().parents[1] / "src" / "cai_agent" / "schemas"
 
@@ -108,6 +108,50 @@ def test_api_health_alias_without_bearer_when_token_set(tmp_path: Path) -> None:
             body = json.loads(resp.read().decode("utf-8"))
         assert body.get("ok") is True
         assert body.get("schema_version") == "api_liveness_v1"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_api_openapi_contract_lists_api_and_ops_routes() -> None:
+    data = build_api_openapi_v1()
+    assert data.get("openapi") == "3.1.0"
+    assert (data.get("x-cai-contract") or {}).get("schema_version") == "api_openapi_v1"
+    paths = data.get("paths") or {}
+    assert "/v1/status" in paths
+    assert "/v1/doctor/summary" in paths
+    assert "/v1/models" in paths
+    assert "/v1/chat/completions" in paths
+    assert "/v1/ops/dashboard" in paths
+    assert "/v1/ops/dashboard/interactions" in paths
+    assert paths["/healthz"]["get"].get("security") == []
+    assert paths["/v1/status"]["get"].get("security") == [{"bearerAuth": []}]
+    versions = (data.get("x-cai-contract") or {}).get("schema_versions") or []
+    assert "api_status_v1" in versions
+    assert "api_doctor_summary_v1" in versions
+    assert "api_openai_chat_completion_v1" in versions
+    assert "ops_dashboard_v1" in versions
+    assert "ops_dashboard_interactions_v1" in versions
+    raw = json.dumps(data, ensure_ascii=False)
+    assert "api_key_present" not in raw
+    assert "http://127.0.0.1" not in raw
+    assert "sk-" not in raw
+
+
+def test_api_openapi_json_route_requires_bearer_when_token_set(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start(root, "abc")
+    try:
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(_url(httpd, "/openapi.json"), timeout=5)
+        assert ei.value.code == 401
+
+        req = urllib.request.Request(_url(httpd, "/openapi.json"))
+        req.add_header("Authorization", "Bearer abc")
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("openapi") == "3.1.0"
+        assert "/v1/ops/dashboard" in (data.get("paths") or {})
     finally:
         httpd.shutdown()
         httpd.server_close()
