@@ -170,6 +170,15 @@ export MIMO_API_KEY="your-key"
 cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
 cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
 
+# 2C) Or Zhipu GLM-5.1 (OpenAI-compatible; prepare env var first)
+export ZAI_API_KEY="your-key"
+cai-agent models add --preset zhipu --id glm51 --model glm-5.1 --set-active
+
+# 2D) Or DeepSeek (OpenAI-compatible; prepare env var first)
+export DEEPSEEK_API_KEY="your-key"
+cai-agent models add --preset gateway --id deepseek --model deepseek-chat --set-active
+cai-agent models edit deepseek --api-key-env DEEPSEEK_API_KEY --base-url https://api.deepseek.com/v1 --model deepseek-chat
+
 # 3) Connectivity check
 cai-agent models ping --json
 
