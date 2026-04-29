@@ -43,7 +43,106 @@ _LOCAL_BASE_MARKERS = (
 
 def _is_local_base_url(base_url: str | None) -> bool:
     base = str(base_url or "").strip().lower()
-    return base.startswith("http://") and any(marker in base for marker in _LOCAL_BASE_MARKERS)
+    return any(marker in base for marker in _LOCAL_BASE_MARKERS)
+
+
+_CONTEXT_1M = 1_048_576
+
+
+_MODEL_CONTEXT_PREFIXES: tuple[tuple[tuple[str, ...], int], ...] = (
+    # OpenAI, official model table.
+    (("gpt-5.4-mini", "gpt-5.4-nano"), 400_000),
+    (("gpt-5.5", "gpt-5.4"), 1_000_000),
+    (("gpt-5.2", "gpt-5.1", "gpt-5"), 400_000),
+    (("gpt-4.1", "gpt-4.5"), 1_047_576),
+    (("gpt-4o", "chatgpt-4o"), 128_000),
+    (("o1", "o3", "o4"), 200_000),
+    (("openai/gpt-oss", "gpt-oss"), 131_072),
+    # Anthropic, official Claude model table.
+    (("claude-opus-4-7", "claude-opus-4.7", "claude-sonnet-4-6", "claude-sonnet-4.6"), 1_000_000),
+    (("claude-",), 200_000),
+    # Google Gemini API, official per-model token limits.
+    (("gemini-3.1-pro", "gemini-3-pro", "gemini-2.5", "gemini-2.0"), _CONTEXT_1M),
+    (("gemini-1.5-pro",), 2_097_152),
+    (("gemini-1.5", "gemini-"), _CONTEXT_1M),
+    # DeepSeek official Models & Pricing page.
+    (("deepseek-v4", "deepseek-chat", "deepseek-reasoner"), 1_000_000),
+    (("deepseek-",), 128_000),
+    # Zhipu / Z.ai.
+    (("glm-5.1", "glm-5", "glm-4.7", "glm-4.6"), 200_000),
+    (("glm-4.5",), 128_000),
+    # Moonshot / Kimi.
+    (("kimi-k2.6", "kimi-k2.5", "moonshot/kimi-k2.6", "moonshot/kimi-k2.5"), 256_000),
+    (("kimi-k2-0711", "moonshot/kimi-k2-0711"), 128_000),
+    (("kimi-k2", "moonshot/kimi-k2"), 256_000),
+    (("kimi-",), 128_000),
+    # MiniMax.
+    (("minimax-m2.1",), 204_800),
+    (("minimax-m1",), 1_000_000),
+    (("minimax-",), 1_000_000),
+    # Alibaba DashScope / Qwen.
+    (("qwen3.6-max", "qwen3-max"), 262_144),
+    (("qwen3-coder",), 1_000_000),
+    (("qwen3-", "qwen3/", "qwen3"), 131_072),
+    (("qwen-max",), 32_768),
+    (("qwen-long",), 10_000_000),
+    (("qwen-", "qwen2", "qwen/"), 131_072),
+    # xAI / Grok. Keep aliases conservative when the detail page does not
+    # expose an exact static number in the text mirror.
+    (("grok-4.20", "grok-4.1", "grok-4-fast"), 2_000_000),
+    (("grok-4",), 256_000),
+    (("grok-3",), 131_072),
+    # Groq hosted text models.
+    (("llama-3.1-8b-instant", "llama-3.3-70b-versatile", "llama-4", "meta-llama/llama-4"), 131_072),
+    (("qwen/qwen3-32b",), 131_072),
+    # Cohere Command family.
+    (("command-a-reasoning", "command-a-03"), 256_000),
+    (("command-a-vision", "command-r", "command-r-plus"), 128_000),
+    # Perplexity Sonar API.
+    (("sonar-pro", "sonar-reasoning-pro"), 200_000),
+    (("sonar",), 128_000),
+    # Mistral current model families; individual hosted model cards may be
+    # narrower, so only pin widely documented long-context chat families.
+    (("mistral-large-3", "mistral-large-latest", "mistral-large"), 128_000),
+    (("mistral-medium-3", "mistral-medium-latest", "mistral-small-4", "mistral-small-3", "codestral"), 128_000),
+    (("ministral-3", "devstral", "magistral"), 128_000),
+    # Built-in hosted presets and open-model routers.
+    (("mimo-v2.5-pro",), 1_000_000),
+    (("hermes-3-llama-3.1-8b", "meta/llama-3.1-8b-instruct", "meta-llama/llama-3.1-8b-instruct"), 128_000),
+    (("meta-llama-3-8b-instruct", "meta-llama/meta-llama-3-8b-instruct"), 8_192),
+    (("llama-3.3", "llama-3.1", "meta-llama/llama-3.3", "meta-llama/llama-3.1"), 131_072),
+    # Volcengine Ark / Doubao public OpenAI-compatible chat families.
+    (("doubao-", "seed-"), 128_000),
+)
+
+
+_OPENROUTER_PROVIDER_BASES: tuple[tuple[tuple[str, ...], str, str], ...] = (
+    (("openai/",), "openai", "https://api.openai.com/v1"),
+    (("anthropic/",), "anthropic", "https://api.anthropic.com"),
+    (("google/",), "openai_compatible", "https://generativelanguage.googleapis.com/v1beta/openai"),
+    (("deepseek/",), "openai_compatible", "https://api.deepseek.com/v1"),
+    (("x-ai/", "xai/"), "openai_compatible", "https://api.x.ai/v1"),
+    (("moonshot/",), "openai_compatible", "https://api.moonshot.cn/v1"),
+    (("minimax/",), "openai_compatible", "https://api.minimax.chat/v1"),
+    (("zhipu/",), "openai_compatible", "https://open.bigmodel.cn/api/paas/v4"),
+    (("mistralai/",), "openai_compatible", "https://api.mistral.ai/v1"),
+    (("qwen/", "alibaba/"), "openai_compatible", "https://dashscope.aliyuncs.com/compatible-mode/v1"),
+    (("bytedance/", "doubao/", "volcengine/"), "openai_compatible", "https://ark.cn-beijing.volces.com/api/v3"),
+    (("meta-llama/",), "openai_compatible", "https://integrate.api.nvidia.com/v1"),
+    (("perplexity/",), "openai_compatible", "https://api.perplexity.ai"),
+    (("cohere/",), "openai_compatible", "https://api.cohere.com/compatibility/v1"),
+)
+
+
+def _strip_router_vendor(model: str) -> str:
+    return model.split("/", 1)[1] if "/" in model else model
+
+
+def _context_window_from_model_name(model_l: str) -> int | None:
+    for prefixes, context_window in _MODEL_CONTEXT_PREFIXES:
+        if model_l.startswith(prefixes) or any(prefix in model_l for prefix in prefixes if "/" not in prefix):
+            return context_window
+    return None
 
 
 def infer_default_context_window(
@@ -66,102 +165,53 @@ def infer_default_context_window(
     if not model_l or _is_local_base_url(base):
         return None
 
-    # Explicit model-level defaults for built-in hosted third-party presets.
-    if "mimo-v2.5-pro" in model_l:
-        return 1_000_000
-    if model_l.startswith(("kimi-k2", "moonshot/kimi-k2")):
-        return 256_000
-    if model_l.startswith("minimax-m2.1"):
-        return 204_800
-    if "hermes-3-llama-3.1-8b" in model_l:
-        return 128_000
-    if model_l.startswith("meta/llama-3.1-8b-instruct"):
-        return 128_000
-    if model_l.endswith("meta-llama-3-8b-instruct"):
-        return 8_192
+    direct = _context_window_from_model_name(model_l)
+    if direct is not None:
+        return direct
 
-    # Provider/protocol-wide defaults first.
-    if provider_s == "anthropic" or "api.anthropic.com" in base or model_l.startswith("claude-"):
-        return 200_000
-    if "open.bigmodel.cn" in base or model_l.startswith(("glm-5", "glm-4.6")):
-        return 200_000
-    if "api.deepseek.com" in base or model_l.startswith("deepseek-"):
-        return 128_000
-    if "generativelanguage.googleapis.com" in base or model_l.startswith("gemini-"):
-        return 1_048_576
-
-    # OpenAI family.
-    if model_l.startswith(("gpt-4.1", "gpt-4.5")):
-        return 1_047_576
-    if model_l.startswith(("gpt-4o", "chatgpt-4o")):
-        return 128_000
-    if model_l.startswith(("o1", "o3", "o4")):
-        return 200_000
-    if model_l.startswith("gpt-5"):
-        return 400_000
-
-    # xAI / Grok.
-    if "api.x.ai" in base or model_l.startswith("grok-"):
-        if "fast" in model_l or "4.1" in model_l or "4.20" in model_l:
-            return 2_000_000
-        if "4" in model_l:
-            return 256_000
-        return 131_072
-
-    # Common OpenAI-compatible hosted providers and open-model routers.
-    if "api.moonshot" in base or model_l.startswith("kimi-"):
-        return 128_000
-    if "api.minimax" in base or model_l.startswith("minimax-"):
-        return 1_000_000
-    if "api.perplexity.ai" in base or model_l.startswith("sonar"):
-        return 128_000
-    if "api.groq.com" in base:
-        if "llama-3.3" in model_l or "llama-4" in model_l:
-            return 131_072
-        return 32_768
-    if "mistral" in base or model_l.startswith(("mistral-", "codestral", "ministral")):
-        return 128_000
-    if "dashscope" in base or "aliyuncs.com" in base or model_l.startswith(("qwen-", "qwen2", "qwen3")):
-        return 131_072
-    if "ark.cn-" in base or "volces.com" in base or model_l.startswith(("doubao-", "seed-")):
-        return 128_000
-    if "siliconflow" in base or "together.xyz" in base or "fireworks.ai" in base:
-        if "deepseek" in model_l:
-            return 128_000
-        if "qwen" in model_l:
-            return 131_072
-        if "llama-4" in model_l or "llama-3.3" in model_l:
-            return 131_072
+    # OpenRouter model ids often look like "vendor/model"; route the suffix
+    # back through the same provider-aware rules so exact model defaults win.
+    if "openrouter.ai" in base:
+        for prefixes, routed_provider, routed_base_url in _OPENROUTER_PROVIDER_BASES:
+            if model_l.startswith(prefixes):
+                return infer_default_context_window(
+                    provider=routed_provider,
+                    base_url=routed_base_url,
+                    model=_strip_router_vendor(model_l),
+                )
         return None
 
-    # OpenRouter model ids often look like "vendor/model".
-    if "openrouter.ai" in base:
-        if model_l.startswith("openai/"):
-            return infer_default_context_window(provider="openai", base_url="https://api.openai.com/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("anthropic/"):
-            return 200_000
-        if model_l.startswith("google/"):
-            return 1_048_576 if "gemini" in model_l else None
-        if model_l.startswith("deepseek/"):
-            return 128_000
-        if model_l.startswith("x-ai/") or model_l.startswith("xai/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://api.x.ai/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("moonshot/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://api.moonshot.cn/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("minimax/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://api.minimax.chat/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("zhipu/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://open.bigmodel.cn/api/paas/v4", model=model_l.split("/", 1)[1])
-        if model_l.startswith("mistralai/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://api.mistral.ai/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("qwen/") or model_l.startswith("alibaba/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://dashscope.aliyuncs.com/compatible-mode/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("bytedance/") or model_l.startswith("doubao/") or model_l.startswith("volcengine/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://ark.cn-beijing.volces.com/api/v3", model=model_l.split("/", 1)[1])
-        if model_l.startswith("meta-llama/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://integrate.api.nvidia.com/v1", model=model_l.split("/", 1)[1])
-        if model_l.startswith("perplexity/"):
-            return infer_default_context_window(provider="openai_compatible", base_url="https://api.perplexity.ai", model=model_l.split("/", 1)[1])
+    # Provider/protocol-wide fallbacks only apply after exact model lookup.
+    if provider_s == "anthropic" or "api.anthropic.com" in base:
+        return 200_000
+    if "generativelanguage.googleapis.com" in base:
+        return _CONTEXT_1M
+    if "api.openai.com" in base and provider_s in {"openai", "openai_compatible"}:
+        return None
+    if "open.bigmodel.cn" in base:
+        return 200_000
+    if "api.deepseek.com" in base:
+        return 1_000_000
+    if "api.x.ai" in base:
+        return 131_072
+    if "api.moonshot" in base:
+        return 128_000
+    if "api.minimax" in base:
+        return 1_000_000
+    if "api.perplexity.ai" in base:
+        return 128_000
+    if "api.groq.com" in base:
+        return 32_768
+    if "mistral" in base:
+        return 128_000
+    if "dashscope" in base or "aliyuncs.com" in base:
+        return 131_072
+    if "ark.cn-" in base or "volces.com" in base:
+        return 128_000
+    if "siliconflow" in base or "together.xyz" in base or "fireworks.ai" in base:
+        routed = _context_window_from_model_name(_strip_router_vendor(model_l))
+        if routed is not None:
+            return routed
         return None
 
     return None

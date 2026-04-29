@@ -509,7 +509,7 @@ cai-agent ui -w "$PWD"
 
 建议顺序：`/status` → **`Ctrl+M` 或 `/models`**（模型面板）→ 输入任务 → `/save`。内置斜杠含 `/help`、`/mcp`、`/sessions`、`/clear`、`/usage` 等；`commands/*.md` 中的项目命令会被发现并出现在菜单中。
 
-**上下文条：** 显示上次请求的 `prompt_tokens` 相对 `context_window`（来源可为 profile / llm / env / default）。颜色阈值大致为：绿色表示低于 70%，黄色 70%–89%，红色 90% 及以上。
+**上下文条：** 显示上次请求的 `prompt_tokens` 相对 `context_window`（来源可为显式 profile / 托管模型自动默认值 / llm / env / default）。颜色阈值大致为：绿色表示低于 70%，黄色 70%–89%，红色 90% 及以上。
 
 ---
 

@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **托管模型官方上下文窗口表刷新**：`infer_default_context_window()` 现在先按有序模型前缀表命中，再进入 provider 兜底，覆盖 OpenAI GPT-5.5/5.4/5.2 家族、Claude、Gemini、DeepSeek、GLM、Qwen、Kimi、MiniMax、Grok、Groq 托管开源模型、Mistral、Cohere Command、Perplexity Sonar 等当前官方默认值。OpenRouter 与聚合路由会剥离厂商前缀后复用同一张表；显式 `context_window` 仍优先，本地/自托管端点仍保持手动配置。
+
 - **上下文窗口自动推断扩展到更广的大模型接入家族**：新增 OpenRouter 厂商前缀路由与模型家族规则，覆盖主流可接入生态（含 Qwen、MiniMax、Kimi、智谱 GLM、Mistral、火山/Doubao、Meta Llama、Perplexity 等）的默认上下文窗口自动推断；未知模型与 localhost/自建端点仍保持手动配置。
 
 - **内置第三方预设改为官方上下文窗口默认值**：为仓库内置托管第三方 preset（`nous_portal`、`nvidia_nim`、`xiaomi_mimo`、`kimi_moonshot`、`minimax`、`huggingface`）补齐显式 `context_window`，接入与 onboarding 流程会自动带入 provider 官方模型上限；并同步收敛这些模型 ID 的推断规则。本地/自建端点仍保持手动配置，不做自动钉死。

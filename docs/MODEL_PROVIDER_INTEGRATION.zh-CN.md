@@ -68,6 +68,27 @@ timeout_sec = 120
 | Together AI | `openai_compatible` | `https://api.together.xyz/v1` | `TOGETHER_API_KEY` | OpenAI 兼容的托管开源模型 API。 |
 | Fireworks AI | `openai_compatible` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` | 面向托管开源模型的 OpenAI 兼容推理 endpoint。 |
 
+## 自动上下文窗口默认值
+
+当 `context_window` 未显式配置时，CAI 会根据已知托管模型 id 自动填充一个仅用于 TUI 显示的上下文分母。TOML 里显式写入的值仍然优先；`localhost`、`127.0.0.1`、`0.0.0.0` 等本地/自托管地址仍保持手动配置，因为实际服务的模型可能任意变化。
+
+| 家族 / 路由 | CAI 当前默认值 | 说明 |
+|---|---:|---|
+| OpenAI GPT-5.5 / GPT-5.4 | `1000000` | GPT-5.4 mini/nano 与 GPT-5.2/5.1/5 使用 `400000`；GPT-4.1/4.5 使用 `1047576`；GPT-4o 使用 `128000`；o 系列使用 `200000`。 |
+| Anthropic Claude | `200000` | 识别 Claude 4.6/4.7 的 1M 别名；其余 Claude 默认保持官方常规窗口。 |
+| Gemini | `1048576` | Gemini 1.5 Pro 保持官方 `2097152`。 |
+| DeepSeek | 当前 `deepseek-chat` / `deepseek-reasoner` 为 `1000000`；旧未知 `deepseek-*` 为 `128000` | 避免把旧模型别名误报成新窗口。 |
+| 智谱 GLM / Z.ai | `200000` | 覆盖 GLM-5.x / GLM-4.6+；GLM-4.5 仍为 `128000`。 |
+| Qwen / DashScope | 家族默认 `131072` | Qwen3-Max 为 `262144`；Qwen3-Coder 与 Qwen-Long 保留更大的官方窗口。 |
+| Kimi / Moonshot | K2 家族 `256000` | 更旧的通用 Kimi 别名回落到 `128000`。 |
+| MiniMax | M2.1 为 `204800`；M1 / 通用 MiniMax 为 `1000000` | 与内置 preset 保持一致，并覆盖 MiniMax 长上下文家族。 |
+| xAI Grok | 已识别 Grok 4 fast / 4.20 别名为 `2000000`，Grok 4 为 `256000` | 未知 Grok 托管模型回落到 `131072`。 |
+| Groq 托管开源模型 | Llama 3.1/3.3/4 与 Qwen3 路由为 `131072`；通用回落 `32768` | 以 Groq 模型表的已知 id 为准。 |
+| Mistral | 当前 chat/code 家族 `128000` | 未知 Mistral 托管 id 保持官方长上下文家族默认。 |
+| Cohere Command | Command A 为 `256000`；Command R / vision 别名为 `128000` | CAI 暂未实现 Cohere v2 原生协议，建议经网关或兼容 endpoint 接入。 |
+| Perplexity Sonar | Pro 别名为 `200000`；通用 Sonar 回落 `128000` | 适用于直连 Perplexity 与 OpenRouter `perplexity/*` 路由。 |
+| OpenRouter / SiliconFlow / Together / Fireworks / NVIDIA NIM / HF 路由 | 按厂商/模型前缀转发推断 | CAI 会剥离 `openai/`、`google/`、`deepseek/`、`qwen/`、`cohere/`、`perplexity/` 等路由前缀，再复用同一张模型表。 |
+
 ## 本地与自托管运行时
 
 | 运行时 | CAI provider | Base URL | Key 环境变量 | 说明 |
@@ -138,11 +159,19 @@ api_key_env = "VENDOR_API_KEY"
 
 ## 官方参考
 
+- OpenAI 模型表：<https://platform.openai.com/docs/models>
 - OpenAI Chat Completions：<https://platform.openai.com/docs/api-reference/chat/create>
+- Anthropic 模型概览：<https://docs.anthropic.com/en/docs/about-claude/models/overview>
 - Anthropic Messages API：<https://docs.anthropic.com/en/api/messages>
+- Gemini 模型表：<https://ai.google.dev/gemini-api/docs/models>
 - Gemini OpenAI compatibility：<https://ai.google.dev/gemini-api/docs/openai>
+- xAI 模型：<https://docs.x.ai/docs/models>
 - xAI API：<https://docs.x.ai/docs/api-reference>
 - DeepSeek API：<https://api-docs.deepseek.com/>
+- Mistral 模型概览：<https://docs.mistral.ai/getting-started/models/models_overview/>
+- Groq 模型表：<https://console.groq.com/docs/models>
+- Cohere 模型文档：<https://docs.cohere.com/docs/models>
+- Perplexity 模型卡：<https://docs.perplexity.ai/guides/model-cards>
 - DashScope OpenAI 兼容模式：<https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope>
 - 智谱 OpenAI SDK 兼容：<https://docs.bigmodel.cn/cn/guide/develop/openai/introduction>
 - Moonshot Kimi API：<https://platform.moonshot.cn/docs/>

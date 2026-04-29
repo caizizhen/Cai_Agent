@@ -2,13 +2,17 @@
 
 ## 当前阶段目标
 
-- 保持主干稳定（全量 pytest + smoke + 必要 regression），等待下一非 Explore 主线立项
-- **`ECC-N02-D05`**（pack-import **`ingest_gate`** + **`--apply`** 写前阻断）已合入 roadmap
-- **`CC-N04`**（session/recap 收口）、**`HM-N03-D01`**、**`HM-N04-D01`** 已合入 roadmap
+- 完成 `SYNC-N01` 产品状态清账：`API-N01`、`OPS-N01`、`CC-N05`、`GW-N01`、`ECC-N05`、`ECC-N06` 已按新 ID 归档，当前 TODO 不再重复排已实现能力。
+- 下一轮从“补产品化外表面”转入“可插拔/可验证/可编排”三条主线：memory provider、runtime 真机矩阵、workflow/subagent 编排增强。
+- Browser automation 保持 MCP first；`BRW-N04` 可作为 P2 插入项，不抢默认 P1。
 
 ## 当前优先级（按顺序）
 
-1. `（待排期）`
+1. `SYNC-N01`：收口 TODO / roadmap / parity / gap 文档一致性。
+2. `MEM-N01`：外部 memory provider adapter 契约与首个可测 adapter。
+3. `RT-N01`：Docker/SSH runtime 分层真实 smoke 与 mock 测试矩阵。
+4. `WF-N01`：workflow/subagent branch / retry / aggregate schema 与失败恢复。
+5. `BRW-N04`：Browser MCP executor（条件插入，显式确认 + 审计优先）。
 
 ## 当前不做
 

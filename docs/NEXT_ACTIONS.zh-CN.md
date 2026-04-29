@@ -7,22 +7,20 @@
 
 ## 当前目标
 
-- Browser automation 入口链已完成（MCP preset、provider 契约、治理 RFC）。下一步回到“三 repo 融合”产品化主线：优先补齐外部接入面、受控运营面、安装/升级/恢复体验。
+- 已完成 API/ops/install/gateway/ECC 产品化队列的代码与窄测试核验；当前先做 `SYNC-N01` 产品状态清账，把 TODO、roadmap、parity 与完成归档同步干净，再进入下一轮真实开发。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `API-N01` | Ready | OpenAPI + API/ops 统一网关；新增可验证的非敏感外部契约；pytest + smoke |
-| 2 | `OPS-N01` | Ready | dashboard interactions 从 preview 推进到受控 apply/audit；pytest |
-| 3 | `CC-N05` | Ready | 安装、升级、恢复体验收口；doctor/repair/onboarding 给出一致下一步 |
+| 1 | `SYNC-N01` | In Progress | 已归档 `API-N01`/`OPS-N01`/`CC-N05`/`GW-N01`/`ECC-N05`/`ECC-N06`；当前开发队列切到真实未完成项；文档一致性检查 + 窄 pytest |
 
 ## 后续队列
 
-- `GW-N01`：Gateway 生产化第二阶段（Discord/Slack/Teams readiness、故障诊断、workspace 路由预览）
-- `ECC-N05`：asset marketplace-lite（资产目录、安装、更新建议、trust 摘要）
-- `ECC-N06`：provenance/trust 策略进入 pack/import/install 执行链
-- `MEM-N01` / `RT-N01` / `WF-N01`：先 Design，补契约或测试矩阵后再进入 Ready
+- `MEM-N01`：外部 memory provider adapter，先补 RFC/schema 与 mock/filesystem 或 sqlite adapter 测试契约
+- `RT-N01`：Docker/SSH runtime 真机矩阵，先补分层 smoke / mock 测试矩阵
+- `WF-N01`：workflow/subagent 编排增强，先定 branch/retry/aggregate schema 与失败恢复语义
+- `BRW-N04`：Browser MCP executor（P2），把 `browser_task_v1.steps[]` 映射到显式确认的 Playwright MCP 调用
 
 ## 条件与边界
 
@@ -36,6 +34,13 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `ECC-N06` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `ECC-N05` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `GW-N01` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `CC-N05` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `OPS-N01` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `API-N01` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
+| `UX-CONTEXT-OFFICIAL-MODEL-TABLE` | 2026-04-29 | Refresh hosted-model context-window inference with official defaults across OpenAI/Claude/Gemini/DeepSeek/GLM/Qwen/Kimi/MiniMax/Grok/Groq/Mistral/Cohere/Perplexity and router prefixes; keep explicit/local manual behavior. | pytest profile/context/provider subset: PASS; full pytest + smoke pending |
 | `UX-CONTEXT-OFFICIAL-PRESET-MAP` | 2026-04-29 | Scan and pin official context windows for built-in hosted third-party presets; keep localhost/self-hosted context manual. | python -m pytest -q cai-agent/tests: PASS; python scripts/smoke_new_features.py: PASS |
 | `UX-CONTEXT-THIRDPARTY-DEFAULT` | 2026-04-29 | Legacy `[llm]` third-party models now auto-infer context window from provider/model defaults; localhost/self-hosted remains manual/unknown by default | `python -m pytest -q cai-agent/tests/test_context_usage_bar.py cai-agent/tests/test_model_profiles_config.py cai-agent/tests/test_provider_registry.py`: 54 passed<br>`python -m pytest -q cai-agent/tests`: 899 passed, 3 subtests passed<br>`python scripts/smoke_new_features.py`: NEW_FEATURE_CHECKS_OK |
 | `BRW-N03` | 2026-04-29 | Document browser governance, audit, artifact, and license boundaries | pytest browser MCP/provider tests: 8 passed<br>rg browser RFC/product/schema references: PASS |

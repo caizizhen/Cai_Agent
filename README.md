@@ -517,7 +517,7 @@ cai-agent ui -w "$PWD"
 
 Slash commands include `/help`, `/status`, `/models` (or **Ctrl+M**), `/mcp`, `/save`, `/load`, `/sessions`, `/clear`, `/usage`, and project templates from `commands/*.md`. Model panel **Enter** switches the **current session**; persist default with `cai-agent models use <id>` or `[models].active` in TOML.
 
-Context bar uses `prompt_tokens` vs `context_window` (from profile / llm / env / default).
+Context bar uses `prompt_tokens` vs `context_window` (from explicit profile / inferred hosted-model default / llm / env / default).
 
 ---
 

@@ -8,21 +8,17 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| 1 | `API-N01` | Ready | OpenAPI + API/ops 统一网关：让外部系统能稳定发现、调用、审计当前能力 | `cai-agent/src/cai_agent/api_http_server.py`、`cai-agent/src/cai_agent/__main__.py`、`docs/schema/README.zh-CN.md` | 新增 `api openapi --json` 或 `/openapi.json`；覆盖 status/doctor/models/chat/ops 的非敏感契约；pytest + smoke |
-| 2 | `OPS-N01` | Ready | Dashboard 从可读/preview 升级为受控可写闭环 | `cai-agent/src/cai_agent/ops_http_server.py`、`cai-agent/src/cai_agent/ops_dashboard.py` | 至少支持 schedule reorder 与 gateway bind-edit 的 preview/apply/audit；审计链路可验证；pytest |
-| 3 | `CC-N05` | Ready | 安装、升级、恢复体验收口：降低新用户和老用户修复成本 | `cai-agent/src/cai_agent/doctor.py`、`cai-agent/src/cai_agent/repair.py`、`README*.md` | `doctor`/`repair`/onboarding 给出一致升级和恢复路径；常见缺配置/旧配置/资产漂移有下一步命令；pytest + smoke |
-| 4 | `GW-N01` | Ready | Gateway 生产化第二阶段：Discord/Slack/Teams 从 MVP 推到可运维 | `cai-agent/src/cai_agent/gateway*.py`、`docs/GATEWAY_*.zh-CN.md` | `gateway prod-status --json` 增加 readiness/checklist；每个平台至少一条故障诊断路径；pytest |
-| 5 | `ECC-N05` | Ready | asset marketplace-lite：本地/仓库级资产目录、安装、更新建议与 trust 摘要 | `cai-agent/src/cai_agent/skills.py`、`cai-agent/src/cai_agent/ecc.py`、`docs/PLUGIN_COMPAT_MATRIX*.md` | 新增资产 catalog/list/upgrade-plan 类入口；展示 source/version/license/trust/install 状态；pytest + smoke |
-| 6 | `ECC-N06` | Ready | provenance/trust 策略进入执行链：把现有草案用于 pack/import/install 决策 | `cai-agent/src/cai_agent/ecc.py`、`cai-agent/src/cai_agent/hook_runtime.py`、`docs/ECC_04*.md` | 未知或低信任来源默认 dry-run/阻断；危险 hooks 继续阻断；输出可解释 trust decision；pytest |
-| 7 | `MEM-N01` | Design | 外部 memory provider adapter：从 local/user-model 扩展到可插拔 provider | `cai-agent/src/cai_agent/memory.py`、`cai-agent/src/cai_agent/user_model.py` | 先定义 provider contract、mock/filesystem 或 sqlite adapter、`memory provider test --json`；实现前补 RFC 或 schema |
-| 8 | `RT-N01` | Design | runtime 真机矩阵：Docker/SSH 从产品化接口走向可验证环境矩阵 | `cai-agent/src/cai_agent/runtime/`、`docs/RUNTIME_BACKENDS.zh-CN.md` | 分层真实 smoke 与 mock 测试；CI 不被外部环境硬绑定；实现前补测试矩阵 |
-| 9 | `WF-N01` | Design | workflow / subagent 编排增强：条件分支、结果汇总、失败恢复 | `cai-agent/src/cai_agent/workflow*.py`、`docs/schema/README.zh-CN.md` | schema 示例覆盖 branch/retry/aggregate；pytest 覆盖 happy path 与失败恢复 |
+| 1 | `SYNC-N01` | In Progress | 产品状态清账：把已实现但仍挂在 Ready 队列的 API/OPS/CC/GW/ECC 项归档，并恢复 TODO/roadmap/parity 一致性 | `docs/NEXT_ACTIONS.zh-CN.md`、`docs/DEVELOPER_TODOS.zh-CN.md`、`docs/TEST_TODOS.zh-CN.md`、`docs/PRODUCT_ROADMAP_CURRENT.zh-CN.md`、`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`、`docs/PARITY_MATRIX.zh-CN.md` | `API-N01`/`OPS-N01`/`CC-N05`/`GW-N01`/`ECC-N05`/`ECC-N06` 已归档；当前开发队列只保留真实未完成项；文档一致性 rg + 窄 pytest |
+| 2 | `MEM-N01` | Design | 外部 memory provider adapter：从 local/user-model 扩展到可插拔 provider | `cai-agent/src/cai_agent/memory.py`、`cai-agent/src/cai_agent/user_model.py`、`docs/schema/README.zh-CN.md` | 先定义 provider contract、mock/filesystem 或 sqlite adapter、`memory provider test --json`；实现前补 RFC 或 schema |
+| 3 | `RT-N01` | Design | runtime 真机矩阵：Docker/SSH 从产品化接口走向可验证环境矩阵 | `cai-agent/src/cai_agent/runtime/`、`docs/RUNTIME_BACKENDS.zh-CN.md`、`docs/qa/` | 分层真实 smoke 与 mock 测试；CI 不被外部环境硬绑定；实现前补测试矩阵 |
+| 4 | `WF-N01` | Design | workflow / subagent 编排增强：条件分支、结果汇总、失败恢复 | `cai-agent/src/cai_agent/workflow*.py`、`docs/schema/README.zh-CN.md` | schema 示例覆盖 branch/retry/aggregate；pytest 覆盖 happy path 与失败恢复 |
+| 5 | `BRW-N04` | Ready after SYNC | Browser MCP executor：把 `browser_task_v1.steps[]` 映射到显式确认的 Playwright MCP 调用 | `cai-agent/src/cai_agent/browser_provider.py`、`cai-agent/src/cai_agent/tool_provider.py`、`docs/BROWSER_PROVIDER_RFC.zh-CN.md` | 只在显式确认下执行 MCP steps；输出可审计结果；pytest 覆盖 dry-run、拒绝、成功映射 |
 
 ## 执行顺序
 
-1. 先做 `API-N01`，补齐 OpenAPI + API/ops 统一网关外部契约。
-2. 再做 `OPS-N01`、`CC-N05`，继续补受控运营面与安装/升级/恢复体验。
-3. 后续推进 `GW-N01`、`ECC-N05`、`ECC-N06`；`MEM-N01`、`RT-N01`、`WF-N01` 先保持 Design。
+1. 先完成 `SYNC-N01`，把已验证完成的产品化队列从 TODO 中移出并同步 roadmap / parity。
+2. 再推进 `MEM-N01`、`RT-N01`、`WF-N01` 的契约或测试矩阵设计，把可实现部分升为 Ready。
+3. 若下一版主卖点转向浏览器自动化，则排 `BRW-N04`；否则它保持 P2。
 
 ## 每个任务的统一要求
 

@@ -68,6 +68,27 @@ timeout_sec = 120
 | Together AI | `openai_compatible` | `https://api.together.xyz/v1` | `TOGETHER_API_KEY` | OpenAI-compatible hosted open-model API. |
 | Fireworks AI | `openai_compatible` | `https://api.fireworks.ai/inference/v1` | `FIREWORKS_API_KEY` | OpenAI-compatible inference endpoint for hosted open models. |
 
+## Auto Context-Window Defaults
+
+When `context_window` is omitted, CAI auto-fills a display-only TUI denominator for known hosted model IDs. Explicit TOML still wins, and local/self-hosted URLs such as `localhost`, `127.0.0.1`, or `0.0.0.0` remain manual because the served model can be arbitrary.
+
+| Family / route | Current default used by CAI | Notes |
+|---|---:|---|
+| OpenAI GPT-5.5 / GPT-5.4 | `1000000` | GPT-5.4 mini/nano and GPT-5.2/5.1/5 stay `400000`; GPT-4.1/4.5 use `1047576`; GPT-4o uses `128000`; o-series uses `200000`. |
+| Anthropic Claude | `200000` | Claude 4.6/4.7 1M model aliases are recognized separately when present. |
+| Gemini | `1048576` | Gemini 1.5 Pro keeps its documented `2097152` window. |
+| DeepSeek | `1000000` for current `deepseek-chat` / `deepseek-reasoner`; `128000` fallback | Keeps older unknown `deepseek-*` names conservative. |
+| Zhipu GLM / Z.ai | `200000` | Covers GLM-5.x / GLM-4.6+; GLM-4.5 remains `128000`. |
+| Qwen / DashScope | `131072` family default | Qwen3-Max uses `262144`; Qwen3-Coder and Qwen-Long keep their larger documented windows. |
+| Kimi / Moonshot | `256000` for K2 family | Older generic Kimi aliases fall back to `128000`. |
+| MiniMax | `204800` for M2.1; `1000000` for M1 / generic MiniMax | Mirrors the built-in preset while keeping long-context MiniMax family support. |
+| xAI Grok | `256000` or `2000000` for recognized Grok 4 fast / 4.20 aliases | Unknown Grok hosted models fall back to `131072`. |
+| Groq hosted OSS models | `131072` for Llama 3.1/3.3/4 and Qwen3 routes; `32768` generic fallback | Uses Groq model table limits where model IDs are known. |
+| Mistral | `128000` for current chat/code families | Unknown Mistral-hosted IDs stay at the documented long-context family default. |
+| Cohere Command | `256000` for Command A; `128000` for Command R / vision aliases | Use a gateway or compatibility endpoint because CAI does not implement native Cohere v2 chat. |
+| Perplexity Sonar | `200000` for Pro aliases; `128000` generic fallback | Applies to direct Perplexity profiles and OpenRouter `perplexity/*` routes. |
+| OpenRouter / SiliconFlow / Together / Fireworks / NVIDIA NIM / HF routes | Routed by vendor/model prefix | CAI strips router prefixes such as `openai/`, `google/`, `deepseek/`, `qwen/`, `cohere/`, and `perplexity/`, then reuses the same model table. |
+
 ## Local And Self-Hosted Runtimes
 
 | Runtime | CAI provider | Base URL | Key env | Notes |
@@ -138,11 +159,19 @@ api_key_env = "VENDOR_API_KEY"
 
 ## Official References
 
+- OpenAI model table: <https://platform.openai.com/docs/models>
 - OpenAI Chat Completions: <https://platform.openai.com/docs/api-reference/chat/create>
+- Anthropic model overview: <https://docs.anthropic.com/en/docs/about-claude/models/overview>
 - Anthropic Messages API: <https://docs.anthropic.com/en/api/messages>
+- Gemini model table: <https://ai.google.dev/gemini-api/docs/models>
 - Gemini OpenAI compatibility: <https://ai.google.dev/gemini-api/docs/openai>
+- xAI models: <https://docs.x.ai/docs/models>
 - xAI API: <https://docs.x.ai/docs/api-reference>
 - DeepSeek API: <https://api-docs.deepseek.com/>
+- Mistral models overview: <https://docs.mistral.ai/getting-started/models/models_overview/>
+- Groq model table: <https://console.groq.com/docs/models>
+- Cohere model docs: <https://docs.cohere.com/docs/models>
+- Perplexity model cards: <https://docs.perplexity.ai/guides/model-cards>
 - DashScope OpenAI compatibility: <https://help.aliyun.com/zh/model-studio/compatibility-of-openai-with-dashscope>
 - Zhipu OpenAI SDK compatibility: <https://docs.bigmodel.cn/cn/guide/develop/openai/introduction>
 - Moonshot Kimi API: <https://platform.moonshot.cn/docs/>

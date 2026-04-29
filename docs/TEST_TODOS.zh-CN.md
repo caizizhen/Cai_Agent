@@ -8,9 +8,11 @@
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| 1 | `API-N01` | Ready | OpenAPI + API/ops 统一网关契约验证 | `test_api_http_server.py`、新增 openapi/schema 测试、`scripts/smoke_new_features.py` | 非敏感字段不泄漏；status/doctor/models/chat/ops 路由在契约中可发现；pytest + smoke |
-| 2 | `OPS-N01` | Ready | dashboard preview/apply/audit 闭环验证 | `test_ops_http_server.py`、`test_ops_dashboard_html.py` 或新增 interactions 测试 | schedule reorder 与 gateway bind-edit 至少两类 action 可 preview/apply/audit；审计记录稳定 |
-| 3 | `CC-N05` | Ready | 安装、升级、恢复体验验证 | `test_doctor_cli.py`、`test_repair_cli.py`、`test_cli_misc.py`、smoke | 缺配置、旧配置、资产漂移等场景给出一致下一步命令；文本与 JSON 输出同步 |
+| 1 | `SYNC-N01` | In Progress | 产品状态清账验证：确认已归档任务不再留在当前 TODO，且 roadmap/parity 与代码能力一致 | `rg` 文档一致性检查、`test_api_http_server.py`、`test_ops_http_server.py`、`test_gateway_lifecycle_cli.py`、`test_ecc_layout_cli.py`、`test_ecc_pack_ingest_gate.py`、`test_doctor_cli.py`、`test_repair_cli.py`、`test_cli_misc.py` | 旧 Ready 项只出现在完成记录/历史说明中；窄 pytest 通过 |
+| 2 | `MEM-N01` | Design | memory provider adapter 契约验证设计 | 待定：`test_memory_provider_contract_cli.py` 或新增 provider adapter 测试 | mock/filesystem 或 sqlite adapter 可测；`memory provider test --json` schema 稳定 |
+| 3 | `RT-N01` | Design | Docker/SSH runtime 真机矩阵验证设计 | 待定：runtime mock + opt-in real smoke | CI 默认不依赖外部 Docker/SSH；真实 smoke 可手动或条件启用 |
+| 4 | `WF-N01` | Design | workflow/subagent 条件分支、汇总、失败恢复验证设计 | 待定：`test_workflow*.py` schema 与执行用例 | happy path、branch/retry/aggregate、失败恢复均有覆盖 |
+| 5 | `BRW-N04` | Ready after SYNC | Browser MCP executor 映射验证 | 待定：browser provider / MCP preset 映射测试 | dry-run、拒绝、显式确认、成功映射都有测试 |
 
 ## 自动验证记录（由 finalize 脚本追加）
 
@@ -44,3 +46,4 @@
 | 2026-04-29 | Browser chain full regression | python -m pytest -q -p no:cacheprovider --basetemp .tmp/pytest-full-basetemp cai-agent/tests: 897 passed, 3 subtests passed<br>python scripts/smoke_new_features.py: PASS (NEW_FEATURE_CHECKS_OK) | [`docs/qa/runs/browser-full-regression-20260429.md`](docs/qa/runs/browser-full-regression-20260429.md) |
 | 2026-04-29 | `UX-CONTEXT-THIRDPARTY-DEFAULT` | python -m pytest -q cai-agent/tests: PASS; python scripts/smoke_new_features.py: PASS | [`docs/qa/runs/task-finalize-20260429-035043-UX-CONTEXT-THIRDPARTY-DEFAULT.md`](docs/qa/runs/task-finalize-20260429-035043-UX-CONTEXT-THIRDPARTY-DEFAULT.md) |
 | 2026-04-29 | `UX-CONTEXT-OFFICIAL-PRESET-MAP` | python -m pytest -q cai-agent/tests: PASS; python scripts/smoke_new_features.py: PASS | [`docs/qa/runs/task-finalize-20260429-035835-UX-CONTEXT-OFFICIAL-PRESET-MAP.md`](docs/qa/runs/task-finalize-20260429-035835-UX-CONTEXT-OFFICIAL-PRESET-MAP.md) |
+| 2026-04-29 | `API-N01`, `OPS-N01`, `CC-N05`, `GW-N01`, `ECC-N05`, `ECC-N06` | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed | [`docs/qa/runs/task-finalize-20260429-184615-API-N01-OPS-N01-CC-N05-GW-N01-ECC-N05-ECC-N06.md`](docs/qa/runs/task-finalize-20260429-184615-API-N01-OPS-N01-CC-N05-GW-N01-ECC-N05-ECC-N06.md) |

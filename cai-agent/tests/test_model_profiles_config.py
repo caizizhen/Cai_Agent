@@ -15,6 +15,7 @@ from cai_agent.profiles import (
     build_profile_contract_payload,
     build_profile,
     get_profile_by_id,
+    infer_default_context_window,
     normalize_openai_chat_base_url,
     parse_models_section,
     pick_active,
@@ -115,6 +116,68 @@ class ProfilesParsingTests(unittest.TestCase):
             s = Settings.from_env(config_path=str(cfg))
         self.assertEqual(s.context_window, 204800)
         self.assertEqual(s.context_window_source, "profile")
+
+    def test_infer_context_window_uses_official_model_defaults(self) -> None:
+        cases = [
+            ("openai", "https://api.openai.com/v1", "gpt-5.5", 1_000_000),
+            ("openai", "https://api.openai.com/v1", "gpt-5.4-mini", 400_000),
+            ("openai", "https://api.openai.com/v1", "gpt-4.1", 1_047_576),
+            ("openai_compatible", "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-1.5-pro", 2_097_152),
+            ("openai_compatible", "https://api.deepseek.com/v1", "deepseek-chat", 1_000_000),
+            ("openai_compatible", "https://open.bigmodel.cn/api/paas/v4", "glm-5.1", 200_000),
+            ("openai_compatible", "https://api.x.ai/v1", "grok-4.20", 2_000_000),
+            ("openai_compatible", "https://api.cohere.com/compatibility/v1", "command-a-03-2025", 256_000),
+            ("openai_compatible", "https://api.perplexity.ai", "sonar-pro", 200_000),
+            ("openai_compatible", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen3-max", 262_144),
+            ("openai_compatible", "https://dashscope.aliyuncs.com/compatible-mode/v1", "qwen-long", 10_000_000),
+        ]
+        for provider, base_url, model, expected in cases:
+            with self.subTest(model=model):
+                self.assertEqual(
+                    infer_default_context_window(provider=provider, base_url=base_url, model=model),
+                    expected,
+                )
+
+    def test_infer_context_window_routes_openrouter_vendor_prefixes(self) -> None:
+        cases = [
+            ("openai/gpt-5.4-mini", 400_000),
+            ("google/gemini-1.5-pro", 2_097_152),
+            ("deepseek/deepseek-chat", 1_000_000),
+            ("zhipu/glm-5.1", 200_000),
+            ("cohere/command-a-03-2025", 256_000),
+            ("perplexity/sonar-pro", 200_000),
+        ]
+        for model, expected in cases:
+            with self.subTest(model=model):
+                self.assertEqual(
+                    infer_default_context_window(
+                        provider="openai_compatible",
+                        base_url="https://openrouter.ai/api/v1",
+                        model=model,
+                    ),
+                    expected,
+                )
+
+    def test_infer_context_window_keeps_localhost_manual_even_for_known_model(self) -> None:
+        self.assertIsNone(
+            infer_default_context_window(
+                provider="openai_compatible",
+                base_url="http://127.0.0.1:1234/v1",
+                model="gpt-4o",
+            ),
+        )
+
+    def test_explicit_context_window_overrides_inferred_model_default(self) -> None:
+        profile = build_profile(
+            {
+                "id": "openai",
+                "provider": "openai",
+                "base_url": "https://api.openai.com/v1",
+                "model": "gpt-5.5",
+                "context_window": 123456,
+            },
+        )
+        self.assertEqual(profile.context_window, 123456)
 
     def test_profiles_projection_overrides_llm_section(self) -> None:
         with tempfile.TemporaryDirectory() as d:

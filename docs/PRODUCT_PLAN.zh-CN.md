@@ -37,8 +37,8 @@
 
 | 领域 | 说明 | 对应 §二 |
 |------|------|----------|
-| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；动态 HTTP 已支持只读 JSON/HTML/SSE；高级交互先收口为 `ops_dashboard_interactions_v1` dry-run 预览契约，真实写操作仍需后续鉴权/应用边界 | **26（后续）** |
-| **Gateway 全量** | Discord/Slack/Teams 已有 MVP；`gateway_production_summary_v1` 已提供本地生产状态摘要；Slash Commands 深化、频道监控、多工作区联邦仍为后续 Sprint | **24（后续）** |
+| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；动态 HTTP 已支持 JSON/HTML/SSE；`ops_dashboard_interactions_v1` 已支持 schedule reorder、gateway bind-edit、profile switch 的 preview/apply/audit 与 `ops_dashboard_action_audit_v1` 审计；RBAC、多 workspace operator 面仍为后续 Sprint | **26（后续）** |
+| **Gateway 全量** | Discord/Slack/Teams 已有 MVP；`gateway_production_summary_v1` 已提供本地生产状态摘要、readiness checklist 与 diagnostics；Slash Commands 深化、频道监控、多工作区联邦仍为后续 Sprint | **24（后续）** |
 | **运行后端（P2）** | Docker 已产品化（`image` / `volume_mounts` / limits / doctor）；SSH 已产品化（key / known_hosts / timeout / audit）；Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
 
@@ -49,7 +49,7 @@
 | 来源 | 目标能力 | 本仓当前状态 | 结论 |
 |------|----------|--------------|------|
 | `anthropics/claude-code` | 官方终端 Agent 的主体验：计划→执行→继续、工具、权限、MCP、TUI | 主链路已具备，WebSearch / Notebook / 安装体验仍有差距 | **部分完成** |
-| `NousResearch/hermes-agent` | Profiles、API/server、gateway、voice、dashboard、memory providers、runtime backends | Hermes 34 Story 冻结版已收口；MODEL-P0 模型接入地基已完成（capabilities / health / onboarding / routing fallback / OpenAI-compatible API），OpenAPI / 管理化仍待继续 | **部分完成** |
+| `NousResearch/hermes-agent` | Profiles、API/server、gateway、voice、dashboard、memory providers、runtime backends | Hermes 34 Story 冻结版已收口；MODEL-P0 模型接入地基已完成（capabilities / health / onboarding / routing fallback / OpenAI-compatible API）；OpenAPI、受控 ops apply/audit、gateway readiness、marketplace-lite 与 trust gate 已收口；外部 memory provider、runtime 真机矩阵与 workflow 编排深化仍待继续 | **部分完成** |
 | `affaan-m/everything-claude-code` | rules / skills / hooks / model-route / cross-harness / 生态资产治理 | 规则、技能、导出与兼容矩阵已有基础，资产化与安装叙事仍不足 | **部分完成** |
 
 **说明**：
