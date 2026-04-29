@@ -4549,6 +4549,8 @@ def main(argv: list[str] | None = None) -> int:
     browser_task.add_argument("--headful", action="store_true")
     browser_task.add_argument("--no-isolated", action="store_true")
     browser_task.add_argument("--force", action="store_true")
+    browser_task.add_argument("--execute", action="store_true", help="在显式确认后执行映射出的 Playwright MCP 调用")
+    browser_task.add_argument("--confirm", action="store_true", help="确认执行 browser_task_v1 中的 MCP 调用")
     browser_task.add_argument("--json", action="store_true", dest="json_output")
 
     voice_p = sub.add_parser(
@@ -6886,6 +6888,14 @@ def main(argv: list[str] | None = None) -> int:
         help="允许通过 workspace query 访问的工作区根目录，可重复",
     )
 
+    ops_serve.add_argument(
+        "--role",
+        choices=["viewer", "operator", "admin"],
+        default="admin",
+        dest="ops_role",
+        help="ops serve server-side max role for RBAC write paths",
+    )
+
     gateway_p = sub.add_parser(
         "gateway",
         help="Gateway MVP：管理 Telegram chat/user 到会话文件的映射",
@@ -6984,6 +6994,21 @@ def main(argv: list[str] | None = None) -> int:
         help="工作区根路径（默认当前目录）",
     )
     gw_fed.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_chan = gateway_sub.add_parser("channel-monitor", help="Gateway channel monitoring summary")
+    gw_chan.add_argument("-w", "--workspace", default=None, dest="gateway_workspace")
+    gw_chan.add_argument(
+        "--platform",
+        choices=["telegram", "discord", "slack", "teams", "signal", "email", "matrix"],
+        default=None,
+        dest="gateway_channel_monitor_platform",
+    )
+    gw_chan.add_argument("--only-errors", action="store_true", dest="gateway_channel_monitor_only_errors")
+    gw_chan.add_argument("--json", action="store_true", dest="json_output")
+
+    gw_slash_catalog = gateway_sub.add_parser("slash-catalog", help="Gateway slash command catalog")
+    gw_slash_catalog.add_argument("-w", "--workspace", default=None, dest="gateway_workspace")
+    gw_slash_catalog.add_argument("--json", action="store_true", dest="json_output")
 
     gw_stop = gateway_sub.add_parser("stop", help="停止 start 写入 PID 的 webhook 子进程")
     gw_stop.add_argument(
@@ -8128,7 +8153,11 @@ def main(argv: list[str] | None = None) -> int:
         except FileNotFoundError as e:
             _print_config_not_found_hint(e, command="browser")
             return 2
-        from cai_agent.browser_provider import build_browser_provider_check_payload, build_browser_task_payload
+        from cai_agent.browser_provider import (
+            build_browser_mcp_execution_payload,
+            build_browser_provider_check_payload,
+            build_browser_task_payload,
+        )
 
         common_kwargs = {
             "max_steps": int(getattr(args, "max_steps", 10) or 10),
@@ -8149,12 +8178,27 @@ def main(argv: list[str] | None = None) -> int:
                 )
             return 0 if bool(payload.get("ok")) else 2
         if act_browser == "task":
+            execute_browser = bool(getattr(args, "execute", False))
+            confirm_browser = bool(getattr(args, "confirm", False))
             payload = build_browser_task_payload(
                 settings,
                 goal=" ".join(str(x) for x in (getattr(args, "goal", []) or [])),
                 url=getattr(args, "url", None),
+                dry_run=not execute_browser,
                 **common_kwargs,
             )
+            if execute_browser:
+                steps = payload.get("steps") if isinstance(payload.get("steps"), list) else []
+                payload["dry_run"] = False
+                payload["execution"] = build_browser_mcp_execution_payload(
+                    settings,
+                    steps=[s for s in steps if isinstance(s, dict)],
+                    dry_run=False,
+                    confirmed=confirm_browser,
+                )
+                payload["ok"] = bool(payload.get("ok")) and bool(payload["execution"].get("ok"))
+                if not bool(payload["execution"].get("ok")):
+                    payload["error"] = payload["execution"].get("error") or payload.get("error")
             if bool(getattr(args, "json_output", False)):
                 print(json.dumps(payload, ensure_ascii=False))
             else:
@@ -12845,6 +12889,7 @@ def main(argv: list[str] | None = None) -> int:
                     host=str(getattr(args, "host", "127.0.0.1") or "127.0.0.1"),
                     port=int(getattr(args, "port", 8765)),
                     allow_workspaces=allow,
+                    role=str(getattr(args, "ops_role", "admin") or "admin"),
                 ),
             )
         if oa != "dashboard":
@@ -13075,7 +13120,7 @@ def main(argv: list[str] | None = None) -> int:
             root = Path.cwd().resolve()
 
         ga = getattr(args, "gateway_action", None)
-        if ga in {"setup", "start", "status", "prod-status", "federation-summary", "stop", "route-preview"}:
+        if ga in {"setup", "start", "status", "prod-status", "federation-summary", "channel-monitor", "slash-catalog", "stop", "route-preview"}:
             from cai_agent import gateway_lifecycle
 
             if ga == "setup":
@@ -13186,6 +13231,35 @@ def main(argv: list[str] | None = None) -> int:
                         f"platforms={sm.get('platforms_count')} configured={sm.get('configured_count')} "
                         f"running={sm.get('running_count')} channels={sm.get('channels_count')} "
                         f"errors={sm.get('error_count_total')}",
+                    )
+                return 0
+            if ga == "channel-monitor":
+                from cai_agent.gateway_production import build_gateway_channel_monitor_payload
+
+                out_st = build_gateway_channel_monitor_payload(
+                    root,
+                    platform=getattr(args, "gateway_channel_monitor_platform", None),
+                    only_errors=bool(getattr(args, "gateway_channel_monitor_only_errors", False)),
+                )
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    print(
+                        "[gateway channel-monitor] "
+                        f"platforms={out_st.get('platforms_count')} channels={out_st.get('channels_count')} "
+                        f"errors={out_st.get('error_count_total')}",
+                    )
+                return 0
+            if ga == "slash-catalog":
+                from cai_agent.gateway_production import build_gateway_slash_catalog_payload
+
+                out_st = build_gateway_slash_catalog_payload(root)
+                if bool(getattr(args, "json_output", False)):
+                    print(json.dumps(out_st, ensure_ascii=False))
+                else:
+                    print(
+                        "[gateway slash-catalog] "
+                        f"platforms={out_st.get('platforms_count')} commands={out_st.get('commands_count')}",
                     )
                 return 0
             if ga == "stop":

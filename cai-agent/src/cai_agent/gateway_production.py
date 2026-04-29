@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.gateway_discord import discord_gateway_health
+from cai_agent.gateway_discord import discord_default_slash_command_specs
 from cai_agent.gateway_email import email_gateway_health
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload
 from cai_agent.gateway_maps import summarize_gateway_maps
@@ -470,5 +471,123 @@ def build_gateway_federation_summary_payload(workspace: str | Path | None = None
             "running_count": sum(1 for r in rows if r.get("production_state") == "running"),
             "channels_count": sum(int(r.get("channels_count") or 0) for r in rows),
             "error_count_total": sum(int(r.get("error_count_total") or 0) for r in rows),
+        },
+    }
+
+
+def build_gateway_channel_monitor_payload(
+    workspace: str | Path | None = None,
+    *,
+    platform: str | None = None,
+    only_errors: bool = False,
+) -> dict[str, Any]:
+    """Return a compact, script-friendly channel monitoring view."""
+    platform_filter = str(platform or "").strip().lower()
+    prod = build_gateway_production_summary_payload(workspace=workspace)
+    rows: list[dict[str, Any]] = []
+    channels_total = 0
+    error_count_total = 0
+    for row in prod.get("platforms") or []:
+        if not isinstance(row, dict):
+            continue
+        pid = str(row.get("id") or "").strip()
+        if platform_filter and pid != platform_filter:
+            continue
+        monitoring = row.get("channel_monitoring") if isinstance(row.get("channel_monitoring"), dict) else {}
+        channels = monitoring.get("channels") if isinstance(monitoring.get("channels"), list) else []
+        filtered_channels: list[dict[str, Any]] = []
+        for ch in channels:
+            if not isinstance(ch, dict):
+                continue
+            error_count = int(ch.get("error_count") or 0)
+            if only_errors and error_count <= 0:
+                continue
+            filtered_channels.append(dict(ch))
+            error_count_total += error_count
+        channels_total += len(filtered_channels)
+        summary = monitoring.get("summary") if isinstance(monitoring.get("summary"), dict) else {}
+        rows.append(
+            {
+                "id": pid,
+                "production_state": row.get("production_state"),
+                "channels_count": len(filtered_channels),
+                "error_count_total": sum(int(ch.get("error_count") or 0) for ch in filtered_channels),
+                "has_latency_data": bool(summary.get("has_latency_data")),
+                "channels": filtered_channels,
+            },
+        )
+    return {
+        "schema_version": "gateway_channel_monitor_v1",
+        "generated_at": prod.get("generated_at"),
+        "workspace": prod.get("workspace"),
+        "platform_filter": platform_filter or None,
+        "only_errors": bool(only_errors),
+        "platforms_count": len(rows),
+        "channels_count": channels_total,
+        "error_count_total": error_count_total,
+        "platforms": rows,
+    }
+
+
+def build_gateway_slash_catalog_payload(workspace: str | Path | None = None) -> dict[str, Any]:
+    """Return offline slash-command / command-list capabilities by platform."""
+    base = Path(workspace or ".").expanduser().resolve()
+    discord_commands = [
+        {
+            "name": str(c.get("name") or ""),
+            "description": str(c.get("description") or ""),
+            "kind": "application_command",
+            "execute_capable": False,
+        }
+        for c in discord_default_slash_command_specs()
+        if isinstance(c, dict)
+    ]
+    platforms = [
+        {
+            "id": "discord",
+            "platform": "discord",
+            "surface": "application_commands",
+            "registration": "gateway discord commands register",
+            "commands": discord_commands,
+        },
+        {
+            "id": "slack",
+            "platform": "slack",
+            "surface": "slash_command",
+            "registration": "Slack App slash command /cai",
+            "commands": [
+                {"name": "/cai help", "description": "Show CAI Slack help", "kind": "slash_subcommand", "execute_capable": False},
+                {"name": "/cai ping", "description": "Check gateway reachability", "kind": "slash_subcommand", "execute_capable": False},
+                {"name": "/cai <goal>", "description": "Execute a goal when --execute-on-slash is enabled", "kind": "slash_goal", "execute_capable": True},
+            ],
+        },
+        {
+            "id": "teams",
+            "platform": "teams",
+            "surface": "bot_command_list",
+            "registration": "gateway teams manifest",
+            "commands": [
+                {"name": "help", "description": "Show CAI Agent help", "kind": "message_command", "execute_capable": False},
+                {"name": "ping", "description": "Check gateway reachability", "kind": "message_command", "execute_capable": False},
+                {"name": "status", "description": "Show local gateway status", "kind": "message_command", "execute_capable": False},
+                {"name": "new", "description": "Start or bind a new session", "kind": "message_command", "execute_capable": False},
+            ],
+        },
+    ]
+    commands_count = sum(len(p.get("commands") or []) for p in platforms)
+    return {
+        "schema_version": "gateway_slash_catalog_v1",
+        "generated_at": datetime.now(UTC).isoformat(),
+        "workspace": str(base),
+        "platforms_count": len(platforms),
+        "commands_count": commands_count,
+        "platforms": platforms,
+        "summary": {
+            "execute_capable_count": sum(
+                1
+                for p in platforms
+                for c in (p.get("commands") if isinstance(p.get("commands"), list) else [])
+                if isinstance(c, dict) and bool(c.get("execute_capable"))
+            ),
         },
     }

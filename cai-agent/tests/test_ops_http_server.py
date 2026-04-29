@@ -15,10 +15,11 @@ import pytest
 from cai_agent.ops_http_server import OpsApiRequestHandler, OpsApiThreadingServer
 
 
-def _start_server(allow: frozenset[Path], token: str | None) -> OpsApiThreadingServer:
+def _start_server(allow: frozenset[Path], token: str | None, role: str = "admin") -> OpsApiThreadingServer:
     httpd = OpsApiThreadingServer(("127.0.0.1", 0), OpsApiRequestHandler)
     httpd.allow_roots = allow
     httpd.api_token = token
+    httpd.default_role = role
     th = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
     th.start()
     return httpd
@@ -30,14 +31,21 @@ def _url(httpd: OpsApiThreadingServer, path: str, query: dict[str, str]) -> str:
     return f"http://{host}:{port}{path}?{qs}"
 
 
-def _post_json(httpd: OpsApiThreadingServer, path: str, body: dict[str, object]) -> urllib.request.Request:
+def _post_json(
+    httpd: OpsApiThreadingServer,
+    path: str,
+    body: dict[str, object],
+    headers: dict[str, str] | None = None,
+) -> urllib.request.Request:
     host, port = httpd.server_address
     raw = json.dumps(body, ensure_ascii=False).encode("utf-8")
+    req_headers = {"Content-Type": "application/json"}
+    req_headers.update(headers or {})
     return urllib.request.Request(
         f"http://{host}:{port}{path}",
         data=raw,
         method="POST",
-        headers={"Content-Type": "application/json"},
+        headers=req_headers,
     )
 
 
@@ -124,6 +132,7 @@ def test_ops_dashboard_unauthorized(tmp_path: Path) -> None:
     httpd = OpsApiThreadingServer(("127.0.0.1", 0), OpsApiRequestHandler)
     httpd.allow_roots = frozenset({root})
     httpd.api_token = "secret-test-token"
+    httpd.default_role = "admin"
     th = threading.Thread(target=httpd.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True)
     th.start()
     try:
@@ -172,6 +181,45 @@ def test_ops_dashboard_events_sse(tmp_path: Path) -> None:
         assert "text/event-stream" in ctype
         assert "event: ops_dashboard" in body
         assert '"schema_version": "ops_dashboard_v1"' in body
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_workspaces_lists_allowlist_only(tmp_path: Path, tmp_path_factory: pytest.TempPathFactory) -> None:
+    root = tmp_path.resolve()
+    other = tmp_path_factory.mktemp("ops-other").resolve()
+    httpd = _start_server(frozenset({root, other}), None)
+    try:
+        host, port = httpd.server_address
+        with urllib.request.urlopen(f"http://{host}:{port}/v1/ops/workspaces", timeout=5) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["schema_version"] == "ops_workspaces_v1"
+        assert payload["workspaces_count"] == 2
+        workspaces = {row["workspace"] for row in payload["workspaces"]}
+        assert workspaces == {str(root), str(other)}
+        assert all(row["allowed"] is True for row in payload["workspaces"])
+        assert all("dashboard_url" in row for row in payload["workspaces"])
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_workspaces_include_summary(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    httpd = _start_server(frozenset({root}), None)
+    try:
+        host, port = httpd.server_address
+        with urllib.request.urlopen(
+            f"http://{host}:{port}/v1/ops/workspaces?include_summary=1",
+            timeout=5,
+        ) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        assert payload["schema_version"] == "ops_workspaces_v1"
+        row = payload["workspaces"][0]
+        assert row["workspace"] == str(root)
+        assert isinstance(row.get("summary"), dict)
+        assert "sessions_count" in row["summary"]
     finally:
         httpd.shutdown()
         httpd.server_close()
@@ -274,6 +322,106 @@ def test_ops_dashboard_interactions_schedule_reorder_apply(tmp_path: Path) -> No
         httpd.server_close()
 
 
+def test_ops_dashboard_interactions_viewer_cannot_apply(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    (root / ".cai-schedule.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "1.1",
+                "tasks": [
+                    {"id": "task-a", "goal": "a"},
+                    {"id": "task-b", "goal": "b"},
+                ],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None, role="viewer")
+    try:
+        req = _post_json(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "schedule_reorder_preview",
+                "task_id": "task-b",
+                "before_task_id": "task-a",
+            },
+            headers={"X-CAI-Actor": "ops-viewer"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(req, timeout=5)
+        assert ei.value.code == 403
+        payload = json.loads(ei.value.read().decode("utf-8"))
+        assert payload["error"] == "rbac_forbidden"
+        assert payload["required_role"] == "operator"
+        assert payload["role"] == "viewer"
+        assert payload["rbac"]["actor"] == "ops-viewer"
+        assert payload["rbac"]["workspace_scope"]["allowed"] is True
+        assert payload["audit_event"]["schema_version"] == "ops_dashboard_action_audit_v1"
+        assert payload["audit_event"]["ok"] is False
+        assert payload["audit_event"]["role"] == "viewer"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_ops_dashboard_interactions_operator_cannot_apply_profile_switch(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    (root / "cai-agent.toml").write_text(
+        "\n".join(
+            [
+                "[llm]",
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m"',
+                'api_key = "k"',
+                "",
+                "[models]",
+                'active = "p1"',
+                "",
+                "[[models.profile]]",
+                'id = "p1"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m1"',
+                "",
+                "[[models.profile]]",
+                'id = "p2"',
+                'provider = "openai_compatible"',
+                'base_url = "http://127.0.0.1:9/v1"',
+                'model = "m2"',
+                "",
+            ],
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start_server(frozenset({root}), None, role="operator")
+    try:
+        req = _post_json(
+            httpd,
+            "/v1/ops/dashboard/interactions",
+            {
+                "workspace": str(root),
+                "mode": "apply",
+                "action": "profile_switch_preview",
+                "target_profile_id": "p2",
+            },
+            headers={"X-CAI-Actor": "ops-operator"},
+        )
+        with pytest.raises(urllib.error.HTTPError) as ei:
+            urllib.request.urlopen(req, timeout=5)
+        assert ei.value.code == 403
+        payload = json.loads(ei.value.read().decode("utf-8"))
+        assert payload["error"] == "rbac_forbidden"
+        assert payload["required_role"] == "admin"
+        assert payload["role"] == "operator"
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_ops_dashboard_interactions_gateway_bind_edit_preview(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     gdir = root / ".cai" / "gateway"
@@ -342,6 +490,7 @@ def test_ops_dashboard_interactions_gateway_bind_edit_apply_and_audit(tmp_path: 
                 "session_file": "new.json",
                 "label": "new",
             },
+            headers={"X-CAI-Actor": "ops-admin", "X-CAI-Role": "admin"},
         )
         with urllib.request.urlopen(apply_req, timeout=5) as resp:
             payload = json.loads(resp.read().decode("utf-8"))
@@ -365,6 +514,9 @@ def test_ops_dashboard_interactions_gateway_bind_edit_apply_and_audit(tmp_path: 
         assert isinstance(audit.get("records"), list)
         assert (audit.get("records") or [])[0].get("schema_version") == "ops_dashboard_action_audit_v1"
         assert "actor" in (audit.get("records") or [])[0]
+        assert (audit.get("records") or [])[0].get("actor") == "ops-admin"
+        assert (audit.get("records") or [])[0].get("role") == "admin"
+        assert ((audit.get("records") or [])[0].get("workspace_scope") or {}).get("allowed") is True
 
         audit_filtered_url = _url(
             httpd,

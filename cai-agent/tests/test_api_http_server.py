@@ -124,6 +124,10 @@ def test_api_openapi_contract_lists_api_and_ops_routes() -> None:
     assert "/v1/chat/completions" in paths
     assert "/v1/ops/dashboard" in paths
     assert "/v1/ops/dashboard/interactions" in paths
+    assert "/v1/gateway/channel-monitor" in paths
+    assert paths["/v1/gateway/channel-monitor"]["get"].get("x-cai-schema-version") == "gateway_channel_monitor_v1"
+    assert "/v1/gateway/slash-catalog" in paths
+    assert paths["/v1/gateway/slash-catalog"]["get"].get("x-cai-schema-version") == "gateway_slash_catalog_v1"
     assert paths["/healthz"]["get"].get("security") == []
     assert paths["/v1/status"]["get"].get("security") == [{"bearerAuth": []}]
     versions = (data.get("x-cai-contract") or {}).get("schema_versions") or []
@@ -572,6 +576,50 @@ def test_api_gateway_federation_summary(tmp_path: Path) -> None:
         httpd.server_close()
 
 
+def test_api_gateway_channel_monitor(tmp_path: Path) -> None:
+    root = tmp_path.resolve()
+    gdir = root / ".cai" / "gateway"
+    gdir.mkdir(parents=True, exist_ok=True)
+    (gdir / "telegram-session-map.json").write_text(
+        json.dumps(
+            {
+                "schema_version": "gateway_telegram_map_v1",
+                "bindings": {"1:2": {"chat_id": "1", "user_id": "2", "session_file": "s.json"}},
+                "allowed_chat_ids": ["1"],
+            },
+        ),
+        encoding="utf-8",
+    )
+    httpd = _start(root, None)
+    try:
+        with urllib.request.urlopen(
+            _url(httpd, "/v1/gateway/channel-monitor?platform=telegram"),
+            timeout=5,
+        ) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "gateway_channel_monitor_v1"
+        assert data.get("platform_filter") == "telegram"
+        assert data.get("platforms_count") == 1
+        assert data.get("channels_count") >= 1
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
+def test_api_gateway_slash_catalog() -> None:
+    root = (Path.cwd() / ".tmp-test" / "api-gateway-slash-catalog").resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    httpd = _start(root, None)
+    try:
+        with urllib.request.urlopen(_url(httpd, "/v1/gateway/slash-catalog"), timeout=5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+        assert data.get("schema_version") == "gateway_slash_catalog_v1"
+        assert data.get("commands_count") >= 8
+    finally:
+        httpd.shutdown()
+        httpd.server_close()
+
+
 def test_api_new_routes_require_bearer(tmp_path: Path) -> None:
     root = tmp_path.resolve()
     httpd = _start(root, "abc")
@@ -583,6 +631,8 @@ def test_api_new_routes_require_bearer(tmp_path: Path) -> None:
             "/v1/plugins/surface",
             "/v1/release/runbook",
             "/v1/gateway/federation-summary",
+            "/v1/gateway/channel-monitor",
+            "/v1/gateway/slash-catalog",
         ):
             with pytest.raises(urllib.error.HTTPError) as ei:
                 urllib.request.urlopen(_url(httpd, path), timeout=5)

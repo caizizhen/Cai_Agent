@@ -7,20 +7,18 @@
 
 ## 当前目标
 
-- 已完成 API/ops/install/gateway/ECC 产品化队列的代码与窄测试核验；当前先做 `SYNC-N01` 产品状态清账，把 TODO、roadmap、parity 与完成归档同步干净，再进入下一轮真实开发。
+- `GW-SLASH-N01` 已完成并归档；当前默认开发队列清空。下一轮建议在 Gateway slash command 真实注册/部署检查与 Ops operator 路由深化中选择。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `SYNC-N01` | In Progress | 已归档 `API-N01`/`OPS-N01`/`CC-N05`/`GW-N01`/`ECC-N05`/`ECC-N06`；当前开发队列切到真实未完成项；文档一致性检查 + 窄 pytest |
+| - | - | Clear | `GW-SLASH-N01` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260429-234407-GW-SLASH-N01.md` |
 
 ## 后续队列
 
-- `MEM-N01`：外部 memory provider adapter，先补 RFC/schema 与 mock/filesystem 或 sqlite adapter 测试契约
-- `RT-N01`：Docker/SSH runtime 真机矩阵，先补分层 smoke / mock 测试矩阵
-- `WF-N01`：workflow/subagent 编排增强，先定 branch/retry/aggregate schema 与失败恢复语义
-- `BRW-N04`：Browser MCP executor（P2），把 `browser_task_v1.steps[]` 映射到显式确认的 Playwright MCP 调用
+- Gateway 深化（候选）：slash command 深化、多 workspace federation 的真实部署检查
+- Ops operator 路由深化（候选）：在 RBAC / workspaces 发现基础上继续补跨 workspace 操作路由与租户边界
 
 ## 条件与边界
 
@@ -34,6 +32,13 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `GW-SLASH-N01` | 2026-04-29 | Add Gateway offline slash/command catalog CLI and API for Discord, Slack, and Teams with schema/OpenAPI/docs coverage | compileall gateway_production/__main__/api_http_server/gateway_lifecycle_cli/api_http_server tests: PASS; manual CLI/API slash-catalog verification: GW_SLASH_MANUAL_OK; OpenAPI route verification: GW_SLASH_OPENAPI_OK; pytest slash catalog focused tests: 2 passed |
+| `GW-CHAN-N01` | 2026-04-29 | Add standalone gateway channel-monitor CLI/API surface with platform and only-errors filtering plus schema/OpenAPI/docs coverage | compileall gateway_production/__main__/api_http_server/gateway_lifecycle_cli/api_http_server tests: PASS; manual CLI/API channel-monitor verification: GW_CHAN_MANUAL_OK; OpenAPI route verification: GW_CHAN_OPENAPI_OK; pytest gateway/api subset blocked by Windows temp directory PermissionError in sandbox |
+| `OPS-MW-N01` | 2026-04-29 | Add ops serve allowlist multi-workspace discovery with optional dashboard summary aggregation and OpenAPI/docs coverage | compileall ops_http_server/api_http_server/test_ops_http_server: PASS; manual HTTP workspaces verification: OPS_MW_MANUAL_OK; OpenAPI route verification: OPS_MW_OPENAPI_OK |
+| `OPS-RBAC-N01` | 2026-04-29 | Add ops serve RBAC roles, actor/role request context, workspace-scoped audit fields, and OpenAPI/docs coverage | compileall ops_http_server/ops_dashboard/api_http_server/__main__/test_ops_http_server: PASS; manual HTTP RBAC verification: OPS_RBAC_MANUAL_OK; pytest test_ops_http_server blocked by Windows temp directory PermissionError in sandbox |
+| `BRW-N05` | 2026-04-29 | Add Browser MCP audit JSONL and artifact manifest for refused and confirmed execution paths | uv run --project cai-agent --extra dev python -m pytest -q -p no:cacheprovider cai-agent/tests/test_browser_provider_cli.py cai-agent/tests/test_browser_mcp_cli.py cai-agent/tests/test_cli_workflow.py cai-agent/tests/test_memory_provider_contract_cli.py cai-agent/tests/test_runtime_local.py cai-agent/tests/test_runtime_docker_mock.py cai-agent/tests/test_runtime_ssh_mock.py cai-agent/tests/test_runtime_tool_dispatch.py: 42 passed |
+| `BRW-N04` | 2026-04-29 | Add confirmed Browser MCP executor mapping for browser_task_v1 steps with dry-run, refusal, and audited mcp_call_tool execution | uv run --project cai-agent --extra dev python -m pytest -q -p no:cacheprovider cai-agent/tests/test_browser_provider_cli.py cai-agent/tests/test_browser_mcp_cli.py cai-agent/tests/test_cli_workflow.py cai-agent/tests/test_memory_provider_contract_cli.py cai-agent/tests/test_runtime_local.py cai-agent/tests/test_runtime_docker_mock.py cai-agent/tests/test_runtime_ssh_mock.py cai-agent/tests/test_runtime_tool_dispatch.py: 42 passed |
+| `SYNC-N01,MEM-N01,RT-N01,WF-N01` | 2026-04-29 | Close product status sync, memory provider adapter contracts, runtime verification matrix, and workflow branch/retry/aggregate execution semantics | uv run --project cai-agent --extra dev python -m pytest -q cai-agent/tests/test_cli_workflow.py cai-agent/tests/test_memory_provider_contract_cli.py cai-agent/tests/test_runtime_local.py cai-agent/tests/test_runtime_docker_mock.py cai-agent/tests/test_runtime_ssh_mock.py cai-agent/tests/test_runtime_tool_dispatch.py: 33 passed |
 | `ECC-N06` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
 | `ECC-N05` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |
 | `GW-N01` | 2026-04-29 | Close productization backlog items already implemented across OpenAPI, controlled ops interactions, install recovery, gateway readiness, marketplace-lite, and trust gates | python -m pytest -q cai-agent/tests/test_api_http_server.py cai-agent/tests/test_ops_http_server.py cai-agent/tests/test_gateway_lifecycle_cli.py cai-agent/tests/test_ecc_layout_cli.py cai-agent/tests/test_ecc_pack_ingest_gate.py cai-agent/tests/test_doctor_cli.py cai-agent/tests/test_repair_cli.py cai-agent/tests/test_cli_misc.py: 110 passed |

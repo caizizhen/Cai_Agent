@@ -31,7 +31,11 @@ from cai_agent.config import Settings
 from cai_agent.doctor import build_api_doctor_summary_v1
 from cai_agent.gateway_lifecycle import build_gateway_summary_payload, build_status_payload
 from cai_agent.gateway_lifecycle import build_gateway_proxy_route_preview
-from cai_agent.gateway_production import build_gateway_federation_summary_payload
+from cai_agent.gateway_production import (
+    build_gateway_channel_monitor_payload,
+    build_gateway_federation_summary_payload,
+    build_gateway_slash_catalog_payload,
+)
 from cai_agent.model_gateway import build_model_capabilities_payload
 from cai_agent.llm_factory import chat_completion_response
 from cai_agent.metrics import maybe_append_metrics_from_env, metrics_event_v1
@@ -201,6 +205,27 @@ def build_api_openapi_v1() -> dict[str, Any]:
         {"name": "cost_session_limit", "in": "query", "schema": {"type": "integer", "minimum": 1}},
         {"name": "audit_file", "in": "query", "schema": {"type": "string"}},
     ]
+    ops_workspaces_params = [
+        {"name": "include_summary", "in": "query", "schema": {"type": "boolean"}},
+        {"name": "observe_pattern", "in": "query", "schema": {"type": "string"}},
+        {"name": "observe_limit", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+        {"name": "schedule_days", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+        {"name": "cost_session_limit", "in": "query", "schema": {"type": "integer", "minimum": 1}},
+    ]
+    ops_rbac_headers = [
+        {
+            "name": "X-CAI-Actor",
+            "in": "header",
+            "schema": {"type": "string"},
+            "description": "Optional operator identity copied into ops dashboard action audit rows.",
+        },
+        {
+            "name": "X-CAI-Role",
+            "in": "header",
+            "schema": {"type": "string", "enum": ["viewer", "operator", "admin"]},
+            "description": "Optional requested role, capped by the server-side ops serve --role.",
+        },
+    ]
     paths: dict[str, Any] = {
         "/healthz": {"get": _op(method="getHealthz", summary="Liveness probe", schema_version="api_liveness_v1", security=False)},
         "/health": {"get": _op(method="getHealth", summary="Liveness probe alias", schema_version="api_liveness_v1", security=False)},
@@ -223,10 +248,36 @@ def build_api_openapi_v1() -> dict[str, Any]:
         },
         "/v1/release/runbook": {"get": _op(method="getReleaseRunbook", summary="Release runbook summary", schema_version="api_release_runbook_v1")},
         "/v1/gateway/federation-summary": {"get": _op(method="getGatewayFederationSummary", summary="Gateway federation summary", schema_version="gateway_federation_summary_v1")},
+        "/v1/gateway/channel-monitor": {
+            "get": _op(
+                method="getGatewayChannelMonitor",
+                summary="Gateway channel monitoring summary",
+                schema_version="gateway_channel_monitor_v1",
+                parameters=[
+                    {
+                        "name": "platform",
+                        "in": "query",
+                        "schema": {
+                            "type": "string",
+                            "enum": ["telegram", "discord", "slack", "teams", "signal", "email", "matrix"],
+                        },
+                    },
+                    {"name": "only_errors", "in": "query", "schema": {"type": "boolean"}},
+                ],
+            ),
+        },
+        "/v1/gateway/slash-catalog": {
+            "get": _op(
+                method="getGatewaySlashCatalog",
+                summary="Gateway slash command catalog",
+                schema_version="gateway_slash_catalog_v1",
+            ),
+        },
         "/v1/gateway/route-preview": {"post": _op(method="postGatewayRoutePreview", summary="Dry-run gateway route preview", schema_version="gateway_proxy_route_v1", request_schema=route_preview_body)},
         "/v1/tasks/run-due": {"post": _op(method="postTasksRunDue", summary="Dry-run due schedule tasks", schema_version="api_tasks_run_due_v1", request_schema=run_due_body)},
         "/v1/chat/completions": {"post": _op(method="postChatCompletions", summary="OpenAI-compatible chat completion", schema_version="api_openai_chat_completion_v1", request_schema=chat_body)},
         "/v1/ops/dashboard": {"get": _op(method="getOpsDashboard", summary="Ops dashboard JSON", schema_version="ops_dashboard_v1", parameters=ops_params)},
+        "/v1/ops/workspaces": {"get": _op(method="getOpsWorkspaces", summary="Allowed ops workspaces", schema_version="ops_workspaces_v1", parameters=ops_workspaces_params)},
         "/v1/ops/dashboard.html": {"get": _op(method="getOpsDashboardHtml", summary="Ops dashboard HTML", parameters=ops_params, content_type="text/html")},
         "/v1/ops/dashboard/events": {"get": _op(method="getOpsDashboardEvents", summary="Ops dashboard SSE events", parameters=ops_params, content_type="text/event-stream")},
         "/v1/ops/dashboard/interactions": {
@@ -236,6 +287,7 @@ def build_api_openapi_v1() -> dict[str, Any]:
                 schema_version="ops_dashboard_interactions_v1",
                 parameters=[
                     *ops_params,
+                    *ops_rbac_headers,
                     {"name": "action", "in": "query", "required": True, "schema": {"type": "string"}},
                     {"name": "mode", "in": "query", "schema": {"type": "string", "enum": ["preview", "audit"]}},
                 ],
@@ -244,6 +296,7 @@ def build_api_openapi_v1() -> dict[str, Any]:
                 method="postOpsDashboardInteractions",
                 summary="Preview, apply, or audit dashboard action",
                 schema_version="ops_dashboard_interactions_v1",
+                parameters=ops_rbac_headers,
                 request_schema=ops_interaction_body,
             ),
         },
@@ -802,6 +855,23 @@ class AgentApiRequestHandler(BaseHTTPRequestHandler):
                 return
             if path == "/v1/gateway/federation-summary":
                 self._send_json(200, build_gateway_federation_summary_payload(ws))
+                return
+            if path == "/v1/gateway/channel-monitor":
+                qs = parse_qs(parsed.query or "", keep_blank_values=False)
+                platform = (qs.get("platform") or [None])[0]
+                only_errors_raw = str((qs.get("only_errors") or [""])[0]).strip().lower()
+                only_errors = only_errors_raw in ("1", "true", "yes", "on")
+                self._send_json(
+                    200,
+                    build_gateway_channel_monitor_payload(
+                        ws,
+                        platform=platform,
+                        only_errors=only_errors,
+                    ),
+                )
+                return
+            if path == "/v1/gateway/slash-catalog":
+                self._send_json(200, build_gateway_slash_catalog_payload(ws))
                 return
         except Exception as e:
             self._send_json(500, {"ok": False, "error": "internal_error", "message": str(e)[:500]})

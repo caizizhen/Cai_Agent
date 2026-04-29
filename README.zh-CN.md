@@ -21,17 +21,18 @@
 9. [Memory 记忆子系统](#memory-记忆子系统)
 10. [模型与 Profile](#模型与-profile)
 11. [Tools 命令行门面](#tools-命令行门面)
-12. [MCP](#mcp)
-13. [Voice、Runtime、Hooks](#voiceruntimehooks)
-14. [质量门禁、安全扫描、成本](#质量门禁安全扫描成本)
-15. [ECC、导出、Plugins](#ecc导出plugins)
-16. [可观测性与 Ops 面板](#可观测性与-ops-面板)
-17. [定时任务 Schedule](#定时任务-schedule)
-18. [Gateway 网关](#gateway-网关)
-19. [反馈与修复](#反馈与修复)
-20. [TUI 文本界面](#tui-文本界面)
-21. [仓库内 rules / skills / commands](#仓库内-rules--skills--commands)
-22. [开发与测试](#开发与测试)
+12. [Browser 浏览器自动化](#browser-浏览器自动化)
+13. [MCP](#mcp)
+14. [Voice、Runtime、Hooks](#voiceruntimehooks)
+15. [质量门禁、安全扫描、成本](#质量门禁安全扫描成本)
+16. [ECC、导出、Plugins](#ecc导出plugins)
+17. [可观测性与 Ops 面板](#可观测性与-ops-面板)
+18. [定时任务 Schedule](#定时任务-schedule)
+19. [Gateway 网关](#gateway-网关)
+20. [反馈与修复](#反馈与修复)
+21. [TUI 文本界面](#tui-文本界面)
+22. [仓库内 rules / skills / commands](#仓库内-rules--skills--commands)
+23. [开发与测试](#开发与测试)
 
 ---
 
@@ -360,8 +361,39 @@ cai-agent tools list
 cai-agent tools bridge
 cai-agent tools guard
 cai-agent tools web-fetch --url …
+cai-agent tools browser-check --json
 cai-agent tools enable|disable …
 ```
+
+---
+
+## Browser 浏览器自动化
+
+浏览器能力采用 **MCP first**：CAI Agent 不把浏览器运行时绑进核心依赖，而是检查并调用已配置的 Browser MCP provider；默认引导路径是 Playwright MCP preset。
+
+就绪检查与模板发现：
+
+```bash
+cai-agent mcp-check --preset browser --list-only --json
+cai-agent mcp-check --preset browser --print-template
+cai-agent tools bridge --preset browser --json
+cai-agent tools browser-check --json
+cai-agent browser check --json
+```
+
+只生成浏览器任务计划、不执行：
+
+```bash
+cai-agent browser task --url https://example.com "总结当前可见页面" --json
+```
+
+只有在显式确认后才执行当前支持的 MCP 映射调用：
+
+```bash
+cai-agent browser task --url https://example.com "打开页面并抓取页面快照" --execute --confirm --json
+```
+
+当前执行映射刻意保持窄口径：`navigate` 映射为 `browser_navigate`，委托页面审阅映射为 `browser_snapshot`。点击、输入、上传、下载等更敏感动作需要先进入新的计划步骤，并绑定显式确认后再扩展。拒绝执行与确认执行都会追加 `.cai/browser/audit.jsonl`，并刷新 `.cai/browser/artifacts-manifest.json`；截图、下载、trace 统一落在 `.cai/browser/` 下。JSON 契约见 [docs/schema/README.zh-CN.md](docs/schema/README.zh-CN.md)，治理边界见 [docs/BROWSER_PROVIDER_RFC.zh-CN.md](docs/BROWSER_PROVIDER_RFC.zh-CN.md)，主要 schema 包括 `browser_provider_check_v1`、`browser_task_v1`、`browser_mcp_execution_v1`、`browser_audit_event_v1`。
 
 ---
 

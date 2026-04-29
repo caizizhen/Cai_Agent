@@ -477,6 +477,92 @@ class WorkflowCliTests(unittest.TestCase):
         self.assertIs(sm.get("budget_exceeded"), False)
         self.assertIn("budget_used", sm)
 
+    def test_workflow_branch_retry_and_aggregate(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            wf_path = Path(tmp) / "wf.json"
+            wf_path.write_text(
+                json.dumps(
+                    {
+                        "on_error": "continue_on_error",
+                        "aggregate": True,
+                        "steps": [
+                            {"name": "prepare", "goal": "prep"},
+                            {"name": "repair", "goal": "retry", "retry": {"max_attempts": 2}},
+                            {"name": "ship", "goal": "ship", "when": {"step": "repair", "status": "ok"}},
+                            {"name": "fallback", "goal": "fallback", "when": {"step": "repair", "status": "failed"}},
+                        ],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            attempts = {"repair": 0}
+
+            def fake_run_step(settings, raw_step, idx):
+                name = str(raw_step.get("name") or "")
+                ok = True
+                if name == "repair":
+                    attempts["repair"] += 1
+                    ok = attempts["repair"] >= 2
+                sr = {
+                    "index": idx,
+                    "name": name,
+                    "goal": str(raw_step.get("goal", "")),
+                    "workspace": settings.workspace,
+                    "provider": settings.provider,
+                    "model": settings.model,
+                    "elapsed_ms": 1,
+                    "answer": f"{name}-answer" if ok else "failed-once",
+                    "finished": ok,
+                    "prompt_tokens": 0,
+                    "completion_tokens": 0,
+                    "total_tokens": 0,
+                    "tool_calls_count": 0,
+                    "used_tools": [],
+                    "error_count": 0 if ok else 1,
+                    "role": "default",
+                    "parallel_group": None,
+                    "protocol": {
+                        "input": {"goal": raw_step.get("goal"), "role": "default", "parallel_group": None},
+                        "output": {"answer": f"{name}-answer" if ok else "failed-once"},
+                        "error": None if ok else "temporary_error",
+                    },
+                }
+                ev = {
+                    "event": "workflow.step.completed",
+                    "step_index": idx,
+                    "name": name,
+                    "elapsed_ms": 1,
+                    "tool_calls_count": 0,
+                    "error_count": sr["error_count"],
+                    "parallel_group": None,
+                }
+                return sr, ev, settings.workspace
+
+            old_mock = os.environ.get("CAI_MOCK")
+            os.environ["CAI_MOCK"] = "1"
+            try:
+                with patch("cai_agent.workflow._run_single_step", side_effect=fake_run_step):
+                    settings = Settings.from_env(
+                        config_path=None,
+                        workspace_hint=str(Path(tmp)),
+                    )
+                    out = run_workflow(settings, str(wf_path))
+            finally:
+                if old_mock is None:
+                    os.environ.pop("CAI_MOCK", None)
+                else:
+                    os.environ["CAI_MOCK"] = old_mock
+
+        steps = {str(s.get("name")): s for s in out.get("steps") or []}
+        self.assertEqual(steps["repair"].get("attempts"), 2)
+        self.assertFalse(steps["ship"].get("skipped"))
+        self.assertTrue(steps["fallback"].get("skipped"))
+        self.assertEqual(steps["fallback"].get("skip_reason"), "when_condition_false")
+        self.assertTrue(any(ev.get("event") == "workflow.step.retrying" for ev in out.get("events") or []))
+        aggregate = out.get("aggregate") or {}
+        self.assertEqual(aggregate.get("schema_version"), "workflow_aggregate_v1")
+        self.assertEqual((aggregate.get("answers_by_name") or {}).get("ship"), "ship-answer")
+
     def test_workflow_quality_gate_runs_after_success(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             wf_path = Path(tmp) / "wf-qg.json"

@@ -8,7 +8,7 @@
 - 默认路径继续是 **MCP first**：首选 `microsoft/playwright-mcp`，Cai Agent 不在核心依赖里绑定浏览器运行时。
 - `browser-use/browser-use` 作为架构参考：重点借鉴 action registry、browser session state、step limit、failure recovery，不直接把它变成默认依赖。
 - `skyvern-ai/skyvern` 只作高级工作流参考：表单工作流、审计、失败恢复值得借鉴；其 AGPL-3.0 许可证不适合未经评估直接嵌入默认分发。
-- 当前默认入口只输出契约与计划：`tools browser-check --json`、`browser check --json`、`browser task --json`。真正点击、输入、上传、下载必须进入后续执行器任务，并绑定人工确认。
+- 当前默认入口只输出契约与计划：`tools browser-check --json`、`browser check --json`、`browser task --json`。`browser task --execute --confirm --json` 可执行已映射的 Playwright MCP 调用；点击、输入、上传、下载等破坏性或敏感动作仍必须先进入新计划并绑定人工确认。
 
 ## 2. 已有基础
 
@@ -62,14 +62,14 @@
 - `elapsed_ms`
 - `error`
 
-建议新增 JSONL：`.cai/browser/audit.jsonl`，schema 可命名为 `browser_audit_event_v1`。
+已新增 JSONL：`.cai/browser/audit.jsonl`，每行为 `browser_audit_event_v1`；同时刷新 `.cai/browser/artifacts-manifest.json`（`browser_artifact_manifest_v1`），枚举 screenshots / downloads / traces 下的可审计产物。
 
 ## 6. 后续任务拆分
 
 | 任务 | 状态建议 | 范围 |
 |---|---|---|
-| `BRW-N04` | Ready after RFC | Browser MCP executor：把 `browser_task_v1.steps[]` 映射到显式确认的 `mcp_call_tool` |
-| `BRW-N05` | Design | Browser audit JSONL 与 artifact manifest |
+| `BRW-N04` | Done | Browser MCP executor：把 `browser_task_v1.steps[]` 映射到显式确认的 `mcp_call_tool`（`browser_mcp_execution_v1`） |
+| `BRW-N05` | Done | Browser audit JSONL 与 artifact manifest |
 | `BRW-N06` | Design | 登录态与人工接管 UX：只记录状态，不收集凭据 |
 | `BRW-N07` | Explore | `browser-use` optional extra adapter |
 | `BRW-N08` | Explore / Legal review | Skyvern 风格表单工作流参考，不直接引入 AGPL 代码 |

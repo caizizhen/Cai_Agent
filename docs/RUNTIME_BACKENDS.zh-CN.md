@@ -26,3 +26,19 @@
 ### 诊断
 
 `cai-agent doctor --json` 含 `runtime: { schema_version: doctor_runtime_v1, … }`。
+
+## RT-N01 验证矩阵
+
+> 目标：Docker / SSH 后端继续保持产品化接口可测，同时 CI 默认不绑定真实外部环境。
+
+| 层级 | 覆盖范围 | 默认入口 | 通过门槛 |
+|---|---|---|---|
+| mock / unit | local、docker、ssh backend 接口与命令拼装 | `python -m pytest -q cai-agent/tests/test_runtime_local.py cai-agent/tests/test_runtime_docker_mock.py cai-agent/tests/test_runtime_ssh_mock.py cai-agent/tests/test_runtime_tool_dispatch.py` | 不要求本机 Docker daemon 或真实 SSH 主机；只验证接口、describe、派发与安全字段 |
+| doctor contract | `doctor_runtime_v1.describe` 中 backend、mode、image/container、ssh key/known_hosts/audit 等字段 | `python -m pytest -q cai-agent/tests/test_doctor_cli.py -k runtime`（或全量 doctor 窄测） | 字段稳定，未配置环境给出可解释状态而非硬失败 |
+| opt-in real smoke | 真实 Docker image / SSH target | 手工设置环境后运行专门 smoke（后续可落到 `docs/qa/runs/`） | 只在操作者显式提供 daemon/host/凭据时执行；失败记录环境信息，不阻塞默认 CI |
+
+### 真实 smoke 边界
+
+- Docker：默认建议使用短生命周期 image 模式；需要显式 image、workdir 与 volume 映射，避免复用未知长跑容器。
+- SSH：必须使用显式 host、user、key、known_hosts 与 timeout；审计默认不写命令明文。
+- CI：默认只跑 mock / contract 层；真实 smoke 可作为发布前人工或受保护 runner 的附加证据。

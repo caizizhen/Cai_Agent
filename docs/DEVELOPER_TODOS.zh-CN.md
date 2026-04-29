@@ -8,17 +8,13 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| 1 | `SYNC-N01` | In Progress | 产品状态清账：把已实现但仍挂在 Ready 队列的 API/OPS/CC/GW/ECC 项归档，并恢复 TODO/roadmap/parity 一致性 | `docs/NEXT_ACTIONS.zh-CN.md`、`docs/DEVELOPER_TODOS.zh-CN.md`、`docs/TEST_TODOS.zh-CN.md`、`docs/PRODUCT_ROADMAP_CURRENT.zh-CN.md`、`docs/PRODUCT_GAP_ANALYSIS.zh-CN.md`、`docs/PARITY_MATRIX.zh-CN.md` | `API-N01`/`OPS-N01`/`CC-N05`/`GW-N01`/`ECC-N05`/`ECC-N06` 已归档；当前开发队列只保留真实未完成项；文档一致性 rg + 窄 pytest |
-| 2 | `MEM-N01` | Design | 外部 memory provider adapter：从 local/user-model 扩展到可插拔 provider | `cai-agent/src/cai_agent/memory.py`、`cai-agent/src/cai_agent/user_model.py`、`docs/schema/README.zh-CN.md` | 先定义 provider contract、mock/filesystem 或 sqlite adapter、`memory provider test --json`；实现前补 RFC 或 schema |
-| 3 | `RT-N01` | Design | runtime 真机矩阵：Docker/SSH 从产品化接口走向可验证环境矩阵 | `cai-agent/src/cai_agent/runtime/`、`docs/RUNTIME_BACKENDS.zh-CN.md`、`docs/qa/` | 分层真实 smoke 与 mock 测试；CI 不被外部环境硬绑定；实现前补测试矩阵 |
-| 4 | `WF-N01` | Design | workflow / subagent 编排增强：条件分支、结果汇总、失败恢复 | `cai-agent/src/cai_agent/workflow*.py`、`docs/schema/README.zh-CN.md` | schema 示例覆盖 branch/retry/aggregate；pytest 覆盖 happy path 与失败恢复 |
-| 5 | `BRW-N04` | Ready after SYNC | Browser MCP executor：把 `browser_task_v1.steps[]` 映射到显式确认的 Playwright MCP 调用 | `cai-agent/src/cai_agent/browser_provider.py`、`cai-agent/src/cai_agent/tool_provider.py`、`docs/BROWSER_PROVIDER_RFC.zh-CN.md` | 只在显式确认下执行 MCP steps；输出可审计结果；pytest 覆盖 dry-run、拒绝、成功映射 |
+| - | - | Clear | 当前默认开发队列已清空；`GW-SLASH-N01` 已完成并归档 | `docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/` | 下一轮从 Gateway slash 真实注册/部署检查或 Ops operator 路由深化中选择 |
 
 ## 执行顺序
 
-1. 先完成 `SYNC-N01`，把已验证完成的产品化队列从 TODO 中移出并同步 roadmap / parity。
-2. 再推进 `MEM-N01`、`RT-N01`、`WF-N01` 的契约或测试矩阵设计，把可实现部分升为 Ready。
-3. 若下一版主卖点转向浏览器自动化，则排 `BRW-N04`；否则它保持 P2。
+1. 本轮已完成 `GW-SLASH-N01`，离线 `gateway slash-catalog --json` 与 API 入口已收口。
+2. 下一轮若继续 Gateway 面，再考虑 slash command 真实注册/部署检查；若继续 operator 面，则深化跨 workspace 操作路由。
+3. 若继续浏览器自动化，考虑下载/上传/点击等更细粒度 step allowlist。
 
 ## 每个任务的统一要求
 

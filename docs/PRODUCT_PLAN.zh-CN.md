@@ -15,7 +15,7 @@
 
 | 领域 | 已具备能力（摘要） |
 |------|---------------------|
-| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段、root **`quality_gate`** + 可选 **`post_gate`** 等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
+| **核心 CLI** | `plan` / `run` / `continue` / `command` / `workflow`；**`run`/`continue`/… `--json`**：`run_schema_version`=`1.1`，**`events`** 为 **`run_events_envelope_v1`**（`schema_version` + **`items[]`**）；`workflow` JSON（含 `task_id`、`parallel_group`、**`subagent_io_schema_version`=`1.1`**、`on_error`、预算字段、步骤级 `when`、`retry.max_attempts`、根级 `workflow_aggregate_v1`、root **`quality_gate`** + 可选 **`post_gate`** 等）；`init`、**`doctor`**（含 **`.cai/`** 网关映射与 **`hooks.json`** 健康摘要）、`release-ga` |
 | **工作区与安全** | 读写/搜索/Git、沙箱路径、`run_command` 白名单+高危模式二次确认、`fetch_url`（白名单 + 权限）；**`pii-scan`**（信用卡/身份证/手机号/JWT 等 PII 专项扫描，`pii_scan_result_v1`） |
 | **质量与 CI** | `fix-build`、**`security-scan --json`** + **`security-scan --badge`**（**`security_badge_v1`**，shields.io 兼容）、`quality-gate`（**`CAI_QG_FRONTEND_MONOREPO=1`** 时自动追加 **`npm run -ws --if-present lint`**） |
 | **扩展发现** | `plugins --json`、`commands` / `agents` 列表 JSON |
@@ -29,17 +29,17 @@
 | **Gateway** | **`gateway telegram`** 生产路径（映射 / bind / webhook / continue-hint 等）；**`gateway discord`** Bot Polling MVP（`serve-polling` + bind/allow）；**`gateway slack`** Events API Webhook MVP（`serve-webhook` + bind/allow）；**`gateway teams`** Bot Framework Activity Webhook MVP（映射 / allow / health / manifest / serve-webhook）；**`gateway platforms list --json`**（Discord/Slack/Teams 状态为 `mvp`）；**`gateway status --json`**；**`gateway prod-status --json`**（`gateway_production_summary_v1`） |
 | **导出** | `export` → Cursor / Codex / OpenCode（基础 manifest）；**`export --ecc-diff`**（**`export_ecc_dir_diff_v1`**，源目录 vs **`.cursor/cai-agent-export`** 差异报告，不写盘） |
 | **契约与退出码** | [`docs/schema/README.zh-CN.md`](schema/README.zh-CN.md) **§ S1-02 / S1-03**；`api serve` 已含 OpenAI-compatible **`/v1/models`** 与非流式 / SSE **`/v1/chat/completions`**；[`TOOLS_REGISTRY.zh-CN.md`](TOOLS_REGISTRY.zh-CN.md)（13 工具与权限键）；`docs/schema/SCHEDULE_*.zh-CN.md`、[`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md)；Browser provider `browser_provider_check_v1` / `browser_task_v1`；[`ONBOARDING.zh-CN.md`](ONBOARDING.zh-CN.md)；`scripts/smoke_new_features.py` 对主要命令 JSON **抽样** |
-| **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)）；Browser automation **MCP first**（[`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)、[`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)） |
+| **产品定案** | WebSearch / Notebook **MCP 优先**（[`WEBSEARCH_NOTEBOOK_MCP.zh-CN.md`](WEBSEARCH_NOTEBOOK_MCP.zh-CN.md)）；Browser automation **MCP first**（[`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)、[`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)），已含显式确认执行器、审计 JSONL 与 artifact manifest |
 | **技能 Hub** | **`skills hub manifest --json`**；**`skills hub suggest`**；**`skills hub install`**（manifest 选择性安装，`--only`/`--dry-run`）；**`skills hub serve`**；**`auto_extract_skill_after_task`**；**`CAI_SKILLS_AUTO_SUGGEST=1`** 时在 **`session_end`** 后 dry-run 落盘演进草稿 |
-| **子代理 / RPC** | `parallel_group`、**`subagent_io`**（**`subagent_io_schema_version`=`1.1`**，每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、`on_error`、预算控制；**RPC 标准 IO TypedDict**；**`agent_templates`** 与 **`workflow --templates`**（三套内置模板） |
+| **子代理 / RPC** | `parallel_group`、**`subagent_io`**（**`subagent_io_schema_version`=`1.1`**，每步 **`agent_template_id`** 与可选 **`rpc_step_input`/`rpc_step_output`**）、`on_error`、预算控制、步骤级 `when` 条件分支、`retry.max_attempts` 失败恢复、`workflow_aggregate_v1` 汇总；**RPC 标准 IO TypedDict**；**`agent_templates`** 与 **`workflow --templates`**（三套内置模板） |
 
 ### 〇.2 仍有差距或待演进（P2 方向）
 
 | 领域 | 说明 | 对应 §二 |
 |------|------|----------|
-| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；动态 HTTP 已支持 JSON/HTML/SSE；`ops_dashboard_interactions_v1` 已支持 schedule reorder、gateway bind-edit、profile switch 的 preview/apply/audit 与 `ops_dashboard_action_audit_v1` 审计；RBAC、多 workspace operator 面仍为后续 Sprint | **26（后续）** |
-| **Gateway 全量** | Discord/Slack/Teams 已有 MVP；`gateway_production_summary_v1` 已提供本地生产状态摘要、readiness checklist 与 diagnostics；Slash Commands 深化、频道监控、多工作区联邦仍为后续 Sprint | **24（后续）** |
-| **运行后端（P2）** | Docker 已产品化（`image` / `volume_mounts` / limits / doctor）；SSH 已产品化（key / known_hosts / timeout / audit）；Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
+| **运营 Web UI** | `ops dashboard --format html` 已生成静态单文件 HTML；动态 HTTP 已支持 JSON/HTML/SSE；`ops_dashboard_interactions_v1` 已支持 schedule reorder、gateway bind-edit、profile switch 的 preview/apply/audit 与 `ops_dashboard_action_audit_v1` 审计；`ops serve --role viewer|operator|admin` 已补 RBAC 与 workspace_scope 审计；`GET /v1/ops/workspaces` 已提供 allowlist 多 workspace 发现与 summary 聚合；更完整 operator 路由面仍为后续 Sprint | **26（后续）** |
+| **Gateway 全量** | Discord/Slack/Teams 已有 MVP；`gateway_production_summary_v1` 已提供本地生产状态摘要、readiness checklist 与 diagnostics；`gateway channel-monitor --json` / `GET /v1/gateway/channel-monitor` 已提供独立频道监控视图；`gateway slash-catalog --json` / `GET /v1/gateway/slash-catalog` 已提供 slash/command 能力目录；Slash Commands 真实注册/部署检查与多工作区联邦仍为后续 Sprint | **24（后续）** |
+| **运行后端（P2）** | Docker 已产品化（`image` / `volume_mounts` / limits / doctor）；SSH 已产品化（key / known_hosts / timeout / audit）；`RT-N01` 已补 mock / doctor / opt-in real smoke 分层矩阵；Modal / Daytona 等「休眠即省钱」后端未纳入默认交付 | **§一** |
 | **语音 / 官方 Bridge** | 明确 **OOS** 或走 MCP | **§一** |
 
 ---
@@ -49,7 +49,7 @@
 | 来源 | 目标能力 | 本仓当前状态 | 结论 |
 |------|----------|--------------|------|
 | `anthropics/claude-code` | 官方终端 Agent 的主体验：计划→执行→继续、工具、权限、MCP、TUI | 主链路已具备，WebSearch / Notebook / 安装体验仍有差距 | **部分完成** |
-| `NousResearch/hermes-agent` | Profiles、API/server、gateway、voice、dashboard、memory providers、runtime backends | Hermes 34 Story 冻结版已收口；MODEL-P0 模型接入地基已完成（capabilities / health / onboarding / routing fallback / OpenAI-compatible API）；OpenAPI、受控 ops apply/audit、gateway readiness、marketplace-lite 与 trust gate 已收口；外部 memory provider、runtime 真机矩阵与 workflow 编排深化仍待继续 | **部分完成** |
+| `NousResearch/hermes-agent` | Profiles、API/server、gateway、voice、dashboard、memory providers、runtime backends | Hermes 34 Story 冻结版已收口；MODEL-P0 模型接入地基已完成（capabilities / health / onboarding / routing fallback / OpenAI-compatible API）；OpenAPI、受控 ops apply/audit、ops RBAC、gateway readiness、marketplace-lite 与 trust gate 已收口；memory provider mock adapter、runtime 验证矩阵、workflow branch/retry/aggregate 与 Browser MCP executor 已收口；多 workspace 与 gateway 深化仍待继续 | **部分完成** |
 | `affaan-m/everything-claude-code` | rules / skills / hooks / model-route / cross-harness / 生态资产治理 | 规则、技能、导出与兼容矩阵已有基础，资产化与安装叙事仍不足 | **部分完成** |
 
 **说明**：
@@ -86,10 +86,10 @@
 | 20 | **S4-04** 审计 JSONL 七种事件 | **完成** | [`SCHEDULE_AUDIT_JSONL.zh-CN.md`](schema/SCHEDULE_AUDIT_JSONL.zh-CN.md) |
 | 21 | **`task_id` 贯通** + **`ops dashboard` JSON** | **完成** | `run`/`continue`/`workflow`/`sessions`/`observe` |
 | 22 | 敏感扫描、高危命令二次确认 | **完成** | `security-scan --json`（密钥扫描）+ **`pii-scan`**（`pii_scan_result_v1`，覆盖信用卡/身份证/手机号/JWT/SSN）+ `run_command_approval_mode` 高危二次确认；`test_pii_scan.py`（11 cases） |
-| 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算 + root **`quality_gate`** / **`post_gate`**（S5-01～S5-04）；**`workflow --templates`**；`test_workflow_templates_rpc.py`（14 cases） |
-| 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP）** | `gateway_platforms_v1`（Discord/Slack/Teams 为 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；**`gateway teams serve-webhook`**（Bot Framework Activity Webhook + manifest）；bind/unbind/get/list/allow 完整映射管理；**`gateway prod-status --json`** 输出 `gateway_production_summary_v1`；`test_gateway_discord_slack_cli.py` / `test_gateway_lifecycle_cli.py` |
+| 23 | 子 Agent IO、编排模板 | **完成** | `parallel_group` + **`subagent_io_schema_version`=`1.1`**（**`agent_template_id`** + 可选 **`rpc_step_*`**）+ `on_error` + 预算 + 步骤级 `when` / `retry.max_attempts` + 根级 `workflow_aggregate_v1` + root **`quality_gate`** / **`post_gate`**（S5-01～S5-04 / WF-N01）；**`workflow --templates`**；`test_workflow_templates_rpc.py` + `test_cli_workflow.py` |
+| 24 | 多平台 Gateway 对齐 Hermes | **完成（MVP + channel monitor）** | `gateway_platforms_v1`（Discord/Slack/Teams 为 `mvp`）；**`gateway discord serve-polling`**（Bot Polling）；**`gateway slack serve-webhook`**（Events API Webhook）；**`gateway teams serve-webhook`**（Bot Framework Activity Webhook + manifest）；bind/unbind/get/list/allow 完整映射管理；**`gateway prod-status --json`** 输出 `gateway_production_summary_v1`；**`gateway channel-monitor --json`** 输出 `gateway_channel_monitor_v1`；`test_gateway_discord_slack_cli.py` / `test_gateway_lifecycle_cli.py` |
 | 25 | 技能自进化 / Hub | **完成** | `skills_hub_manifest_v1` + `skills_evolution_suggest_v1` + **`skills hub install`**；**`auto_extract_skill_after_task`**；**`skills hub serve`**；**`CAI_SKILLS_AUTO_SUGGEST`**；`test_skills_auto_extract_hub_serve.py`（8 cases） |
-| 26 | 运营面板 | **完成（MVP）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘；**`ops serve`** 只读 JSON/HTML/SSE；**`ops_dashboard_interactions_v1`** 支持 schedule reorder / gateway bind-edit dry-run 预览；`test_ops_dashboard_html.py` / `test_ops_http_server.py` |
+| 26 | 运营面板 | **完成（MVP + RBAC）** | `ops_dashboard_v1`（JSON）；**`ops dashboard --format html`** 单文件 HTML 仪表盘；**`ops serve`** JSON/HTML/SSE；**`ops_dashboard_interactions_v1`** 支持 schedule reorder / gateway bind-edit / profile switch 的 preview/apply/audit；**`--role viewer|operator|admin`** 与 `X-CAI-Actor` / `X-CAI-Role` 写路径治理；`test_ops_dashboard_html.py` / `test_ops_http_server.py` |
 
 ---
 

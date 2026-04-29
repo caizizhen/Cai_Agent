@@ -6,6 +6,18 @@
 
 ### Unreleased
 
+- **GW-SLASH-N01 Gateway slash catalog**：新增 `gateway slash-catalog --json` 与 `GET /v1/gateway/slash-catalog`（`gateway_slash_catalog_v1`），离线公开 Discord application commands、Slack `/cai` 子命令与 Teams command list，并统计可执行型命令数量，便于 operator 审核。
+
+- **GW-CHAN-N01 Gateway channel-monitor 独立入口**：新增 `gateway channel-monitor --json` 与 `GET /v1/gateway/channel-monitor`（`gateway_channel_monitor_v1`），从 `gateway_production_summary_v1` 派生紧凑频道监控视图。该入口支持平台过滤与 `only_errors` 过滤，便于运维脚本不解析完整 prod-status 即可读取频道状态。
+
+- **OPS-MW-N01 ops serve 多 workspace 发现**：新增 `GET /v1/ops/workspaces`（`ops_workspaces_v1`），只枚举服务端 `--allow-workspace` 根目录；每个 workspace 返回 dashboard/html/interactions 路由 URL，并支持 `include_summary=1` 聚合 dashboard summary。OpenAPI 与 ops 文档已暴露该路由。
+
+- **OPS-RBAC-N01 ops serve RBAC 与 workspace 作用域审计**：`cai-agent ops serve` 新增 `--role viewer|operator|admin` 作为服务端最大角色。Dashboard interaction 请求可带 `X-CAI-Actor` 与 `X-CAI-Role`；`viewer` 只能读/preview/audit，`operator` 可 apply 调度重排与 gateway binding 编辑，`admin` 额外可 apply profile 切换。RBAC 拒绝返回 `rbac_forbidden`，并追加含 `actor`、`role`、`workspace_scope` 的 `ops_dashboard_action_audit_v1` 审计行；OpenAPI 发现已登记新 header。
+
+- **产品队列清账与下一批能力落地**：完成 `SYNC-N01`、`MEM-N01`、`RT-N01`、`WF-N01`、`BRW-N04`。Memory provider 契约补齐 `list/use/test` 与 `honcho_external` mock HTTP adapter 的 schema/测试说明；runtime 文档补齐 mock / doctor / opt-in real smoke 分层矩阵；workflow 新增步骤级 `when`、`retry.max_attempts` 与 `workflow_aggregate_v1`；browser task 现在可将 `browser_task_v1.steps[]` 映射为显式确认的 Playwright MCP `mcp_call_tool` 调用（`browser_mcp_execution_v1`），覆盖 dry-run、拒绝执行与审计执行状态。测试：`test_browser_provider_cli.py`、`test_browser_mcp_cli.py`、`test_cli_workflow.py`、`test_memory_provider_contract_cli.py` 与 runtime mock 测试。
+
+- **BRW-N05 Browser 审计与产物 manifest**：非 dry-run 的 browser 执行尝试现在会追加 `.cai/browser/audit.jsonl`（`browser_audit_event_v1`），并在拒绝/确认路径刷新 `.cai/browser/artifacts-manifest.json`（`browser_artifact_manifest_v1`）。manifest 枚举 screenshots、downloads、traces 下的路径、相对路径、大小与 mtime 元数据；执行载荷返回 `browser_audit_summary_v1` 与 manifest 摘要。测试覆盖拒绝执行、确认执行与 artifact 发现。
+
 - **托管模型官方上下文窗口表刷新**：`infer_default_context_window()` 现在先按有序模型前缀表命中，再进入 provider 兜底，覆盖 OpenAI GPT-5.5/5.4/5.2 家族、Claude、Gemini、DeepSeek、GLM、Qwen、Kimi、MiniMax、Grok、Groq 托管开源模型、Mistral、Cohere Command、Perplexity Sonar 等当前官方默认值。OpenRouter 与聚合路由会剥离厂商前缀后复用同一张表；显式 `context_window` 仍优先，本地/自托管端点仍保持手动配置。
 
 - **上下文窗口自动推断扩展到更广的大模型接入家族**：新增 OpenRouter 厂商前缀路由与模型家族规则，覆盖主流可接入生态（含 Qwen、MiniMax、Kimi、智谱 GLM、Mistral、火山/Doubao、Meta Llama、Perplexity 等）的默认上下文窗口自动推断；未知模型与 localhost/自建端点仍保持手动配置。

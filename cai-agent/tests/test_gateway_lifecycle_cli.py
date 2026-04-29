@@ -240,3 +240,60 @@ class GatewayLifecycleCliTests(unittest.TestCase):
             self.assertEqual(payload.get("schema_version"), "gateway_federation_summary_v1")
             self.assertEqual(payload.get("summary", {}).get("platforms_count"), 7)
             self.assertGreaterEqual(payload.get("summary", {}).get("channels_count"), 1)
+
+    def test_gateway_channel_monitor_json_filters_platform_and_errors(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            gdir = root / ".cai" / "gateway"
+            gdir.mkdir(parents=True, exist_ok=True)
+            (gdir / "telegram-session-map.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "gateway_telegram_map_v1",
+                        "bindings": {"1:2": {"chat_id": "1", "user_id": "2", "session_file": "s.json"}},
+                        "allowed_chat_ids": ["1"],
+                    },
+                ),
+                encoding="utf-8",
+            )
+            buf = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf):
+                    rc = main(["gateway", "channel-monitor", "--platform", "telegram", "--json"])
+            self.assertEqual(rc, 0)
+            payload = json.loads(buf.getvalue().strip())
+            self.assertEqual(payload.get("schema_version"), "gateway_channel_monitor_v1")
+            self.assertEqual(payload.get("platform_filter"), "telegram")
+            self.assertEqual(payload.get("platforms_count"), 1)
+            self.assertGreaterEqual(payload.get("channels_count"), 1)
+            row = (payload.get("platforms") or [{}])[0]
+            self.assertEqual(row.get("id"), "telegram")
+            channel = (row.get("channels") or [{}])[0]
+            self.assertEqual(channel.get("channel_id"), "1:2")
+
+            buf2 = io.StringIO()
+            with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+                with redirect_stdout(buf2):
+                    rc2 = main(["gateway", "channel-monitor", "--platform", "telegram", "--only-errors", "--json"])
+            self.assertEqual(rc2, 0)
+            only_errors = json.loads(buf2.getvalue().strip())
+            self.assertIs(only_errors.get("only_errors"), True)
+            self.assertEqual(only_errors.get("channels_count"), 0)
+
+    def test_gateway_slash_catalog_json(self) -> None:
+        root = (Path.cwd() / ".tmp-test" / "gateway-slash-catalog-cli").resolve()
+        root.mkdir(parents=True, exist_ok=True)
+        buf = io.StringIO()
+        with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
+            with redirect_stdout(buf):
+                rc = main(["gateway", "slash-catalog", "--json"])
+        self.assertEqual(rc, 0)
+        payload = json.loads(buf.getvalue().strip())
+        self.assertEqual(payload.get("schema_version"), "gateway_slash_catalog_v1")
+        self.assertGreaterEqual(payload.get("platforms_count"), 3)
+        platforms = {p.get("id"): p for p in payload.get("platforms") or []}
+        self.assertIn("discord", platforms)
+        self.assertIn("slack", platforms)
+        self.assertIn("teams", platforms)
+        slack_commands = platforms["slack"].get("commands") or []
+        self.assertTrue(any(c.get("name") == "/cai <goal>" and c.get("execute_capable") for c in slack_commands))

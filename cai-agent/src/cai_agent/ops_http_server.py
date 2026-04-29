@@ -10,6 +10,7 @@ import json
 import os
 import re
 import time
+from datetime import UTC, datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from typing import TextIO
 from urllib.parse import parse_qs, unquote, urlencode, urlparse
 
 from cai_agent.ops_dashboard import (
+    _append_ops_action_audit,
     build_ops_dashboard_html,
     build_ops_dashboard_interactions_payload,
     build_ops_dashboard_payload,
@@ -29,6 +31,21 @@ class OpsApiThreadingServer(ThreadingHTTPServer):
 
     allow_roots: frozenset[Path]
     api_token: str | None
+    default_role: str
+
+
+_OPS_ROLE_LEVELS = {
+    "viewer": 0,
+    "operator": 1,
+    "admin": 2,
+}
+
+
+_OPS_APPLY_REQUIRED_ROLES = {
+    "schedule_reorder_preview": "operator",
+    "gateway_bind_edit_preview": "operator",
+    "profile_switch_preview": "admin",
+}
 
 
 class OpsApiRequestHandler(BaseHTTPRequestHandler):
@@ -79,6 +96,94 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         got = auth[7:].strip()
         return bool(got) and got == token
 
+    def _role_error(self, role: str) -> dict[str, object] | None:
+        if role in _OPS_ROLE_LEVELS:
+            return None
+        return {
+            "ok": False,
+            "error": "invalid_role",
+            "role": role,
+            "supported_roles": sorted(_OPS_ROLE_LEVELS),
+        }
+
+    def _request_role(self) -> str:
+        configured = str(getattr(self.server, "default_role", "admin") or "admin").strip().lower()
+        if configured not in _OPS_ROLE_LEVELS:
+            configured = "admin"
+        requested = str(self.headers.get("X-CAI-Role") or "").strip().lower()
+        if not requested:
+            return configured
+        if requested not in _OPS_ROLE_LEVELS:
+            return requested
+        if _OPS_ROLE_LEVELS[requested] > _OPS_ROLE_LEVELS[configured]:
+            return configured
+        return requested
+
+    def _operator_context(self, workspace: Path, role: str) -> dict[str, object]:
+        actor = str(
+            self.headers.get("X-CAI-Actor")
+            or os.environ.get("CAI_OPERATOR")
+            or os.environ.get("USERNAME")
+            or os.environ.get("USER")
+            or "unknown"
+        ).strip() or "unknown"
+        roots: frozenset[Path] = getattr(self.server, "allow_roots", frozenset())
+        return {
+            "actor": actor,
+            "role": role,
+            "workspace_scope": {
+                "workspace": str(workspace),
+                "allowed": self._workspace_allowed(workspace),
+                "allow_roots_count": len(roots),
+            },
+        }
+
+    def _rbac_apply_denial(
+        self,
+        *,
+        action: str,
+        mode: str,
+        role: str,
+        workspace: Path,
+    ) -> dict[str, object] | None:
+        if mode != "apply":
+            return None
+        if action not in _OPS_APPLY_REQUIRED_ROLES:
+            return None
+        required = _OPS_APPLY_REQUIRED_ROLES.get(action, "operator")
+        if _OPS_ROLE_LEVELS.get(role, -1) >= _OPS_ROLE_LEVELS[required]:
+            return None
+        ctx = self._operator_context(workspace, role)
+        audit = _append_ops_action_audit(
+            workspace,
+            action=action,
+            mode=mode,
+            ok=False,
+            summary={"required_role": required, "denied_role": role},
+            params={"error": "rbac_forbidden"},
+            actor=str(ctx.get("actor") or "unknown"),
+            role=role,
+            workspace_scope=ctx.get("workspace_scope") if isinstance(ctx.get("workspace_scope"), dict) else {},
+        )
+        return {
+            "schema_version": "ops_dashboard_interactions_v1",
+            "ok": False,
+            "error": "rbac_forbidden",
+            "workspace": str(workspace),
+            "action": action,
+            "mode": mode,
+            "dry_run": False,
+            "applied": False,
+            "required_role": required,
+            "role": role,
+            "supported_roles": sorted(_OPS_ROLE_LEVELS),
+            "rbac": {
+                "schema_version": "ops_dashboard_rbac_v1",
+                **ctx,
+            },
+            "audit_event": audit,
+        }
+
     def _workspace_allowed(self, root: Path) -> bool:
         roots: frozenset[Path] = getattr(self.server, "allow_roots", frozenset())
         return root in roots
@@ -103,6 +208,59 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
             raise ValueError("invalid_observe_pattern")
         return s
 
+    def _parse_bool(self, raw: str | None, default: bool = False) -> bool:
+        if raw is None or str(raw).strip() == "":
+            return bool(default)
+        s = str(raw).strip().lower()
+        if s in ("1", "true", "yes", "on"):
+            return True
+        if s in ("0", "false", "no", "off"):
+            return False
+        raise ValueError("invalid_bool")
+
+    def _build_workspaces_payload(
+        self,
+        *,
+        include_summary: bool,
+        observe_pattern: str,
+        observe_limit: int,
+        schedule_days: int,
+        cost_session_limit: int,
+    ) -> dict[str, object]:
+        roots: frozenset[Path] = getattr(self.server, "allow_roots", frozenset())
+        rows: list[dict[str, object]] = []
+        for root in sorted(roots):
+            row: dict[str, object] = {
+                "workspace": str(root),
+                "exists": root.is_dir(),
+                "allowed": True,
+                "dashboard_url": "/v1/ops/dashboard?" + urlencode({"workspace": str(root)}),
+                "dashboard_html_url": "/v1/ops/dashboard.html?" + urlencode({"workspace": str(root)}),
+                "interactions_url": "/v1/ops/dashboard/interactions?" + urlencode({"workspace": str(root)}),
+            }
+            if include_summary and root.is_dir():
+                try:
+                    payload = build_ops_dashboard_payload(
+                        cwd=str(root),
+                        observe_pattern=observe_pattern,
+                        observe_limit=observe_limit,
+                        schedule_days=schedule_days,
+                        audit_path=None,
+                        cost_session_limit=cost_session_limit,
+                    )
+                    row["summary"] = payload.get("summary") if isinstance(payload.get("summary"), dict) else {}
+                    row["generated_at"] = payload.get("generated_at")
+                except OSError as e:
+                    row["summary_error"] = str(e)
+            rows.append(row)
+        return {
+            "schema_version": "ops_workspaces_v1",
+            "generated_at": datetime.now(UTC).isoformat(),
+            "workspaces_count": len(rows),
+            "include_summary": bool(include_summary),
+            "workspaces": rows,
+        }
+
     def _resolve_audit_path(self, workspace: Path, raw: str | None) -> Path | None:
         if raw is None or str(raw).strip() == "":
             return None
@@ -125,11 +283,17 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
             "/v1/ops/dashboard.html",
             "/v1/ops/dashboard/events",
             "/v1/ops/dashboard/interactions",
+            "/v1/ops/workspaces",
         ):
             self._send_json(404, {"error": "not_found", "path": path})
             return
         if not self._auth_ok():
             self._send_json(401, {"error": "unauthorized"})
+            return
+        role = self._request_role()
+        role_error = self._role_error(role)
+        if role_error is not None:
+            self._send_json(400, role_error)
             return
         try:
             q = parse_qs(parsed.query, keep_blank_values=False)
@@ -142,6 +306,34 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
             if not xs:
                 return None
             return xs[0]
+
+        if path == "/v1/ops/workspaces":
+            try:
+                include_summary = self._parse_bool(one("include_summary"), default=False)
+                observe_pattern = self._safe_observe_pattern(one("observe_pattern"), ".cai-session*.json")
+                observe_limit = self._parse_positive_int(
+                    one("observe_limit"), 100, name="observe_limit", max_v=50_000
+                )
+                schedule_days = self._parse_positive_int(
+                    one("schedule_days"), 30, name="schedule_days", max_v=3660
+                )
+                cost_session_limit = self._parse_positive_int(
+                    one("cost_session_limit"), 200, name="cost_session_limit", max_v=50_000
+                )
+            except ValueError as e:
+                self._send_json(400, {"error": "bad_request", "detail": str(e)})
+                return
+            self._send_json(
+                200,
+                self._build_workspaces_payload(
+                    include_summary=include_summary,
+                    observe_pattern=observe_pattern,
+                    observe_limit=observe_limit,
+                    schedule_days=schedule_days,
+                    cost_session_limit=cost_session_limit,
+                ),
+            )
+            return
 
         ws_raw = one("workspace")
         if not ws_raw or not str(ws_raw).strip():
@@ -210,6 +402,7 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
                 action=action,
                 mode=mode,
                 params=params,
+                operator_context=self._operator_context(workspace, role),
             )
             self._send_json(200 if interaction.get("ok") else 400, interaction)
             return
@@ -333,6 +526,11 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
         if not self._auth_ok():
             self._send_json(401, {"error": "unauthorized"})
             return
+        role = self._request_role()
+        role_error = self._role_error(role)
+        if role_error is not None:
+            self._send_json(400, role_error)
+            return
         try:
             body = self._read_json_body()
         except ValueError as e:
@@ -356,6 +554,10 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
 
         action = str(body.get("action") or "").strip()
         mode = str(body.get("mode") or "apply").strip().lower()
+        denial = self._rbac_apply_denial(action=action, mode=mode, role=role, workspace=workspace)
+        if denial is not None:
+            self._send_json(403, denial)
+            return
         params = {
             k: v
             for k, v in body.items()
@@ -366,6 +568,7 @@ class OpsApiRequestHandler(BaseHTTPRequestHandler):
             action=action,
             mode=mode,
             params=params,
+            operator_context=self._operator_context(workspace, role),
         )
         self._send_json(200 if interaction.get("ok") else 400, interaction)
 
@@ -375,6 +578,7 @@ def run_ops_api_server(
     host: str,
     port: int,
     allow_workspaces: list[str],
+    role: str = "admin",
     stderr: TextIO | None = None,
 ) -> int:
     """阻塞运行 HTTP 服务直到 ``KeyboardInterrupt``。成功启动返回 ``0``。"""
@@ -391,16 +595,23 @@ def run_ops_api_server(
         roots.append(p)
     allow = frozenset(roots)
     api_token = resolve_bearer_token("CAI_OPS_API_TOKEN", "CAI_API_TOKEN")
+    role_norm = str(role or "admin").strip().lower()
+    if role_norm not in _OPS_ROLE_LEVELS:
+        err.write(f"ops serve: invalid role: {role_norm}\n")
+        return 2
 
     httpd = OpsApiThreadingServer((host, port), OpsApiRequestHandler)
     httpd.allow_roots = allow
     httpd.api_token = api_token
+    httpd.default_role = role_norm
 
     err.write(
         f"ops serve: listening http://{host}:{port}\n"
         f"  allow workspaces ({len(allow)}): {', '.join(str(x) for x in sorted(allow))}\n"
         "  CAI_OPS_API_TOKEN/CAI_API_TOKEN: "
         f"{'set' if api_token else 'unset'}\n"
+        f"  role: {role_norm}\n"
+        "  GET /v1/ops/workspaces?include_summary=0|1\n"
         "  GET /v1/ops/dashboard?workspace=...&observe_pattern=...\n"
         "  GET /v1/ops/dashboard/interactions?workspace=...&action=...&mode=preview|audit\n"
         "  POST /v1/ops/dashboard/interactions  (mode=apply|preview|audit)\n",

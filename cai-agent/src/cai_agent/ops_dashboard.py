@@ -34,22 +34,29 @@ def _append_ops_action_audit(
     ok: bool,
     summary: dict[str, Any] | None = None,
     params: dict[str, Any] | None = None,
+    actor: str | None = None,
+    role: str | None = None,
+    workspace_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     _params = dict(params or {})
-    actor = str(
-        _params.get("actor")
+    actor_resolved = str(
+        actor
+        or _params.get("actor")
         or _params.get("operator")
         or os.environ.get("CAI_OPERATOR")
         or os.environ.get("USERNAME")
         or os.environ.get("USER")
-        or "unknown",
+        or "unknown"
     ).strip() or "unknown"
+    role_resolved = str(role or _params.get("role") or "unknown").strip().lower() or "unknown"
     row = {
         "schema_version": "ops_dashboard_action_audit_v1",
         "event_id": str(uuid.uuid4()),
         "generated_at": datetime.now(UTC).isoformat(),
         "workspace": str(workspace),
-        "actor": actor,
+        "actor": actor_resolved,
+        "role": role_resolved,
+        "workspace_scope": dict(workspace_scope or {}),
         "action": str(action),
         "mode": str(mode),
         "ok": bool(ok),
@@ -218,12 +225,23 @@ def build_ops_dashboard_interactions_payload(
     action: str,
     mode: str = "preview",
     params: dict[str, Any] | None = None,
+    operator_context: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Dashboard interaction contract for preview/apply/audit flows."""
     base = Path(cwd or ".").expanduser().resolve()
     act = str(action or "").strip()
     op_mode = str(mode or "preview").strip().lower() or "preview"
     p = dict(params or {})
+    ctx = dict(operator_context or {})
+    actor = str(ctx.get("actor") or "").strip() or None
+    role = str(ctx.get("role") or "").strip().lower() or None
+    workspace_scope = ctx.get("workspace_scope") if isinstance(ctx.get("workspace_scope"), dict) else {}
+    rbac = {
+        "schema_version": "ops_dashboard_rbac_v1",
+        "actor": actor or "unknown",
+        "role": role or "unknown",
+        "workspace_scope": dict(workspace_scope or {}),
+    }
     supported = ("schedule_reorder_preview", "gateway_bind_edit_preview", "profile_switch_preview")
     result: dict[str, Any] = {
         "schema_version": "ops_dashboard_interactions_v1",
@@ -234,6 +252,7 @@ def build_ops_dashboard_interactions_payload(
         "applied": False,
         "supported_actions": list(supported),
         "supported_modes": ["preview", "apply", "audit"],
+        "rbac": rbac,
     }
     if op_mode not in ("preview", "apply", "audit"):
         return {
@@ -331,6 +350,9 @@ def build_ops_dashboard_interactions_payload(
             ok=bool(out.get("ok")),
             summary=out.get("summary") if isinstance(out.get("summary"), dict) else {},
             params={"target_profile_id": target_profile_id},
+            actor=actor,
+            role=role,
+            workspace_scope=workspace_scope,
         )
         out["audit_event"] = audit_ps
         return out
@@ -375,6 +397,9 @@ def build_ops_dashboard_interactions_payload(
             ok=bool(preview.get("ok")),
             summary=preview.get("summary") if isinstance(preview.get("summary"), dict) else {},
             params={"task_id": task_id, "before_task_id": before_task_id or None},
+            actor=actor,
+            role=role,
+            workspace_scope=workspace_scope,
         )
         preview["audit_event"] = audit
         return preview
@@ -427,6 +452,9 @@ def build_ops_dashboard_interactions_payload(
         ok=bool(response.get("ok")),
         summary=response.get("summary") if isinstance(response.get("summary"), dict) else {},
         params={"platform": platform, "binding_id": binding_id, **patch},
+        actor=actor,
+        role=role,
+        workspace_scope=workspace_scope,
     )
     response["audit_event"] = audit2
     return response

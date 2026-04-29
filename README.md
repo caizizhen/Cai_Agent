@@ -23,17 +23,18 @@ Terminal-first coding agent on **LangGraph**: natural language over a workspace 
 9. [Memory](#memory)
 10. [Models and profiles](#models-and-profiles)
 11. [Tools surface (CLI)](#tools-surface-cli)
-12. [MCP](#mcp)
-13. [Voice, runtime, hooks](#voice-runtime-hooks)
-14. [Quality gate, security, cost](#quality-gate-security-cost)
-15. [ECC layout, export, plugins](#ecc-layout-export-plugins)
-16. [Observe and ops dashboard](#observe-and-ops-dashboard)
-17. [Schedules](#schedules)
-18. [Gateways](#gateways)
-19. [Feedback and repair](#feedback-and-repair)
-20. [TUI](#tui)
-21. [Repo rules, skills, commands](#repo-rules-skills-commands)
-22. [Development and testing](#development-and-testing)
+12. [Browser automation](#browser-automation)
+13. [MCP](#mcp)
+14. [Voice, runtime, hooks](#voice-runtime-hooks)
+15. [Quality gate, security, cost](#quality-gate-security-cost)
+16. [ECC layout, export, plugins](#ecc-layout-export-plugins)
+17. [Observe and ops dashboard](#observe-and-ops-dashboard)
+18. [Schedules](#schedules)
+19. [Gateways](#gateways)
+20. [Feedback and repair](#feedback-and-repair)
+21. [TUI](#tui)
+22. [Repo rules, skills, commands](#repo-rules-skills-commands)
+23. [Development and testing](#development-and-testing)
 
 ---
 
@@ -366,8 +367,39 @@ cai-agent tools list
 cai-agent tools bridge
 cai-agent tools guard
 cai-agent tools web-fetch --url …   # exercises fetch_url path when enabled
+cai-agent tools browser-check --json
 cai-agent tools enable|disable …    # web/image/browser/tts categories
 ```
+
+---
+
+## Browser automation
+
+Browser support is **MCP first**. CAI Agent does not bundle a browser runtime; it checks and calls a configured Browser MCP provider, with the Playwright MCP preset as the default onboarding path.
+
+Readiness and template discovery:
+
+```bash
+cai-agent mcp-check --preset browser --list-only --json
+cai-agent mcp-check --preset browser --print-template
+cai-agent tools bridge --preset browser --json
+cai-agent tools browser-check --json
+cai-agent browser check --json
+```
+
+Plan a browser task without executing it:
+
+```bash
+cai-agent browser task --url https://example.com "summarize the visible page" --json
+```
+
+Execute the currently supported mapped MCP calls only after explicit confirmation:
+
+```bash
+cai-agent browser task --url https://example.com "open the page and capture a page snapshot" --execute --confirm --json
+```
+
+Current execution mapping is intentionally narrow: `navigate` maps to `browser_navigate`, and delegated page review maps to `browser_snapshot`. More sensitive actions such as click, type, upload, and download require a new planned step and explicit confirmation before they are expanded. Refused and confirmed execution paths append `.cai/browser/audit.jsonl` and refresh `.cai/browser/artifacts-manifest.json`; screenshots, downloads, and traces are kept under `.cai/browser/`. See [docs/BROWSER_PROVIDER_RFC.zh-CN.md](docs/BROWSER_PROVIDER_RFC.zh-CN.md) and [docs/schema/README.zh-CN.md](docs/schema/README.zh-CN.md) for the JSON contracts (`browser_provider_check_v1`, `browser_task_v1`, `browser_mcp_execution_v1`, `browser_audit_event_v1`).
 
 ---
 

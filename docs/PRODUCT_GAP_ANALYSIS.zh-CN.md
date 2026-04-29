@@ -24,7 +24,7 @@
 | 对齐源 | 当前判断 | 已经对齐的主面 | 仍缺的关键面 |
 |---|---|---|---|
 | `anthropics/claude-code` | **核心能力高，对外表面中等** | CLI / TUI、plan / run / continue、workflow、MCP、任务板、模型切换、hooks、skills | 官方安装/升级体验、插件/marketplace 入口、Desktop/图形入口、更加收敛的自助反馈与修复链路 |
-| `NousResearch/hermes-agent` | **Agent 核心中高，平台化外壳中等** | recall、scheduler、gateway 基础、MODEL-P0 模型接入地基（capabilities / health / onboarding / routing fallback / response envelope）、`api serve` v0 + OpenAI-compatible `/v1/models` / 非流式与 SSE `/v1/chat/completions`、OpenAPI 发现契约、受控 dashboard apply/audit、memory/user-model、docker/ssh runtime、Teams/Discord/Slack/Telegram readiness、marketplace-lite 与 trust gate；**另**：第一批扩展 gateway（Signal/Email/Matrix）、联邦/路由预览、voice contract 与 Telegram voice-reply、memory/tool registry 与 MCP bridge 等主路径已对齐 | 外部 memory provider adapter、runtime 真机矩阵、workflow/subagent 编排深化、Browser MCP executor、RBAC / 多 workspace operator 控制面 |
+| `NousResearch/hermes-agent` | **Agent 核心中高，平台化外壳中等** | recall、scheduler、gateway 基础、MODEL-P0 模型接入地基（capabilities / health / onboarding / routing fallback / response envelope）、`api serve` v0 + OpenAI-compatible `/v1/models` / 非流式与 SSE `/v1/chat/completions`、OpenAPI 发现契约、受控 dashboard apply/audit、ops RBAC、memory/user-model、docker/ssh runtime、Teams/Discord/Slack/Telegram readiness、marketplace-lite 与 trust gate；**另**：第一批扩展 gateway（Signal/Email/Matrix）、联邦/路由预览、voice contract 与 Telegram voice-reply、memory/tool registry 与 MCP bridge、memory provider mock adapter、runtime 验证矩阵、workflow branch/retry/aggregate、Browser MCP executor 与 Browser artifact/audit manifest 等主路径已对齐 | 多 workspace operator 控制面、gateway 频道监控与真实部署深化 |
 | `affaan-m/everything-claude-code` | **方法论与治理面中高，资产/分发面中等** | rules / skills / hooks、导出、compat matrix、cost / routing、跨 harness 约定 | 安装/修复/同步面、插件/marketplace 风格分发、规模化资产目录与 home 同步、桌面化管理入口 |
 
 ## 3. 当前最值得开发的方向
@@ -57,9 +57,9 @@
 |---|---|---|
 | `MODEL-P0` 模型接入地基 | `MODEL-P0-01` 到 `MODEL-P0-07` 已完成 | provider contract、capabilities、health、response、routing explain / fallback 与 onboarding runbook 已形成共同底座 |
 | `P0` 外部入口补齐 | `CC-N01`、`HM-N01` | 在模型地基稳定后，补安装/修复、profile home 这些最影响“别人怎么接入我们”的能力；**`CC-N02` 反馈线已 Done**；`HM-N02` 已由 OpenAI-compatible API server 收口 |
-| `P0` 状态清账 | `SYNC-N01` | 把已实现的 API/OPS/CC/GW/ECC 新 ID 归档，恢复 TODO / roadmap / parity 一致性 |
-| `P1` 可插拔/可验证/可编排 | `MEM-N01`、`RT-N01`、`WF-N01` | memory provider adapter、Docker/SSH 真机矩阵、workflow/subagent branch/retry/aggregate 是下一轮真实开发主线 |
-| `P2` 受控自动化与 operator 面 | `BRW-N04`、Ops RBAC / 多 workspace、Gateway 深化 | Browser MCP executor 可插入；运营与 gateway 深化不抢默认 P1 |
+| `P0` 状态清账 | 已完成：`SYNC-N01` | 已实现的 API/OPS/CC/GW/ECC 新 ID 已归档，TODO / roadmap / parity 已收口 |
+| `P1` 可插拔/可验证/可编排 | 已完成：`MEM-N01`、`RT-N01`、`WF-N01` | memory provider adapter contract、Docker/SSH 分层验证矩阵、workflow/subagent branch/retry/aggregate 已有代码或验证入口 |
+| `P2` 受控自动化与 operator 面 | 已完成：`BRW-N04`、`BRW-N05`、`OPS-RBAC-N01`、`OPS-MW-N01`、`GW-CHAN-N01`、`GW-SLASH-N01`；候选：Gateway slash 真实部署检查、更完整 Ops operator 路由面 | Browser MCP executor、artifact/audit manifest、ops serve RBAC、allowlist 多 workspace 发现、独立 channel-monitor 与 slash catalog 已落地；下一步补 operator/gateway 深化 |
 | `P3` 条件/预研项 | `CC-N07`、`HM-N11` | 云 runtime 等仍按授权、安全、计费、隔离门槛处理 |
 
 **Browser automation 补充**：本轮已把浏览器能力定为 `MCP first`。默认路径见 [`BROWSER_MCP.zh-CN.md`](BROWSER_MCP.zh-CN.md)，治理边界见 [`BROWSER_PROVIDER_RFC.zh-CN.md`](BROWSER_PROVIDER_RFC.zh-CN.md)；当前不把 browser-use 或 Skyvern 作为默认依赖，后续执行器必须先满足凭据、下载、上传、allowlist、审计与许可证边界。

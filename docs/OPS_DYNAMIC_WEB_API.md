@@ -12,6 +12,8 @@ Chinese mirror (same normative content, Chinese prose): [`OPS_DYNAMIC_WEB_API.zh
 | Text summary | `ops dashboard` (default `--format text`) | One-line KPI summary |
 | Single-file HTML | `ops dashboard --format html [-o FILE]` | **`build_ops_dashboard_html`**; optional **`--html-refresh-seconds`** embeds **`meta http-equiv=refresh`** (Phase A) |
 | Read-only HTTP (Phase B) | `ops serve [--host H] [--port P] [--allow-workspace DIR…]` | **`cai_agent.ops_http_server`**: **`GET /v1/ops/dashboard`** (JSON) and **`GET /v1/ops/dashboard.html`**; **`workspace`** query parameter is **required** and must be on the server allowlist |
+| RBAC write paths (OPS-RBAC-N01) | `ops serve --role viewer\|operator\|admin` | `viewer` is read/preview/audit only; `operator` may apply schedule reorder and gateway binding edits; `admin` may also apply profile switches; denied writes are audited |
+| Multi-workspace discovery (OPS-MW-N01) | `GET /v1/ops/workspaces` | Lists only the server `--allow-workspace` allowlist; `include_summary=1` aggregates each workspace dashboard summary |
 
 CLI flags for `ops dashboard` (see **`cai_agent/__main__.py`**): **`--pattern`**, **`--limit`**, **`--schedule-days`**, **`--audit-file`**, **`--html-refresh-seconds`**.
 
@@ -68,6 +70,19 @@ Same queries as §3.1, plus optional **`html_refresh_seconds`**. Response **200*
 | **Phase C** | Product hardening: SSE / polling deltas, RBAC, multi-workspace routing, CI dashboard tie-ins | Separate initiative |
 
 **Conclusion**: **PRODUCT_PLAN** §26 MVP (CLI + static HTML) is done; **Phase A** (refresh) and **Phase B** (HTTP) are in-repo; **Phase C** remains future work.
+
+## OPS-RBAC-N01 Addendum (2026-04-29)
+
+- `cai-agent ops serve` accepts **`--role viewer|operator|admin`** as the server-side maximum role. The default is `admin` for compatibility.
+- Requests may include **`X-CAI-Actor`** and **`X-CAI-Role`**. Requested roles are capped by the server role; invalid roles return `invalid_role`.
+- `POST /v1/ops/dashboard/interactions` with `mode=apply` now requires `operator` for `schedule_reorder_preview` and `gateway_bind_edit_preview`, and `admin` for `profile_switch_preview`.
+- RBAC denials return `403` + `rbac_forbidden` and append an `ops_dashboard_action_audit_v1` row with `actor`, `role`, and `workspace_scope`.
+
+## OPS-MW-N01 Addendum (2026-04-29)
+
+- `GET /v1/ops/workspaces` returns `ops_workspaces_v1` without requiring a `workspace` query. The route only enumerates server `--allow-workspace` roots.
+- Each `workspaces[]` row contains `workspace`, `exists`, `allowed`, and dashboard / HTML / interactions route URLs.
+- Optional `include_summary=1` embeds each existing workspace's `ops_dashboard_v1.summary`; the route accepts `observe_pattern`, `observe_limit`, `schedule_days`, and `cost_session_limit`.
 
 ## 6. Related links
 

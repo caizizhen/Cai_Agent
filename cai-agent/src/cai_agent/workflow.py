@@ -302,6 +302,84 @@ def _parse_workflow_quality_gate(data: Dict[str, Any]) -> dict[str, Any]:
     return parsed
 
 
+def _parse_retry_max_attempts(raw_step: dict[str, Any]) -> int:
+    raw = raw_step.get("retry")
+    if isinstance(raw, dict):
+        cand = raw.get("max_attempts", raw.get("attempts", raw.get("max_retries")))
+    else:
+        cand = raw_step.get("max_attempts", raw_step.get("max_retries"))
+    try:
+        n = int(cand)
+    except (TypeError, ValueError):
+        return 1
+    return max(1, min(n, 5))
+
+
+def _step_matches_condition(results: List[Dict[str, Any]], condition: Any) -> tuple[bool, str | None]:
+    if condition in (None, True):
+        return True, None
+    if condition is False:
+        return False, "when_false"
+    if not isinstance(condition, dict):
+        return True, None
+    dep_name = str(condition.get("step") or condition.get("name") or "").strip()
+    if not dep_name:
+        return True, None
+    matches = [r for r in results if str(r.get("name") or "") == dep_name]
+    if not matches:
+        return False, "when_dependency_missing"
+    dep = matches[-1]
+    if dep.get("skipped"):
+        dep_state = "skipped"
+    elif _step_execution_failed(dep):
+        dep_state = "failed"
+    else:
+        dep_state = "ok"
+    expected = str(condition.get("status") or condition.get("state") or "ok").strip().lower()
+    if expected in ("success", "succeeded", "completed", "pass"):
+        expected = "ok"
+    if expected in ("error", "failure"):
+        expected = "failed"
+    return dep_state == expected, None if dep_state == expected else "when_condition_false"
+
+
+def _build_workflow_aggregate(results: List[Dict[str, Any]], *, enabled: bool) -> dict[str, Any] | None:
+    if not enabled:
+        return None
+    successful = [r for r in results if _step_ok_for_merge(r)]
+    failed = [r for r in results if _step_execution_failed(r)]
+    skipped = [r for r in results if r.get("skipped")]
+    return {
+        "schema_version": "workflow_aggregate_v1",
+        "strategy": "answers_by_name",
+        "steps_total": len(results),
+        "steps_ok": len(successful),
+        "steps_failed": len(failed),
+        "steps_skipped": len(skipped),
+        "answers_by_name": {
+            str(r.get("name") or ""): str(r.get("answer") or "")
+            for r in successful
+            if str(r.get("name") or "").strip()
+        },
+        "failed_steps": [
+            {
+                "name": str(r.get("name") or ""),
+                "error": (
+                    str((r.get("protocol") or {}).get("error"))
+                    if isinstance(r.get("protocol"), dict)
+                    and (r.get("protocol") or {}).get("error") is not None
+                    else "step_failed"
+                ),
+            }
+            for r in failed
+        ],
+        "skipped_steps": [
+            {"name": str(r.get("name") or ""), "reason": str(r.get("skip_reason") or "")}
+            for r in skipped
+        ],
+    }
+
+
 def _resolve_report_dir(base_dir: str, report_dir: Any) -> str | None:
     """将 quality_gate.report_dir 解析为绝对路径；相对路径相对 workflow 文件目录。"""
     if not isinstance(report_dir, str) or not report_dir.strip():
@@ -385,6 +463,7 @@ def _skipped_step_stub(
         "error_count": 0,
         "role": role_raw,
         "parallel_group": parallel_group,
+        "attempts": 0,
         "skipped": True,
         "skip_reason": reason,
         "protocol": {
@@ -669,6 +748,43 @@ def _run_single_step(
     return step_result, step_event, step_settings.workspace
 
 
+def _run_step_with_retries(
+    settings: Settings,
+    raw_step: dict[str, Any],
+    idx: int,
+) -> tuple[dict[str, Any], dict[str, Any], str, list[dict[str, Any]]]:
+    max_attempts = _parse_retry_max_attempts(raw_step)
+    retry_events: list[dict[str, Any]] = []
+    last: tuple[dict[str, Any], dict[str, Any], str] | None = None
+    for attempt in range(1, max_attempts + 1):
+        step_result, step_event, workspace = _run_single_step(settings, raw_step, idx)
+        step_result["attempts"] = attempt
+        step_result["max_attempts"] = max_attempts
+        step_event["attempt"] = attempt
+        step_event["max_attempts"] = max_attempts
+        last = (step_result, step_event, workspace)
+        if not _step_execution_failed(step_result):
+            return step_result, step_event, workspace, retry_events
+        if attempt < max_attempts:
+            retry_events.append(
+                {
+                    "event": "workflow.step.retrying",
+                    "step_index": idx,
+                    "name": step_result.get("name"),
+                    "attempt": attempt,
+                    "max_attempts": max_attempts,
+                    "error": (
+                        (step_result.get("protocol") or {}).get("error")
+                        if isinstance(step_result.get("protocol"), dict)
+                        else None
+                    ),
+                },
+            )
+    assert last is not None
+    step_result, step_event, workspace = last
+    return step_result, step_event, workspace, retry_events
+
+
 def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
     """
     运行基于 JSON 描述的多步骤 workflow。
@@ -708,6 +824,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         merge_strategy = "require_manual"
     budget_max = _parse_budget_max_tokens(data)
     quality_gate_cfg = _parse_workflow_quality_gate(data)
+    aggregate_enabled = bool(data.get("aggregate") or data.get("aggregates"))
 
     results: List[Dict[str, Any]] = []
     total_elapsed = 0
@@ -752,6 +869,26 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             )
             break
 
+        skipped_for_condition = False
+        for bi, br in batch:
+            ok_when, reason = _step_matches_condition(results, br.get("when"))
+            if ok_when:
+                continue
+            _append_workflow_skipped_range(
+                settings,
+                steps_data,
+                bi,
+                bi,
+                reason=reason or "when_condition_false",
+                results=results,
+                events=events,
+                wf_task=wf_task,
+            )
+            skipped_for_condition = True
+        if skipped_for_condition:
+            idx = next_idx
+            continue
+
         for bi, br in batch:
             bname = str(br.get("name") or f"step-{bi}").strip()
             events.append(
@@ -765,21 +902,25 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
                 },
             )
 
-        batch_results: list[tuple[dict[str, Any], dict[str, Any], str]] = []
+        batch_results: list[tuple[dict[str, Any], dict[str, Any], str, list[dict[str, Any]]]] = []
         if parallel_group is not None and len(batch) > 1:
             with ThreadPoolExecutor(max_workers=len(batch)) as pool:
                 futs = {
-                    pool.submit(_run_single_step, settings, br, bi): bi
+                    pool.submit(_run_step_with_retries, settings, br, bi): bi
                     for bi, br in batch
                 }
                 for fut in as_completed(futs):
                     batch_results.append(fut.result())
         else:
             for bi, br in batch:
-                batch_results.append(_run_single_step(settings, br, bi))
+                batch_results.append(_run_step_with_retries(settings, br, bi))
 
         batch_results.sort(key=lambda x: int((x[0].get("index") or 0)))
-        for step_result, step_event, workspace in batch_results:
+        for step_result, step_event, workspace, retry_events in batch_results:
+            for retry_event in retry_events:
+                retry_event["task_id"] = wf_task.task_id
+                retry_event["workflow_task_id"] = wf_task.task_id
+                events.append(retry_event)
             results.append(step_result)
             step_event["task_id"] = wf_task.task_id
             step_event["workflow_task_id"] = wf_task.task_id
@@ -790,7 +931,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
             instincts_roots.add(workspace)
 
         batch_failed = any(
-            _step_execution_failed(sr) for sr, _, _ in batch_results
+            _step_execution_failed(sr) for sr, _, _, _ in batch_results
         )
         if on_error == "fail_fast" and batch_failed:
             _append_workflow_skipped_range(
@@ -950,6 +1091,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "quality_gate_failed_count": quality_gate_summary["failed_count"],
         "quality_gate_skip_reason": quality_gate_summary["skip_reason"],
     }
+    aggregate = _build_workflow_aggregate(results, enabled=aggregate_enabled)
     subagent_io = _build_subagent_io_summary(
         settings=settings,
         steps=results,
@@ -1016,6 +1158,7 @@ def run_workflow(settings: Settings, path: str) -> Dict[str, Any]:
         "subagent_io": subagent_io,
         "steps": results,
         "summary": summary,
+        "aggregate": aggregate,
         "quality_gate": quality_gate_summary,
         "post_gate": post_gate,
         "events": events,
