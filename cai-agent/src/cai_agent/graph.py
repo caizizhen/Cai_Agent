@@ -52,6 +52,25 @@ def _args_summary(args: dict[str, Any], limit: int = 120) -> str:
     return s if len(s) <= limit else s[: limit - 1] + "…"
 
 
+_TOOL_JSON_META_KEYS = frozenset({"type", "name", "args"})
+
+
+def merge_tool_call_args(obj: dict[str, Any]) -> dict[str, Any]:
+    """Merge ``args`` with top-level parameter keys from a tool JSON object.
+
+    Models often emit ``{"type":"tool","name":"list_dir","path":"E:\\\\"}`` instead of
+    nesting ``path`` under ``args``. The executor only reads ``args``, so missing merge
+    makes ``list_dir`` fall back to ``path="."`` (workspace root).
+    """
+    raw = obj.get("args")
+    base: dict[str, Any] = dict(raw) if isinstance(raw, dict) else {}
+    for k, v in obj.items():
+        if k in _TOOL_JSON_META_KEYS:
+            continue
+        base.setdefault(k, v)
+    return base
+
+
 class AgentState(TypedDict, total=False):
     messages: list[dict[str, Any]]
     iteration: int
@@ -80,7 +99,7 @@ def _core_system_prompt(workspace: str) -> str:
         "每轮只输出**一个** JSON 对象，不要用 Markdown 代码块包裹以外的多余说明。\n"
         "格式只能是以下之一：\n"
         '1) 结束：{"type":"finish","message":"给用户的最终回答"}\n'
-        '2) 调工具：{"type":"tool","name":"工具名","args":{...}}\n\n'
+        '2) 调工具：{"type":"tool","name":"工具名","args":{...}}（也可把参数写在 name 旁，例如 list_dir 的 path）\n\n'
         + tools_spec_markdown()
         + "\n建议：先用 list_tree / list_dir / glob_search / search_text / git_status 了解代码；"
         "如需外部能力可先 mcp_list_tools 再 mcp_call_tool；"
@@ -510,9 +529,7 @@ def build_app(
             }
         if t == "tool":
             name = str(obj.get("name", ""))
-            args = obj.get("args")
-            if not isinstance(args, dict):
-                args = {}
+            args = merge_tool_call_args(obj)
             _emit(
                 progress,
                 {

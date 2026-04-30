@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **修复**：LangGraph 工具 JSON 常把参数写在 **`name` 旁边**（例如 **`{"type":"tool","name":"list_dir","path":"E:\\\\"}`**），而不是放在 **`args`** 里。执行器原先只看 **`args`**，导致 **`list_dir`** 回落为 **`path="."`**，列出的始终是**工作区根**（例如 **`.cai`**、**`snake_gba`**），而不是请求的 **`E:\\`**。现已通过 **`graph.merge_tool_call_args`** 把顶层参数并入 **`args`**（**`args` 内已有字段优先**）。回归 **`test_graph_tool_payload.py`**。
+
 - **修复（Windows / glob_search）**：工具 **`root`/`path`** 写成单独的 **`E:`** 时，经 **`Path("E:")`** / **`workspace / "E:"`** 会变成「该盘**当前目录**」而非 **`E:\\`** 盘根，导致 **`glob_search`** / **`list_dir`** 找不到 **`E:\\test`** 等实际位于盘根的目录（界面表现常为只看到当前目录下的 **`.cai/`**、项目文件夹等）。解限模式下 **`X:`** 现规范化为 **`X:\\`**；非解限则拒绝 **`X:`** 并提示须写完整路径。**`glob_search`** / **`search_text`** 改用 **`glob.glob(..., root_dir=...)`**（Python 3.11+）以提高搜索根可靠性。回归 **`test_tool_glob_search.py`**。
 
 - **SAFETY-N08-D01 解限文件系统绝对路径**：**`unrestricted_mode=true`** 时，`read_file`/`list_dir`/`list_tree`/`write_file`/`make_dir`/`glob_search`/`search_text` 可使用 **`[agent].workspace` 外的绝对路径**；**`run_command` 的 `cwd`** 亦可为工作区外绝对路径；若 **`dangerous_confirmation_required`** 仍为 **true**（默认），解析后落在工作区外的路径每次仍须危险**二次确认**。未解限时工具路径不接受绝对路径。实现：`sandbox.resolve_tool_path`；回归 **`test_unrestricted_filesystem_paths.py`**；README / SAFETY backlog / **`TOOLS_REGISTRY.zh-CN.md`**。
