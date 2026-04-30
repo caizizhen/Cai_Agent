@@ -1,6 +1,12 @@
 from __future__ import annotations
 
+import os
+import re
 from pathlib import Path
+
+# Windows: ``Path("E:")`` / ``os.chdir`` semantics mean “current directory on drive E”,
+# not the volume root. Tool roots almost always intend ``E:\``.
+_WIN_DRIVE_LETTER_ONLY = re.compile(r"^[A-Za-z]:$")
 
 
 class SandboxError(ValueError):
@@ -15,6 +21,11 @@ def resolve_tool_path(workspace: str, rel: str, *, unrestricted: bool = False) -
 
     When ``unrestricted`` is True and ``rel`` is absolute (after strip), resolve anywhere
     on the filesystem (still ``expanduser``); used only with ``[safety].unrestricted_mode``.
+
+    Windows: a bare ``E:`` is drive-relative (cwd on that volume), not ``E:\\``, but
+    ``workspace / "E:"`` collapses to ``Path("E:")`` and still resolves relative to that
+    cwd—almost never what callers mean for ``root`` / ``path``. When unrestricted,
+    ``E:`` alone is therefore normalized to the volume root ``E:\\``.
     """
     r = str(rel or "").strip()
     if not r:
@@ -23,6 +34,14 @@ def resolve_tool_path(workspace: str, rel: str, *, unrestricted: bool = False) -
     if not root.is_dir():
         raise SandboxError(f"工作目录不存在: {root}")
     cand = Path(r)
+    # Windows bare drive letter: not is_absolute(); avoid (workspace / "E:") → cwd-on-E quirks.
+    if os.name == "nt" and _WIN_DRIVE_LETTER_ONLY.fullmatch(r):
+        if not unrestricted:
+            raise SandboxError(
+                "非解限模式下不支持单独的盘符路径（请使用相对工作区路径；"
+                "绝对路径须写作完整形式如 E:\\\\）"
+            )
+        return Path(f"{r}\\").expanduser().resolve()
     if cand.is_absolute():
         if not unrestricted:
             raise SandboxError("非解限模式下不允许绝对路径（请使用相对工作区的路径）")

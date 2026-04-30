@@ -762,21 +762,21 @@ def tool_glob_search(workspace: str, args: dict[str, Any], *, unrestricted_fs: b
     max_hits = min(max(max_hits, 1), 500)
 
     root_anchor = root.resolve()
-    paths_raw = sorted(
-        {Path(p).resolve() for p in glob.glob(str(root / pattern), recursive=True)},
-    )
+    # Prefer root_dir (Py≥3.11): avoids fragile ``str(root / pattern)`` joins at volume roots.
+    matches = sorted(set(glob.glob(pattern, root_dir=os.fspath(root_anchor), recursive=True)))
     rel_lines: list[str] = []
-    for p in paths_raw:
-        if not p.is_file() and not p.is_dir():
+    for m in matches:
+        candidate = (root_anchor / m).resolve()
+        if not candidate.is_file() and not candidate.is_dir():
             continue
         try:
-            rel = p.relative_to(root_anchor)
+            rel = candidate.relative_to(root_anchor)
         except ValueError:
             continue
         rel_lines.append(rel.as_posix())
         if len(rel_lines) >= max_hits:
             break
-    if len(paths_raw) > len(rel_lines):
+    if len(matches) > len(rel_lines):
         note = f"（仅显示前 {max_hits} 条）"
     else:
         note = ""
@@ -818,9 +818,9 @@ def tool_search_text(workspace: str, args: dict[str, Any], *, unrestricted_fs: b
     root_anchor = root.resolve()
     candidates = sorted(
         {
-            Path(p)
-            for p in glob.glob(str(root / glob_pat), recursive=True)
-            if Path(p).is_file()
+            (root_anchor / m).resolve()
+            for m in glob.glob(glob_pat, root_dir=os.fspath(root_anchor), recursive=True)
+            if (root_anchor / m).resolve().is_file()
         },
     )
     hits: list[str] = []
@@ -1285,7 +1285,7 @@ def tools_spec_markdown() -> str:
 - read_file: {"path": "...", "line_start": 1, "line_end": 120} — line_end 可省略表示读到文件末尾；解限模式下 ``path`` 可为绝对路径（工作区外须二次确认）
 - list_dir: {"path": "." 或子目录} — 解限下 ``path`` 可为绝对路径（工作区外须二次确认）
 - list_tree: {"path": ".", "max_depth": 3, "max_entries": 400} — 目录树（深度与条数受限）；解限下 ``path`` 可为绝对路径（工作区外须二次确认）
-- glob_search: {"pattern": "**/*.py", "root": ".", "max_matches": 200} — 解限下 ``root`` 可为绝对路径（工作区外须二次确认）
+- glob_search: {"pattern": "**/*.py", "root": ".", "max_matches": 200} — 解限下 ``root`` 可为绝对路径（工作区外须二次确认）；Windows 下单写 ``E:`` 视为 ``E:\\`` 盘根（否则会与「该盘当前目录」语义混淆）
 - search_text: {"query": "子串", "root": ".", "glob": "**/*.py", "max_files": 100, "max_matches": 80, "max_file_bytes": 400000} — 解限下 ``root`` 可为绝对路径（工作区外须二次确认）
 - git_status: {"short": true} — 只读 git 状态
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff

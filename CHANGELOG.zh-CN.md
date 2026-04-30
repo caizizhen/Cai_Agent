@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **修复（Windows / glob_search）**：工具 **`root`/`path`** 写成单独的 **`E:`** 时，经 **`Path("E:")`** / **`workspace / "E:"`** 会变成「该盘**当前目录**」而非 **`E:\\`** 盘根，导致 **`glob_search`** / **`list_dir`** 找不到 **`E:\\test`** 等实际位于盘根的目录（界面表现常为只看到当前目录下的 **`.cai/`**、项目文件夹等）。解限模式下 **`X:`** 现规范化为 **`X:\\`**；非解限则拒绝 **`X:`** 并提示须写完整路径。**`glob_search`** / **`search_text`** 改用 **`glob.glob(..., root_dir=...)`**（Python 3.11+）以提高搜索根可靠性。回归 **`test_tool_glob_search.py`**。
+
 - **SAFETY-N08-D01 解限文件系统绝对路径**：**`unrestricted_mode=true`** 时，`read_file`/`list_dir`/`list_tree`/`write_file`/`make_dir`/`glob_search`/`search_text` 可使用 **`[agent].workspace` 外的绝对路径**；**`run_command` 的 `cwd`** 亦可为工作区外绝对路径；若 **`dangerous_confirmation_required`** 仍为 **true**（默认），解析后落在工作区外的路径每次仍须危险**二次确认**。未解限时工具路径不接受绝对路径。实现：`sandbox.resolve_tool_path`；回归 **`test_unrestricted_filesystem_paths.py`**；README / SAFETY backlog / **`TOOLS_REGISTRY.zh-CN.md`**。
 
 - **修复**：TUI 执行 **`/unrestricted on|off`** 时 `_persist_unrestricted_mode` 内正则错误地使用 **`\\[`** 等双重转义，触发 **`re.PatternError`** 崩溃；已改为正确 **`\[`** 写法并兼容 **`[safety]`** 段 CRLF；回归 **`test_unrestricted_mode_config.py`**。
