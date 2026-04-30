@@ -5546,6 +5546,12 @@ def main(argv: list[str] | None = None) -> int:
         help="输出 session_recap_v1（可回放摘要 + 推荐 replay 命令）",
     )
 
+    sess_p.add_argument("--compact-eval", action="store_true", help="评估近期会话的上下文压缩质量")
+    sess_p.add_argument("--compact-keep-tail", type=int, default=8, help="--compact-eval：保留最近 N 条原始消息")
+    sess_p.add_argument("--compact-summary-max-chars", type=int, default=6000, help="--compact-eval：摘要字符预算")
+    sess_p.add_argument("--compact-required-marker", action="append", default=[], help="--compact-eval：必须保留的字符串，可重复")
+    sess_p.add_argument("--compact-min-score", type=float, default=0.8, help="--compact-eval：最低质量分")
+
     stats_p = sub.add_parser(
         "stats",
         help="汇总当前目录近期会话的耗时与工具调用等指标（基于保存的会话 JSON）",
@@ -9461,6 +9467,90 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "sessions":
         t_sess = time.perf_counter()
+        if bool(getattr(args, "compact_eval", False)):
+            from cai_agent.context_compaction import evaluate_compaction_quality
+
+            files = list_session_files(
+                cwd=os.getcwd(),
+                pattern=str(args.pattern),
+                limit=int(args.limit),
+            )
+            rows: list[dict[str, Any]] = []
+            parse_skipped = 0
+            failed_count = 0
+            for p in files:
+                try:
+                    sess = load_session(str(p))
+                except Exception:
+                    parse_skipped += 1
+                    rows.append({"name": p.name, "path": str(p), "error": "parse_failed"})
+                    failed_count += 1
+                    continue
+                msgs = sess.get("messages")
+                if not isinstance(msgs, list):
+                    failed_count += 1
+                    rows.append({"name": p.name, "path": str(p), "error": "messages_missing"})
+                    continue
+                ev = evaluate_compaction_quality(
+                    msgs,
+                    keep_tail_messages=int(getattr(args, "compact_keep_tail", 8) or 8),
+                    summary_max_chars=int(getattr(args, "compact_summary_max_chars", 6000) or 6000),
+                    required_markers=tuple(getattr(args, "compact_required_marker", []) or []),
+                    min_score=float(getattr(args, "compact_min_score", 0.8) or 0.8),
+                ).payload
+                if not bool(ev.get("passed")):
+                    failed_count += 1
+                rows.append(
+                    {
+                        "name": p.name,
+                        "path": str(p),
+                        "mtime": int(p.stat().st_mtime),
+                        "task_id": (sess.get("task") or {}).get("task_id") if isinstance(sess.get("task"), dict) else None,
+                        "evaluation": ev,
+                    },
+                )
+            payload = {
+                "schema_version": "sessions_compact_eval_v1",
+                "pattern": str(args.pattern),
+                "limit": int(args.limit),
+                "summary": {
+                    "sessions_scanned": len(files),
+                    "parse_skipped": parse_skipped,
+                    "evaluations_count": sum(1 for row in rows if isinstance(row.get("evaluation"), dict)),
+                    "failed_count": failed_count,
+                    "passed": failed_count == 0,
+                },
+                "settings": {
+                    "keep_tail_messages": int(getattr(args, "compact_keep_tail", 8) or 8),
+                    "summary_max_chars": int(getattr(args, "compact_summary_max_chars", 6000) or 6000),
+                    "required_markers": list(getattr(args, "compact_required_marker", []) or []),
+                    "min_score": float(getattr(args, "compact_min_score", 0.8) or 0.8),
+                },
+                "sessions": rows,
+            }
+            if args.json_output:
+                print(json.dumps(payload, ensure_ascii=False))
+            else:
+                sm = payload["summary"]
+                print(
+                    "[sessions compact-eval] "
+                    f"evaluations={sm.get('evaluations_count')} failed={sm.get('failed_count')} "
+                    f"passed={sm.get('passed')}",
+                )
+                for row in rows:
+                    ev = row.get("evaluation") if isinstance(row.get("evaluation"), dict) else {}
+                    print(
+                        f"  {row.get('name')}: passed={ev.get('passed')} "
+                        f"score={ev.get('score')} reduction={((ev.get('estimated_tokens') or {}).get('reduction_ratio') if isinstance(ev, dict) else None)}",
+                    )
+            _maybe_metrics_cli(
+                module="sessions",
+                event="sessions.compact_eval",
+                latency_ms=(time.perf_counter() - t_sess) * 1000.0,
+                tokens=len(rows),
+                success=failed_count == 0,
+            )
+            return 0 if failed_count == 0 else 2
         if bool(getattr(args, "recap", False)):
             recap = build_session_recap_v1(
                 workspace=os.getcwd(),
@@ -12225,6 +12315,18 @@ def main(argv: list[str] | None = None) -> int:
                 context_compact_on_tool_error=bool(getattr(st_rep, "context_compact_on_tool_error", False)),
                 context_compact_after_tool_calls=int(
                     getattr(st_rep, "context_compact_after_tool_calls", 0) or 0,
+                ),
+                context_compact_mode=str(
+                    getattr(st_rep, "context_compact_mode", "heuristic") or "heuristic",
+                ),
+                context_compact_trigger_ratio=float(
+                    getattr(st_rep, "context_compact_trigger_ratio", 0.85) or 0.0,
+                ),
+                context_compact_keep_tail_messages=int(
+                    getattr(st_rep, "context_compact_keep_tail_messages", 8) or 8,
+                ),
+                context_compact_summary_max_chars=int(
+                    getattr(st_rep, "context_compact_summary_max_chars", 6000) or 6000,
                 ),
             )
             if not bool(getattr(args, "json_output", False)):

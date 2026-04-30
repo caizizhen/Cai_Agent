@@ -7,13 +7,13 @@
 
 ## 当前目标
 
-- `GW-SLASH-N01` 已完成并归档；当前默认开发队列清空。下一轮建议在 Gateway slash command 真实注册/部署检查与 Ops operator 路由深化中选择。
+- `CTX-COMPACT-N03` 已完成并归档；上下文压缩后续计划已写入 `docs/CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md`，最终 QA 记录见 `docs/qa/runs/context-compaction-final-qa-20260430.md`。当前默认开发队列清空。下一轮建议在上下文压缩真实模型回归、Gateway slash command 真实注册/部署检查与 Ops operator 路由深化中选择。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | `GW-SLASH-N01` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260429-234407-GW-SLASH-N01.md` |
+| - | - | Clear | `CTX-COMPACT-N03` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/task-finalize-20260430-121340-CTX-COMPACT-N03.md` 与 `docs/qa/runs/context-compaction-final-qa-20260430.md` |
 
 ## 后续队列
 
@@ -32,6 +32,9 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `CTX-COMPACT-N03` | 2026-04-30 | Add sessions compact-eval quality gate for context compaction regressions | compileall context_compaction/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli: 13 passed |
+| `CTX-COMPACT-N02` | 2026-04-30 | Add compact_mode off/heuristic/llm with LLM summary compaction and heuristic fallback | compileall context compaction/graph/config/tui/cost/main: PASS; pytest context_compaction + graph_context_compaction + compact_policy_explain_v1: 10 passed |
+| `CTX-COMPACT-N01` | 2026-04-30 | Add heuristic context_summary_v1 compaction with graph auto-trigger and TUI /compress | compileall context compaction/graph/config/tui/cost: PASS; pytest context_compaction + graph_context_compaction: 4 passed; pytest compact_policy_explain_v1: PASS |
 | `GW-SLASH-N01` | 2026-04-29 | Add Gateway offline slash/command catalog CLI and API for Discord, Slack, and Teams with schema/OpenAPI/docs coverage | compileall gateway_production/__main__/api_http_server/gateway_lifecycle_cli/api_http_server tests: PASS; manual CLI/API slash-catalog verification: GW_SLASH_MANUAL_OK; OpenAPI route verification: GW_SLASH_OPENAPI_OK; pytest slash catalog focused tests: 2 passed |
 | `GW-CHAN-N01` | 2026-04-29 | Add standalone gateway channel-monitor CLI/API surface with platform and only-errors filtering plus schema/OpenAPI/docs coverage | compileall gateway_production/__main__/api_http_server/gateway_lifecycle_cli/api_http_server tests: PASS; manual CLI/API channel-monitor verification: GW_CHAN_MANUAL_OK; OpenAPI route verification: GW_CHAN_OPENAPI_OK; pytest gateway/api subset blocked by Windows temp directory PermissionError in sandbox |
 | `OPS-MW-N01` | 2026-04-29 | Add ops serve allowlist multi-workspace discovery with optional dashboard summary aggregation and OpenAPI/docs coverage | compileall ops_http_server/api_http_server/test_ops_http_server: PASS; manual HTTP workspaces verification: OPS_MW_MANUAL_OK; OpenAPI route verification: OPS_MW_OPENAPI_OK |

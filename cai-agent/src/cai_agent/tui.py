@@ -1605,12 +1605,79 @@ class CaiAgentApp(App[None]):
             return
 
         if raw == "/compress":
-            self.notify(
-                "已提示：请在下一轮直接让模型「总结当前对话关键结论」；"
-                "完整自动压缩将结合 graph compact 策略演进。",
-                severity="information",
-                timeout=4.0,
+            from cai_agent.context_compaction import build_llm_compaction_prompt, compact_messages
+
+            mode = str(getattr(self._settings, "context_compact_mode", "heuristic") or "heuristic").strip().lower()
+            if mode == "off":
+                self.notify(
+                    "上下文压缩已关闭：请把 [context].compact_mode 改为 heuristic 或 llm。",
+                    severity="information",
+                    timeout=4.0,
+                )
+                return
+            summary_payload = None
+            summary_source = "heuristic"
+            fallback_reason = None
+            if mode == "llm":
+                try:
+                    from cai_agent.llm import extract_json_object
+                    from cai_agent.llm_factory import chat_completion_by_role
+
+                    prompt = build_llm_compaction_prompt(
+                        self._messages,
+                        max_source_chars=int(getattr(self._settings, "context_compact_summary_max_chars", 6000) or 6000) * 2,
+                    )
+                    summary_text = chat_completion_by_role(
+                        self._settings,
+                        prompt,
+                        role="active",
+                        route_conversation_phase="review",
+                    )
+                    summary_payload = extract_json_object(summary_text)
+                    summary_source = "llm"
+                except Exception as exc:
+                    fallback_reason = f"llm_compaction_failed: {exc}"
+                    summary_source = "heuristic"
+
+            comp = compact_messages(
+                self._messages,
+                keep_tail_messages=int(getattr(self._settings, "context_compact_keep_tail_messages", 8) or 8),
+                summary_max_chars=int(getattr(self._settings, "context_compact_summary_max_chars", 6000) or 6000),
+                summary_payload=summary_payload,
+                summary_source=summary_source,
+                fallback_reason=fallback_reason,
             )
+            if (
+                summary_source == "llm"
+                and (not comp.compacted or comp.compacted_estimated_tokens >= comp.original_estimated_tokens)
+            ):
+                fallback_reason = "llm_compaction_not_smaller"
+                summary_source = "heuristic"
+                comp = compact_messages(
+                    self._messages,
+                    keep_tail_messages=int(getattr(self._settings, "context_compact_keep_tail_messages", 8) or 8),
+                    summary_max_chars=int(getattr(self._settings, "context_compact_summary_max_chars", 6000) or 6000),
+                    summary_source=summary_source,
+                    fallback_reason=fallback_reason,
+                )
+            if comp.compacted and comp.compacted_estimated_tokens < comp.original_estimated_tokens:
+                self._messages = comp.messages
+                self._ctx_tokens = comp.compacted_estimated_tokens
+                self._ctx_is_estimate = True
+                self._refresh_context_bar()
+                self.notify(
+                    f"已压缩上下文：messages {comp.original_message_count}->{comp.compacted_message_count}，"
+                    f"估算 tokens {comp.original_estimated_tokens}->{comp.compacted_estimated_tokens}，"
+                    f"source={summary_source}。",
+                    severity="information",
+                    timeout=4.5,
+                )
+            else:
+                self.notify(
+                    "当前上下文无需压缩；系统提示、初始目标与最近消息已足够短。",
+                    severity="information",
+                    timeout=4.0,
+                )
             return
 
         if raw == "/retry":

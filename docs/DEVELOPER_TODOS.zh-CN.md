@@ -8,12 +8,12 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | 当前默认开发队列已清空；`GW-SLASH-N01` 已完成并归档 | `docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/` | 下一轮从 Gateway slash 真实注册/部署检查或 Ops operator 路由深化中选择 |
+| - | - | Clear | `CTX-COMPACT-N03` 已完成并归档；上下文压缩后续计划见 `docs/CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md`，最终 QA 记录见 `docs/qa/runs/context-compaction-final-qa-20260430.md` | `docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/` | 下一轮从 Gateway slash 真实注册/部署检查、Ops operator 路由深化或上下文压缩真实模型回归中选择 |
 
 ## 执行顺序
 
-1. 本轮已完成 `GW-SLASH-N01`，离线 `gateway slash-catalog --json` 与 API 入口已收口。
-2. 下一轮若继续 Gateway 面，再考虑 slash command 真实注册/部署检查；若继续 operator 面，则深化跨 workspace 操作路由。
+1. 本轮已完成 `CTX-COMPACT-N03`，`sessions --compact-eval --json` 长会话压缩质量评估入口已收口。
+2. 下一轮若继续上下文面，可做真实模型回归/质量样本集；否则回到 Gateway slash command 真实注册/部署检查或 Ops operator 路由深化中选择。
 3. 若继续浏览器自动化，考虑下载/上传/点击等更细粒度 step allowlist。
 
 ## 每个任务的统一要求

@@ -44,6 +44,7 @@ cai-agent/memory/instincts/instincts-*.md
 .tmp/
 .tmp-test/
 .tmp-test-*/
+.test-tmp/
 .tmp-tests/
 .tmp-codex-pytest/
 .pytest-basetemp/

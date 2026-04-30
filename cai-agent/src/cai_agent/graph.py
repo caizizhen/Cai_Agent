@@ -7,8 +7,9 @@ from typing import Any, Literal, NotRequired, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from cai_agent.config import Settings
+from cai_agent.context_compaction import build_llm_compaction_prompt, compact_messages
 from cai_agent.context import augment_system_prompt
-from cai_agent.llm import extract_json_object, get_last_usage
+from cai_agent.llm import estimate_tokens_from_messages, extract_json_object, get_last_usage
 from cai_agent.llm_factory import chat_completion_by_role, peek_last_profile_route_decision
 from cai_agent.progress_ring import global_ring
 from cai_agent.tools import dispatch, tools_spec_markdown
@@ -55,6 +56,10 @@ class AgentState(TypedDict, total=False):
     # F2 · 仅触发一次的收束提示（与 milestone / iteration 提示互补）。
     compact_pre_retry_sent: NotRequired[bool]
     compact_research_done_sent: NotRequired[bool]
+    compact_generation: NotRequired[int]
+    compact_last_message_count: NotRequired[int]
+    compact_last_prompt_tokens: NotRequired[int]
+    compact_summary: NotRequired[str]
 
 
 def _core_system_prompt(workspace: str) -> str:
@@ -130,6 +135,114 @@ def build_app(
             }
 
         extra_state: dict[str, Any] = {}
+        estimated_prompt_tokens = estimate_tokens_from_messages(messages)
+        window = int(getattr(settings, "context_window", 0) or 0)
+        mode = str(getattr(settings, "context_compact_mode", "heuristic") or "heuristic").strip().lower()
+        if mode not in {"off", "heuristic", "llm"}:
+            mode = "heuristic"
+        ratio = float(getattr(settings, "context_compact_trigger_ratio", 0.85) or 0.0)
+        last_compact_count = int(state.get("compact_last_message_count") or 0)
+        should_auto_compact = (
+            mode != "off"
+            and ratio > 0
+            and window > 0
+            and estimated_prompt_tokens >= int(window * ratio)
+            and len(messages) >= int(getattr(settings, "context_compact_min_messages", 8) or 8)
+            and len(messages) > last_compact_count
+        )
+        if should_auto_compact:
+            summary_payload: dict[str, Any] | None = None
+            summary_source = "heuristic"
+            fallback_reason: str | None = None
+            if mode == "llm":
+                try:
+                    prompt = build_llm_compaction_prompt(
+                        messages,
+                        max_source_chars=int(getattr(settings, "context_compact_summary_max_chars", 6000) or 6000) * 2,
+                    )
+                    summary_text = chat_completion_by_role(
+                        settings,
+                        prompt,
+                        role=role_name,
+                        route_conversation_phase="review",
+                    )
+                    parsed = extract_json_object(summary_text)
+                    if isinstance(parsed, dict):
+                        summary_payload = parsed
+                        summary_source = "llm"
+                except Exception as exc:
+                    fallback_reason = f"llm_compaction_failed: {exc}"
+                    summary_source = "heuristic"
+                    _emit(
+                        progress,
+                        {
+                            "phase": "compact_fallback",
+                            "mode": "llm",
+                            "fallback": "heuristic",
+                            "error": str(exc),
+                        },
+                    )
+            comp = compact_messages(
+                messages,
+                keep_tail_messages=int(getattr(settings, "context_compact_keep_tail_messages", 8) or 8),
+                summary_max_chars=int(getattr(settings, "context_compact_summary_max_chars", 6000) or 6000),
+                summary_payload=summary_payload,
+                summary_source=summary_source,
+                fallback_reason=fallback_reason,
+            )
+            if (
+                summary_source == "llm"
+                and (not comp.compacted or comp.compacted_estimated_tokens >= comp.original_estimated_tokens)
+            ):
+                fallback_reason = "llm_compaction_not_smaller"
+                summary_source = "heuristic"
+                comp = compact_messages(
+                    messages,
+                    keep_tail_messages=int(getattr(settings, "context_compact_keep_tail_messages", 8) or 8),
+                    summary_max_chars=int(getattr(settings, "context_compact_summary_max_chars", 6000) or 6000),
+                    summary_source=summary_source,
+                    fallback_reason=fallback_reason,
+                )
+                _emit(
+                    progress,
+                    {
+                        "phase": "compact_fallback",
+                        "mode": "llm",
+                        "fallback": "heuristic",
+                        "error": fallback_reason,
+                    },
+                )
+            if comp.compacted and comp.compacted_estimated_tokens < comp.original_estimated_tokens:
+                messages = comp.messages
+                generation = int(state.get("compact_generation") or 0) + 1
+                summary_text = ""
+                if comp.summary_message:
+                    summary_text = str(comp.summary_message.get("content") or "")
+                extra_state.update(
+                    {
+                        "compact_generation": generation,
+                        "compact_last_message_count": comp.original_message_count,
+                        "compact_last_prompt_tokens": comp.compacted_estimated_tokens,
+                        "compact_summary": summary_text,
+                    },
+                )
+                estimated_prompt_tokens = comp.compacted_estimated_tokens
+                _emit(
+                    progress,
+                    {
+                        "phase": "compact",
+                        "mode": mode,
+                        "summary_source": summary_source,
+                        "fallback": bool(fallback_reason),
+                        "generation": generation,
+                        "original_message_count": comp.original_message_count,
+                        "compacted_message_count": comp.compacted_message_count,
+                        "original_estimated_tokens": comp.original_estimated_tokens,
+                        "compacted_estimated_tokens": comp.compacted_estimated_tokens,
+                        "context_window": window,
+                    },
+                )
+
         if bool(state.get("tool_error_compact_pending")):
             if getattr(settings, "context_compact_on_tool_error", True):
                 messages.append(
@@ -459,4 +572,7 @@ def initial_state(settings: Settings, user_goal: str) -> AgentState:
         "tool_error_compact_pending": False,
         "compact_pre_retry_sent": False,
         "compact_research_done_sent": False,
+        "compact_generation": 0,
+        "compact_last_message_count": 0,
+        "compact_last_prompt_tokens": 0,
     }

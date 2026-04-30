@@ -76,6 +76,13 @@ git_context = true
 # compact_on_tool_error = true
 # 每累计 N 次「成功」工具轮次注入里程碑提示；0 关闭
 # compact_after_tool_calls = 0
+# 真实压缩模式：off | heuristic | llm；llm 失败时自动降级 heuristic
+# compact_mode = "heuristic"
+# 真实上下文压缩：估算 prompt tokens 达到 context_window 的该比例时触发；0 关闭
+# compact_trigger_ratio = 0.85
+# 压缩时保留最近 N 条原始消息，旧消息折叠为 context_summary_v1
+# compact_keep_tail_messages = 8
+# compact_summary_max_chars = 6000
 
 # 默认不强制 compile/test；在 CI 或提交前可把 compile / test 改为 true。
 [quality_gate]

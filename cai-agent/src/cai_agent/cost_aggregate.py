@@ -151,6 +151,10 @@ def build_compact_policy_explain_v1(
     context_compact_min_messages: int,
     context_compact_on_tool_error: bool,
     context_compact_after_tool_calls: int,
+    context_compact_mode: str = "heuristic",
+    context_compact_trigger_ratio: float = 0.85,
+    context_compact_keep_tail_messages: int = 8,
+    context_compact_summary_max_chars: int = 6000,
 ) -> dict[str, Any]:
     """与 ``graph`` 中注入 compact / 成本提示的阈值对齐，供 ``cost report`` 机读与人读。"""
     budget = max(0, int(cost_budget_max_tokens))
@@ -165,10 +169,13 @@ def build_compact_policy_explain_v1(
         "工具错误时是否追加压缩类提示。",
     ]
     lines_en: list[str] = [
+        f"context_compact_mode={str(context_compact_mode or 'heuristic')}.",
         f"When iteration >= {int(context_compact_after_iterations)} and "
         f"non-system messages >= {int(context_compact_min_messages)}, "
         "the runtime may inject a length / finish hint (see graph compact path).",
         f"After {int(context_compact_after_tool_calls)} tool calls, milestone compact hints may apply.",
+        f"When estimated prompt tokens >= context_window * {float(context_compact_trigger_ratio):.2f}, "
+        "older messages may be replaced with context_summary_v1.",
         f"context_compact_on_tool_error={bool(context_compact_on_tool_error)}.",
     ]
     if budget > 0:
@@ -192,6 +199,10 @@ def build_compact_policy_explain_v1(
         "context_compact_min_messages": int(context_compact_min_messages),
         "context_compact_on_tool_error": bool(context_compact_on_tool_error),
         "context_compact_after_tool_calls": int(context_compact_after_tool_calls),
+        "context_compact_mode": str(context_compact_mode or "heuristic"),
+        "context_compact_trigger_ratio": float(context_compact_trigger_ratio),
+        "context_compact_keep_tail_messages": int(context_compact_keep_tail_messages),
+        "context_compact_summary_max_chars": int(context_compact_summary_max_chars),
         "lines_zh": lines_zh,
         "lines_en": lines_en,
     }

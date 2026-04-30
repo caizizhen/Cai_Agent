@@ -256,6 +256,10 @@ class Settings:
     context_compact_min_messages: int
     context_compact_on_tool_error: bool
     context_compact_after_tool_calls: int
+    context_compact_mode: str
+    context_compact_trigger_ratio: float
+    context_compact_keep_tail_messages: int
+    context_compact_summary_max_chars: int
     security_scan_exclude_globs: tuple[str, ...]
     security_scan_rule_overrides: tuple[tuple[str, bool], ...]
     permission_write_file: str
@@ -591,6 +595,27 @@ class Settings:
                 context_compact_after_tool_calls = max(0, int(raw_catc))
             else:
                 context_compact_after_tool_calls = 0
+
+        raw_mode = str(ctx.get("compact_mode", "heuristic") or "heuristic").strip().lower()
+        context_compact_mode = raw_mode if raw_mode in {"off", "heuristic", "llm"} else "heuristic"
+
+        raw_ctr = ctx.get("compact_trigger_ratio", 0.85)
+        if isinstance(raw_ctr, bool):
+            context_compact_trigger_ratio = 0.85
+        elif isinstance(raw_ctr, (int, float)):
+            context_compact_trigger_ratio = max(0.0, min(1.0, float(raw_ctr)))
+        else:
+            context_compact_trigger_ratio = 0.85
+        raw_tail = ctx.get("compact_keep_tail_messages", 8)
+        if isinstance(raw_tail, int) and not isinstance(raw_tail, bool):
+            context_compact_keep_tail_messages = max(1, min(100, int(raw_tail)))
+        else:
+            context_compact_keep_tail_messages = 8
+        raw_sum = ctx.get("compact_summary_max_chars", 6000)
+        if isinstance(raw_sum, int) and not isinstance(raw_sum, bool):
+            context_compact_summary_max_chars = max(1000, min(50000, int(raw_sum)))
+        else:
+            context_compact_summary_max_chars = 6000
 
         sec_ex = sec.get("exclude_globs")
         if isinstance(sec_ex, list):
@@ -1030,6 +1055,10 @@ class Settings:
             context_compact_min_messages=context_compact_min_messages,
             context_compact_on_tool_error=context_compact_on_tool_error,
             context_compact_after_tool_calls=context_compact_after_tool_calls,
+            context_compact_mode=context_compact_mode,
+            context_compact_trigger_ratio=context_compact_trigger_ratio,
+            context_compact_keep_tail_messages=context_compact_keep_tail_messages,
+            context_compact_summary_max_chars=context_compact_summary_max_chars,
             security_scan_exclude_globs=security_scan_exclude_globs,
             security_scan_rule_overrides=security_scan_rule_overrides,
             permission_write_file=permission_write_file,

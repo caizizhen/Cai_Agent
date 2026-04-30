@@ -2,6 +2,8 @@
 
 本文档描述 **对话轮次增长时的压缩提示策略** 及其与 **token 统计 / 预算检查** 的关系，对标 Claude Code 分析文档中的 QueryEngine「自动压缩」思路；实现为轻量、可配置、可关闭。
 
+后续开发计划与 QA 矩阵见 [`CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md`](CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md)。
+
 ## 目标
 
 - 在长工具循环中提醒模型做 **摘要与收尾**，减少无效往返与 token 浪费。
@@ -17,10 +19,32 @@
 | `compact_min_messages` | 仅当非 system 消息数 ≥ 该值时才注入，避免极短对话误触发（可选，默认 `8`） |
 | `compact_on_tool_error` | 工具返回 `工具执行失败` 前缀的结果后，下一轮 LLM 前注入一条收束提示；`false` 关闭（可选，默认 `true`） |
 | `compact_after_tool_calls` | 每累计 **N** 次**成功**工具执行（`dispatch` 未返回失败前缀）后，在下一轮 LLM 前注入一条里程碑提示；`0` 关闭（可选，默认 `0`） |
+| `compact_mode` | 真实压缩模式：`off` 关闭、`heuristic` 本地启发式摘要、`llm` 先请求模型生成语义摘要并在失败/不变小时降级启发式（可选，默认 `heuristic`） |
+| `compact_trigger_ratio` | 真实压缩触发比例：当估算 prompt tokens ≥ `context_window * compact_trigger_ratio` 时，把旧消息折叠为 `context_summary_v1`；`0` 关闭（可选，默认 `0.85`） |
+| `compact_keep_tail_messages` | 真实压缩时保留最近 N 条原始消息，避免丢失当前工具/错误上下文（可选，默认 `8`） |
+| `compact_summary_max_chars` | `context_summary_v1` 的最大字符预算（可选，默认 `6000`） |
 
 环境变量覆盖（与 TOML 二选一优先级以 `Settings.from_sources` 为准）：`CAI_CONTEXT_COMPACT_ON_TOOL_ERROR`、`CAI_CONTEXT_COMPACT_AFTER_TOOL_CALLS`。
 
 `compact_after_iterations` 类提示仍为 **每会话至多一次**（由图状态 `compact_hint_sent` 记录）。`compact_on_tool_error` 在每次工具失败后由 `tools_node` 置位、`llm_node` 消费并清除（每轮失败至多一条收束提示）。`compact_after_tool_calls` 在 `tool_call_count` 达到 `N, 2N, …` 且尚未对该里程碑注入过时各触发一次（由 `compact_milestone_last_tc` 记录）。
+
+### 真实上下文压缩（`context_summary_v1`）
+
+`CTX-COMPACT-N01` 起，图执行层不再只注入“请收束”提示；当估算上下文达到阈值时，`graph.llm_node` 会调用 `context_compaction.compact_messages()`，保留 system prompt、初始用户目标与最近尾部消息，并把中间历史替换成一条结构化 `context_summary_v1` user message。摘要包含消息数量、角色分布、工具调用/错误计数、工具结果预览、重要路径和压缩前的对话要点。
+
+`CTX-COMPACT-N02` 起，`compact_mode = "llm"` 会先构造有界 summarizer prompt，让模型输出目标、决策、事实、文件、工具证据、待办、风险和最近用户意图等语义摘要；如果 LLM 摘要失败、返回非 JSON，或压缩后不比原上下文更小，会自动降级到 `heuristic`，并发出 `phase="compact_fallback"` 事件。`compact_mode = "off"` 会关闭真实压缩，但旧的收束提示配置仍按原策略工作。
+
+TUI `/compress` 使用同一套启发式压缩器手动压缩当前会话，并刷新上下文进度条。压缩事件会通过 progress 回调发出 `phase="compact"`，字段包括压缩前后 message 数和估算 token 数。
+
+### 长会话质量评估
+
+`CTX-COMPACT-N03` 起，`cai-agent sessions --compact-eval --json` 会扫描近期会话文件，对每个会话离线执行启发式压缩并输出 `context_compaction_eval_v1`。评估项包括是否真实压缩、估算 token 压缩率、初始目标保留、最近尾部消息保留、路径保留、工具名保留，以及 `--compact-required-marker` 指定的关键字符串保留。任一会话未通过时 CLI exit `2`，可作为长会话回归或 CI gate。
+
+常用参数：
+
+```powershell
+cai-agent sessions --compact-eval --json --limit 20 --compact-keep-tail 8 --compact-required-marker "关键路径"
+```
 
 ## 与 observe / cost 的联动建议
 
