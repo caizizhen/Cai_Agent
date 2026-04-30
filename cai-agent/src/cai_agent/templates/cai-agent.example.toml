@@ -135,6 +135,8 @@ fetch_url = "allow"
 # 解限模式（默认 false）：后续用于「任务少限制、危险行为二次确认」；CAI_UNRESTRICTED_MODE=1 可覆盖 TOML。
 [safety]
 unrestricted_mode = false
+# 解限模式下危险行为是否仍需要二次确认（默认 true）
+dangerous_confirmation_required = true
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）

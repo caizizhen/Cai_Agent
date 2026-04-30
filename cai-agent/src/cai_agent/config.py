@@ -269,6 +269,7 @@ class Settings:
     run_command_high_risk_patterns: tuple[str, ...]
     # [safety]：解限模式（默认关闭）；后续用于「默认少拦、危险二次确认」等行为开关。
     unrestricted_mode: bool
+    dangerous_confirmation_required: bool
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -669,6 +670,14 @@ class Settings:
                 unrestricted_mode = raw_um
             else:
                 unrestricted_mode = False
+        if os.getenv("CAI_DANGEROUS_CONFIRMATION_REQUIRED") is not None:
+            dangerous_confirmation_required = _env_bool("CAI_DANGEROUS_CONFIRMATION_REQUIRED", True)
+        else:
+            raw_dcr = safety.get("dangerous_confirmation_required")
+            if isinstance(raw_dcr, bool):
+                dangerous_confirmation_required = raw_dcr
+            else:
+                dangerous_confirmation_required = True
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
@@ -1079,6 +1088,7 @@ class Settings:
             run_command_approval_mode=run_command_approval_mode,
             run_command_high_risk_patterns=run_command_high_risk_patterns,
             unrestricted_mode=unrestricted_mode,
+            dangerous_confirmation_required=dangerous_confirmation_required,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

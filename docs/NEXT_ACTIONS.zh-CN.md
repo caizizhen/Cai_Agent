@@ -7,13 +7,17 @@
 
 ## 当前目标
 
-- `SAFETY-N01`：解限模式 TOML 开关已落地（`[safety].unrestricted_mode`，默认 `false`）；下一步在 Graph/TUI 实现危险工具调用的二次确认链路与 CLI 非交互逃逸阀。
+- `SAFETY-N02-D01`：`mcp_call_tool` 与明文 `http` 的 `fetch_url` 纳入解限二次确认；用户说明见 `README.zh-CN.md`，清单见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| 1 | `SAFETY-N01`（配置层已完成） | In progress | `pytest test_unrestricted_mode_config.py`；`doctor --json` 含 `unrestricted_mode`；`tools guard --json` 的 `policy.unrestricted_mode` |
+| - | - | Clear | `SAFETY-N02-D01`：pytest 含 `test_unrestricted_danger_dispatch_extended.py` + smoke |
+
+## 下一步（解限）
+
+- P3：`graph.py` pending 审批节点 + TUI Modal 自动确认（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 中 P3）
 
 ## 后续队列
 

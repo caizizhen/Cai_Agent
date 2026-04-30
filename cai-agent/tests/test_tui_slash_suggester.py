@@ -61,6 +61,13 @@ class SlashCommandSuggesterTests(unittest.TestCase):
         self.assertIsNone(_suggest(s, "/fix-build"))
         self.assertIsNone(_suggest(s, "/security-scan"))
 
+    def test_unrestricted_and_danger_approve_completion(self) -> None:
+        s = SlashCommandSuggester()
+        self.assertEqual(_suggest(s, "/un"), "/undo")
+        self.assertEqual(_suggest(s, "/unr"), "/unrestricted")
+        self.assertEqual(_suggest(s, "/d"), "/danger-approve")
+        self.assertIsNone(_suggest(s, "/danger-approve"))
+
     def test_load_latest_in_list(self) -> None:
         s = SlashCommandSuggester()
         self.assertEqual(_suggest(s, "/load"), "/load ")

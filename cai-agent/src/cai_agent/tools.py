@@ -10,6 +10,7 @@ import subprocess
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from urllib.parse import ParseResult, quote, urlparse
 from typing import Any, Callable
 
@@ -38,6 +39,8 @@ ALLOWED_CMD_NAMES = frozenset(
 
 _MCP_TOOLS_CACHE: dict[str, tuple[float, list[str]]] = {}
 _MCP_TOOLS_TTL_SEC = 15.0
+_DANGEROUS_APPROVAL_LOCK = Lock()
+_DANGEROUS_APPROVAL_BUDGET = 0
 
 _DEFAULT_HIGH_RISK_PATTERNS = (
     "rm -rf",
@@ -87,6 +90,72 @@ def _is_high_risk_command(settings: Settings, argv: list[str]) -> tuple[bool, st
         if p in joined:
             return (True, p)
     return (False, "")
+
+
+def grant_dangerous_approval_once() -> int:
+    """Grant one dangerous-action approval for the current process."""
+    global _DANGEROUS_APPROVAL_BUDGET
+    with _DANGEROUS_APPROVAL_LOCK:
+        _DANGEROUS_APPROVAL_BUDGET += 1
+        return _DANGEROUS_APPROVAL_BUDGET
+
+
+def _consume_dangerous_approval_once() -> bool:
+    global _DANGEROUS_APPROVAL_BUDGET
+    with _DANGEROUS_APPROVAL_LOCK:
+        if _DANGEROUS_APPROVAL_BUDGET <= 0:
+            return False
+        _DANGEROUS_APPROVAL_BUDGET -= 1
+        return True
+
+
+def _needs_dangerous_confirmation(
+    settings: Settings,
+    name: str,
+    args: dict[str, Any],
+) -> tuple[bool, str]:
+    if not bool(getattr(settings, "unrestricted_mode", False)):
+        return (False, "")
+    if not bool(getattr(settings, "dangerous_confirmation_required", True)):
+        return (False, "")
+    if name == "run_command":
+        argv = args.get("argv")
+        if not isinstance(argv, list) or not argv:
+            return (False, "")
+        argv = [str(x) for x in argv]
+        is_risky, pat = _is_high_risk_command(settings, argv)
+        if not is_risky:
+            return (False, "")
+        return (True, f"run_command 命中高危模式: {pat!r}")
+    if name == "write_file":
+        rel = str(args.get("path", "")).strip().lower()
+        if not rel:
+            return (False, "")
+        sensitive_suffixes = (".env", ".pem", ".key", "id_rsa", "id_ed25519", "known_hosts")
+        if rel.endswith(sensitive_suffixes):
+            return (True, f"write_file 目标疑似敏感文件: {rel}")
+    if name == "mcp_call_tool":
+        tool_name = str(args.get("name", "")).strip()
+        if tool_name:
+            return (True, f"mcp_call_tool 将调用外部 MCP 工具: {tool_name!r}")
+        return (True, "mcp_call_tool 将调用外部 MCP 工具")
+    if name == "fetch_url":
+        url_raw = str(args.get("url", "")).strip()
+        if not url_raw:
+            return (False, "")
+        try:
+            parsed = urlparse(url_raw)
+        except Exception:
+            return (False, "")
+        scheme = (parsed.scheme or "").lower()
+        if scheme == "http":
+            return (True, "fetch_url 使用明文 http（传输不可信）")
+    return (False, "")
+
+
+def _dangerous_auto_approved_from_env() -> bool:
+    raw = os.getenv("CAI_DANGEROUS_APPROVE", "")
+    return str(raw).strip().lower() in ("1", "true", "yes", "on")
 
 
 def tool_read_file(workspace: str, args: dict[str, Any]) -> str:
@@ -239,7 +308,7 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
     mode = str(getattr(settings, "run_command_approval_mode", "block_high_risk") or "block_high_risk").strip().lower()
     if mode not in ("block_high_risk", "allow_all"):
         mode = "block_high_risk"
-    if mode == "block_high_risk":
+    if mode == "block_high_risk" and not bool(getattr(settings, "unrestricted_mode", False)):
         joined = " ".join(argv).lower()
         patterns = tuple(getattr(settings, "run_command_high_risk_patterns", ()) or ()) or _DEFAULT_HIGH_RISK_PATTERNS
         for pat in patterns:
@@ -771,6 +840,13 @@ def tool_mcp_call_tool(settings: Settings, args: dict[str, Any]) -> str:
 def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     ws = settings.workspace
     enforce_tool_permission(settings, name)
+    need_confirm, reason = _needs_dangerous_confirmation(settings, name, args)
+    if need_confirm and not (_consume_dangerous_approval_once() or _dangerous_auto_approved_from_env()):
+        raise SandboxError(
+            f"危险操作需要二次确认：{reason}。"
+            "请先在 TUI 输入 /danger-approve（仅放行下一次高危操作），"
+            "或在非交互场景设置 CAI_DANGEROUS_APPROVE=1。",
+        )
     if name == "read_file":
         return tool_read_file(ws, args)
     if name == "list_dir":
@@ -829,9 +905,9 @@ def tools_spec_markdown() -> str:
 - git_status: {"short": true} — 只读 git 状态
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
-- mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）
-- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1；受 permissions.fetch_url 约束
+- mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）；当 [safety].unrestricted_mode=true 且 dangerous_confirmation_required=true 时，每次调用需二次确认
+- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1；受 permissions.fetch_url 约束；明文 http 在解限且要求确认时需二次确认
 - write_file: {"path": "相对路径", "content": "文件全文"}
 - make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
-- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符
+- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符；当 [safety].unrestricted_mode=true 且命中高危模式时，需先做二次确认
 """

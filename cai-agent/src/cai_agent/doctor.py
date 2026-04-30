@@ -643,6 +643,9 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "fetch_url_allow_private_resolved_ips": settings.fetch_url_allow_private_resolved_ips,
         "permission_fetch_url": settings.permission_fetch_url,
         "unrestricted_mode": bool(getattr(settings, "unrestricted_mode", False)),
+        "dangerous_confirmation_required": bool(
+            getattr(settings, "dangerous_confirmation_required", True),
+        ),
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
         "instruction_files": instruction_files,
@@ -868,6 +871,7 @@ def run_doctor(
     print(
         "解限模式:",
         "开启" if bool(getattr(settings, "unrestricted_mode", False)) else "关闭",
+        f"(dangerous_confirmation_required={bool(getattr(settings, 'dangerous_confirmation_required', True))}) "
         "([safety].unrestricted_mode / CAI_UNRESTRICTED_MODE)",
     )
     print()

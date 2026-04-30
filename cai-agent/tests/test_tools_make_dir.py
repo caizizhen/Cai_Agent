@@ -7,7 +7,7 @@ from pathlib import Path
 
 from cai_agent.config import Settings
 from cai_agent.sandbox import SandboxError
-from cai_agent.tools import dispatch, tool_make_dir
+from cai_agent.tools import dispatch, grant_dangerous_approval_once, tool_make_dir
 
 
 def _settings_from_toml(content: str) -> Settings:
@@ -104,3 +104,28 @@ class MakeDirToolTests(unittest.TestCase):
         with self.assertRaises(SandboxError) as ctx:
             tool_make_dir(s.workspace, {"path": "f.txt"})
         self.assertIn("不是目录", str(ctx.exception))
+
+    def test_unrestricted_write_sensitive_file_requires_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with self.assertRaises(SandboxError) as ctx:
+            dispatch(s, "write_file", {"path": ".env", "content": "A=1"})
+        self.assertIn("危险操作需要二次确认", str(ctx.exception))
+        grant_dangerous_approval_once()
+        out = dispatch(s, "write_file", {"path": ".env", "content": "A=1"})
+        self.assertIn("已写入 .env", out)

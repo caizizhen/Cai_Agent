@@ -321,6 +321,9 @@ def build_tool_gateway_guard_payload(settings: Settings) -> dict[str, Any]:
             "fetch_url_enabled": bool(settings.fetch_url_enabled),
             "fetch_url_unrestricted": bool(settings.fetch_url_unrestricted),
             "unrestricted_mode": bool(getattr(settings, "unrestricted_mode", False)),
+            "dangerous_confirmation_required": bool(
+                getattr(settings, "dangerous_confirmation_required", True),
+            ),
         },
         "cost_guard": {
             "max_tokens": max_tokens,

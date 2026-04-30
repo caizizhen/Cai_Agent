@@ -300,6 +300,8 @@
 | `UX-N01-D06` | `Done` | `UX-N01` | 体验层第六阶段（plan/workflow/release-ga 失败提示收口） | `plan` 的 `config_not_found/goal_empty/llm_error` 失败输出补齐 hints；`workflow` 的模板缺失/缺文件/缺配置/运行失败补 `hint:`；`release-ga` 失败态输出 `hints[]`（JSON）并在文本 failed checks 后追加 hint，形成跨命令一致排障路径 | `UX-N01-D05` | pytest `test_plan_sessions_cli` + `test_cli_workflow` + `test_release_ga_cli` + `test_cli_misc` + 全量 + smoke |
 | `DOC-01c` | `Done` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 根 README 与 docs README 补 Teams/runtime/plugin snapshot 入口；中英入口互指实现摘要、测试清单与 snapshot | — | 手工 + `rg` |
 | `SAFETY-N01-D01` | `Done` | `SAFETY-N01` | 解限模式 TOML 开关（默认关闭） | `[safety].unrestricted_mode` / `CAI_UNRESTRICTED_MODE`；`doctor_v1.unrestricted_mode`；`tool_gateway_guard_v1.policy.unrestricted_mode`；示例模板 `[safety]` 段 | — | pytest `test_unrestricted_mode_config.py` |
+| `SAFETY-N01-D02` | `Done` | `SAFETY-N01` | TUI 开关与危险二次确认闭环 | TUI `/unrestricted [on|off]`（写回 TOML）+ `/danger-approve`；`dispatch` 在 `unrestricted_mode` 下对高危 `run_command` 与敏感 `write_file` 执行二次确认；非交互 `CAI_DANGEROUS_APPROVE=1` | `SAFETY-N01-D01` | pytest `test_tui_slash_suggester` + `test_run_command_security_policy` + `test_tools_make_dir` |
+| `SAFETY-N02-D01` | `Done` | `SAFETY-N02` | 扩大危险确认面（MCP / http fetch） | `dispatch` 在解限模式下对 `mcp_call_tool` 与明文 `http` 的 `fetch_url` 要求二次确认；`README.zh-CN.md`；清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) | `SAFETY-N01-D02` | pytest `test_unrestricted_danger_dispatch_extended.py` |
 
 ### 10.1 建议开单顺序
 

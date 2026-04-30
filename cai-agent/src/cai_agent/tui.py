@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -73,6 +74,8 @@ _NATIVE_SLASH_COMMAND_SPECS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/retry", "/retry", "Show retry / continue guidance"),
     SlashCommandSpec("/undo", "/undo", "Show current undo guidance"),
     SlashCommandSpec("/personality", "/personality", "Show the current CAI_PERSONALITY hint"),
+    SlashCommandSpec("/unrestricted", "/unrestricted [on|off]", "Show or switch unrestricted_mode"),
+    SlashCommandSpec("/danger-approve", "/danger-approve", "Approve one dangerous action in unrestricted mode"),
 )
 
 
@@ -113,6 +116,8 @@ _NATIVE_TUI_COMMANDS: frozenset[str] = frozenset(
         "retry",
         "undo",
         "personality",
+        "unrestricted",
+        "danger-approve",
     }
 )
 _SLASH_MENU_MAX_ITEMS = 200
@@ -132,6 +137,8 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/plan",
     "/personality",
     "/retry",
+    "/unrestricted",
+    "/danger-approve",
     "/save",
     "/load",
     "/load latest",
@@ -335,6 +342,37 @@ def _format_compact_status(snapshot: CompactStatusSnapshot | None) -> str:
     if snapshot.quality_score is not None:
         parts.append(f"quality={float(snapshot.quality_score):.2f}")
     return " ".join(parts)
+
+
+def _persist_unrestricted_mode(settings: Settings, enabled: bool) -> tuple[bool, str]:
+    """Persist [safety].unrestricted_mode into the active TOML."""
+    cfg = settings.config_loaded_from
+    if not cfg:
+        return (False, "未检测到配置文件来源（config_loaded_from 为空）")
+    path = Path(cfg).expanduser().resolve()
+    if not path.is_file():
+        return (False, f"配置文件不存在: {path}")
+    text = path.read_text(encoding="utf-8")
+    wanted = "true" if enabled else "false"
+    sec_pat = re.compile(r"(?ms)^\\[safety\\]\\s*\\n(?P<body>.*?)(?=^\\[|\\Z)")
+    m = sec_pat.search(text)
+    if m:
+        body = m.group("body")
+        if re.search(r"(?m)^\\s*unrestricted_mode\\s*=", body):
+            body2 = re.sub(
+                r"(?m)^\\s*unrestricted_mode\\s*=\\s*(?:true|false)\\s*$",
+                f"unrestricted_mode = {wanted}",
+                body,
+                count=1,
+            )
+        else:
+            body2 = body.rstrip("\n") + f"\nunrestricted_mode = {wanted}\n"
+        text = text[: m.start("body")] + body2 + text[m.end("body") :]
+    else:
+        suffix = "" if text.endswith("\n") else "\n"
+        text = text + f"{suffix}\n[safety]\nunrestricted_mode = {wanted}\n"
+    path.write_text(text, encoding="utf-8", newline="\n")
+    return (True, str(path))
 
 
 def _parse_mcp_tool_lines(list_text: str) -> list[str]:
@@ -1296,7 +1334,18 @@ class CaiAgentApp(App[None]):
         if not raw:
             return
         self._hide_slash_command_menu()
-        if self._agent_busy and raw not in ("/help", "/?", "/tasks", "/recap", "/mcp-presets", "/stop"):
+        if self._agent_busy and raw not in (
+            "/help",
+            "/?",
+            "/tasks",
+            "/recap",
+            "/mcp-presets",
+            "/stop",
+            "/danger-approve",
+            "/unrestricted",
+            "/unrestricted on",
+            "/unrestricted off",
+        ):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
                 severity="warning",
@@ -1328,6 +1377,8 @@ class CaiAgentApp(App[None]):
                 "/recap — 汇总最近会话摘要（便于回放）\n"
                 "/tasks — 只读任务看板：调度任务 + 最近 workflow 快照（Ctrl+B）\n"
                 "/use-model <profile_id|model_id> — 临时切换模型（补全优先 profile id）\n"
+                "/unrestricted [on|off] — 查看/切换解限模式（写回 [safety].unrestricted_mode）\n"
+                "/danger-approve — 放行下一次高危工具调用（解限模式下二次确认）\n"
                 "/reload — 重新从磁盘生成系统提示（项目说明 / Git）\n"
                 "/stop — 停止当前运行中的任务\n"
                 "/clear — 清空对话并重建系统提示\n"
@@ -1378,11 +1429,51 @@ class CaiAgentApp(App[None]):
                 f"  source=[cyan]{src}[/] — [dim]{_CONTEXT_WINDOW_SOURCE_LABELS.get(src, src)}[/]\n"
                 f"配置: [dim]{cfg}[/]\n"
                 f"{_format_compact_status(self._last_compact_status)}\n"
+                f"unrestricted_mode={bool(getattr(s, 'unrestricted_mode', False))}  "
+                f"dangerous_confirmation_required={bool(getattr(s, 'dangerous_confirmation_required', True))}\n"
                 f"project_context={s.project_context}  git_context={s.git_context}\n"
                 f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n"
                 + format_tui_mcp_web_notebook_quickstart()
                 + "\n",
             )
+            return
+
+        if raw == "/danger-approve":
+            from cai_agent.tools import grant_dangerous_approval_once
+
+            budget = grant_dangerous_approval_once()
+            self.query_one("#chat", RichLog).write(
+                "\n[green]已确认下一次高危操作[/] "
+                f"[dim](remaining approvals={budget})[/]\n",
+            )
+            return
+
+        if raw == "/unrestricted" or raw.startswith("/unrestricted "):
+            s = self._settings
+            log = self.query_one("#chat", RichLog)
+            if raw == "/unrestricted":
+                log.write(
+                    "\n[bold]解限模式[/] "
+                    f"unrestricted_mode={bool(getattr(s, 'unrestricted_mode', False))} "
+                    f"(dangerous_confirmation_required={bool(getattr(s, 'dangerous_confirmation_required', True))})\n",
+                )
+                return
+            arg = raw[len("/unrestricted ") :].strip().lower()
+            if arg not in ("on", "off"):
+                log.write("\n[red]用法错误:[/] /unrestricted [on|off]\n")
+                return
+            enable = arg == "on"
+            self._settings = replace(self._settings, unrestricted_mode=enable)
+            ok, detail = _persist_unrestricted_mode(self._settings, enable)
+            mode_label = "开启" if enable else "关闭"
+            if ok:
+                log.write(f"\n[green]解限模式已{mode_label}[/]（已写回 {detail}）\n")
+            else:
+                log.write(
+                    f"\n[yellow]解限模式已{mode_label}[/]（仅当前会话；未写回: {detail}）\n",
+                )
+            if self._messages and self._messages[0].get("role") == "system":
+                self._messages[0] = {"role": "system", "content": build_system_prompt(self._settings)}
             return
 
         if raw == "/reload":

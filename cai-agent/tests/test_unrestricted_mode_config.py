@@ -38,6 +38,7 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
             + "\n",
         )
         self.assertFalse(s.unrestricted_mode)
+        self.assertTrue(s.dangerous_confirmation_required)
 
     def test_toml_true(self) -> None:
         s = _settings_from_toml(
@@ -55,6 +56,7 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
             + "\n",
         )
         self.assertTrue(s.unrestricted_mode)
+        self.assertTrue(s.dangerous_confirmation_required)
 
     def test_env_overrides_toml_false(self) -> None:
         body = textwrap.dedent(
@@ -78,6 +80,25 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
                 os.environ.pop("CAI_UNRESTRICTED_MODE", None)
             else:
                 os.environ["CAI_UNRESTRICTED_MODE"] = old
+
+    def test_toml_can_disable_dangerous_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = false
+                """
+            ).strip()
+            + "\n",
+        )
+        self.assertTrue(s.unrestricted_mode)
+        self.assertFalse(s.dangerous_confirmation_required)
 
 
 if __name__ == "__main__":

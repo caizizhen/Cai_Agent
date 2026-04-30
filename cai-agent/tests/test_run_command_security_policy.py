@@ -3,11 +3,12 @@ from __future__ import annotations
 import tempfile
 import textwrap
 import unittest
+import os
 from pathlib import Path
 
 from cai_agent.config import Settings
 from cai_agent.sandbox import SandboxError
-from cai_agent.tools import tool_run_command
+from cai_agent.tools import dispatch, grant_dangerous_approval_once, tool_run_command
 
 
 def _settings_from_toml(content: str) -> Settings:
@@ -81,4 +82,71 @@ class RunCommandSecurityPolicyTests(unittest.TestCase):
         )
         self.assertIn("exit=0", out)
         self.assertIn("ok", out)
+
+    def test_unrestricted_mode_requires_second_confirmation_for_high_risk(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                run_command = "allow"
+                run_command_approval_mode = "block_high_risk"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with self.assertRaises(SandboxError) as ctx:
+            dispatch(
+                s,
+                "run_command",
+                {"argv": ["python", "-c", "print('rm -rf /tmp/x')"], "cwd": "."},
+            )
+        self.assertIn("危险操作需要二次确认", str(ctx.exception))
+        grant_dangerous_approval_once()
+        out = dispatch(
+            s,
+            "run_command",
+            {"argv": ["python", "-c", "print('rm -rf /tmp/x')"], "cwd": "."},
+        )
+        self.assertIn("exit=0", out)
+
+    def test_non_interactive_env_can_approve_dangerous_once(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                run_command = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        old = os.environ.get("CAI_DANGEROUS_APPROVE")
+        try:
+            os.environ["CAI_DANGEROUS_APPROVE"] = "1"
+            out = dispatch(
+                s,
+                "run_command",
+                {"argv": ["python", "-c", "print('rm -rf /tmp/x')"], "cwd": "."},
+            )
+            self.assertIn("exit=0", out)
+        finally:
+            if old is None:
+                os.environ.pop("CAI_DANGEROUS_APPROVE", None)
+            else:
+                os.environ["CAI_DANGEROUS_APPROVE"] = old
 

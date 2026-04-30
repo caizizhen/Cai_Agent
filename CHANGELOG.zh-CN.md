@@ -6,7 +6,11 @@
 
 ### Unreleased
 
-- **SAFETY-N01-D01 解限模式配置开关**：新增 `[safety].unrestricted_mode`（默认 `false`），环境变量 `CAI_UNRESTRICTED_MODE` 可覆盖；`doctor --json` 暴露 `unrestricted_mode`，`tool_gateway_guard_v1.policy` 同步该字段；示例模板 `cai-agent.example.toml` 含 `[safety]` 段。后续 Graph/TUI 危险二次确认将读取该开关。
+- **SAFETY-N02-D01 解限模式扩大危险确认**：解限且 `dangerous_confirmation_required=true` 时，`mcp_call_tool` 每次调用与明文 `http` 的 `fetch_url` 需二次确认（TUI `/danger-approve` 或 `CAI_DANGEROUS_APPROVE=1`）；`README.zh-CN.md` 增补说明；全景清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
+
+- **SAFETY-N01-D01 解限模式配置开关**：新增 `[safety].unrestricted_mode`（默认 `false`）与 `[safety].dangerous_confirmation_required`（默认 `true`），环境变量 `CAI_UNRESTRICTED_MODE` / `CAI_DANGEROUS_CONFIRMATION_REQUIRED` 可覆盖；`doctor --json` 与 `tool_gateway_guard_v1.policy` 同步暴露字段；example/starter 模板均新增 `[safety]` 段。
+
+- **SAFETY-N01-D02 TUI 开关与危险二次确认闭环**：TUI 新增 `/unrestricted [on|off]`（可写回 TOML）与 `/danger-approve`（放行下一次危险操作）；`/status` 展示解限与确认状态。解限模式下 `dispatch` 对高危 `run_command` 与敏感目标 `write_file` 执行二次确认，非交互场景可用 `CAI_DANGEROUS_APPROVE=1` 显式放行。
 
 - **GW-SLASH-N01 Gateway slash catalog**：新增 `gateway slash-catalog --json` 与 `GET /v1/gateway/slash-catalog`（`gateway_slash_catalog_v1`），离线公开 Discord application commands、Slack `/cai` 子命令与 Teams command list，并统计可执行型命令数量，便于 operator 审核。
 

@@ -234,6 +234,15 @@ cai-agent ui -w (Get-Location).Path
 - **fetch_url**：默认关闭或强白名单；受 `[permissions].fetch_url` 约束。
 - **mcp_***：需 `[agent].mcp_enabled = true`。
 
+### 解限模式（`[safety]`）
+
+在 `cai-agent.toml` 中配置 **`[safety].unrestricted_mode`**（默认 `false`）。开启后，`run_command` 不再因高危子串被**硬性阻断**，改为：若仍启用 **`[safety].dangerous_confirmation_required`**（默认 `true`），则对危险操作要求**二次确认**后再执行。
+
+- **TUI**：`/unrestricted` 查看状态；`/unrestricted on|off` 切换（若自 TOML 启动则会写回配置文件）；`/danger-approve` 放行**下一次**危险工具调用。
+- **危险判定（当前）**：高危 `run_command`；写入敏感路径的 `write_file`；任意 **`mcp_call_tool`**；**明文 `http://` 的 `fetch_url`**。
+- **非交互 / CI**：可设置 **`CAI_DANGEROUS_APPROVE=1`** 作为显式放行（慎用）。
+- **完整开发清单与路线图**：[`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
+
 非交互下 **`ask` 策略**：使用 `CAI_AUTO_APPROVE=1` 或 `run` / `continue` / `command` / `agent` / `fix-build` 上的 **`--auto-approve`**。
 
 勿将真实 API Key 提交到版本库。

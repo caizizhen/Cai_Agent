@@ -4,7 +4,11 @@
 
 ### Unreleased
 
-- **SAFETY-N01-D01 unrestricted-mode config flag**: Added `[safety].unrestricted_mode` (default `false`), overridable via `CAI_UNRESTRICTED_MODE`; surfaced as `doctor_v1.unrestricted_mode` and `tool_gateway_guard_v1.policy.unrestricted_mode`; starter template includes `[safety]`. Intended precursor for future “fewer task gates + dangerous-action confirmation” behavior.
+- **SAFETY-N02-D01 unrestricted-mode wider confirmation gate**: When unrestricted with `dangerous_confirmation_required=true`, `mcp_call_tool` and cleartext `http` `fetch_url` now require second confirmation (`/danger-approve` or `CAI_DANGEROUS_APPROVE=1`); `README.zh-CN.md` documents behavior; backlog [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md).
+
+- **SAFETY-N01-D01 unrestricted-mode config flag**: Added `[safety].unrestricted_mode` (default `false`) and `[safety].dangerous_confirmation_required` (default `true`), overridable via `CAI_UNRESTRICTED_MODE` and `CAI_DANGEROUS_CONFIRMATION_REQUIRED`; surfaced in `doctor_v1` and `tool_gateway_guard_v1.policy`; both example and starter templates include `[safety]`.
+
+- **SAFETY-N01-D02 TUI switch + dangerous confirmation loop**: Added `/unrestricted [on|off]` (persists to TOML when loaded) and `/danger-approve` (approves one dangerous action) in TUI; `/status` now shows unrestricted/confirmation flags. In unrestricted mode, `dispatch` now requires second confirmation for high-risk `run_command` and sensitive-target `write_file`; non-interactive runs may explicitly opt in with `CAI_DANGEROUS_APPROVE=1`.
 
 - **GW-SLASH-N01 gateway slash catalog**: Added `gateway slash-catalog --json` and `GET /v1/gateway/slash-catalog` (`gateway_slash_catalog_v1`) to expose an offline command catalog for Discord application commands, Slack `/cai` subcommands, and Teams command lists, including execute-capable command counts for operator review.
 

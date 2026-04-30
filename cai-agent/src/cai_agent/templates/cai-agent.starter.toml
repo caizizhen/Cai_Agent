@@ -64,6 +64,7 @@ fetch_url = "allow"
 
 [safety]
 unrestricted_mode = false
+dangerous_confirmation_required = true
 
 [cost]
 budget_max_tokens = 50000

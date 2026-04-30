@@ -177,6 +177,9 @@ class ToolProviderContractCliTests(unittest.TestCase):
             p_guard = json.loads(buf_guard.getvalue().strip())
             self.assertEqual(p_guard.get("schema_version"), "tool_gateway_guard_v1")
             self.assertIs((p_guard.get("cost_guard") or {}).get("enabled"), True)
+            pol = p_guard.get("policy") or {}
+            self.assertFalse(pol.get("unrestricted_mode"))
+            self.assertTrue(pol.get("dangerous_confirmation_required"))
 
             buf_cost = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
