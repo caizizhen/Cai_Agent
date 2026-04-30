@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **修复（TUI / 解限模式）**：**`build_app`** 在构造时闭包捕获了最初的 **`Settings`**，TUI 执行 **`/unrestricted on`** 后虽已更新 **`AgentShell._settings`** 并写盘，但 **`tools_node`** 仍用旧的 **`unrestricted_mode=false`** 调用 **`dispatch`**，导致 **`list_dir`** 等工作区外绝对路径被拒绝，只能重启后才生效。**`build_app`** 现支持可选 **`settings_supplier`**，TUI 传入 **`lambda: self._settings`**，每轮 LLM/工具节点使用当前配置。回归 **`test_graph_live_settings.py`**。
+
 - **修复**：LangGraph 工具 JSON 常把参数写在 **`name` 旁边**（例如 **`{"type":"tool","name":"list_dir","path":"E:\\\\"}`**），而不是放在 **`args`** 里。执行器原先只看 **`args`**，导致 **`list_dir`** 回落为 **`path="."`**，列出的始终是**工作区根**（例如 **`.cai`**、**`snake_gba`**），而不是请求的 **`E:\\`**。现已通过 **`graph.merge_tool_call_args`** 把顶层参数并入 **`args`**（**`args` 内已有字段优先**）。回归 **`test_graph_tool_payload.py`**。
 
 - **修复（Windows / glob_search）**：工具 **`root`/`path`** 写成单独的 **`E:`** 时，经 **`Path("E:")`** / **`workspace / "E:"`** 会变成「该盘**当前目录**」而非 **`E:\\`** 盘根，导致 **`glob_search`** / **`list_dir`** 找不到 **`E:\\test`** 等实际位于盘根的目录（界面表现常为只看到当前目录下的 **`.cai/`**、项目文件夹等）。解限模式下 **`X:`** 现规范化为 **`X:\\`**；非解限则拒绝 **`X:`** 并提示须写完整路径。**`glob_search`** / **`search_text`** 改用 **`glob.glob(..., root_dir=...)`**（Python 3.11+）以提高搜索根可靠性。回归 **`test_tool_glob_search.py`**。

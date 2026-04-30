@@ -747,6 +747,7 @@ class CaiAgentApp(App[None]):
             progress=_progress_sink,
             should_stop=lambda: self._stop_requested,
             dangerous_confirm=self._danger_confirm_callback,
+            settings_supplier=lambda: self._settings,
         )
         self._messages: list[dict[str, Any]] = [
             {"role": "system", "content": build_system_prompt(settings)},
@@ -872,6 +873,7 @@ class CaiAgentApp(App[None]):
             progress=_progress_sink,
             should_stop=lambda: self._stop_requested,
             dangerous_confirm=self._danger_confirm_callback,
+            settings_supplier=lambda: self._settings,
         )
         self._sync_slash_completion_sources()
 

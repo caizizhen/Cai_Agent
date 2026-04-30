@@ -119,14 +119,28 @@ def build_app(
     should_stop: Callable[[], bool] | None = None,
     role: str = "active",
     dangerous_confirm: Callable[[dict[str, Any]], bool] | None = None,
+    settings_supplier: Callable[[], Settings] | None = None,
 ):
     """构建主循环图。
 
     ``role``：调用 LLM 时走 :func:`cai_agent.llm_factory.chat_completion_by_role`
     传入的角色，决定使用 active / subagent / planner 哪一个 profile。
     workflow 的子代理步骤会传 ``role="subagent"``。
+
+    ``settings_supplier``：若提供，则每轮节点执行前取当前配置（例如 TUI 热更新
+    ``/unrestricted`` 后 ``dispatch`` 需看到新的 ``unrestricted_mode``）。未提供时
+    固定使用构造时传入的 ``settings``。
     """
     role_name = (role or "active").strip().lower() or "active"
+
+    def _live_settings() -> Settings:
+        if settings_supplier is not None:
+            try:
+                return settings_supplier()
+            except Exception:
+                pass
+        return settings
+
     def _is_stopped() -> bool:
         if not should_stop:
             return False
@@ -146,6 +160,7 @@ def build_app(
                 "pending": None,
                 "compact_hint_sent": bool(state.get("compact_hint_sent")),
             }
+        settings = _live_settings()
         messages = list(state["messages"])
         iteration = int(state.get("iteration", 0)) + 1
         if iteration > settings.max_iterations:
@@ -564,6 +579,7 @@ def build_app(
         }
 
     def tools_node(state: AgentState) -> dict[str, Any]:
+        settings = _live_settings()
         pending = state.get("pending")
         if not pending:
             return {}
@@ -576,8 +592,9 @@ def build_app(
                 "compact_hint_sent": bool(state.get("compact_hint_sent")),
             }
         messages = list(state["messages"])
-        name = str(pending.get("name", ""))
-        args = pending.get("args") if isinstance(pending.get("args"), dict) else {}
+        pd = pending if isinstance(pending, dict) else {}
+        name = str(pd.get("name", ""))
+        args = merge_tool_call_args({"type": "tool", **pd})
         tool_evt: dict[str, Any] = {
             "phase": "tool",
             "name": name,
