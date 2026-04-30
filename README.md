@@ -220,6 +220,7 @@ cai-agent ui -w (Get-Location).Path
 | `[agent]` | `workspace`, `max_iterations`, `command_timeout_sec`, `mock`, `project_context`, `git_context`, `mcp_enabled` |
 | `[mcp]` | MCP bridge URL / key / timeout when `mcp_enabled` |
 | `[permissions]` | Per-tool policy: `allow` / `ask` / `deny` for `write_file`, `run_command`, `fetch_url` |
+| `[safety]` | Unrestricted mode + dangerous confirmations (see below): `unrestricted_mode`, `dangerous_confirmation_required`, `dangerous_audit_log_enabled`, `dangerous_critical_write_skip_if_unchanged`, … — templates + [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) |
 | `[models]` | `active` profile id; `[[models.profile]]` blocks for multi-backend setups |
 
 **Zhipu (GLM)** example: `provider = openai_compatible`, `base_url = https://open.bigmodel.cn/api/paas/v4` (no extra `/v1`; runtime normalizes). Use env `ZAI_API_KEY` with `api_key_env = "ZAI_API_KEY"` in the profile.
@@ -238,6 +239,18 @@ cai-agent ui -w (Get-Location).Path
 - **run_command**: allowlisted executable names only; no shell metacharacters; `cwd` must stay inside workspace.
 - **fetch_url**: optional; HTTPS GET with host allowlist unless configured otherwise; gated by `[permissions].fetch_url`.
 - **mcp_***: require `[agent].mcp_enabled = true`.
+
+### Unrestricted mode (`[safety]`)
+
+Set **`[safety].unrestricted_mode`** (default `false`) in `cai-agent.toml`. When **on**, high-risk `run_command` patterns are **not hard-blocked**; if **`[safety].dangerous_confirmation_required`** remains **true** (default), dangerous tool calls still need **explicit confirmation** before they run via `dispatch`.
+
+- **TUI**: `/unrestricted` shows status; `/unrestricted on|off` toggles (persists when the session started from TOML); `/danger-approve` authorizes **the next** dangerous `dispatch`. Without prior approval or `CAI_DANGEROUS_APPROVE`, a modal asks for one-off approval (and for MCP + cleartext `http` `fetch_url`, optional **session-wide** approval). The footer may show a “waiting for dangerous confirmation” style hint.
+- **Session allowlists** (unrestricted + confirmation still enabled): `/danger-session-mcp <tool name>`, `/danger-session-fetch <hostname or http URL>`, `/danger-session-clear`.
+- **Audit (optional)**: `[safety].dangerous_audit_log_enabled` or `CAI_DANGEROUS_AUDIT_LOG=1` appends JSONL events under **`.cai/dangerous-approve.jsonl`**; default **off**.
+- **What counts as dangerous (today)**: high-risk `run_command`; **`[safety].run_command_extra_danger_basenames`**; `write_file` to sensitive suffixes or **built-in / configured critical basenames** (for example `pyproject.toml`; see templates); **any** **`mcp_call_tool`**; cleartext **`http://`** **`fetch_url`**; **`fetch_url`** when **`[fetch_url].allow_private_resolved_ips=true`** (private DNS resolution risk); **`file://`** **`fetch_url`** is **rejected**.
+- **Critical-write noop (default on)**: **`[safety].dangerous_critical_write_skip_if_unchanged`** (**`CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`**): for those critical `write_file` paths, if a UTF-8 file already exists on disk under the workspace and either **normalized text matches** or **both sides parse as `.toml`/`.json` with recursively equal structure** (sorted keys, deep compare), basename-level confirmation is skipped; **new** files, encoding issues, oversized on-disk files, or parse failures keep the usual confirmation path.
+- **Non-interactive / CI**: **`CAI_DANGEROUS_APPROVE=1`** opts in globally (**use with care**).
+- **Backlog / parity checklist**: [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) (Chinese doc name; behaviour matches the runtime).
 
 Non-interactive **ask** mode: set `CAI_AUTO_APPROVE=1` or pass `--auto-approve` on `run` / `continue` / `command` / `agent` / `fix-build`.
 
@@ -527,6 +540,8 @@ Audit / schema docs live under `docs/schema/` (e.g. schedule audit JSONL).
 Unified under `cai-agent gateway …` with sub-trees for Telegram, Discord, Slack, Teams, plus helpers like `gateway platforms list`, `gateway maps summarize`, `gateway federation-summary`, `gateway route-preview`, etc.
 
 Typical Telegram local webhook flow starts with `gateway telegram serve-webhook` and mapping commands (`bind`, `list`, `allow`, …). See gateway-specific docs under `docs/` for env vars and signing secrets (Slack signing secret, Teams manifest, Discord bot token).
+
+**Dangerous approvals on gateways (unrestricted mode):** Slack event execution and Discord polling execution strip leading lines **`[danger-approve]`** or **`/danger-approve`** from the user goal (same semantics as TUI `/danger-approve`; customizable via **`CAI_GATEWAY_DANGER_APPROVE_TOKENS`**). Contract summary lives under **`danger_gateway_contract_v1`** in **`cai-agent tools guard --json`**.
 
 ---
 

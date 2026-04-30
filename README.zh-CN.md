@@ -215,6 +215,7 @@ cai-agent ui -w (Get-Location).Path
 | `[agent]` | `workspace`、`max_iterations`、`command_timeout_sec`、`mock`、`project_context`、`git_context`、`mcp_enabled` |
 | `[mcp]` | MCP Bridge 地址与超时 |
 | `[permissions]` | `write_file` / `run_command` / `fetch_url` 的 `allow` / `ask` / `deny` |
+| `[safety]` | 解限与危险二次确认（见下文）：`unrestricted_mode`、`dangerous_confirmation_required`、`dangerous_audit_log_enabled`、`dangerous_critical_write_skip_if_unchanged` 等；模板与清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) |
 | `[models]` | `active`；`[[models.profile]]` 多后端 |
 
 **智谱 GLM：** `provider=openai_compatible`，`base_url=https://open.bigmodel.cn/api/paas/v4`（不要再手动叠 `/v1`）。推荐环境变量 **`ZAI_API_KEY`**，profile 内 `api_key_env = "ZAI_API_KEY"`。

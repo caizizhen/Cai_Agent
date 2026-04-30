@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Docs**: English **`README.md`** now documents unrestricted **`[safety]`** behaviour (danger confirmations, critical-write noop, gateway **`[danger-approve]`** prefixes); config table adds **`[safety]`**. **`README.zh-CN.md`** config table adds the same **`[safety]`** row for parity.
+
 - **SAFETY-N07-D02 critical `write_file` semantic noop (TOML/JSON, unrestricted)**: Extends **SAFETY-N07-D01**: when text-normalized bodies still differ, skip critical-basename confirmation if both sides parse as equivalent structured documents for critical basenames ending in **`.toml`** or **`.json`** (recursive dict key sort + deep equality); invalid parses fall back to requiring confirmation when the write would otherwise be flagged; tests extend `test_unrestricted_danger_dispatch_extended.py`; docs backlog Explore closed for this slice.
 
 - **SAFETY-N07-D01 critical `write_file` noop heuristic (unrestricted)**: When unrestricted with dangerous confirmation enabled, skip the critical-basename confirmation for `write_file` if the target path already exists as a UTF-8 file under the workspace, the on-disk size is at most 512 KiB, and normalized text (newlines unified, per-line trailing spaces stripped, outer strip) matches the new `content`; configurable via `[safety].dangerous_critical_write_skip_if_unchanged` (default `true`) and `CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`; exposed on `doctor_v1` and `tool_gateway_guard_v1.policy`; tests extend `test_unrestricted_danger_dispatch_extended.py` and `test_unrestricted_mode_config.py`; smoke asserts doctor JSON carries the boolean.

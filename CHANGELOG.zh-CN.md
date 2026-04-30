@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **文档**：英文 **`README.md`** 增补 **`[safety]`** 解限说明（危险二次确认、关键写 noop、网关 **`[danger-approve]`** 前缀）；配置表示例增加 **`[safety]`**。**`README.zh-CN.md`** 配置表同步增加 **`[safety]`** 行以保持中英对照。
+
 - **SAFETY-N07-D02 解限关键写语义 noop（TOML/JSON）**：在 **SAFETY-N07-D01** 文本规范化比对之外，关键 basename 且扩展名为 **`.toml`/`.json`** 时若两侧均可解析且递归按键排序后的结构化数据相等，亦跳过 basename 级二次确认；解析失败则仍按原危险判定；扩展 `test_unrestricted_danger_dispatch_extended.py`；解限 SAFETY backlog 中本条 Explore 收口。
 
 - **SAFETY-N07-D01 解限关键写 noop 启发式**：解限且要求确认时，若 `write_file` 目标在工作区内已存在 UTF-8 文件（≤512KiB），规范化正文（换行统一、去行尾空白、外围 strip）与写入内容一致，则跳过「关键配置文件 basename」级二次确认；`[safety].dangerous_critical_write_skip_if_unchanged`（默认 true）与 `CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`；`doctor`/`tools guard` policy 字段；扩展 `test_unrestricted_danger_dispatch_extended.py`、`test_unrestricted_mode_config.py`；smoke 校验 doctor JSON 含布尔字段。
