@@ -510,32 +510,47 @@ class _SlackWebhookHandler(BaseHTTPRequestHandler):
                 session_file = str(binding.get("session_file") or "") if isinstance(binding, dict) else ""
                 try:
                     from cai_agent.config import load_agent_settings_for_workspace
+                    from cai_agent.gateway_danger import (
+                        apply_gateway_danger_grants,
+                        strip_gateway_danger_approve_lines,
+                    )
                     from cai_agent.graph import build_app, initial_state
+
                     s = load_agent_settings_for_workspace(
                         workspace=self.root,
                         config_path=getattr(self, "agent_config_path", None),
                     )
-                    if session_file and Path(session_file).is_file():
-                        from cai_agent.session import load_session, save_session
-                        from cai_agent.graph import continue_state
-                        sess = load_session(Path(session_file))
-                        app = build_app(s)
-                        state = continue_state(s, text, sess)
-                        final = app.invoke(state)
-                        save_session(Path(session_file), final)
+                    clean_goal, n_dg = strip_gateway_danger_approve_lines(text)
+                    apply_gateway_danger_grants(s, n_dg)
+                    if n_dg:
+                        ev["danger_gateway_grants_applied"] = int(n_dg)
+                    if not clean_goal.strip():
+                        ev["skipped_empty_goal_after_danger_prefix"] = True
+                        ev["executed"] = False
                     else:
-                        app = build_app(s)
-                        state = initial_state(s, text)
-                        final = app.invoke(state)
-                        if session_file:
-                            from cai_agent.session import save_session
+                        if session_file and Path(session_file).is_file():
+                            from cai_agent.session import load_session, save_session
+                            from cai_agent.graph import continue_state
+
+                            sess = load_session(Path(session_file))
+                            app = build_app(s)
+                            state = continue_state(s, clean_goal, sess)
+                            final = app.invoke(state)
                             save_session(Path(session_file), final)
-                    answer = str(final.get("answer") or "")[:600]
-                    ev["executed"] = True
-                    ev["answer_preview"] = answer
-                    if self.reply_on_execution and answer and channel_id and self.bot_token:
-                        _send_slack_message(channel_id, answer, self.bot_token)
-                        ev["replied"] = True
+                        else:
+                            app = build_app(s)
+                            state = initial_state(s, clean_goal)
+                            final = app.invoke(state)
+                            if session_file:
+                                from cai_agent.session import save_session
+
+                                save_session(Path(session_file), final)
+                        answer = str(final.get("answer") or "")[:600]
+                        ev["executed"] = True
+                        ev["answer_preview"] = answer
+                        if self.reply_on_execution and answer and channel_id and self.bot_token:
+                            _send_slack_message(channel_id, answer, self.bot_token)
+                            ev["replied"] = True
                 except Exception as exc:
                     ev["executed"] = False
                     ev["execute_error"] = str(exc)[:200]

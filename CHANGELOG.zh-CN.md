@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **SAFETY-N06-D01 解限 P4-4 网关危险确认契约**：新增 `gateway_danger.py`（goal 行前缀 `[danger-approve]` / `/danger-approve`，`CAI_GATEWAY_DANGER_APPROVE_TOKENS`）；Slack `execute_on_event` 与 Discord `execute_on_message` 路径剥离前缀并 `grant_dangerous_approval_once`；`tools guard --json` 增加 `danger_gateway_contract_v1`；回归 `test_gateway_danger_contract.py`。
+
 - **SAFETY-N05-D01 解限 P4 规则细化（fetch/write/run）**：解限且要求确认时，`allow_private_resolved_ips=true` 对 http/https `fetch_url` 追加二次确认；显式拒绝 `file://`；`write_file` 内置关键 basename 清单 + `dangerous_write_file_critical_basenames`；`run_command_extra_danger_basenames`；`doctor`/`tools guard` 报表字段计数；回归扩展 `test_unrestricted_danger_dispatch_extended.py` 等。
 
 - **SAFETY-N04-D01 解限会话放行与危险审计 JSONL**：进程内 `register_session_mcp_tool_danger_approval` / `register_session_fetch_http_host_danger_approval`；`dispatch` 与 `prepare_interactive_dangerous_dispatch` 识别会话放行且不消耗一次性 budget；TUI 斜杠命令与确认框「本会话放行」；`[safety].dangerous_audit_log_enabled` + `CAI_DANGEROUS_AUDIT_LOG` 写入 `.cai/dangerous-approve.jsonl`；`grant_dangerous_approval_once(..., settings=, audit_via=)`；`doctor`/`tools guard` 暴露 `dangerous_audit_log_enabled`。回归：`test_danger_session_and_audit.py` 等。

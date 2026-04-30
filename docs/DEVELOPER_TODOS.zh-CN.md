@@ -8,7 +8,7 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `SAFETY-N05-D01`：解限 P4-1～P4-3（fetch 私网 DNS 确认、`file://` 拒绝、关键写、run 额外基名）已交付；剩余 **P4-4（Gateway/API 确认契约）** 待立项 | `tools.py`、`config.py`、`doctor.py`、`tests/test_unrestricted_danger_dispatch_extended.py` | pytest + smoke |
+| - | - | Clear | `SAFETY-N06-D01`：P4-4 Slack/Discord 网关 goal 前缀放行 + `guard` 契约已交付；解限清单 P4 收口后下一探索项见 SAFETY backlog **Explore（write_file diff）** | `gateway_danger.py`、`gateway_slack.py`、`gateway_discord.py`、`tool_provider.py`、`tests/test_gateway_danger_contract.py` | pytest + smoke |
 
 ## 执行顺序
 

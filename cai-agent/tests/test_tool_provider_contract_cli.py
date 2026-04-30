@@ -183,6 +183,9 @@ class ToolProviderContractCliTests(unittest.TestCase):
             self.assertFalse(pol.get("dangerous_audit_log_enabled"))
             self.assertEqual(int(pol.get("dangerous_write_file_critical_basenames_count") or 0), 0)
             self.assertEqual(int(pol.get("run_command_extra_danger_basenames_count") or 0), 0)
+            dg = p_guard.get("danger_gateway_contract_v1") or {}
+            self.assertEqual(dg.get("schema_version"), "danger_gateway_goal_prefix_contract_v1")
+            self.assertIn("[danger-approve]", dg.get("tokens_effective") or [])
 
             buf_cost = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):

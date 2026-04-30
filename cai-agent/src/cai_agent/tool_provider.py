@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
+from cai_agent.gateway_danger import (
+    GATEWAY_DANGER_APPROVE_CONTRACT_SCHEMA_VERSION,
+    gateway_danger_approve_tokens,
+)
 from cai_agent.mcp_presets import (
     allowed_mcp_preset_choices,
     build_mcp_preset_report,
@@ -341,6 +345,13 @@ def build_tool_gateway_guard_payload(settings: Settings) -> dict[str, Any]:
                 "web_fetch_default": 200,
                 "bridge_check": 50,
             },
+        },
+        "danger_gateway_contract_v1": {
+            "schema_version": GATEWAY_DANGER_APPROVE_CONTRACT_SCHEMA_VERSION,
+            "tokens_effective": list(gateway_danger_approve_tokens()),
+            "tokens_env": "CAI_GATEWAY_DANGER_APPROVE_TOKENS",
+            "slack_execute_on_event": True,
+            "discord_execute_on_message": True,
         },
     }
 

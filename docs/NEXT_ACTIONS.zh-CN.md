@@ -7,17 +7,17 @@
 
 ## 当前目标
 
-- **解限安全（可选）**：清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) **P4-4**（Gateway / API Server 非 TUI 统一确认契约）；P4 其余条目已 Done。
+- **解限安全**：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 清单 **P4 已全部 Done**；后续 Enhancement 见该文档 **Explore**（如 write_file 破坏性 diff 启发式）。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | 解限 P4-1～P4-3 已交付；若要做跨入口确认契约请单独立项 **P4-4** |
+| - | - | Clear | 解限 P4（含 Slack/Discord 网关前缀放行契约）已收口 |
 
 ## 下一步（解限）
 
-- **P4-4**：Gateway / API Server 非 TUI 危险确认契约（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）；**write_file 破坏性 diff 启发式**仍为 Explore。
+- **Explore**：仅破坏性 diff 触发关键文件写入确认等（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) Explore 段）；按需另独立项。
 
 ## 后续队列
 
@@ -38,6 +38,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `SAFETY-N06-D01` | 2026-05-01 | P4-4：gateway_danger goal 前缀放行；Slack/Discord 执行路径接入；tools guard danger_gateway_contract_v1。 | python -m pytest -q cai-agent/tests: PASS (971 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N05-D01` | 2026-05-01 | 解限 P4-1～P4-3：fetch 私网 DNS 放行强制确认、拒绝 file://；write_file 关键 basename；run_command_extra_danger_basenames；doctor/guard 计数。 | python -m pytest -q cai-agent/tests: PASS (965 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N04-D01` | 2026-05-01 | 解限 P3-3/P3-4：会话 MCP/http 放行（斜杠+Modal）、dangerous_audit_log_enabled 与 .cai/dangerous-approve.jsonl；dispatch 会话豁免不耗 budget；grant 可记审计。 | python -m pytest -q cai-agent/tests: PASS (961 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N03-D01` | 2026-05-01 | 解限危险工具：Graph 下发 danger_confirm_prompt 与 prepare_interactive_dangerous_dispatch 串联；TUI Modal 确认；pytest 含 test_tools_prepare_interactive_dangerous_dispatch；schedule fake_build_app 接受 **kwargs。 | python -m pytest -q cai-agent/tests: PASS (955 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |

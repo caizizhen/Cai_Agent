@@ -439,29 +439,47 @@ def serve_discord_polling(
                             session_file = str(binding.get("session_file") or "")
                             try:
                                 from cai_agent.config import load_agent_settings_for_workspace
+                                from cai_agent.gateway_danger import (
+                                    apply_gateway_danger_grants,
+                                    strip_gateway_danger_approve_lines,
+                                )
                                 from cai_agent.graph import build_app, initial_state
+
                                 s = load_agent_settings_for_workspace(
                                     workspace=root,
                                     config_path=agent_config_path,
                                 )
-                                if session_file and Path(session_file).is_file():
+                                clean_goal, n_dg = strip_gateway_danger_approve_lines(content)
+                                apply_gateway_danger_grants(s, n_dg)
+                                if n_dg:
+                                    ev["danger_gateway_grants_applied"] = int(n_dg)
+                                if not clean_goal.strip():
+                                    ev["skipped_empty_goal_after_danger_prefix"] = True
+                                    answer_preview = ""
+                                    ev["executed"] = False
+                                elif session_file and Path(session_file).is_file():
                                     from cai_agent.session import load_session, save_session
+                                    from cai_agent.graph import continue_state
+
                                     sess = load_session(Path(session_file))
-                                    from cai_agent.graph import build_app, continue_state
                                     app = build_app(s)
-                                    state = continue_state(s, content, sess)
+                                    state = continue_state(s, clean_goal, sess)
                                     final = app.invoke(state)
                                     save_session(Path(session_file), final)
+                                    answer_preview = str(final.get("answer") or "")[:300]
+                                    ev["executed"] = True
+                                    ev["answer_preview"] = answer_preview
                                 else:
                                     app = build_app(s)
-                                    state = initial_state(s, content)
+                                    state = initial_state(s, clean_goal)
                                     final = app.invoke(state)
                                     if session_file:
                                         from cai_agent.session import save_session
+
                                         save_session(Path(session_file), final)
-                                answer_preview = str(final.get("answer") or "")[:300]
-                                ev["executed"] = True
-                                ev["answer_preview"] = answer_preview
+                                    answer_preview = str(final.get("answer") or "")[:300]
+                                    ev["executed"] = True
+                                    ev["answer_preview"] = answer_preview
                             except Exception as exc:
                                 ev["executed"] = False
                                 ev["execute_error"] = str(exc)[:200]

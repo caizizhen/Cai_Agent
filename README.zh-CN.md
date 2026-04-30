@@ -531,6 +531,8 @@ cai-agent schedule stats --json --days 30
 
 各平台需配置 Bot Token、签名密钥、Webhook URL 等；具体字段以各子命令 `--help` 与 `docs/GATEWAY_*.zh-CN.md` 为准。
 
+**解限模式下的危险二次确认（网关侧）**：Slack Events「消息触发执行」与 Discord 轮询「消息触发执行」在用户正文上做与 TUI `/danger-approve` 等价的**行前缀放行**：正文开头可重复一行 **`[danger-approve]`** 或 **`/danger-approve`**（忽略其间空行），每行等价一次进程内放行；剥离后再作为 Agent goal。纯前缀无正文时仅累积放行、不调用模型。自定义令牌：`CAI_GATEWAY_DANGER_APPROVE_TOKENS`（逗号分隔）。契约摘要亦在 **`cai-agent tools guard --json`** 的 **`danger_gateway_contract_v1`** 字段中。
+
 ---
 
 ## 反馈与修复
