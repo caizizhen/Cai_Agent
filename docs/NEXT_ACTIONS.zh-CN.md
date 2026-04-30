@@ -34,6 +34,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `DOC-QA-20260501` | 2026-05-01 | README 中英补充：解限 TUI 即时生效、`merge_tool_call_args` 顶层参数、Windows `E:`；IMPLEMENTATION_STATUS 回写 graph/doctor/测例；`doctor` 输出箭头改为 ASCII 避免 GBK 控制台崩溃；CHANGELOG。 | python -m pytest -q cai-agent/tests: PASS (997 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK<br>`QA_SKIP_LOG=1 python scripts/run_regression.py`: PASS |
 | `SAFETY-N08-D01` | 2026-05-01 | Unrestricted mode: `resolve_tool_path` allows absolute paths outside workspace for file tools + `run_command cwd`; outside-workspace uses dangerous confirmation when enabled; `test_unrestricted_filesystem_paths.py`. | python -m pytest -q cai-agent/tests: PASS (988 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N07-D02` | 2026-05-01 | Critical write_file TOML/JSON semantic noop; SAFETY backlog Explore cleared; docs and tests updated. | python -m pytest -q cai-agent/tests: PASS (980 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N07-D01` | 2026-05-01 | Critical write_file noop heuristic: skip basename dangerous confirmation when disk file exists and normalized UTF-8 matches; doctor/guard/smoke/tests. | python -m pytest -q cai-agent/tests: PASS (976 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |

@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Fix**: `cai-agent doctor` human-readable output used Unicode arrows (**`→`**, **`↔`**) that crash on Windows consoles limited to **GBK** (**`UnicodeEncodeError`**). Those labels now use ASCII (**`->`**, **`<->`**).
+
 - **Fix (TUI / unrestricted_mode)**: **`build_app`** captured the initial **`Settings`** in a closure, so **`/unrestricted on`** updated **`AgentShell._settings`** (and disk TOML) but **`tools_node`** still called **`dispatch`** with the old **`unrestricted_mode=false`** snapshot—absolute **`list_dir`** paths failed until restart. **`build_app`** now accepts optional **`settings_supplier`**; the TUI passes **`lambda: self._settings`** so each LLM/tool step reads live safety flags. Test: **`test_graph_live_settings.py`**.
 
 - **Fix**: LangGraph tool JSON often places parameters next to **`name`** (for example **`{"type":"tool","name":"list_dir","path":"E:\\\\"}`**) instead of under **`args`**. The executor previously ignored those keys, so **`list_dir`** defaulted to **`path="."`** and listed the workspace (for example **`.cai`** / **`snake_gba`**) instead of the requested directory. **`graph.merge_tool_call_args`** now merges top-level keys into **`args`** (explicit **`args`** entries still win). Tests: **`test_graph_tool_payload.py`**.

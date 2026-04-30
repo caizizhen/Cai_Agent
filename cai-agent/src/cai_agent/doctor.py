@@ -896,7 +896,7 @@ def run_doctor(
     print(
         "危险操作审计日志:",
         "开启" if bool(getattr(settings, "dangerous_audit_log_enabled", False)) else "关闭",
-        "([safety].dangerous_audit_log_enabled / CAI_DANGEROUS_AUDIT_LOG → .cai/dangerous-approve.jsonl)",
+        "([safety].dangerous_audit_log_enabled / CAI_DANGEROUS_AUDIT_LOG -> .cai/dangerous-approve.jsonl)",
     )
     print()
 
@@ -987,7 +987,7 @@ def run_doctor(
     )
     phd = build_plugins_home_sync_drift_v1(settings)
     dtargets = [str(x) for x in (phd.get("targets_with_drift") or [])]
-    print("Plugins / 根目录 ↔ harness 导出漂移:")
+    print("Plugins / 根目录 <-> harness 导出漂移:")
     if dtargets:
         print(f"  有差分目标: {','.join(dtargets)}")
     else:

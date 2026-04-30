@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **修复**：`cai-agent doctor` 人类可读输出曾含 **`→`**、**`↔`** 等 Unicode，在受限为 **GBK** 的 Windows 控制台会因 **`UnicodeEncodeError`** 崩溃；相关文案已改为 ASCII（**`->`**、**`<->`**）。
+
 - **修复（TUI / 解限模式）**：**`build_app`** 在构造时闭包捕获了最初的 **`Settings`**，TUI 执行 **`/unrestricted on`** 后虽已更新 **`AgentShell._settings`** 并写盘，但 **`tools_node`** 仍用旧的 **`unrestricted_mode=false`** 调用 **`dispatch`**，导致 **`list_dir`** 等工作区外绝对路径被拒绝，只能重启后才生效。**`build_app`** 现支持可选 **`settings_supplier`**，TUI 传入 **`lambda: self._settings`**，每轮 LLM/工具节点使用当前配置。回归 **`test_graph_live_settings.py`**。
 
 - **修复**：LangGraph 工具 JSON 常把参数写在 **`name` 旁边**（例如 **`{"type":"tool","name":"list_dir","path":"E:\\\\"}`**），而不是放在 **`args`** 里。执行器原先只看 **`args`**，导致 **`list_dir`** 回落为 **`path="."`**，列出的始终是**工作区根**（例如 **`.cai`**、**`snake_gba`**），而不是请求的 **`E:\\`**。现已通过 **`graph.merge_tool_call_args`** 把顶层参数并入 **`args`**（**`args` 内已有字段优先**）。回归 **`test_graph_tool_payload.py`**。

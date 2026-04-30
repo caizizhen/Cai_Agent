@@ -240,7 +240,9 @@ cai-agent ui -w (Get-Location).Path
 在 `cai-agent.toml` 中配置 **`[safety].unrestricted_mode`**（默认 `false`）。开启后，`run_command` 不再因高危子串被**硬性阻断**，改为：若仍启用 **`[safety].dangerous_confirmation_required`**（默认 `true`），则对危险操作要求**二次确认**后再执行。
 
 - **与工作区外的路径**：未开启解限时，工具 **`path` / `glob_search`·`search_text` 的 `root` / `run_command` 的 `cwd`** 只能使用**相对 `[agent].workspace` 的路径**；传入绝对路径会被拒绝。**开启 `unrestricted_mode` 后**允许使用**绝对路径**访问盘上任意位置；若 **`dangerous_confirmation_required`** 仍为 **true**（默认），则每次落在工作区外的绝对路径仍会触发**二次确认**（与 MCP / 高危命令等确认同一套 `/danger-approve` / Modal）。相对路径的解释不变（仍以当前工作区为根）。
-- **TUI**：`/unrestricted` 查看状态；`/unrestricted on|off` 切换（若自 TOML 启动则会写回配置文件）；`/danger-approve` 放行**下一次**危险工具调用。交互式会话中，若未预授权且未设置 `CAI_DANGEROUS_APPROVE`，触发危险工具时会出现**模态确认框**（允许本次 / 取消；对 MCP 与明文 `http` 的 `fetch_url` 还可选**本会话放行**）。活动条同步显示「等待危险操作确认」类提示。
+- **TUI**：`/unrestricted` 查看状态；`/unrestricted on|off` 切换（若自 TOML 启动则会写回配置文件）；`/danger-approve` 放行**下一次**危险工具调用。交互式会话中，若未预授权且未设置 `CAI_DANGEROUS_APPROVE`，触发危险工具时会出现**模态确认框**（允许本次 / 取消；对 MCP 与明文 `http` 的 `fetch_url` 还可选**本会话放行**）。活动条同步显示「等待危险操作确认」类提示。**切换解限后会立即作用于下一轮 LLM/工具调用（编排器每轮读取当前 `Settings`，无需重启 TUI）。**
+- **工具 JSON**：模型输出可为 `{"type":"tool","name":"工具名","args":{…}}`；也可把 `path`、`root`、`cwd`、`pattern` 等与 **`name` 同级**（顶层字段会自动并入 `args`，避免误列工作区根）。
+- **Windows**：单独写盘符 **`E:`**（两字符）时，解限下的路径解析会规范为 **`E:\` 卷根**，与「资源管理器里的盘根」一致；列出其它盘根时建议直接写 **`E:\`** 或 **`E:/`**。
 - **本会话放行（解限 + 仍要求确认时）**：`/danger-session-mcp <MCP工具名>`、`/danger-session-fetch <主机名或 http URL>`、`/danger-session-clear` 清空列表（任务运行中也可输入）。
 - **审计（可选）**：`[safety].dangerous_audit_log_enabled = true` 或 `CAI_DANGEROUS_AUDIT_LOG=1` 时，向工作区 **`.cai/dangerous-approve.jsonl`** 追加 JSON 行（授予、执行、会话放行等事件）；默认关闭。
 - **危险判定（当前）**：高危 `run_command`；**`[safety].run_command_extra_danger_basenames`** 所列命令基名；写入敏感路径或**内置/配置的关键配置文件名**的 `write_file`（如 `pyproject.toml`，见模板注释）；任意 **`mcp_call_tool`**；**明文 `http://` 的 `fetch_url`**；**`[fetch_url].allow_private_resolved_ips=true`** 时的任意 http/https **`fetch_url`**（DNS 可达私网风险）；**不支持 `fetch_url` 的 `file://`**。
