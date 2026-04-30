@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Docs**: Clarified that **`unrestricted_mode` does not bypass `[agent].workspace`** (file tools and `run_command` cwd stay sandboxed); **`README.md`** / **`README.zh-CN.md`** + SAFETY backlog opener.
+
 - **Fix**: TUI `/unrestricted on|off` crashed with **`re.PatternError`** because `_persist_unrestricted_mode` accidentally doubled regex escapes (`\\[` became a broken character class). Patterns are corrected; **`[safety]`** scanning tolerates CRLF; regression tests added in **`test_unrestricted_mode_config.py`**.
 
 - **Docs**: English **`README.md`** now documents unrestricted **`[safety]`** behaviour (danger confirmations, critical-write noop, gateway **`[danger-approve]`** prefixes); config table adds **`[safety]`**. **`README.zh-CN.md`** config table adds the same **`[safety]`** row for parity.

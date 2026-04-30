@@ -1,6 +1,6 @@
 # 解限模式与安全确认：完整开发清单
 
-> 产品语义：**默认不按「任务类型」拦工具**；仅在命中**危险行为**时要求二次确认（TUI：`/danger-approve`；非交互：`CAI_DANGEROUS_APPROVE=1`）。  
+> 产品语义：**默认不按「任务类型」拦工具**；仅在命中**危险行为**时要求二次确认（TUI：`/danger-approve`；非交互：`CAI_DANGEROUS_APPROVE=1`）。**「解限」指危险规则的交互放行方式，不是取消 `[agent].workspace` 沙箱**（路径仍不得越界）。  
 > 配置：`[safety].unrestricted_mode`、`[safety].dangerous_confirmation_required`（见 `cai-agent.toml` 模板）。
 
 ## 状态图例

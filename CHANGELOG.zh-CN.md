@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **文档**：明确 **`unrestricted_mode` 不会放开 `[agent].workspace`**（文件工具与 `run_command` 的 `cwd` 仍限工作区内）；已更新 **`README.md`** / **`README.zh-CN.md`** 与 **`SAFETY_UNRESTRICTED_BACKLOG`** 开篇说明。
+
 - **修复**：TUI 执行 **`/unrestricted on|off`** 时 `_persist_unrestricted_mode` 内正则错误地使用 **`\\[`** 等双重转义，触发 **`re.PatternError`** 崩溃；已改为正确 **`\[`** 写法并兼容 **`[safety]`** 段 CRLF；回归 **`test_unrestricted_mode_config.py`**。
 
 - **文档**：英文 **`README.md`** 增补 **`[safety]`** 解限说明（危险二次确认、关键写 noop、网关 **`[danger-approve]`** 前缀）；配置表示例增加 **`[safety]`**。**`README.zh-CN.md`** 配置表同步增加 **`[safety]`** 行以保持中英对照。
