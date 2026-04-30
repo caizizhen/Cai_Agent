@@ -320,6 +320,7 @@ def build_tool_gateway_guard_payload(settings: Settings) -> dict[str, Any]:
             "run_command_high_risk_patterns_count": len(rr_pats),
             "fetch_url_enabled": bool(settings.fetch_url_enabled),
             "fetch_url_unrestricted": bool(settings.fetch_url_unrestricted),
+            "unrestricted_mode": bool(getattr(settings, "unrestricted_mode", False)),
         },
         "cost_guard": {
             "max_tokens": max_tokens,

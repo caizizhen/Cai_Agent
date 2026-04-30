@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **SAFETY-N01-D01 解限模式配置开关**：新增 `[safety].unrestricted_mode`（默认 `false`），环境变量 `CAI_UNRESTRICTED_MODE` 可覆盖；`doctor --json` 暴露 `unrestricted_mode`，`tool_gateway_guard_v1.policy` 同步该字段；示例模板 `cai-agent.example.toml` 含 `[safety]` 段。后续 Graph/TUI 危险二次确认将读取该开关。
+
 - **GW-SLASH-N01 Gateway slash catalog**：新增 `gateway slash-catalog --json` 与 `GET /v1/gateway/slash-catalog`（`gateway_slash_catalog_v1`），离线公开 Discord application commands、Slack `/cai` 子命令与 Teams command list，并统计可执行型命令数量，便于 operator 审核。
 
 - **GW-CHAN-N01 Gateway channel-monitor 独立入口**：新增 `gateway channel-monitor --json` 与 `GET /v1/gateway/channel-monitor`（`gateway_channel_monitor_v1`），从 `gateway_production_summary_v1` 派生紧凑频道监控视图。该入口支持平台过滤与 `only_errors` 过滤，便于运维脚本不解析完整 prod-status 即可读取频道状态。

@@ -267,6 +267,8 @@ class Settings:
     permission_fetch_url: str
     run_command_approval_mode: str
     run_command_high_risk_patterns: tuple[str, ...]
+    # [safety]：解限模式（默认关闭）；后续用于「默认少拦、危险二次确认」等行为开关。
+    unrestricted_mode: bool
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -657,6 +659,16 @@ class Settings:
             )
         else:
             run_command_high_risk_patterns = ()
+
+        safety = _section(file_data, "safety")
+        if os.getenv("CAI_UNRESTRICTED_MODE") is not None:
+            unrestricted_mode = _env_bool("CAI_UNRESTRICTED_MODE", False)
+        else:
+            raw_um = safety.get("unrestricted_mode")
+            if isinstance(raw_um, bool):
+                unrestricted_mode = raw_um
+            else:
+                unrestricted_mode = False
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
@@ -1066,6 +1078,7 @@ class Settings:
             permission_fetch_url=permission_fetch_url,
             run_command_approval_mode=run_command_approval_mode,
             run_command_high_risk_patterns=run_command_high_risk_patterns,
+            unrestricted_mode=unrestricted_mode,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

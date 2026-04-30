@@ -7,13 +7,13 @@
 
 ## 当前目标
 
-- `CTX-COMPACT-N08` 已完成并归档：TUI `/status` 与 `/compress` 后会展示最近一次压缩 mode/source、tokens、ratio、fallback reason 与 quality score。当前默认开发队列清空；下一轮建议继续 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
+- `SAFETY-N01`：解限模式 TOML 开关已落地（`[safety].unrestricted_mode`，默认 `false`）；下一步在 Graph/TUI 实现危险工具调用的二次确认链路与 CLI 非交互逃逸阀。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | `CTX-COMPACT-N08` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260430-200657-CTX-COMPACT-N08.md` |
+| 1 | `SAFETY-N01`（配置层已完成） | In progress | `pytest test_unrestricted_mode_config.py`；`doctor --json` 含 `unrestricted_mode`；`tools guard --json` 的 `policy.unrestricted_mode` |
 
 ## 后续队列
 

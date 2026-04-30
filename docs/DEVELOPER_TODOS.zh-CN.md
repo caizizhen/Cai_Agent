@@ -8,13 +8,13 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `CTX-COMPACT-N08` 已完成并归档；上下文压缩后续计划见 `docs/CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md` | `docs/COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/` | 下一轮从 `CTX-COMPACT-N09` 安全/隐私过滤、`CTX-COMPACT-N10` 真实模型回归样本集、Gateway slash 真实注册/部署检查或 Ops operator 路由深化中选择 |
+| 1 | `SAFETY-N01` | Ready | 解限模式：`[safety].unrestricted_mode`（默认 off）→ doctor/guard；后续 Graph/TUI 危险二次确认 | `config.py`、`doctor.py`、`tool_provider.py`、`graph.py`、`tui.py` | 配置+机读暴露+pytest；二次确认合入后 smoke |
 
 ## 执行顺序
 
-1. 本轮已完成 `CTX-COMPACT-N08`，TUI 最近一次压缩状态展示已收口。
-2. 下一轮若继续上下文面，优先做 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
-3. 若暂停上下文面，再回到 Gateway slash command 真实注册/部署检查或 Ops operator 路由深化中选择。
+1. **`SAFETY-N01`**：`SAFETY-N01-D01` 已合入 `[safety].unrestricted_mode`（默认 off）与 doctor/guard 透出；继续实现 Graph/TUI 危险二次确认与非交互逃逸阀。
+2. 若并行上下文面：优先 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
+3. 若暂停上下文面：再回到 Gateway slash 深化或 Ops operator 路由深化中选择。
 
 ## 每个任务的统一要求
 

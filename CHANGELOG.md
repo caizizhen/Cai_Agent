@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **SAFETY-N01-D01 unrestricted-mode config flag**: Added `[safety].unrestricted_mode` (default `false`), overridable via `CAI_UNRESTRICTED_MODE`; surfaced as `doctor_v1.unrestricted_mode` and `tool_gateway_guard_v1.policy.unrestricted_mode`; starter template includes `[safety]`. Intended precursor for future “fewer task gates + dangerous-action confirmation” behavior.
+
 - **GW-SLASH-N01 gateway slash catalog**: Added `gateway slash-catalog --json` and `GET /v1/gateway/slash-catalog` (`gateway_slash_catalog_v1`) to expose an offline command catalog for Discord application commands, Slack `/cai` subcommands, and Teams command lists, including execute-capable command counts for operator review.
 
 - **GW-CHAN-N01 gateway channel-monitor surface**: Added `gateway channel-monitor --json` and `GET /v1/gateway/channel-monitor` (`gateway_channel_monitor_v1`) as a compact channel monitoring view derived from `gateway_production_summary_v1`. The surface supports platform filtering and `only_errors` filtering for operator scripts without parsing the full production summary.

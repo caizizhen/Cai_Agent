@@ -299,6 +299,7 @@
 | `UX-N01-D05` | `Done` | `UX-N01` | 体验层第五阶段（run 家族失败提示补齐） | 将统一 hints 扩展到 `run/continue/command/agent/fix-build` 家族的 `config_not_found`、`goal_empty`、`command_not_found`、`agent_not_found`；JSON 与文本失败面保持同口径，缺模板时直接提示 `commands --json` / `agents --json` | `UX-N01-D04` | pytest `test_cli_misc` + 全量 + smoke |
 | `UX-N01-D06` | `Done` | `UX-N01` | 体验层第六阶段（plan/workflow/release-ga 失败提示收口） | `plan` 的 `config_not_found/goal_empty/llm_error` 失败输出补齐 hints；`workflow` 的模板缺失/缺文件/缺配置/运行失败补 `hint:`；`release-ga` 失败态输出 `hints[]`（JSON）并在文本 failed checks 后追加 hint，形成跨命令一致排障路径 | `UX-N01-D05` | pytest `test_plan_sessions_cli` + `test_cli_workflow` + `test_release_ga_cli` + `test_cli_misc` + 全量 + smoke |
 | `DOC-01c` | `Done` | `DOC-01` | 英文对照 & 入口双语持续收敛 | 根 README 与 docs README 补 Teams/runtime/plugin snapshot 入口；中英入口互指实现摘要、测试清单与 snapshot | — | 手工 + `rg` |
+| `SAFETY-N01-D01` | `Done` | `SAFETY-N01` | 解限模式 TOML 开关（默认关闭） | `[safety].unrestricted_mode` / `CAI_UNRESTRICTED_MODE`；`doctor_v1.unrestricted_mode`；`tool_gateway_guard_v1.policy.unrestricted_mode`；示例模板 `[safety]` 段 | — | pytest `test_unrestricted_mode_config.py` |
 
 ### 10.1 建议开单顺序
 

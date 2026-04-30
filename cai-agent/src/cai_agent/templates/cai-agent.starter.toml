@@ -62,6 +62,9 @@ write_file = "allow"
 run_command = "allow"
 fetch_url = "allow"
 
+[safety]
+unrestricted_mode = false
+
 [cost]
 budget_max_tokens = 50000
 

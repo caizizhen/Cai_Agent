@@ -642,6 +642,7 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "fetch_url_max_redirects": settings.fetch_url_max_redirects,
         "fetch_url_allow_private_resolved_ips": settings.fetch_url_allow_private_resolved_ips,
         "permission_fetch_url": settings.permission_fetch_url,
+        "unrestricted_mode": bool(getattr(settings, "unrestricted_mode", False)),
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
         "instruction_files": instruction_files,
@@ -864,6 +865,11 @@ def run_doctor(
         )
     else:
         print()
+    print(
+        "解限模式:",
+        "开启" if bool(getattr(settings, "unrestricted_mode", False)) else "关闭",
+        "([safety].unrestricted_mode / CAI_UNRESTRICTED_MODE)",
+    )
     print()
 
     ping_on = os.getenv("CAI_DOCTOR_PING", "").strip().lower() in (
