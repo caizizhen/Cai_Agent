@@ -109,7 +109,7 @@ def _consume_dangerous_approval_once() -> bool:
         return True
 
 
-def _needs_dangerous_confirmation(
+def needs_dangerous_confirmation(
     settings: Settings,
     name: str,
     args: dict[str, Any],
@@ -153,9 +153,58 @@ def _needs_dangerous_confirmation(
     return (False, "")
 
 
-def _dangerous_auto_approved_from_env() -> bool:
+def dangerous_auto_approved_from_env() -> bool:
     raw = os.getenv("CAI_DANGEROUS_APPROVE", "")
     return str(raw).strip().lower() in ("1", "true", "yes", "on")
+
+
+def peek_dangerous_approval_budget() -> int:
+    """当前进程中尚未被 dispatch 消耗的预授权次数。"""
+    with _DANGEROUS_APPROVAL_LOCK:
+        return int(_DANGEROUS_APPROVAL_BUDGET)
+
+
+def reset_dangerous_approval_budget_for_testing() -> None:
+    """测试专用：清零进程内危险操作预授权计数。"""
+    global _DANGEROUS_APPROVAL_BUDGET
+    with _DANGEROUS_APPROVAL_LOCK:
+        _DANGEROUS_APPROVAL_BUDGET = 0
+
+
+def prepare_interactive_dangerous_dispatch(
+    settings: Settings,
+    name: str,
+    args: dict[str, Any],
+    *,
+    interactive_confirm: Callable[[dict[str, Any]], bool] | None,
+) -> tuple[bool, str | None]:
+    """交互式确认链路：在调用 ``dispatch`` 之前决定是否放行。
+
+    返回 ``(允许调用 dispatch, 跳过 dispatch 时的合成错误正文)``。
+    若不触发交互分支（或无预算且无交互），返回 ``(True, None)`` ，由 ``dispatch`` 自行校验。
+    """
+    need, reason = needs_dangerous_confirmation(settings, name, args)
+    if not need:
+        return (True, None)
+    if dangerous_auto_approved_from_env():
+        return (True, None)
+    if peek_dangerous_approval_budget() > 0:
+        return (True, None)
+    if interactive_confirm is None:
+        return (True, None)
+    payload = {"name": name, "args": dict(args), "reason": reason}
+    try:
+        ok = bool(interactive_confirm(payload))
+    except Exception:
+        ok = False
+    if ok:
+        grant_dangerous_approval_once()
+        return (True, None)
+    return (
+        False,
+        "工具执行失败: 用户取消了危险操作确认。"
+        f"（{reason}；可先输入 /danger-approve 预放行一次，或设置 CAI_DANGEROUS_APPROVE=1）",
+    )
 
 
 def tool_read_file(workspace: str, args: dict[str, Any]) -> str:
@@ -840,8 +889,8 @@ def tool_mcp_call_tool(settings: Settings, args: dict[str, Any]) -> str:
 def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     ws = settings.workspace
     enforce_tool_permission(settings, name)
-    need_confirm, reason = _needs_dangerous_confirmation(settings, name, args)
-    if need_confirm and not (_consume_dangerous_approval_once() or _dangerous_auto_approved_from_env()):
+    need_confirm, reason = needs_dangerous_confirmation(settings, name, args)
+    if need_confirm and not (_consume_dangerous_approval_once() or dangerous_auto_approved_from_env()):
         raise SandboxError(
             f"危险操作需要二次确认：{reason}。"
             "请先在 TUI 输入 /danger-approve（仅放行下一次高危操作），"

@@ -7,17 +7,17 @@
 
 ## 当前目标
 
-- `SAFETY-N02-D01`：`mcp_call_tool` 与明文 `http` 的 `fetch_url` 纳入解限二次确认；用户说明见 `README.zh-CN.md`，清单见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
+- **解限安全（可选下一单）**：清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 中 **P3-3**（会话级批量策略）、**P3-4**（危险确认审计日志）；非 TUI 入口统一确认契约见 **P4-4**。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | `SAFETY-N02-D01`：pytest 含 `test_unrestricted_danger_dispatch_extended.py` + smoke |
+| - | - | Clear | P3-1/P3-2（Graph progress + TUI Modal）已在归档交付；可选立项清单 **P3-3 / P3-4** |
 
 ## 下一步（解限）
 
-- P3：`graph.py` pending 审批节点 + TUI Modal 自动确认（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 中 P3）
+- P3-3 / P3-4：批量批准策略与 `.cai/dangerous-approve.jsonl` 类审计（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）
 
 ## 后续队列
 
@@ -38,6 +38,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `SAFETY-N03-D01` | 2026-05-01 | 解限危险工具：Graph 下发 danger_confirm_prompt 与 prepare_interactive_dangerous_dispatch 串联；TUI Modal 确认；pytest 含 test_tools_prepare_interactive_dangerous_dispatch；schedule fake_build_app 接受 **kwargs。 | python -m pytest -q cai-agent/tests: PASS (955 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `CTX-COMPACT-N08` | 2026-04-30 | Show recent context compaction status in TUI | compileall context_compaction/graph/tui/__main__: PASS; pytest tui_slash_suggester + context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 51 passed |
 | `CTX-COMPACT-N07` | 2026-04-30 | Add tool-aware evidence extraction for context compaction summaries | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 22 passed |
 | `CTX-COMPACT-N06` | 2026-04-30 | Merge existing context summaries during repeated compaction | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 21 passed |

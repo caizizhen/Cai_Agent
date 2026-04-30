@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **SAFETY-N03-D01 unrestricted dangerous-tool interactive confirm**: `build_app` accepts optional `dangerous_confirm`; graph `tools_node` emits `danger_confirm_prompt` progress then runs `prepare_interactive_dangerous_dispatch` before `dispatch`; TUI wires a modal Yes/No via `call_from_thread`; adds `reset_dangerous_approval_budget_for_testing()`; backlog P3-1/P3-2 marked Done ([`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)); tests include `test_tools_prepare_interactive_dangerous_dispatch.py` and schedule stubs accepting `**kwargs`.
+
 - **SAFETY-N02-D01 unrestricted-mode wider confirmation gate**: When unrestricted with `dangerous_confirmation_required=true`, `mcp_call_tool` and cleartext `http` `fetch_url` now require second confirmation (`/danger-approve` or `CAI_DANGEROUS_APPROVE=1`); `README.zh-CN.md` documents behavior; backlog [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md).
 
 - **SAFETY-N01-D01 unrestricted-mode config flag**: Added `[safety].unrestricted_mode` (default `false`) and `[safety].dangerous_confirmation_required` (default `true`), overridable via `CAI_UNRESTRICTED_MODE` and `CAI_DANGEROUS_CONFIRMATION_REQUIRED`; surfaced in `doctor_v1` and `tool_gateway_guard_v1.policy`; both example and starter templates include `[safety]`.

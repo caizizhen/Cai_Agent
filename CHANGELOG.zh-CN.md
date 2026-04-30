@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **SAFETY-N03-D01 解限危险操作 TUI 自动确认与 Graph 串联**：`build_app(..., dangerous_confirm=...)`；`tools_node` 在交互确认路径上先广播 `danger_confirm_prompt` 再调用 `prepare_interactive_dangerous_dispatch`；TUI 使用 `ModalScreen` + `call_from_thread` 弹出允许/取消；新增 `reset_dangerous_approval_budget_for_testing()`；清单 P3-1/P3-2 标 Done（[`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）；回归含 `test_tools_prepare_interactive_dangerous_dispatch.py`、schedule `fake_build_app` 兼容 `**kwargs`。
+
 - **SAFETY-N02-D01 解限模式扩大危险确认**：解限且 `dangerous_confirmation_required=true` 时，`mcp_call_tool` 每次调用与明文 `http` 的 `fetch_url` 需二次确认（TUI `/danger-approve` 或 `CAI_DANGEROUS_APPROVE=1`）；`README.zh-CN.md` 增补说明；全景清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
 
 - **SAFETY-N01-D01 解限模式配置开关**：新增 `[safety].unrestricted_mode`（默认 `false`）与 `[safety].dangerous_confirmation_required`（默认 `true`），环境变量 `CAI_UNRESTRICTED_MODE` / `CAI_DANGEROUS_CONFIRMATION_REQUIRED` 可覆盖；`doctor --json` 与 `tool_gateway_guard_v1.policy` 同步暴露字段；example/starter 模板均新增 `[safety]` 段。

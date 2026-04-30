@@ -17,7 +17,14 @@ from cai_agent.context import augment_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, extract_json_object, get_last_usage
 from cai_agent.llm_factory import chat_completion_by_role, peek_last_profile_route_decision
 from cai_agent.progress_ring import global_ring
-from cai_agent.tools import dispatch, tools_spec_markdown
+from cai_agent.tools import (
+    dangerous_auto_approved_from_env,
+    dispatch,
+    needs_dangerous_confirmation,
+    peek_dangerous_approval_budget,
+    prepare_interactive_dangerous_dispatch,
+    tools_spec_markdown,
+)
 
 
 def _emit(
@@ -92,6 +99,7 @@ def build_app(
     progress: Callable[[dict[str, Any]], None] | None = None,
     should_stop: Callable[[], bool] | None = None,
     role: str = "active",
+    dangerous_confirm: Callable[[dict[str, Any]], bool] | None = None,
 ):
     """构建主循环图。
 
@@ -564,8 +572,33 @@ def build_app(
             _rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
             tool_evt["runtime_backend"] = get_runtime_backend(_rb, settings=settings).name
         _emit(progress, tool_evt)
+        need_u, reason_u = needs_dangerous_confirmation(settings, name, args)
+        if (
+            need_u
+            and peek_dangerous_approval_budget() <= 0
+            and not dangerous_auto_approved_from_env()
+            and dangerous_confirm is not None
+        ):
+            _emit(
+                progress,
+                {
+                    "phase": "danger_confirm_prompt",
+                    "name": name,
+                    "reason": reason_u,
+                    "summary": _args_summary(args),
+                },
+            )
+        ok_dispatch, synthetic_fail = prepare_interactive_dangerous_dispatch(
+            settings,
+            name,
+            args,
+            interactive_confirm=dangerous_confirm,
+        )
         try:
-            out = dispatch(settings, name, args)
+            if not ok_dispatch:
+                out = synthetic_fail or "工具执行失败: 危险操作被拒绝"
+            else:
+                out = dispatch(settings, name, args)
         except Exception as e:
             out = f"工具执行失败: {e}"
         _emit(progress, {"phase": "tool_done", "name": name})

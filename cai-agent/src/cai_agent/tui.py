@@ -3,6 +3,7 @@ from __future__ import annotations
 import difflib
 import json
 import re
+import threading
 import time
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -13,8 +14,9 @@ from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.message import Message
+from textual.screen import ModalScreen
 from textual.suggester import Suggester
-from textual.widgets import Footer, Header, Input, LoadingIndicator, OptionList, RichLog, Static
+from textual.widgets import Button, Footer, Header, Input, LoadingIndicator, OptionList, RichLog, Static
 from textual.widgets._option_list import Option
 from textual.worker import Worker, WorkerState
 
@@ -518,6 +520,47 @@ class SlashCommandSuggester(Suggester):
         return None
 
 
+class DangerConfirmScreen(ModalScreen[bool]):
+    """解限模式下危险工具调用前的阻塞确认（由工作线程经 ``call_from_thread`` 拉起）。"""
+
+    BINDINGS = [Binding("escape", "cancel", "取消", show=True)]
+
+    def __init__(self, payload: dict[str, Any]) -> None:
+        super().__init__()
+        self._payload = payload
+
+    def compose(self) -> ComposeResult:
+        name = str(self._payload.get("name") or "")
+        reason = str(self._payload.get("reason") or "")
+        try:
+            summary = json.dumps(self._payload.get("args") or {}, ensure_ascii=False)
+        except TypeError:
+            summary = str(self._payload.get("args"))
+        if len(summary) > 800:
+            summary = summary[:800] + "…"
+        body = (
+            "危险操作确认\n\n"
+            f"{reason}\n\n"
+            f"工具: {name}\n\n"
+            "参数:\n"
+            f"{summary}\n\n"
+            "允许：执行本次工具调用 · 取消：跳过本次（仍可先用 /danger-approve 预放行）"
+        )
+        yield Static(body, markup=False)
+        with Horizontal():
+            yield Button("允许执行", variant="primary", id="dc-yes")
+            yield Button("取消", id="dc-no")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "dc-yes":
+            self.dismiss(True)
+        else:
+            self.dismiss(False)
+
+    def action_cancel(self) -> None:
+        self.dismiss(False)
+
+
 class SlashAwareInput(Input):
     """在默认 ``Input`` 上增加 Tab：有补全时接受，否则交给焦点环。"""
 
@@ -672,11 +715,34 @@ class CaiAgentApp(App[None]):
             settings,
             progress=_progress_sink,
             should_stop=lambda: self._stop_requested,
+            dangerous_confirm=self._danger_confirm_callback,
         )
         self._messages: list[dict[str, Any]] = [
             {"role": "system", "content": build_system_prompt(settings)},
         ]
         self._sync_slash_completion_sources()
+
+    def _danger_confirm_callback(self, payload: dict[str, Any]) -> bool:
+        """在工作线程中调用：回到主线程弹出确认框并阻塞等待用户选择。"""
+        result: list[bool | None] = [None]
+        done = threading.Event()
+
+        def on_main() -> None:
+            def finish(value: bool | None) -> None:
+                result[0] = False if value is None else bool(value)
+                done.set()
+
+            self.push_screen(DangerConfirmScreen(payload), finish)
+
+        try:
+            self.call_from_thread(on_main)
+        except Exception:
+            result[0] = False
+            done.set()
+        done.wait(timeout=600.0)
+        if result[0] is None:
+            return False
+        return bool(result[0])
 
     def _sync_slash_completion_sources(self) -> None:
         """刷新斜杠补全用的 profile id 与 MCP 工具名（走 mcp_list_tools 缓存，不强制联网）。"""
@@ -738,6 +804,7 @@ class CaiAgentApp(App[None]):
             self._settings,
             progress=_progress_sink,
             should_stop=lambda: self._stop_requested,
+            dangerous_confirm=self._danger_confirm_callback,
         )
         self._sync_slash_completion_sources()
 
@@ -1037,6 +1104,11 @@ class CaiAgentApp(App[None]):
             return (
                 f"[yellow]待执行工具[/] [bold]{p.get('name', '')}[/] "
                 f"[dim]{p.get('summary', '')}[/]"
+            )
+        if phase == "danger_confirm_prompt":
+            return (
+                f"[bold red]危险确认[/] [bold]{p.get('name', '')}[/] "
+                f"[dim]{str(p.get('reason') or '')[:120]}[/]"
             )
         if phase == "tool":
             return (

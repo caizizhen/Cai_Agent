@@ -31,7 +31,7 @@ class ScheduleRunDueRetryJsonTests(unittest.TestCase):
                 )
             self.assertEqual(rc_add, 0)
 
-            def fake_build_app(_settings, should_stop=None, progress=None, role="active"):
+            def fake_build_app(_settings, should_stop=None, progress=None, role="active", **kwargs):
                 class _App:
                     def invoke(self, state):
                         return {

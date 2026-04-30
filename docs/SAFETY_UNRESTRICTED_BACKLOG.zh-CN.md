@@ -49,14 +49,14 @@
 
 ---
 
-## P3 · 体验与结构化确认（Todo）
+## P3 · 体验与结构化确认
 
-| ID | 项 | 说明 |
-|---|---|---|
-| P3-1 | LangGraph **pending_approval** 状态 | 工具计划与执行之间插入确认节点，失败返回可解析 payload |
-| P3-2 | TUI **Modal** 自动弹出 | Agent 触发危险工具时弹窗 Yes/No，替代纯文本 SandboxError |
-| P3-3 | 批量/会话级策略 | 「本会话批准某 MCP 工具」「批准同类 fetch 域名」等 |
-| P3-4 | 审计日志 | `.cai/dangerous-approve.jsonl` 可选记录 |
+| ID | 状态 | 项 | 说明 |
+|---|---|---|---|
+| P3-1 | **Done** | Graph 执行链 **progress** 载荷 | `tools_node` 在将进入交互确认前下发 `progress.phase=danger_confirm_prompt`（含工具名、原因、摘要），并与 `prepare_interactive_dangerous_dispatch` 串联；非 TUI 入口仍不传 `dangerous_confirm`，行为与原先一致 |
+| P3-2 | **Done** | TUI **Modal** 自动弹出 | `DangerConfirmScreen`：无进程内预授权且无 `CAI_DANGEROUS_APPROVE` 时弹窗「允许执行 / 取消」；拒绝则不入 `dispatch`，返回合成失败说明（仍可 `/danger-approve` 或环境变量放行） |
+| P3-3 | Todo | 批量/会话级策略 | 「本会话批准某 MCP 工具」「批准同类 fetch 域名」等 |
+| P3-4 | Todo | 审计日志 | `.cai/dangerous-approve.jsonl` 可选记录 |
 
 ---
 
@@ -81,7 +81,8 @@ python -m pytest -q cai-agent/tests/test_run_command_security_policy.py `
   cai-agent/tests/test_tui_slash_suggester.py `
   cai-agent/tests/test_tool_provider_contract_cli.py `
   cai-agent/tests/test_doctor_cli.py `
-  cai-agent/tests/test_unrestricted_danger_dispatch_extended.py
+  cai-agent/tests/test_unrestricted_danger_dispatch_extended.py `
+  cai-agent/tests/test_tools_prepare_interactive_dangerous_dispatch.py
 python scripts/smoke_new_features.py
 ```
 
@@ -91,4 +92,4 @@ python scripts/smoke_new_features.py
 
 ## 关联变更记录
 
-- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、后续 `SAFETY-N02-*`
+- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`
