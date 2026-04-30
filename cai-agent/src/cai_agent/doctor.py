@@ -649,6 +649,12 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "dangerous_audit_log_enabled": bool(
             getattr(settings, "dangerous_audit_log_enabled", False),
         ),
+        "dangerous_write_file_critical_basenames_count": len(
+            getattr(settings, "dangerous_write_file_critical_basenames", ()) or (),
+        ),
+        "run_command_extra_danger_basenames_count": len(
+            getattr(settings, "run_command_extra_danger_basenames", ()) or (),
+        ),
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
         "instruction_files": instruction_files,

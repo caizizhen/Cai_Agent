@@ -139,6 +139,10 @@ unrestricted_mode = false
 dangerous_confirmation_required = true
 # 为 true 时写入 .cai/dangerous-approve.jsonl（授予/执行/会话放行等）；CAI_DANGEROUS_AUDIT_LOG=1 可覆盖
 dangerous_audit_log_enabled = false
+# P4：追加视作「关键配置文件」的 basename（与内置清单合并，解限且要求确认时对 write_file 二次确认）
+# dangerous_write_file_critical_basenames = ["custom.toml"]
+# P4：run_command argv[0] 额外强制二次确认的基名（须仍在允许列表内）
+# run_command_extra_danger_basenames = ["git"]
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）

@@ -7,17 +7,17 @@
 
 ## 当前目标
 
-- **解限安全（下一阶段）**：清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) **P4**（规则细化、Gateway/API 统一确认契约等）；P3 已全部 Done。
+- **解限安全（可选）**：清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) **P4-4**（Gateway / API Server 非 TUI 统一确认契约）；P4 其余条目已 Done。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | 解限 P3（含会话放行与审计 JSONL）已交付；下一批按 P4 按需立项 |
+| - | - | Clear | 解限 P4-1～P4-3 已交付；若要做跨入口确认契约请单独立项 **P4-4** |
 
 ## 下一步（解限）
 
-- **P4**：`fetch_url` SSRF 扩展、`write_file` 启发式、`run_command` 扩展列表、Gateway 非 TUI 确认契约（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）
+- **P4-4**：Gateway / API Server 非 TUI 危险确认契约（见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）；**write_file 破坏性 diff 启发式**仍为 Explore。
 
 ## 后续队列
 
@@ -38,6 +38,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `SAFETY-N05-D01` | 2026-05-01 | 解限 P4-1～P4-3：fetch 私网 DNS 放行强制确认、拒绝 file://；write_file 关键 basename；run_command_extra_danger_basenames；doctor/guard 计数。 | python -m pytest -q cai-agent/tests: PASS (965 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N04-D01` | 2026-05-01 | 解限 P3-3/P3-4：会话 MCP/http 放行（斜杠+Modal）、dangerous_audit_log_enabled 与 .cai/dangerous-approve.jsonl；dispatch 会话豁免不耗 budget；grant 可记审计。 | python -m pytest -q cai-agent/tests: PASS (961 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N03-D01` | 2026-05-01 | 解限危险工具：Graph 下发 danger_confirm_prompt 与 prepare_interactive_dangerous_dispatch 串联；TUI Modal 确认；pytest 含 test_tools_prepare_interactive_dangerous_dispatch；schedule fake_build_app 接受 **kwargs。 | python -m pytest -q cai-agent/tests: PASS (955 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `CTX-COMPACT-N08` | 2026-04-30 | Show recent context compaction status in TUI | compileall context_compaction/graph/tui/__main__: PASS; pytest tui_slash_suggester + context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 51 passed |

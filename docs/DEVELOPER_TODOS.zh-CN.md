@@ -8,7 +8,7 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `SAFETY-N04-D01`：会话 MCP/http 放行 + `.cai/dangerous-approve.jsonl` 审计已交付；解限清单 P3 收口后下一批见 **P4** | `tools.py`、`tui.py`、`config.py`、`tests/test_danger_session_and_audit.py` | pytest + smoke |
+| - | - | Clear | `SAFETY-N05-D01`：解限 P4-1～P4-3（fetch 私网 DNS 确认、`file://` 拒绝、关键写、run 额外基名）已交付；剩余 **P4-4（Gateway/API 确认契约）** 待立项 | `tools.py`、`config.py`、`doctor.py`、`tests/test_unrestricted_danger_dispatch_extended.py` | pytest + smoke |
 
 ## 执行顺序
 

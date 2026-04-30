@@ -60,14 +60,20 @@
 
 ---
 
-## P4 · 规则细化（Todo / Explore）
+## P4 · 规则细化
 
-| ID | 项 | 说明 |
-|---|---|---|
-| P4-1 | `fetch_url` SSRF 扩展 | `allow_private_resolved_ips=true` 时强制确认、`file://`（若引入）等 |
-| P4-2 | `write_file` 语义规则 | 覆盖关键配置文件名（`pyproject.toml` 仅在有破坏性 diff 时确认——需启发式） |
-| P4-3 | `run_command` 扩展 | 可选放宽白名单时的命令级确认列表 |
-| P4-4 | Gateway / API Server | 非 TUI 入口的统一确认契约 |
+| ID | 状态 | 项 | 说明 |
+|---|---|---|---|
+| P4-1 | **Done** | `fetch_url` SSRF 扩展 | 解限且要求确认时：`allow_private_resolved_ips=true` 对任意 http/https `fetch_url` 追加二次确认；**拒绝 `file://`**（请用 `read_file`） |
+| P4-2 | **Done（basename）** | `write_file` 语义规则 | 内置关键配置文件 basename 清单 + `[safety].dangerous_write_file_critical_basenames` 追加；**「仅破坏性 diff 才确认」仍为 Explore**，未实现启发式 |
+| P4-3 | **Done** | `run_command` 扩展 | `[safety].run_command_extra_danger_basenames`：argv[0] 基名额外强制二次确认（仍须在允许列表内） |
+| P4-4 | Todo | Gateway / API Server | 非 TUI 入口的统一确认契约 |
+
+### Explore（未立项）
+
+| 项 | 说明 |
+|---|---|
+| `write_file` diff 启发式 | 例如仅当 `pyproject.toml` 产生破坏性改动时再确认 |
 
 ---
 
@@ -93,4 +99,4 @@ python scripts/smoke_new_features.py
 
 ## 关联变更记录
 
-- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`
+- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`、`SAFETY-N05-D01`

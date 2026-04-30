@@ -60,6 +60,32 @@ _DEFAULT_HIGH_RISK_PATTERNS = (
     "| bash",
 )
 
+_BUILTIN_CRITICAL_WRITE_BASENAMES = frozenset(
+    {
+        "pyproject.toml",
+        "package.json",
+        "package-lock.json",
+        "pnpm-lock.yaml",
+        "yarn.lock",
+        "cargo.toml",
+        "cargo.lock",
+        "go.mod",
+        "go.sum",
+        "gemfile",
+        "composer.json",
+        "composer.lock",
+        "dockerfile",
+        "makefile",
+    },
+)
+
+
+def _merged_critical_write_basenames(settings: Settings) -> frozenset[str]:
+    extra = tuple(getattr(settings, "dangerous_write_file_critical_basenames", ()) or ())
+    merged = set(_BUILTIN_CRITICAL_WRITE_BASENAMES)
+    merged.update(str(x).strip().lower() for x in extra if str(x).strip())
+    return frozenset(merged)
+
 
 def _reject_shell_metachar(s: str) -> None:
     bad = '&|;$`<>\n\r'
@@ -139,6 +165,14 @@ def needs_dangerous_confirmation(
         if not isinstance(argv, list) or not argv:
             return (False, "")
         argv = [str(x) for x in argv]
+        exe0 = Path(str(argv[0]).replace("\\", "/")).name.strip().lower()
+        extra_exe = frozenset(
+            str(x).strip().lower()
+            for x in (getattr(settings, "run_command_extra_danger_basenames", ()) or ())
+            if str(x).strip()
+        )
+        if exe0 and exe0 in extra_exe:
+            return (True, f"run_command 命中配置的额外高危命令基名: {exe0!r}")
         is_risky, pat = _is_high_risk_command(settings, argv)
         if not is_risky:
             return (False, "")
@@ -150,6 +184,9 @@ def needs_dangerous_confirmation(
         sensitive_suffixes = (".env", ".pem", ".key", "id_rsa", "id_ed25519", "known_hosts")
         if rel.endswith(sensitive_suffixes):
             return (True, f"write_file 目标疑似敏感文件: {rel}")
+        base = Path(rel.replace("\\", "/")).name.lower()
+        if base and base in _merged_critical_write_basenames(settings):
+            return (True, f"write_file 目标为关键配置文件: {base}")
     if name == "mcp_call_tool":
         tool_name = str(args.get("name", "")).strip()
         if tool_name:
@@ -166,6 +203,13 @@ def needs_dangerous_confirmation(
         scheme = (parsed.scheme or "").lower()
         if scheme == "http":
             return (True, "fetch_url 使用明文 http（传输不可信）")
+        if scheme not in ("http", "https"):
+            return (False, "")
+        if bool(getattr(settings, "fetch_url_allow_private_resolved_ips", False)):
+            return (
+                True,
+                "fetch_url 已启用 allow_private_resolved_ips（DNS 解析可达私网/内网），须二次确认",
+            )
     return (False, "")
 
 
@@ -859,6 +903,8 @@ def tool_fetch_url(settings: Settings, args: dict[str, Any]) -> str:
         raise SandboxError("fetch_url 需要参数 url")
     parsed = urlparse(url_raw)
     scheme = parsed.scheme.lower()
+    if scheme == "file":
+        raise SandboxError("fetch_url 不支持 file:// URL（本地文件请使用 read_file 等工具）")
     if settings.fetch_url_unrestricted:
         if scheme not in ("http", "https"):
             raise SandboxError("fetch_url 仅允许 http 或 https")
@@ -1086,8 +1132,8 @@ def tools_spec_markdown() -> str:
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）；当 [safety].unrestricted_mode=true 且 dangerous_confirmation_required=true 时，每次调用需二次确认
-- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1；受 permissions.fetch_url 约束；明文 http 在解限且要求确认时需二次确认
-- write_file: {"path": "相对路径", "content": "文件全文"}
+- fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；不支持 file://；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1（解限且要求确认时须二次确认）；受 permissions.fetch_url 约束；明文 http 在解限且要求确认时需二次确认
+- write_file: {"path": "相对路径", "content": "文件全文"} — 解限且要求确认时：敏感后缀与内置关键配置文件名（如 pyproject.toml / package.json 等）写入须二次确认；可用 ``dangerous_write_file_critical_basenames`` 追加
 - make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
-- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符；当 [safety].unrestricted_mode=true 且命中高危模式时，需先做二次确认
+- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符；当 [safety].unrestricted_mode=true 且命中高危模式或 ``run_command_extra_danger_basenames`` 所列基名时，需先做二次确认
 """

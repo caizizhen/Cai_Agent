@@ -272,6 +272,10 @@ class Settings:
     dangerous_confirmation_required: bool
     # 将危险确认相关事件追加到工作区 ``.cai/dangerous-approve.jsonl``（默认关闭）。
     dangerous_audit_log_enabled: bool
+    # P4：额外视作「关键配置文件」的 basename（小写存储），与内置清单合并。
+    dangerous_write_file_critical_basenames: tuple[str, ...]
+    # P4：run_command argv[0] 基名额外强制二次确认（小写存储）。
+    run_command_extra_danger_basenames: tuple[str, ...]
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -689,6 +693,21 @@ class Settings:
             else:
                 dangerous_audit_log_enabled = False
 
+        raw_dwfcb = safety.get("dangerous_write_file_critical_basenames")
+        if isinstance(raw_dwfcb, list):
+            dangerous_write_file_critical_basenames = tuple(
+                str(x).strip().lower() for x in raw_dwfcb if str(x).strip()
+            )
+        else:
+            dangerous_write_file_critical_basenames = ()
+        raw_rcedb = safety.get("run_command_extra_danger_basenames")
+        if isinstance(raw_rcedb, list):
+            run_command_extra_danger_basenames = tuple(
+                str(x).strip().lower() for x in raw_rcedb if str(x).strip()
+            )
+        else:
+            run_command_extra_danger_basenames = ()
+
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
             fetch_url_enabled = _env_bool("CAI_FETCH_URL_ENABLED", False)
@@ -1100,6 +1119,8 @@ class Settings:
             unrestricted_mode=unrestricted_mode,
             dangerous_confirmation_required=dangerous_confirmation_required,
             dangerous_audit_log_enabled=dangerous_audit_log_enabled,
+            dangerous_write_file_critical_basenames=dangerous_write_file_critical_basenames,
+            run_command_extra_danger_basenames=run_command_extra_danger_basenames,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

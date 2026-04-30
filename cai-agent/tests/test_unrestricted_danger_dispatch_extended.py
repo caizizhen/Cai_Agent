@@ -127,6 +127,114 @@ class UnrestrictedDangerDispatchExtendedTests(unittest.TestCase):
         self.assertEqual(out, "fetch_https_ok")
         mock_tool.assert_called_once()
 
+    def test_fetch_url_https_private_dns_requires_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                fetch_url = "allow"
+                [fetch_url]
+                enabled = true
+                unrestricted = true
+                allow_private_resolved_ips = true
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_fetch_url", return_value="fetch_priv_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(s, "fetch_url", {"url": "https://example.com/x"})
+            mock_tool.assert_not_called()
+            grant_dangerous_approval_once()
+            out = dispatch(s, "fetch_url", {"url": "https://example.com/x"})
+        self.assertEqual(out, "fetch_priv_ok")
+
+    def test_fetch_url_file_scheme_rejected(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                fetch_url = "allow"
+                [fetch_url]
+                enabled = true
+                unrestricted = true
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = false
+                """,
+            ),
+        )
+        with self.assertRaises(SandboxError) as ctx:
+            dispatch(s, "fetch_url", {"url": "file:///etc/passwd"})
+        self.assertIn("file://", str(ctx.exception))
+
+    def test_write_file_critical_basename_requires_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_write_file", return_value="w_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": "x"})
+            mock_tool.assert_not_called()
+            grant_dangerous_approval_once()
+            out = dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": "x"})
+        self.assertEqual(out, "w_ok")
+
+    def test_run_command_extra_basename_requires_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                run_command = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                run_command_extra_danger_basenames = ["git"]
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_run_command", return_value="git_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(s, "run_command", {"argv": ["git", "status"], "cwd": "."})
+            mock_tool.assert_not_called()
+            grant_dangerous_approval_once()
+            out = dispatch(s, "run_command", {"argv": ["git", "status"], "cwd": "."})
+        self.assertEqual(out, "git_ok")
+
 
 if __name__ == "__main__":
     unittest.main()

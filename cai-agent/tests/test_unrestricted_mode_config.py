@@ -40,6 +40,8 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
         self.assertFalse(s.unrestricted_mode)
         self.assertTrue(s.dangerous_confirmation_required)
         self.assertFalse(s.dangerous_audit_log_enabled)
+        self.assertEqual(s.dangerous_write_file_critical_basenames, ())
+        self.assertEqual(s.run_command_extra_danger_basenames, ())
 
     def test_toml_true(self) -> None:
         s = _settings_from_toml(

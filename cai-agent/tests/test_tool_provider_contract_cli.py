@@ -181,6 +181,8 @@ class ToolProviderContractCliTests(unittest.TestCase):
             self.assertFalse(pol.get("unrestricted_mode"))
             self.assertTrue(pol.get("dangerous_confirmation_required"))
             self.assertFalse(pol.get("dangerous_audit_log_enabled"))
+            self.assertEqual(int(pol.get("dangerous_write_file_critical_basenames_count") or 0), 0)
+            self.assertEqual(int(pol.get("run_command_extra_danger_basenames_count") or 0), 0)
 
             buf_cost = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):
