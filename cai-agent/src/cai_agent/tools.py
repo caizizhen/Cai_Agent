@@ -8,6 +8,7 @@ import shlex
 import socket
 import subprocess
 import time
+import tomllib
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
@@ -95,12 +96,52 @@ def _normalize_critical_write_text(body: str) -> str:
     return "\n".join(line.rstrip() for line in t.split("\n")).strip()
 
 
+def _canonical_nested_for_semantic_compare(obj: Any) -> Any:
+    """字典按键排序递归规范化，便于 TOML/JSON 语义等价比对。"""
+    if isinstance(obj, dict):
+        keys = sorted(obj.keys(), key=lambda x: str(x))
+        return {str(k): _canonical_nested_for_semantic_compare(obj[k]) for k in keys}
+    if isinstance(obj, list):
+        return [_canonical_nested_for_semantic_compare(x) for x in obj]
+    return obj
+
+
+def _critical_write_toml_semantically_equal(nt_old: str, nt_new: str) -> bool:
+    try:
+        da = tomllib.loads(nt_old)
+        db = tomllib.loads(nt_new)
+    except Exception:
+        return False
+    return _canonical_nested_for_semantic_compare(da) == _canonical_nested_for_semantic_compare(db)
+
+
+def _critical_write_json_semantically_equal(nt_old: str, nt_new: str) -> bool:
+    try:
+        ja = json.loads(nt_old)
+        jb = json.loads(nt_new)
+    except Exception:
+        return False
+    if type(ja) is not type(jb):
+        return False
+    return _canonical_nested_for_semantic_compare(ja) == _canonical_nested_for_semantic_compare(jb)
+
+
+def _critical_write_semantic_structurally_equal(basename_lower: str, nt_old: str, nt_new: str) -> bool:
+    """关键 basename 且扩展名为 .toml / .json 时，解析后结构化相等则视为无实质改动。"""
+    b = basename_lower.strip().lower()
+    if b.endswith(".toml"):
+        return _critical_write_toml_semantically_equal(nt_old, nt_new)
+    if b.endswith(".json"):
+        return _critical_write_json_semantically_equal(nt_old, nt_new)
+    return False
+
+
 def _critical_write_basename_effectively_noop(
     settings: Settings,
     rel: str,
     new_content: str,
 ) -> bool:
-    """磁盘已有关键配置文件且 UTF-8 正文规范化后与写入相同 → 视为无实质改动。"""
+    """磁盘已有关键配置文件且无实质改动：先规范化正文一致，否则 .toml/.json 结构化语义一致。"""
     if not bool(getattr(settings, "dangerous_critical_write_skip_if_unchanged", True)):
         return False
     ws = str(getattr(settings, "workspace", "") or "").strip()
@@ -123,7 +164,12 @@ def _critical_write_basename_effectively_noop(
     except (OSError, UnicodeDecodeError):
         return False
     nc = new_content if isinstance(new_content, str) else str(new_content)
-    return _normalize_critical_write_text(old) == _normalize_critical_write_text(nc)
+    nt_old = _normalize_critical_write_text(old)
+    nt_new = _normalize_critical_write_text(nc)
+    if nt_old == nt_new:
+        return True
+    base_only = Path(rel.replace("\\", "/")).name.lower()
+    return _critical_write_semantic_structurally_equal(base_only, nt_old, nt_new)
 
 
 def _reject_shell_metachar(s: str) -> None:

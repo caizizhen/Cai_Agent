@@ -64,7 +64,7 @@
 | 顺序 | 开发项 | 状态 | 说明 / 证据 |
 |------|--------|------|-------------|
 | 1 | 核心 CLI：`plan` / `run` / `continue` / `command` / `workflow` | **完成** | README；`workflow_run_v1`、根级 `task_id` |
-| 2 | 工作区工具 + 沙箱 + Shell 白名单 | **完成** | `sandbox.py`、`tools.py` |
+| 2 | 工作区工具 + 沙箱 + Shell 白名单 | **完成** | `sandbox.py`、`tools.py`；解限关键写 noop（`dangerous_critical_write_skip_if_unchanged`：规范化正文 + 关键 `.toml`/`.json` 语义等价）；[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) |
 | 3 | `fix-build`、`security-scan`（**`--json`** / **`--badge`**）、`quality-gate` | **完成** | 回归与 pytest；**`security_badge_v1`** |
 | 4 | 插件发现 `plugins --json` | **完成** | |
 | 5 | 多模型 profile、`models` CLI、**`models suggest`**、TUI `/models`/`/tasks`、`session` 含 `profile` | **完成** | **`models_suggest_v1`**；**`tui_task_board`** |

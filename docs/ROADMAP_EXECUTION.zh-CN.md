@@ -307,6 +307,7 @@
 | `SAFETY-N05-D01` | `Done` | `SAFETY-N05` | P4 规则细化（fetch SSRF 面 / 关键写 / run 基名） | `needs_dangerous_confirmation` + `fetch_url` 拒绝 `file://`；`dangerous_write_file_critical_basenames` / `run_command_extra_danger_basenames`；清单 P4-1～P4-3 Done | `SAFETY-N04-D01` | pytest 全量 + smoke |
 | `SAFETY-N06-D01` | `Done` | `SAFETY-N06` | P4-4 Gateway 危险确认契约 | `gateway_danger.py`；Slack/Discord 执行路径 goal 前缀剥离 + grant；`danger_gateway_contract_v1` | `SAFETY-N05-D01` | pytest + smoke |
 | `SAFETY-N07-D01` | `Done` | `SAFETY-N07` | 关键写 noop 启发式 | `[safety].dangerous_critical_write_skip_if_unchanged` + `needs_dangerous_confirmation` 读盘 UTF-8 规范化比对；doctor / `tools guard` policy；模板注释 | `SAFETY-N06-D01` | pytest + smoke |
+| `SAFETY-N07-D02` | `Done` | `SAFETY-N07` | 关键写 TOML/JSON 语义 noop | 在 D01 基础上对关键 `.toml`/`.json` 做解析后递归键序规范化深比较；SAFETY backlog Explore 本条收口 | `SAFETY-N07-D01` | pytest + smoke |
 
 ### 10.1 建议开单顺序
 

@@ -15,7 +15,7 @@
 
 | 能力项 | 参考 | 状态 | 备注 |
 |--------|------|------|------|
-| 工作区文件读写与搜索 | claude-code | `Done` | `tools.py` + 沙箱 |
+| 工作区文件读写与搜索 | claude-code | `Done` | `tools.py` + 沙箱（解限：`write_file` 关键 basename noop 含文本规范化与 `.toml`/`.json` 结构化语义等价，见 **`SAFETY_UNRESTRICTED_BACKLOG`**） |
 | 受限 Shell | claude-code | `Done` | 白名单 `run_command` |
 | 只读 Git | claude-code | `Done` | |
 | MCP 调用 | claude-code | `Done` | `mcp_list_tools` / `mcp_call_tool` |

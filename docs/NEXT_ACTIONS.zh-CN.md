@@ -7,17 +7,13 @@
 
 ## 当前目标
 
-- **解限安全**：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 清单 **P4 已全部 Done**；**`SAFETY-N07-D01`** 已交付关键写 **noop 启发式**（可关）；后续 **Explore** 为更深 `write_file` diff 语义（见 backlog）。
+- **解限安全**：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 清单 **P4 已全部 Done**；**`SAFETY-N07-D01/D02`** 已交付关键写 **文本 + TOML/JSON 语义 noop**（可关）；清单内 **Explore 已清零**，更深项需另独立项与评审。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | 解限 P4（含 Slack/Discord 网关前缀放行契约）已收口 |
-
-## 下一步（解限）
-
-- **Explore**：结构化 / 破坏性 diff 才触发关键写确认等（MVP noop 见 **`dangerous_critical_write_skip_if_unchanged`**）；详见 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) Explore 段。
+| - | - | Clear | 解限 SAFETY **无当前排队项**（`SAFETY-N07-D02` 已完成）；下一优先见下方「后续队列」 |
 
 ## 后续队列
 
@@ -38,6 +34,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `SAFETY-N07-D02` | 2026-05-01 | Critical write_file TOML/JSON semantic noop; SAFETY backlog Explore cleared; docs and tests updated. | python -m pytest -q cai-agent/tests: PASS (980 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N07-D01` | 2026-05-01 | Critical write_file noop heuristic: skip basename dangerous confirmation when disk file exists and normalized UTF-8 matches; doctor/guard/smoke/tests. | python -m pytest -q cai-agent/tests: PASS (976 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N06-D01` | 2026-05-01 | P4-4：gateway_danger goal 前缀放行；Slack/Discord 执行路径接入；tools guard danger_gateway_contract_v1。 | python -m pytest -q cai-agent/tests: PASS (971 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N05-D01` | 2026-05-01 | 解限 P4-1～P4-3：fetch 私网 DNS 放行强制确认、拒绝 file://；write_file 关键 basename；run_command_extra_danger_basenames；doctor/guard 计数。 | python -m pytest -q cai-agent/tests: PASS (965 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |

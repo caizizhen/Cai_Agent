@@ -65,15 +65,13 @@
 | ID | 状态 | 项 | 说明 |
 |---|---|---|---|
 | P4-1 | **Done** | `fetch_url` SSRF 扩展 | 解限且要求确认时：`allow_private_resolved_ips=true` 对任意 http/https `fetch_url` 追加二次确认；**拒绝 `file://`**（请用 `read_file`） |
-| P4-2 | **Done（basename + MVP noop）** | `write_file` 语义规则 | 内置关键 basename + `[safety].dangerous_write_file_critical_basenames`；**`[safety].dangerous_critical_write_skip_if_unchanged`**（默认 true）：磁盘已有 UTF-8 文件且规范化正文与写入相同则跳过 basename 级确认（≤512KiB；见 **SAFETY-N07-D01**）。**完整「仅破坏性结构化 diff」仍为 Explore。** |
+| P4-2 | **Done（basename + noop + TOML/JSON 语义）** | `write_file` 语义规则 | 内置关键 basename + `[safety].dangerous_write_file_critical_basenames`；**`[safety].dangerous_critical_write_skip_if_unchanged`**（默认 true）：已有 UTF-8（≤512KiB）且 **规范化正文相同**（**SAFETY-N07-D01**），或关键 basename 为 **`.toml`/`.json`** 且 **解析后结构化等价**（**SAFETY-N07-D02**），则跳过 basename 级确认；`pnpm-lock.yaml` / `yarn.lock` / Dockerfile 等不做语义豁免 |
 | P4-3 | **Done** | `run_command` 扩展 | `[safety].run_command_extra_danger_basenames`：argv[0] 基名额外强制二次确认（仍须在允许列表内） |
 | P4-4 | **Done** | Gateway（Slack / Discord） | 用户 goal 行前缀 `[danger-approve]` / `/danger-approve`（可 ``CAI_GATEWAY_DANGER_APPROVE_TOKENS``）；等价 ``grant_dangerous_approval_once``；``tools guard --json`` → ``danger_gateway_contract_v1`` |
 
 ### Explore（未立项）
 
-| 项 | 说明 |
-|---|---|
-| `write_file` diff 启发式（深化） | MVP：`SAFETY-N07-D01` 已实现「磁盘已有 + UTF-8 + 规范化全文相同」跳过 basename 确认；后续 Explore：结构化 diff（例如依赖版本语义变更）再确认 |
+当前 **解限 `write_file`** 清单项已全部收口；更深语义（YAML lockfile、逐字段 semver 门禁等）若未来需要，请 **单独立项 + 安全评审** 后再排期。
 
 ---
 
@@ -100,4 +98,4 @@ python scripts/smoke_new_features.py
 
 ## 关联变更记录
 
-- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`、`SAFETY-N05-D01`、`SAFETY-N06-D01`
+- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`、`SAFETY-N05-D01`、`SAFETY-N06-D01`、`SAFETY-N07-D01`、`SAFETY-N07-D02`

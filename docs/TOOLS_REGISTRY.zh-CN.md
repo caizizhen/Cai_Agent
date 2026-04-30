@@ -50,6 +50,7 @@
 ## 相关文档
 
 - 权限设计：[`CONTEXT_AND_COMPACT.zh-CN.md`](CONTEXT_AND_COMPACT.zh-CN.md)
+- 解限模式与危险二次确认（含关键 `write_file` noop）：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)
 - MCP 配方：[`MCP_WEB_RECIPE.zh-CN.md`](MCP_WEB_RECIPE.zh-CN.md)
 - Hooks 说明：`hooks/README.md`
 - 安全扫描：`cai-agent security-scan --json`

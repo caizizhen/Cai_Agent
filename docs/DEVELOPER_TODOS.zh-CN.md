@@ -8,11 +8,11 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `SAFETY-N07-D01`：关键写 noop 启发式（`dangerous_critical_write_skip_if_unchanged`）已交付；后续 Explore 见 SAFETY backlog **write_file diff（结构化）** | `config.py`、`tools.py`、`doctor.py`、`tool_provider.py`、`tests/test_unrestricted_danger_dispatch_extended.py` | pytest + smoke |
+| - | - | Clear | 解限 SAFETY 路线图当前 **无排队开发项**（`SAFETY-N07-D02` 已完成；更深 YAML/semver 等须另立项） | — | — |
 
 ## 执行顺序
 
-1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；P0–P3（含会话放行与审计）已收口；下一批为 **P4**（规则细化 / Gateway 确认契约等，按需立项）。
+1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；**P0–P4** 与 **`SAFETY-N07-D01/D02`** 均已收口，清单 **Explore 已清零**。
 2. 若并行上下文面：优先 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
 3. 若暂停上下文面：再回到 Gateway slash 深化或 Ops operator 路由深化中选择。
 
