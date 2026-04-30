@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **SAFETY-N07-D01 critical `write_file` noop heuristic (unrestricted)**: When unrestricted with dangerous confirmation enabled, skip the critical-basename confirmation for `write_file` if the target path already exists as a UTF-8 file under the workspace, the on-disk size is at most 512 KiB, and normalized text (newlines unified, per-line trailing spaces stripped, outer strip) matches the new `content`; configurable via `[safety].dangerous_critical_write_skip_if_unchanged` (default `true`) and `CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`; exposed on `doctor_v1` and `tool_gateway_guard_v1.policy`; tests extend `test_unrestricted_danger_dispatch_extended.py` and `test_unrestricted_mode_config.py`; smoke asserts doctor JSON carries the boolean.
+
 - **SAFETY-N06-D01 unrestricted P4-4 gateway dangerous-approval contract**: Added `gateway_danger.py` with line-prefix tokens (`[danger-approve]`, `/danger-approve`, overridable via `CAI_GATEWAY_DANGER_APPROVE_TOKENS`); Slack `execute_on_event` and Discord `execute_on_message` strip prefixes and call `grant_dangerous_approval_once` before `build_app`; `tools guard --json` includes `danger_gateway_contract_v1`; tests in `test_gateway_danger_contract.py`.
 
 - **SAFETY-N05-D01 unrestricted P4 rule tightening (fetch/write/run)**: When unrestricted with dangerous confirmation enabled, `fetch_url` with `allow_private_resolved_ips=true` requires second confirmation for http/https; explicit rejection of `file://`; critical `write_file` basenames (built-in merge + `dangerous_write_file_critical_basenames`); `run_command_extra_danger_basenames`; doctor/tool-gateway guard expose basename list counts; tests extend `test_unrestricted_danger_dispatch_extended.py`.

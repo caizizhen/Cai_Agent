@@ -141,6 +141,8 @@ dangerous_confirmation_required = true
 dangerous_audit_log_enabled = false
 # P4：追加视作「关键配置文件」的 basename（与内置清单合并，解限且要求确认时对 write_file 二次确认）
 # dangerous_write_file_critical_basenames = ["custom.toml"]
+# 磁盘已有该文件且规范化 UTF-8 正文与写入相同时，跳过上述 basename 级二次确认（默认 true；CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED 可覆盖）
+# dangerous_critical_write_skip_if_unchanged = true
 # P4：run_command argv[0] 额外强制二次确认的基名（须仍在允许列表内）
 # run_command_extra_danger_basenames = ["git"]
 

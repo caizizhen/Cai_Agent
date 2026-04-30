@@ -65,7 +65,7 @@
 | ID | 状态 | 项 | 说明 |
 |---|---|---|---|
 | P4-1 | **Done** | `fetch_url` SSRF 扩展 | 解限且要求确认时：`allow_private_resolved_ips=true` 对任意 http/https `fetch_url` 追加二次确认；**拒绝 `file://`**（请用 `read_file`） |
-| P4-2 | **Done（basename）** | `write_file` 语义规则 | 内置关键配置文件 basename 清单 + `[safety].dangerous_write_file_critical_basenames` 追加；**「仅破坏性 diff 才确认」仍为 Explore**，未实现启发式 |
+| P4-2 | **Done（basename + MVP noop）** | `write_file` 语义规则 | 内置关键 basename + `[safety].dangerous_write_file_critical_basenames`；**`[safety].dangerous_critical_write_skip_if_unchanged`**（默认 true）：磁盘已有 UTF-8 文件且规范化正文与写入相同则跳过 basename 级确认（≤512KiB；见 **SAFETY-N07-D01**）。**完整「仅破坏性结构化 diff」仍为 Explore。** |
 | P4-3 | **Done** | `run_command` 扩展 | `[safety].run_command_extra_danger_basenames`：argv[0] 基名额外强制二次确认（仍须在允许列表内） |
 | P4-4 | **Done** | Gateway（Slack / Discord） | 用户 goal 行前缀 `[danger-approve]` / `/danger-approve`（可 ``CAI_GATEWAY_DANGER_APPROVE_TOKENS``）；等价 ``grant_dangerous_approval_once``；``tools guard --json`` → ``danger_gateway_contract_v1`` |
 
@@ -73,7 +73,7 @@
 
 | 项 | 说明 |
 |---|---|
-| `write_file` diff 启发式 | 例如仅当 `pyproject.toml` 产生破坏性改动时再确认 |
+| `write_file` diff 启发式（深化） | MVP：`SAFETY-N07-D01` 已实现「磁盘已有 + UTF-8 + 规范化全文相同」跳过 basename 确认；后续 Explore：结构化 diff（例如依赖版本语义变更）再确认 |
 
 ---
 

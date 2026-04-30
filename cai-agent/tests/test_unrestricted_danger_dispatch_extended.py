@@ -10,7 +10,11 @@ from unittest.mock import patch
 
 from cai_agent.config import Settings
 from cai_agent.sandbox import SandboxError
-from cai_agent.tools import dispatch, grant_dangerous_approval_once
+from cai_agent.tools import (
+    dispatch,
+    grant_dangerous_approval_once,
+    reset_dangerous_approval_budget_for_testing,
+)
 
 
 def _settings_from_toml(content: str) -> Settings:
@@ -32,6 +36,7 @@ def _settings_from_toml(content: str) -> Settings:
 
 class UnrestrictedDangerDispatchExtendedTests(unittest.TestCase):
     def setUp(self) -> None:
+        reset_dangerous_approval_budget_for_testing()
         self._td = tempfile.TemporaryDirectory()
         self.root = Path(self._td.name).resolve()
 
@@ -207,6 +212,122 @@ class UnrestrictedDangerDispatchExtendedTests(unittest.TestCase):
             grant_dangerous_approval_once()
             out = dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": "x"})
         self.assertEqual(out, "w_ok")
+
+    def test_write_file_critical_basename_noop_skips_confirmation(self) -> None:
+        pkg = self.root / "pkg"
+        pkg.mkdir(parents=True)
+        disk_body = '[project]\nname = "demo"\n'
+        (pkg / "pyproject.toml").write_text(disk_body, encoding="utf-8")
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        inject = '[project]\r\nname = "demo"\r\n  \n'
+        with patch("cai_agent.tools.tool_write_file", return_value="w_ok") as mock_tool:
+            out = dispatch(
+                s,
+                "write_file",
+                {"path": "pkg/pyproject.toml", "content": inject},
+            )
+        self.assertEqual(out, "w_ok")
+        mock_tool.assert_called_once()
+
+    def test_write_file_critical_basename_changed_still_requires_confirmation(self) -> None:
+        pkg = self.root / "pkg"
+        pkg.mkdir(parents=True)
+        (pkg / "pyproject.toml").write_text("keep\n", encoding="utf-8")
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_write_file", return_value="w_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": "changed\n"})
+            mock_tool.assert_not_called()
+            grant_dangerous_approval_once()
+            out = dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": "changed\n"})
+        self.assertEqual(out, "w_ok")
+
+    def test_write_file_critical_basename_missing_file_still_requires_confirmation(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_write_file", return_value="w_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(
+                    s,
+                    "write_file",
+                    {"path": "pkg/pyproject.toml", "content": "[project]\n"},
+                )
+            mock_tool.assert_not_called()
+
+    def test_write_file_critical_basename_false_skip_still_requires_confirmation(self) -> None:
+        pkg = self.root / "pkg"
+        pkg.mkdir(parents=True)
+        body = '[project]\nname = "demo"\n'
+        (pkg / "pyproject.toml").write_text(body, encoding="utf-8")
+        s = _settings_from_toml(
+            textwrap.dedent(
+                f"""
+                [llm]
+                base_url = "http://localhost:1/v1"
+                model = "m"
+                api_key = "k"
+                [agent]
+                workspace = "{self.root.as_posix()}"
+                [permissions]
+                write_file = "allow"
+                [safety]
+                unrestricted_mode = true
+                dangerous_confirmation_required = true
+                dangerous_critical_write_skip_if_unchanged = false
+                """,
+            ),
+        )
+        with patch("cai_agent.tools.tool_write_file", return_value="w_ok") as mock_tool:
+            with self.assertRaises(SandboxError):
+                dispatch(s, "write_file", {"path": "pkg/pyproject.toml", "content": body})
+            mock_tool.assert_not_called()
 
     def test_run_command_extra_basename_requires_confirmation(self) -> None:
         s = _settings_from_toml(

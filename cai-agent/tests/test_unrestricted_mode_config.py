@@ -39,6 +39,7 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
         )
         self.assertFalse(s.unrestricted_mode)
         self.assertTrue(s.dangerous_confirmation_required)
+        self.assertTrue(s.dangerous_critical_write_skip_if_unchanged)
         self.assertFalse(s.dangerous_audit_log_enabled)
         self.assertEqual(s.dangerous_write_file_critical_basenames, ())
         self.assertEqual(s.run_command_extra_danger_basenames, ())
@@ -145,6 +146,32 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
                 os.environ.pop("CAI_DANGEROUS_AUDIT_LOG", None)
             else:
                 os.environ["CAI_DANGEROUS_AUDIT_LOG"] = old
+
+    def test_dangerous_critical_write_skip_env_overrides_toml(self) -> None:
+        body = (
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+
+                [safety]
+                dangerous_critical_write_skip_if_unchanged = true
+                """
+            ).strip()
+            + "\n"
+        )
+        old = os.environ.get("CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED")
+        try:
+            os.environ["CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED"] = "0"
+            s = _settings_from_toml(body)
+            self.assertFalse(s.dangerous_critical_write_skip_if_unchanged)
+        finally:
+            if old is None:
+                os.environ.pop("CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED", None)
+            else:
+                os.environ["CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED"] = old
 
 
 if __name__ == "__main__":

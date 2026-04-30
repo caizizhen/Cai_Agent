@@ -307,6 +307,9 @@ def main() -> int:
                 errs.append(f"doctor schema_version {do.get('schema_version')!r}")
             if not isinstance(do.get("workspace"), str) or not str(do.get("workspace")).strip():
                 errs.append("doctor workspace missing")
+            dcw = do.get("dangerous_critical_write_skip_if_unchanged")
+            if not isinstance(dcw, bool):
+                errs.append(f"doctor dangerous_critical_write_skip_if_unchanged want bool got {dcw!r}")
             plug = do.get("plugins")
             if not isinstance(plug, dict):
                 errs.append("doctor plugins not object")

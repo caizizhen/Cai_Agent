@@ -69,6 +69,7 @@ class DoctorCliTests(unittest.TestCase):
             self.assertTrue(pl.get("mock"))
             self.assertFalse(pl.get("unrestricted_mode"))
             self.assertTrue(pl.get("dangerous_confirmation_required"))
+            self.assertTrue(pl.get("dangerous_critical_write_skip_if_unchanged"))
             self.assertFalse(pl.get("dangerous_audit_log_enabled"))
             self.assertEqual(int(pl.get("dangerous_write_file_critical_basenames_count") or 0), 0)
             self.assertEqual(int(pl.get("run_command_extra_danger_basenames_count") or 0), 0)

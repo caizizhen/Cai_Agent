@@ -276,6 +276,8 @@ class Settings:
     dangerous_write_file_critical_basenames: tuple[str, ...]
     # P4：run_command argv[0] 基名额外强制二次确认（小写存储）。
     run_command_extra_danger_basenames: tuple[str, ...]
+    # 关键配置文件 basename：磁盘已存在且规范化正文与写入相同则跳过 basename 级二次确认。
+    dangerous_critical_write_skip_if_unchanged: bool
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -707,6 +709,17 @@ class Settings:
             )
         else:
             run_command_extra_danger_basenames = ()
+        if os.getenv("CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED") is not None:
+            dangerous_critical_write_skip_if_unchanged = _env_bool(
+                "CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED",
+                True,
+            )
+        else:
+            raw_dcws = safety.get("dangerous_critical_write_skip_if_unchanged")
+            if isinstance(raw_dcws, bool):
+                dangerous_critical_write_skip_if_unchanged = raw_dcws
+            else:
+                dangerous_critical_write_skip_if_unchanged = True
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
@@ -1121,6 +1134,7 @@ class Settings:
             dangerous_audit_log_enabled=dangerous_audit_log_enabled,
             dangerous_write_file_critical_basenames=dangerous_write_file_critical_basenames,
             run_command_extra_danger_basenames=run_command_extra_danger_basenames,
+            dangerous_critical_write_skip_if_unchanged=dangerous_critical_write_skip_if_unchanged,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

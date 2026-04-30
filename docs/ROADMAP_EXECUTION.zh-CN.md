@@ -306,6 +306,7 @@
 | `SAFETY-N04-D01` | `Done` | `SAFETY-N04` | 会话级 MCP/http 放行 + 危险审计 JSONL | `session_danger_preapproved`；TUI `/danger-session-*` 与 Modal「本会话放行」；`.cai/dangerous-approve.jsonl`；`dangerous_audit_log_enabled`；清单 P3-3/P3-4 Done | `SAFETY-N03-D01` | pytest 全量 + `test_danger_session_and_audit.py` + smoke |
 | `SAFETY-N05-D01` | `Done` | `SAFETY-N05` | P4 规则细化（fetch SSRF 面 / 关键写 / run 基名） | `needs_dangerous_confirmation` + `fetch_url` 拒绝 `file://`；`dangerous_write_file_critical_basenames` / `run_command_extra_danger_basenames`；清单 P4-1～P4-3 Done | `SAFETY-N04-D01` | pytest 全量 + smoke |
 | `SAFETY-N06-D01` | `Done` | `SAFETY-N06` | P4-4 Gateway 危险确认契约 | `gateway_danger.py`；Slack/Discord 执行路径 goal 前缀剥离 + grant；`danger_gateway_contract_v1` | `SAFETY-N05-D01` | pytest + smoke |
+| `SAFETY-N07-D01` | `Done` | `SAFETY-N07` | 关键写 noop 启发式 | `[safety].dangerous_critical_write_skip_if_unchanged` + `needs_dangerous_confirmation` 读盘 UTF-8 规范化比对；doctor / `tools guard` policy；模板注释 | `SAFETY-N06-D01` | pytest + smoke |
 
 ### 10.1 建议开单顺序
 

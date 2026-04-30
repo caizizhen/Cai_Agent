@@ -652,6 +652,9 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "dangerous_write_file_critical_basenames_count": len(
             getattr(settings, "dangerous_write_file_critical_basenames", ()) or (),
         ),
+        "dangerous_critical_write_skip_if_unchanged": bool(
+            getattr(settings, "dangerous_critical_write_skip_if_unchanged", True),
+        ),
         "run_command_extra_danger_basenames_count": len(
             getattr(settings, "run_command_extra_danger_basenames", ()) or (),
         ),
@@ -882,6 +885,13 @@ def run_doctor(
         "开启" if bool(getattr(settings, "unrestricted_mode", False)) else "关闭",
         f"(dangerous_confirmation_required={bool(getattr(settings, 'dangerous_confirmation_required', True))}) "
         "([safety].unrestricted_mode / CAI_UNRESTRICTED_MODE)",
+    )
+    print(
+        "关键配置文件 write_file 无改动跳过确认:",
+        "开启"
+        if bool(getattr(settings, "dangerous_critical_write_skip_if_unchanged", True))
+        else "关闭",
+        "([safety].dangerous_critical_write_skip_if_unchanged / CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED)",
     )
     print(
         "危险操作审计日志:",

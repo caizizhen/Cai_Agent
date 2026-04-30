@@ -8,7 +8,7 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `SAFETY-N06-D01`：P4-4 Slack/Discord 网关 goal 前缀放行 + `guard` 契约已交付；解限清单 P4 收口后下一探索项见 SAFETY backlog **Explore（write_file diff）** | `gateway_danger.py`、`gateway_slack.py`、`gateway_discord.py`、`tool_provider.py`、`tests/test_gateway_danger_contract.py` | pytest + smoke |
+| - | - | Clear | `SAFETY-N07-D01`：关键写 noop 启发式（`dangerous_critical_write_skip_if_unchanged`）已交付；后续 Explore 见 SAFETY backlog **write_file diff（结构化）** | `config.py`、`tools.py`、`doctor.py`、`tool_provider.py`、`tests/test_unrestricted_danger_dispatch_extended.py` | pytest + smoke |
 
 ## 执行顺序
 

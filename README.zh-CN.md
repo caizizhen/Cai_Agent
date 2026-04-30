@@ -242,6 +242,7 @@ cai-agent ui -w (Get-Location).Path
 - **本会话放行（解限 + 仍要求确认时）**：`/danger-session-mcp <MCP工具名>`、`/danger-session-fetch <主机名或 http URL>`、`/danger-session-clear` 清空列表（任务运行中也可输入）。
 - **审计（可选）**：`[safety].dangerous_audit_log_enabled = true` 或 `CAI_DANGEROUS_AUDIT_LOG=1` 时，向工作区 **`.cai/dangerous-approve.jsonl`** 追加 JSON 行（授予、执行、会话放行等事件）；默认关闭。
 - **危险判定（当前）**：高危 `run_command`；**`[safety].run_command_extra_danger_basenames`** 所列命令基名；写入敏感路径或**内置/配置的关键配置文件名**的 `write_file`（如 `pyproject.toml`，见模板注释）；任意 **`mcp_call_tool`**；**明文 `http://` 的 `fetch_url`**；**`[fetch_url].allow_private_resolved_ips=true`** 时的任意 http/https **`fetch_url`**（DNS 可达私网风险）；**不支持 `fetch_url` 的 `file://`**。
+- **关键写 noop（默认开启）**：**`[safety].dangerous_critical_write_skip_if_unchanged`**（**`CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`**）：上述「关键配置文件」写入若磁盘已有同名 UTF-8 文件且规范化正文与本次 `content` 相同（换行统一、行尾空白剥离），则不触发 basename 级二次确认；新建文件、编码异常或超大文件仍按原规则确认。
 - **非交互 / CI**：可设置 **`CAI_DANGEROUS_APPROVE=1`** 作为显式放行（慎用）。
 - **完整开发清单与路线图**：[`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。
 

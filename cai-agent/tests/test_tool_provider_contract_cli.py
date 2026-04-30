@@ -180,6 +180,7 @@ class ToolProviderContractCliTests(unittest.TestCase):
             pol = p_guard.get("policy") or {}
             self.assertFalse(pol.get("unrestricted_mode"))
             self.assertTrue(pol.get("dangerous_confirmation_required"))
+            self.assertTrue(pol.get("dangerous_critical_write_skip_if_unchanged"))
             self.assertFalse(pol.get("dangerous_audit_log_enabled"))
             self.assertEqual(int(pol.get("dangerous_write_file_critical_basenames_count") or 0), 0)
             self.assertEqual(int(pol.get("run_command_extra_danger_basenames_count") or 0), 0)

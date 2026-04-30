@@ -87,6 +87,45 @@ def _merged_critical_write_basenames(settings: Settings) -> frozenset[str]:
     return frozenset(merged)
 
 
+_CRITICAL_WRITE_HEURISTIC_MAX_BYTES = 512_000
+
+
+def _normalize_critical_write_text(body: str) -> str:
+    t = body.replace("\r\n", "\n").replace("\r", "\n")
+    return "\n".join(line.rstrip() for line in t.split("\n")).strip()
+
+
+def _critical_write_basename_effectively_noop(
+    settings: Settings,
+    rel: str,
+    new_content: str,
+) -> bool:
+    """磁盘已有关键配置文件且 UTF-8 正文规范化后与写入相同 → 视为无实质改动。"""
+    if not bool(getattr(settings, "dangerous_critical_write_skip_if_unchanged", True)):
+        return False
+    ws = str(getattr(settings, "workspace", "") or "").strip()
+    if not ws:
+        return False
+    try:
+        p = resolve_workspace_path(ws, rel)
+    except SandboxError:
+        return False
+    if not p.is_file():
+        return False
+    try:
+        sz = p.stat().st_size
+    except OSError:
+        return False
+    if sz > _CRITICAL_WRITE_HEURISTIC_MAX_BYTES:
+        return False
+    try:
+        old = p.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return False
+    nc = new_content if isinstance(new_content, str) else str(new_content)
+    return _normalize_critical_write_text(old) == _normalize_critical_write_text(nc)
+
+
 def _reject_shell_metachar(s: str) -> None:
     bad = '&|;$`<>\n\r'
     if any(c in s for c in bad):
@@ -186,7 +225,11 @@ def needs_dangerous_confirmation(
             return (True, f"write_file 目标疑似敏感文件: {rel}")
         base = Path(rel.replace("\\", "/")).name.lower()
         if base and base in _merged_critical_write_basenames(settings):
-            return (True, f"write_file 目标为关键配置文件: {base}")
+            content = args.get("content", "")
+            if not isinstance(content, str):
+                content = str(content)
+            if not _critical_write_basename_effectively_noop(settings, rel, content):
+                return (True, f"write_file 目标为关键配置文件: {base}")
     if name == "mcp_call_tool":
         tool_name = str(args.get("name", "")).strip()
         if tool_name:
