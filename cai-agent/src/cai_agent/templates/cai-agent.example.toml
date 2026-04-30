@@ -137,6 +137,8 @@ fetch_url = "allow"
 unrestricted_mode = false
 # 解限模式下危险行为是否仍需要二次确认（默认 true）
 dangerous_confirmation_required = true
+# 为 true 时写入 .cai/dangerous-approve.jsonl（授予/执行/会话放行等）；CAI_DANGEROUS_AUDIT_LOG=1 可覆盖
+dangerous_audit_log_enabled = false
 
 [cost]
 # cost budget --check 默认上限（可用 CLI --max-tokens 覆盖）

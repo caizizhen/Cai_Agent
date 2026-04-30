@@ -55,8 +55,8 @@
 |---|---|---|---|
 | P3-1 | **Done** | Graph 执行链 **progress** 载荷 | `tools_node` 在将进入交互确认前下发 `progress.phase=danger_confirm_prompt`（含工具名、原因、摘要），并与 `prepare_interactive_dangerous_dispatch` 串联；非 TUI 入口仍不传 `dangerous_confirm`，行为与原先一致 |
 | P3-2 | **Done** | TUI **Modal** 自动弹出 | `DangerConfirmScreen`：无进程内预授权且无 `CAI_DANGEROUS_APPROVE` 时弹窗「允许执行 / 取消」；拒绝则不入 `dispatch`，返回合成失败说明（仍可 `/danger-approve` 或环境变量放行） |
-| P3-3 | Todo | 批量/会话级策略 | 「本会话批准某 MCP 工具」「批准同类 fetch 域名」等 |
-| P3-4 | Todo | 审计日志 | `.cai/dangerous-approve.jsonl` 可选记录 |
+| P3-3 | **Done** | 批量/会话级策略 | TUI：`/danger-session-mcp <name>`、`/danger-session-fetch <host|url>`、`/danger-session-clear`；确认框对 MCP / 明文 http fetch 增加「本会话放行」按钮；`tools.session_danger_preapproved` + `dispatch` 不消耗一次性 budget |
+| P3-4 | **Done** | 审计日志 | `[safety].dangerous_audit_log_enabled`（默认 `false`）与 `CAI_DANGEROUS_AUDIT_LOG`；工作区 ``.cai/dangerous-approve.jsonl`` 追加 `dangerous_audit_event_v1`（grant / executed / session_*） |
 
 ---
 
@@ -82,7 +82,8 @@ python -m pytest -q cai-agent/tests/test_run_command_security_policy.py `
   cai-agent/tests/test_tool_provider_contract_cli.py `
   cai-agent/tests/test_doctor_cli.py `
   cai-agent/tests/test_unrestricted_danger_dispatch_extended.py `
-  cai-agent/tests/test_tools_prepare_interactive_dangerous_dispatch.py
+  cai-agent/tests/test_tools_prepare_interactive_dangerous_dispatch.py `
+  cai-agent/tests/test_danger_session_and_audit.py
 python scripts/smoke_new_features.py
 ```
 
@@ -92,4 +93,4 @@ python scripts/smoke_new_features.py
 
 ## 关联变更记录
 
-- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`
+- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`

@@ -8,11 +8,11 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | `SAFETY-N03-D01`：Graph `danger_confirm_prompt` + TUI Modal + `prepare_interactive_dangerous_dispatch` 已交付；可选后续见清单 **P3-3 / P3-4** | `graph.py`、`tools.py`、`tui.py`、`tests/test_tools_prepare_interactive_dangerous_dispatch.py` | pytest + smoke |
+| - | - | Clear | `SAFETY-N04-D01`：会话 MCP/http 放行 + `.cai/dangerous-approve.jsonl` 审计已交付；解限清单 P3 收口后下一批见 **P4** | `tools.py`、`tui.py`、`config.py`、`tests/test_danger_session_and_audit.py` | pytest + smoke |
 
 ## 执行顺序
 
-1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；P0–P3-2 已收口；可选立项 **P3-3 / P3-4**（批量策略、审计日志）。
+1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；P0–P3（含会话放行与审计）已收口；下一批为 **P4**（规则细化 / Gateway 确认契约等，按需立项）。
 2. 若并行上下文面：优先 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
 3. 若暂停上下文面：再回到 Gateway slash 深化或 Ops operator 路由深化中选择。
 

@@ -180,6 +180,7 @@ class ToolProviderContractCliTests(unittest.TestCase):
             pol = p_guard.get("policy") or {}
             self.assertFalse(pol.get("unrestricted_mode"))
             self.assertTrue(pol.get("dangerous_confirmation_required"))
+            self.assertFalse(pol.get("dangerous_audit_log_enabled"))
 
             buf_cost = io.StringIO()
             with patch("cai_agent.__main__.os.getcwd", return_value=str(root)):

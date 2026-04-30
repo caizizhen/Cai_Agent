@@ -646,6 +646,9 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
         "dangerous_confirmation_required": bool(
             getattr(settings, "dangerous_confirmation_required", True),
         ),
+        "dangerous_audit_log_enabled": bool(
+            getattr(settings, "dangerous_audit_log_enabled", False),
+        ),
         "profile_ping_skipped": not ping_on,
         "profile_pings": pings,
         "instruction_files": instruction_files,
@@ -873,6 +876,11 @@ def run_doctor(
         "开启" if bool(getattr(settings, "unrestricted_mode", False)) else "关闭",
         f"(dangerous_confirmation_required={bool(getattr(settings, 'dangerous_confirmation_required', True))}) "
         "([safety].unrestricted_mode / CAI_UNRESTRICTED_MODE)",
+    )
+    print(
+        "危险操作审计日志:",
+        "开启" if bool(getattr(settings, "dangerous_audit_log_enabled", False)) else "关闭",
+        "([safety].dangerous_audit_log_enabled / CAI_DANGEROUS_AUDIT_LOG → .cai/dangerous-approve.jsonl)",
     )
     print()
 

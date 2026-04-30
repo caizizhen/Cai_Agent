@@ -65,6 +65,8 @@ fetch_url = "allow"
 [safety]
 unrestricted_mode = false
 dangerous_confirmation_required = true
+# 为 true 时将危险确认相关事件追加到工作区 .cai/dangerous-approve.jsonl
+dangerous_audit_log_enabled = false
 
 [cost]
 budget_max_tokens = 50000

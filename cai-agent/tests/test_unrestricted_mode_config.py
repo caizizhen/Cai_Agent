@@ -39,6 +39,7 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
         )
         self.assertFalse(s.unrestricted_mode)
         self.assertTrue(s.dangerous_confirmation_required)
+        self.assertFalse(s.dangerous_audit_log_enabled)
 
     def test_toml_true(self) -> None:
         s = _settings_from_toml(
@@ -99,6 +100,49 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
         )
         self.assertTrue(s.unrestricted_mode)
         self.assertFalse(s.dangerous_confirmation_required)
+
+    def test_dangerous_audit_toml_true(self) -> None:
+        s = _settings_from_toml(
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+
+                [safety]
+                dangerous_audit_log_enabled = true
+                """
+            ).strip()
+            + "\n",
+        )
+        self.assertTrue(s.dangerous_audit_log_enabled)
+
+    def test_dangerous_audit_env_overrides_toml(self) -> None:
+        body = (
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+
+                [safety]
+                dangerous_audit_log_enabled = true
+                """
+            ).strip()
+            + "\n"
+        )
+        old = os.environ.get("CAI_DANGEROUS_AUDIT_LOG")
+        try:
+            os.environ["CAI_DANGEROUS_AUDIT_LOG"] = "0"
+            s = _settings_from_toml(body)
+            self.assertFalse(s.dangerous_audit_log_enabled)
+        finally:
+            if old is None:
+                os.environ.pop("CAI_DANGEROUS_AUDIT_LOG", None)
+            else:
+                os.environ["CAI_DANGEROUS_AUDIT_LOG"] = old
 
 
 if __name__ == "__main__":

@@ -303,6 +303,7 @@
 | `SAFETY-N01-D02` | `Done` | `SAFETY-N01` | TUI 开关与危险二次确认闭环 | TUI `/unrestricted [on|off]`（写回 TOML）+ `/danger-approve`；`dispatch` 在 `unrestricted_mode` 下对高危 `run_command` 与敏感 `write_file` 执行二次确认；非交互 `CAI_DANGEROUS_APPROVE=1` | `SAFETY-N01-D01` | pytest `test_tui_slash_suggester` + `test_run_command_security_policy` + `test_tools_make_dir` |
 | `SAFETY-N02-D01` | `Done` | `SAFETY-N02` | 扩大危险确认面（MCP / http fetch） | `dispatch` 在解限模式下对 `mcp_call_tool` 与明文 `http` 的 `fetch_url` 要求二次确认；`README.zh-CN.md`；清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) | `SAFETY-N01-D02` | pytest `test_unrestricted_danger_dispatch_extended.py` |
 | `SAFETY-N03-D01` | `Done` | `SAFETY-N03` | Graph progress + TUI Modal 危险确认 | `graph.build_app(..., dangerous_confirm=)`；`tools_node` 下发 `danger_confirm_prompt` 并调用 `prepare_interactive_dangerous_dispatch`；TUI `DangerConfirmScreen`；`README.zh-CN.md`；清单 P3-1/P3-2 Done | `SAFETY-N02-D01` | pytest 全量 + `test_tools_prepare_interactive_dangerous_dispatch.py` + smoke |
+| `SAFETY-N04-D01` | `Done` | `SAFETY-N04` | 会话级 MCP/http 放行 + 危险审计 JSONL | `session_danger_preapproved`；TUI `/danger-session-*` 与 Modal「本会话放行」；`.cai/dangerous-approve.jsonl`；`dangerous_audit_log_enabled`；清单 P3-3/P3-4 Done | `SAFETY-N03-D01` | pytest 全量 + `test_danger_session_and_audit.py` + smoke |
 
 ### 10.1 建议开单顺序
 

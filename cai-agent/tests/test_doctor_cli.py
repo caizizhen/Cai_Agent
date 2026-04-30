@@ -69,6 +69,7 @@ class DoctorCliTests(unittest.TestCase):
             self.assertTrue(pl.get("mock"))
             self.assertFalse(pl.get("unrestricted_mode"))
             self.assertTrue(pl.get("dangerous_confirmation_required"))
+            self.assertFalse(pl.get("dangerous_audit_log_enabled"))
             plug = pl.get("plugins")
             self.assertIsInstance(plug, dict)
             self.assertEqual(plug.get("schema_version"), "doctor_plugins_bundle_v1")

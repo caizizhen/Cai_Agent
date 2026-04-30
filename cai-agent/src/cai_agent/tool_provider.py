@@ -324,6 +324,9 @@ def build_tool_gateway_guard_payload(settings: Settings) -> dict[str, Any]:
             "dangerous_confirmation_required": bool(
                 getattr(settings, "dangerous_confirmation_required", True),
             ),
+            "dangerous_audit_log_enabled": bool(
+                getattr(settings, "dangerous_audit_log_enabled", False),
+            ),
         },
         "cost_guard": {
             "max_tokens": max_tokens,

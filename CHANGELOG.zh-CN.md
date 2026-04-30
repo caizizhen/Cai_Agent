@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **SAFETY-N04-D01 解限会话放行与危险审计 JSONL**：进程内 `register_session_mcp_tool_danger_approval` / `register_session_fetch_http_host_danger_approval`；`dispatch` 与 `prepare_interactive_dangerous_dispatch` 识别会话放行且不消耗一次性 budget；TUI 斜杠命令与确认框「本会话放行」；`[safety].dangerous_audit_log_enabled` + `CAI_DANGEROUS_AUDIT_LOG` 写入 `.cai/dangerous-approve.jsonl`；`grant_dangerous_approval_once(..., settings=, audit_via=)`；`doctor`/`tools guard` 暴露 `dangerous_audit_log_enabled`。回归：`test_danger_session_and_audit.py` 等。
+
 - **SAFETY-N03-D01 解限危险操作 TUI 自动确认与 Graph 串联**：`build_app(..., dangerous_confirm=...)`；`tools_node` 在交互确认路径上先广播 `danger_confirm_prompt` 再调用 `prepare_interactive_dangerous_dispatch`；TUI 使用 `ModalScreen` + `call_from_thread` 弹出允许/取消；新增 `reset_dangerous_approval_budget_for_testing()`；清单 P3-1/P3-2 标 Done（[`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)）；回归含 `test_tools_prepare_interactive_dangerous_dispatch.py`、schedule `fake_build_app` 兼容 `**kwargs`。
 
 - **SAFETY-N02-D01 解限模式扩大危险确认**：解限且 `dangerous_confirmation_required=true` 时，`mcp_call_tool` 每次调用与明文 `http` 的 `fetch_url` 需二次确认（TUI `/danger-approve` 或 `CAI_DANGEROUS_APPROVE=1`）；`README.zh-CN.md` 增补说明；全景清单 [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)。

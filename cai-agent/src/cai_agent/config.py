@@ -270,6 +270,8 @@ class Settings:
     # [safety]：解限模式（默认关闭）；后续用于「默认少拦、危险二次确认」等行为开关。
     unrestricted_mode: bool
     dangerous_confirmation_required: bool
+    # 将危险确认相关事件追加到工作区 ``.cai/dangerous-approve.jsonl``（默认关闭）。
+    dangerous_audit_log_enabled: bool
     fetch_url_enabled: bool
     fetch_url_unrestricted: bool
     fetch_url_allowed_hosts: tuple[str, ...]
@@ -678,6 +680,14 @@ class Settings:
                 dangerous_confirmation_required = raw_dcr
             else:
                 dangerous_confirmation_required = True
+        if os.getenv("CAI_DANGEROUS_AUDIT_LOG") is not None:
+            dangerous_audit_log_enabled = _env_bool("CAI_DANGEROUS_AUDIT_LOG", False)
+        else:
+            raw_dal = safety.get("dangerous_audit_log_enabled")
+            if isinstance(raw_dal, bool):
+                dangerous_audit_log_enabled = raw_dal
+            else:
+                dangerous_audit_log_enabled = False
 
         fu = _section(file_data, "fetch_url")
         if os.getenv("CAI_FETCH_URL_ENABLED") is not None:
@@ -1089,6 +1099,7 @@ class Settings:
             run_command_high_risk_patterns=run_command_high_risk_patterns,
             unrestricted_mode=unrestricted_mode,
             dangerous_confirmation_required=dangerous_confirmation_required,
+            dangerous_audit_log_enabled=dangerous_audit_log_enabled,
             fetch_url_enabled=fetch_url_enabled,
             fetch_url_unrestricted=fetch_url_unrestricted,
             fetch_url_allowed_hosts=fetch_url_allowed_hosts,

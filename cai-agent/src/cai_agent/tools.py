@@ -8,6 +8,7 @@ import shlex
 import socket
 import subprocess
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
@@ -41,6 +42,10 @@ _MCP_TOOLS_CACHE: dict[str, tuple[float, list[str]]] = {}
 _MCP_TOOLS_TTL_SEC = 15.0
 _DANGEROUS_APPROVAL_LOCK = Lock()
 _DANGEROUS_APPROVAL_BUDGET = 0
+_SESSION_DANGER_LOCK = Lock()
+_SESSION_MCP_DANGER_OK: set[str] = set()
+_SESSION_FETCH_HTTP_HOSTS: set[str] = set()
+_DANGER_AUDIT_SCHEMA = "dangerous_audit_event_v1"
 
 _DEFAULT_HIGH_RISK_PATTERNS = (
     "rm -rf",
@@ -92,12 +97,23 @@ def _is_high_risk_command(settings: Settings, argv: list[str]) -> tuple[bool, st
     return (False, "")
 
 
-def grant_dangerous_approval_once() -> int:
+def grant_dangerous_approval_once(
+    *,
+    settings: Settings | None = None,
+    audit_via: str | None = None,
+) -> int:
     """Grant one dangerous-action approval for the current process."""
     global _DANGEROUS_APPROVAL_BUDGET
     with _DANGEROUS_APPROVAL_LOCK:
         _DANGEROUS_APPROVAL_BUDGET += 1
-        return _DANGEROUS_APPROVAL_BUDGET
+        out = int(_DANGEROUS_APPROVAL_BUDGET)
+    if settings is not None and audit_via:
+        append_dangerous_audit_log(
+            settings,
+            "dangerous_grant",
+            {"via": audit_via, "budget_after": out},
+        )
+    return out
 
 
 def _consume_dangerous_approval_once() -> bool:
@@ -165,10 +181,106 @@ def peek_dangerous_approval_budget() -> int:
 
 
 def reset_dangerous_approval_budget_for_testing() -> None:
-    """测试专用：清零进程内危险操作预授权计数。"""
+    """测试专用：清零进程内危险操作预授权与会话放行集合。"""
     global _DANGEROUS_APPROVAL_BUDGET
     with _DANGEROUS_APPROVAL_LOCK:
         _DANGEROUS_APPROVAL_BUDGET = 0
+    clear_session_danger_tool_approvals()
+
+
+def clear_session_danger_tool_approvals() -> None:
+    """清空本会话（进程）内 MCP / 明文 HTTP 主机的危险放行集合。"""
+    with _SESSION_DANGER_LOCK:
+        _SESSION_MCP_DANGER_OK.clear()
+        _SESSION_FETCH_HTTP_HOSTS.clear()
+
+
+def register_session_mcp_tool_danger_approval(tool_name: str) -> None:
+    """本会话内对指定 MCP 工具名跳过危险二次确认（仍须解限且 ``dangerous_confirmation_required``）。"""
+    t = str(tool_name).strip()
+    if not t:
+        return
+    with _SESSION_DANGER_LOCK:
+        _SESSION_MCP_DANGER_OK.add(t)
+
+
+def register_session_fetch_http_host_danger_approval(hostname: str) -> None:
+    """本会话内对指定主机名的明文 ``http`` ``fetch_url`` 跳过危险二次确认。"""
+    h = str(hostname).strip().lower()
+    if not h:
+        return
+    with _SESSION_DANGER_LOCK:
+        _SESSION_FETCH_HTTP_HOSTS.add(h)
+
+
+def session_danger_preapproved(settings: Settings, name: str, args: dict[str, Any]) -> bool:
+    """进程内会话放行：与 ``needs_dangerous_confirmation`` 语义一致且命中白名单时返回 True。"""
+    need, _reason = needs_dangerous_confirmation(settings, name, args)
+    if not need:
+        return False
+    if name == "mcp_call_tool":
+        tn = str(args.get("name", "")).strip()
+        if not tn:
+            return False
+        with _SESSION_DANGER_LOCK:
+            return tn in _SESSION_MCP_DANGER_OK
+    if name == "fetch_url":
+        url_raw = str(args.get("url", "")).strip()
+        try:
+            parsed = urlparse(url_raw)
+        except Exception:
+            return False
+        if (parsed.scheme or "").lower() != "http":
+            return False
+        host = (parsed.hostname or "").strip().lower()
+        if not host:
+            return False
+        with _SESSION_DANGER_LOCK:
+            return host in _SESSION_FETCH_HTTP_HOSTS
+    return False
+
+
+def _danger_audit_args_summary(name: str, args: dict[str, Any]) -> dict[str, Any]:
+    if name == "mcp_call_tool":
+        return {"mcp_tool": str(args.get("name", "")).strip()[:400]}
+    if name == "fetch_url":
+        u = str(args.get("url", "")).strip()[:800]
+        try:
+            host = (urlparse(u).hostname or "").strip().lower()
+        except Exception:
+            host = ""
+        return {"url": u, "host": host}
+    if name == "run_command":
+        argv = args.get("argv")
+        if isinstance(argv, list) and argv:
+            return {"argv0": str(argv[0])[:200]}
+        return {}
+    if name == "write_file":
+        return {"path": str(args.get("path", "")).strip()[:400]}
+    return {}
+
+
+def append_dangerous_audit_log(settings: Settings, event: str, detail: dict[str, Any]) -> None:
+    """将一条 JSON 事件追加到 ``<workspace>/.cai/dangerous-approve.jsonl``（受配置开关控制）。"""
+    if not bool(getattr(settings, "dangerous_audit_log_enabled", False)):
+        return
+    try:
+        ws = str(getattr(settings, "workspace", "") or "").strip() or "."
+        root = Path(ws).expanduser().resolve()
+        cai = root / ".cai"
+        cai.mkdir(parents=True, exist_ok=True)
+        path = cai / "dangerous-approve.jsonl"
+        rec: dict[str, Any] = {
+            "schema": _DANGER_AUDIT_SCHEMA,
+            "ts": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "event": str(event),
+            "detail": dict(detail),
+        }
+        line = json.dumps(rec, ensure_ascii=False) + "\n"
+        with path.open("a", encoding="utf-8", newline="\n") as f:
+            f.write(line)
+    except Exception:
+        return
 
 
 def prepare_interactive_dangerous_dispatch(
@@ -190,6 +302,8 @@ def prepare_interactive_dangerous_dispatch(
         return (True, None)
     if peek_dangerous_approval_budget() > 0:
         return (True, None)
+    if session_danger_preapproved(settings, name, args):
+        return (True, None)
     if interactive_confirm is None:
         return (True, None)
     payload = {"name": name, "args": dict(args), "reason": reason}
@@ -198,7 +312,7 @@ def prepare_interactive_dangerous_dispatch(
     except Exception:
         ok = False
     if ok:
-        grant_dangerous_approval_once()
+        grant_dangerous_approval_once(settings=settings, audit_via="modal")
         return (True, None)
     return (
         False,
@@ -890,12 +1004,29 @@ def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     ws = settings.workspace
     enforce_tool_permission(settings, name)
     need_confirm, reason = needs_dangerous_confirmation(settings, name, args)
-    if need_confirm and not (_consume_dangerous_approval_once() or dangerous_auto_approved_from_env()):
-        raise SandboxError(
-            f"危险操作需要二次确认：{reason}。"
-            "请先在 TUI 输入 /danger-approve（仅放行下一次高危操作），"
-            "或在非交互场景设置 CAI_DANGEROUS_APPROVE=1。",
-        )
+    if need_confirm:
+        pre = session_danger_preapproved(settings, name, args)
+        env_ok = dangerous_auto_approved_from_env()
+        consumed = _consume_dangerous_approval_once()
+        if not (consumed or env_ok or pre):
+            raise SandboxError(
+                f"危险操作需要二次确认：{reason}。"
+                "请先在 TUI 输入 /danger-approve（仅放行下一次高危操作），"
+                "或在非交互场景设置 CAI_DANGEROUS_APPROVE=1；"
+                "对 MCP 或明文 http 的 fetch，可用 /danger-session-mcp、/danger-session-fetch 本会话放行。",
+            )
+        if bool(getattr(settings, "dangerous_audit_log_enabled", False)):
+            via = "session_exempt" if pre else ("env" if env_ok else "budget")
+            append_dangerous_audit_log(
+                settings,
+                "dangerous_executed",
+                {
+                    "tool": name,
+                    "via": via,
+                    "reason": reason,
+                    "args": _danger_audit_args_summary(name, args),
+                },
+            )
     if name == "read_file":
         return tool_read_file(ws, args)
     if name == "list_dir":

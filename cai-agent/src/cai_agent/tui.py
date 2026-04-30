@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from datetime import datetime
 from typing import Any
+from urllib.parse import urlparse
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
@@ -78,6 +79,9 @@ _NATIVE_SLASH_COMMAND_SPECS: tuple[SlashCommandSpec, ...] = (
     SlashCommandSpec("/personality", "/personality", "Show the current CAI_PERSONALITY hint"),
     SlashCommandSpec("/unrestricted", "/unrestricted [on|off]", "Show or switch unrestricted_mode"),
     SlashCommandSpec("/danger-approve", "/danger-approve", "Approve one dangerous action in unrestricted mode"),
+    SlashCommandSpec("/danger-session-mcp ", "/danger-session-mcp <name>", "Session-approve one MCP tool name (skip further dangerous prompts for it)"),
+    SlashCommandSpec("/danger-session-fetch ", "/danger-session-fetch <host>", "Session-approve cleartext http fetch for one hostname"),
+    SlashCommandSpec("/danger-session-clear", "/danger-session-clear", "Clear session MCP/http dangerous approvals"),
 )
 
 
@@ -89,6 +93,9 @@ _SLASH_COMMAND_CANDIDATES: tuple[str, ...] = (
     "/use-model ",
     "/fix-build",
     "/security-scan",
+    "/danger-session-mcp ",
+    "/danger-session-fetch ",
+    "/danger-session-clear",
 )
 
 _USE_MODEL_PREFIX = "/use-model "
@@ -120,6 +127,9 @@ _NATIVE_TUI_COMMANDS: frozenset[str] = frozenset(
         "personality",
         "unrestricted",
         "danger-approve",
+        "danger-session-mcp",
+        "danger-session-fetch",
+        "danger-session-clear",
     }
 )
 _SLASH_MENU_MAX_ITEMS = 200
@@ -141,6 +151,9 @@ _SLASH_TYPO_POOL: tuple[str, ...] = (
     "/retry",
     "/unrestricted",
     "/danger-approve",
+    "/danger-session-mcp ",
+    "/danger-session-fetch ",
+    "/danger-session-clear",
     "/save",
     "/load",
     "/load latest",
@@ -520,8 +533,12 @@ class SlashCommandSuggester(Suggester):
         return None
 
 
-class DangerConfirmScreen(ModalScreen[bool]):
-    """解限模式下危险工具调用前的阻塞确认（由工作线程经 ``call_from_thread`` 拉起）。"""
+class DangerConfirmScreen(ModalScreen[str | None]):
+    """解限模式下危险工具调用前的阻塞确认（由工作线程经 ``call_from_thread`` 拉起）。
+
+    dismiss 载荷：``\"once\"`` 仅本次；``\"session_mcp\"`` / ``\"session_fetch\"`` 本会话放行；
+    ``None`` 表示取消。
+    """
 
     BINDINGS = [Binding("escape", "cancel", "取消", show=True)]
 
@@ -544,21 +561,34 @@ class DangerConfirmScreen(ModalScreen[bool]):
             f"工具: {name}\n\n"
             "参数:\n"
             f"{summary}\n\n"
-            "允许：执行本次工具调用 · 取消：跳过本次（仍可先用 /danger-approve 预放行）"
+            "允许：仅本次 · 取消：跳过（仍可用 /danger-approve 预放行一次）"
         )
         yield Static(body, markup=False)
         with Horizontal():
             yield Button("允许执行", variant="primary", id="dc-yes")
             yield Button("取消", id="dc-no")
+        if name == "mcp_call_tool":
+            with Horizontal():
+                yield Button("本会话放行此 MCP 工具", id="dc-session-mcp")
+        elif name == "fetch_url" and (
+            "http" in reason.lower() or "http://" in summary.lower()[:200]
+        ):
+            with Horizontal():
+                yield Button("本会话放行此 HTTP 站点", id="dc-session-fetch")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "dc-yes":
-            self.dismiss(True)
+        bid = event.button.id or ""
+        if bid == "dc-yes":
+            self.dismiss("once")
+        elif bid == "dc-session-mcp":
+            self.dismiss("session_mcp")
+        elif bid == "dc-session-fetch":
+            self.dismiss("session_fetch")
         else:
-            self.dismiss(False)
+            self.dismiss(None)
 
     def action_cancel(self) -> None:
-        self.dismiss(False)
+        self.dismiss(None)
 
 
 class SlashAwareInput(Input):
@@ -724,12 +754,12 @@ class CaiAgentApp(App[None]):
 
     def _danger_confirm_callback(self, payload: dict[str, Any]) -> bool:
         """在工作线程中调用：回到主线程弹出确认框并阻塞等待用户选择。"""
-        result: list[bool | None] = [None]
+        result: list[str | None] = [None]
         done = threading.Event()
 
         def on_main() -> None:
-            def finish(value: bool | None) -> None:
-                result[0] = False if value is None else bool(value)
+            def finish(value: str | None) -> None:
+                result[0] = value
                 done.set()
 
             self.push_screen(DangerConfirmScreen(payload), finish)
@@ -737,12 +767,48 @@ class CaiAgentApp(App[None]):
         try:
             self.call_from_thread(on_main)
         except Exception:
-            result[0] = False
+            result[0] = None
             done.set()
         done.wait(timeout=600.0)
-        if result[0] is None:
+        choice = result[0]
+        if choice is None:
             return False
-        return bool(result[0])
+        if choice == "once":
+            return True
+        if choice == "session_mcp":
+            from cai_agent.tools import append_dangerous_audit_log, register_session_mcp_tool_danger_approval
+
+            args = payload.get("args") or {}
+            tn = str(args.get("name", "")).strip()
+            if tn:
+                register_session_mcp_tool_danger_approval(tn)
+                append_dangerous_audit_log(
+                    self._settings,
+                    "session_mcp_add",
+                    {"tool": tn},
+                )
+            return True
+        if choice == "session_fetch":
+            from cai_agent.tools import (
+                append_dangerous_audit_log,
+                register_session_fetch_http_host_danger_approval,
+            )
+
+            args = payload.get("args") or {}
+            url = str(args.get("url", "")).strip()
+            try:
+                host = (urlparse(url).hostname or "").strip().lower()
+            except Exception:
+                host = ""
+            if host:
+                register_session_fetch_http_host_danger_approval(host)
+                append_dangerous_audit_log(
+                    self._settings,
+                    "session_fetch_host_add",
+                    {"host": host},
+                )
+            return True
+        return False
 
     def _sync_slash_completion_sources(self) -> None:
         """刷新斜杠补全用的 profile id 与 MCP 工具名（走 mcp_list_tools 缓存，不强制联网）。"""
@@ -1414,10 +1480,11 @@ class CaiAgentApp(App[None]):
             "/mcp-presets",
             "/stop",
             "/danger-approve",
+            "/danger-session-clear",
             "/unrestricted",
             "/unrestricted on",
             "/unrestricted off",
-        ):
+        ) and not raw.startswith("/danger-session-mcp ") and not raw.startswith("/danger-session-fetch "):
             self.notify(
                 "上一轮任务仍在运行，请稍候；可先滚动上方对话区查看记录。",
                 severity="warning",
@@ -1503,6 +1570,7 @@ class CaiAgentApp(App[None]):
                 f"{_format_compact_status(self._last_compact_status)}\n"
                 f"unrestricted_mode={bool(getattr(s, 'unrestricted_mode', False))}  "
                 f"dangerous_confirmation_required={bool(getattr(s, 'dangerous_confirmation_required', True))}\n"
+                f"dangerous_audit_log_enabled={bool(getattr(s, 'dangerous_audit_log_enabled', False))}\n"
                 f"project_context={s.project_context}  git_context={s.git_context}\n"
                 f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n"
                 + format_tui_mcp_web_notebook_quickstart()
@@ -1510,10 +1578,63 @@ class CaiAgentApp(App[None]):
             )
             return
 
+        if raw == "/danger-session-clear":
+            from cai_agent.tools import append_dangerous_audit_log, clear_session_danger_tool_approvals
+
+            clear_session_danger_tool_approvals()
+            append_dangerous_audit_log(self._settings, "session_clear", {})
+            self.query_one("#chat", RichLog).write(
+                "\n[green]已清空[/] 本会话 MCP / 明文 HTTP 主机的危险放行列表。\n",
+            )
+            return
+
+        if raw.startswith("/danger-session-mcp "):
+            from cai_agent.tools import append_dangerous_audit_log, register_session_mcp_tool_danger_approval
+
+            tool = raw[len("/danger-session-mcp ") :].strip()
+            if not tool:
+                self.query_one("#chat", RichLog).write(
+                    "\n[red]用法:[/] /danger-session-mcp <mcp_tool_name>\n",
+                )
+                return
+            register_session_mcp_tool_danger_approval(tool)
+            append_dangerous_audit_log(
+                self._settings,
+                "session_mcp_add",
+                {"tool": tool, "via": "slash"},
+            )
+            self.query_one("#chat", RichLog).write(
+                f"\n[green]本会话已放行 MCP 工具[/] [cyan]{tool!r}[/]（后续同名将不再弹危险确认）\n",
+            )
+            return
+
+        if raw.startswith("/danger-session-fetch "):
+            from cai_agent.tools import append_dangerous_audit_log, register_session_fetch_http_host_danger_approval
+
+            rest = raw[len("/danger-session-fetch ") :].strip()
+            host = rest.lower()
+            if "://" in rest:
+                host = (urlparse(rest).hostname or "").strip().lower()
+            if not host:
+                self.query_one("#chat", RichLog).write(
+                    "\n[red]用法:[/] /danger-session-fetch <hostname> 或 http://… URL\n",
+                )
+                return
+            register_session_fetch_http_host_danger_approval(host)
+            append_dangerous_audit_log(
+                self._settings,
+                "session_fetch_host_add",
+                {"host": host, "via": "slash"},
+            )
+            self.query_one("#chat", RichLog).write(
+                f"\n[green]本会话已放行明文 HTTP 主机[/] [cyan]{host!r}[/]\n",
+            )
+            return
+
         if raw == "/danger-approve":
             from cai_agent.tools import grant_dangerous_approval_once
 
-            budget = grant_dangerous_approval_once()
+            budget = grant_dangerous_approval_once(settings=self._settings, audit_via="slash")
             self.query_one("#chat", RichLog).write(
                 "\n[green]已确认下一次高危操作[/] "
                 f"[dim](remaining approvals={budget})[/]\n",

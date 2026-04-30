@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **SAFETY-N04-D01 unrestricted session danger approvals + audit JSONL**: In-process session allowlists for MCP tool names and cleartext `http` fetch hosts; `dispatch` / `prepare_interactive_dangerous_dispatch` honor them without consuming the one-shot budget; TUI slash commands plus modal “approve for this session”; `[safety].dangerous_audit_log_enabled` and `CAI_DANGEROUS_AUDIT_LOG` append `dangerous_audit_event_v1` lines under `.cai/dangerous-approve.jsonl`; `grant_dangerous_approval_once(..., settings=, audit_via=)`; `doctor` / `tools guard` expose `dangerous_audit_log_enabled`. Tests: `test_danger_session_and_audit.py`, etc.
+
 - **SAFETY-N03-D01 unrestricted dangerous-tool interactive confirm**: `build_app` accepts optional `dangerous_confirm`; graph `tools_node` emits `danger_confirm_prompt` progress then runs `prepare_interactive_dangerous_dispatch` before `dispatch`; TUI wires a modal Yes/No via `call_from_thread`; adds `reset_dangerous_approval_budget_for_testing()`; backlog P3-1/P3-2 marked Done ([`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)); tests include `test_tools_prepare_interactive_dangerous_dispatch.py` and schedule stubs accepting `**kwargs`.
 
 - **SAFETY-N02-D01 unrestricted-mode wider confirmation gate**: When unrestricted with `dangerous_confirmation_required=true`, `mcp_call_tool` and cleartext `http` `fetch_url` now require second confirmation (`/danger-approve` or `CAI_DANGEROUS_APPROVE=1`); `README.zh-CN.md` documents behavior; backlog [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md).
