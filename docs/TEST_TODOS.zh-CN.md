@@ -8,7 +8,7 @@
 
 | 顺位 | 子任务 ID | 状态 | 测试目标 | 主要测试入口 | 通过门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | 当前默认测试队列已清空；`GW-SLASH-N01` 已完成并归档 | `test_gateway_lifecycle_cli.py`、`test_api_http_server.py`、手动 CLI/API 验证、OpenAPI 验证、compileall | compileall PASS；manual CLI/API PASS；OpenAPI route PASS；pytest slash catalog focused tests 2 passed |
+| - | - | Clear | `CTX-COMPACT-N07` 已完成并归档；当前默认测试队列已清空 | `test_context_compaction.py`、`test_graph_context_compaction.py`、`test_sessions_compact_eval_cli.py` | 完成证据见 `docs/qa/runs/task-finalize-20260430-183958-CTX-COMPACT-N07.md` |
 
 ## 自动验证记录（由 finalize 脚本追加）
 
@@ -53,3 +53,7 @@
 | 2026-04-30 | `CTX-COMPACT-N01` | compileall context compaction/graph/config/tui/cost: PASS; pytest context_compaction + graph_context_compaction: 4 passed; pytest compact_policy_explain_v1: PASS | [`docs/qa/runs/task-finalize-20260430-114945-CTX-COMPACT-N01.md`](docs/qa/runs/task-finalize-20260430-114945-CTX-COMPACT-N01.md) |
 | 2026-04-30 | `CTX-COMPACT-N02` | compileall context compaction/graph/config/tui/cost/main: PASS; pytest context_compaction + graph_context_compaction + compact_policy_explain_v1: 10 passed | [`docs/qa/runs/task-finalize-20260430-120015-CTX-COMPACT-N02.md`](docs/qa/runs/task-finalize-20260430-120015-CTX-COMPACT-N02.md) |
 | 2026-04-30 | `CTX-COMPACT-N03` | compileall context_compaction/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli: 13 passed | [`docs/qa/runs/task-finalize-20260430-121340-CTX-COMPACT-N03.md`](docs/qa/runs/task-finalize-20260430-121340-CTX-COMPACT-N03.md) |
+| 2026-04-30 | `CTX-COMPACT-N04` | compileall context_compaction/graph/tui: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 16 passed | [`docs/qa/runs/task-finalize-20260430-172248-CTX-COMPACT-N04.md`](docs/qa/runs/task-finalize-20260430-172248-CTX-COMPACT-N04.md) |
+| 2026-04-30 | `CTX-COMPACT-N05` | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 20 passed | [`docs/qa/runs/task-finalize-20260430-173015-CTX-COMPACT-N05.md`](docs/qa/runs/task-finalize-20260430-173015-CTX-COMPACT-N05.md) |
+| 2026-04-30 | `CTX-COMPACT-N06` | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 21 passed | [`docs/qa/runs/task-finalize-20260430-180315-CTX-COMPACT-N06.md`](docs/qa/runs/task-finalize-20260430-180315-CTX-COMPACT-N06.md) |
+| 2026-04-30 | `CTX-COMPACT-N07` | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 22 passed | [`docs/qa/runs/task-finalize-20260430-183958-CTX-COMPACT-N07.md`](docs/qa/runs/task-finalize-20260430-183958-CTX-COMPACT-N07.md) |

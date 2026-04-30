@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/context_compaction_summary_v1.schema.json",
+  "title": "ContextCompactionSummaryV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "source_message_count",
+    "summary_source"
+  ],
+  "properties": {
+    "schema_version": { "const": "context_compaction_summary_v1" },
+    "generated_at": { "type": "string" },
+    "source_message_count": { "type": "integer", "minimum": 0 },
+    "summary_source": { "type": "string", "enum": ["heuristic", "llm"] },
+    "fallback_reason": { "type": "string" },
+    "role_counts": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "tool_calls_count": { "type": "integer", "minimum": 0 },
+    "tool_errors_count": { "type": "integer", "minimum": 0 },
+    "tool_calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["tool", "error", "result_preview"],
+        "properties": {
+          "tool": { "type": "string" },
+          "error": { "type": "boolean" },
+          "result_preview": { "type": "string" },
+          "tool_kind": {
+            "type": "string",
+            "enum": ["traceback", "test", "git_diff", "search", "read", "command", "generic"]
+          },
+          "paths": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "failure_summary": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "diff_stats": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["added_lines", "removed_lines"],
+            "properties": {
+              "added_lines": { "type": "integer", "minimum": 0 },
+              "removed_lines": { "type": "integer", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "important_paths": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "conversation_notes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": true,
+        "required": ["role", "preview"],
+        "properties": {
+          "role": { "type": "string" },
+          "preview": { "type": "string" }
+        }
+      }
+    },
+    "truncated": { "type": "boolean" },
+    "merged_summary_count": { "type": "integer", "minimum": 0 },
+    "merged_source_message_count": { "type": "integer", "minimum": 0 },
+    "goal": { "type": ["string", "null"] },
+    "decisions": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "facts": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "files_touched": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "tool_evidence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "open_todos": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "risks": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "last_user_intent": { "type": ["string", "null"] }
+  }
+}

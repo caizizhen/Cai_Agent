@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cai-agent.local/schemas/context_compaction_retention_v1.schema.json",
+  "title": "ContextCompactionRetentionV1",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schema_version",
+    "passed",
+    "failed_reasons",
+    "checks",
+    "retention"
+  ],
+  "properties": {
+    "schema_version": { "const": "context_compaction_retention_v1" },
+    "passed": { "type": "boolean" },
+    "failed_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "initial_goal_retained",
+          "tail_retained",
+          "paths_retained",
+          "tools_retained",
+          "markers_retained"
+        ]
+      }
+    },
+    "checks": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "initial_goal_retained",
+        "tail_retained",
+        "paths_retained",
+        "tools_retained",
+        "markers_retained"
+      ],
+      "properties": {
+        "initial_goal_retained": { "type": "boolean" },
+        "tail_retained": { "type": "boolean" },
+        "paths_retained": { "type": "boolean" },
+        "tools_retained": { "type": "boolean" },
+        "markers_retained": { "type": "boolean" }
+      }
+    },
+    "retention": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "initial_goal_retained",
+        "tail_retention_ratio",
+        "path_retention_ratio",
+        "tool_retention_ratio",
+        "marker_retention_ratio",
+        "paths",
+        "tools",
+        "markers"
+      ],
+      "properties": {
+        "initial_goal_retained": { "type": "boolean" },
+        "tail_retention_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "path_retention_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "tool_retention_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "marker_retention_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["path", "retained"],
+            "properties": {
+              "path": { "type": "string" },
+              "retained": { "type": "boolean" }
+            }
+          }
+        },
+        "tools": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tool", "retained"],
+            "properties": {
+              "tool": { "type": "string" },
+              "retained": { "type": "boolean" }
+            }
+          }
+        },
+        "markers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["marker", "retained"],
+            "properties": {
+              "marker": { "type": "string" },
+              "retained": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

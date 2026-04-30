@@ -7,16 +7,18 @@
 
 ## 当前目标
 
-- `CTX-COMPACT-N03` 已完成并归档；上下文压缩后续计划已写入 `docs/CONTEXT_COMPACTION_FUTURE_PLAN.zh-CN.md`，最终 QA 记录见 `docs/qa/runs/context-compaction-final-qa-20260430.md`。当前默认开发队列清空。下一轮建议在上下文压缩真实模型回归、Gateway slash command 真实注册/部署检查与 Ops operator 路由深化中选择。
+- `CTX-COMPACT-N07` 已完成并归档：`context_summary_v1.tool_calls[]` 已对 pytest/traceback、git diff、search 命中、长文件读取等输出保留结构化证据。N04-N07 集成 QA 记录见 `docs/qa/runs/context-compaction-n04-n07-integration-qa-20260430.md`。当前默认开发队列清空；下一轮建议继续 `CTX-COMPACT-N08` TUI 压缩可视化或 `CTX-COMPACT-N09` 安全/隐私过滤。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | `CTX-COMPACT-N03` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md`、`docs/qa/runs/task-finalize-20260430-121340-CTX-COMPACT-N03.md` 与 `docs/qa/runs/context-compaction-final-qa-20260430.md` |
+| - | - | Clear | `CTX-COMPACT-N07` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260430-183958-CTX-COMPACT-N07.md` |
 
 ## 后续队列
 
+- `CTX-COMPACT-N08`：TUI 压缩可视化
+- `CTX-COMPACT-N09`：安全/隐私过滤
 - Gateway 深化（候选）：slash command 深化、多 workspace federation 的真实部署检查
 - Ops operator 路由深化（候选）：在 RBAC / workspaces 发现基础上继续补跨 workspace 操作路由与租户边界
 
@@ -32,6 +34,10 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `CTX-COMPACT-N07` | 2026-04-30 | Add tool-aware evidence extraction for context compaction summaries | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 22 passed |
+| `CTX-COMPACT-N06` | 2026-04-30 | Merge existing context summaries during repeated compaction | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 21 passed |
+| `CTX-COMPACT-N05` | 2026-04-30 | Add context compaction JSON schemas and fixture checks | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 20 passed |
+| `CTX-COMPACT-N04` | 2026-04-30 | Add LLM compaction retention gate with heuristic fallback | compileall context_compaction/graph/tui: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 16 passed |
 | `CTX-COMPACT-N03` | 2026-04-30 | Add sessions compact-eval quality gate for context compaction regressions | compileall context_compaction/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli: 13 passed |
 | `CTX-COMPACT-N02` | 2026-04-30 | Add compact_mode off/heuristic/llm with LLM summary compaction and heuristic fallback | compileall context compaction/graph/config/tui/cost/main: PASS; pytest context_compaction + graph_context_compaction + compact_policy_explain_v1: 10 passed |
 | `CTX-COMPACT-N01` | 2026-04-30 | Add heuristic context_summary_v1 compaction with graph auto-trigger and TUI /compress | compileall context compaction/graph/config/tui/cost: PASS; pytest context_compaction + graph_context_compaction: 4 passed; pytest compact_policy_explain_v1: PASS |

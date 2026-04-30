@@ -34,11 +34,17 @@
 
 `CTX-COMPACT-N02` 起，`compact_mode = "llm"` 会先构造有界 summarizer prompt，让模型输出目标、决策、事实、文件、工具证据、待办、风险和最近用户意图等语义摘要；如果 LLM 摘要失败、返回非 JSON，或压缩后不比原上下文更小，会自动降级到 `heuristic`，并发出 `phase="compact_fallback"` 事件。`compact_mode = "off"` 会关闭真实压缩，但旧的收束提示配置仍按原策略工作。
 
+`CTX-COMPACT-N04` 起，LLM 摘要还必须通过 retention gate：压缩候选上下文要保留初始用户目标、最近 tail messages、重要路径、工具名，以及调用方指定的 marker。若 LLM summary 缺失这些关键证据，graph 自动压缩和 TUI `/compress` 都会降级到 `heuristic`，并在 `compact_fallback` 的 `error` 中记录 `llm_compaction_quality_failed: ...`。这避免了“语义摘要看起来正常，但丢掉路径/工具证据”的长会话回归。
+
+`CTX-COMPACT-N06` 起，启发式压缩会识别已有 `[context_summary_v1]` 消息并合并其结构化证据，而不是把上一代 summary 当普通文本再次摘要。新 summary 会保留旧 summary 的重要路径、工具调用、对话要点和 LLM 语义字段，并用 `merged_summary_count` / `merged_source_message_count` 记录合并情况，降低连续压缩的信息衰减。
+
+`CTX-COMPACT-N07` 起，`tool_calls[]` 会根据工具结果类型提取结构化证据。pytest/测试输出会保留 `failure_summary`，traceback 会提取错误线索，git diff 会记录 `diff_stats`，search/read/command 输出会保留路径和关键 evidence。旧字段 `tool`、`error`、`result_preview` 保持兼容。
+
 TUI `/compress` 使用同一套启发式压缩器手动压缩当前会话，并刷新上下文进度条。压缩事件会通过 progress 回调发出 `phase="compact"`，字段包括压缩前后 message 数和估算 token 数。
 
 ### 长会话质量评估
 
-`CTX-COMPACT-N03` 起，`cai-agent sessions --compact-eval --json` 会扫描近期会话文件，对每个会话离线执行启发式压缩并输出 `context_compaction_eval_v1`。评估项包括是否真实压缩、估算 token 压缩率、初始目标保留、最近尾部消息保留、路径保留、工具名保留，以及 `--compact-required-marker` 指定的关键字符串保留。任一会话未通过时 CLI exit `2`，可作为长会话回归或 CI gate。
+`CTX-COMPACT-N03` 起，`cai-agent sessions --compact-eval --json` 会扫描近期会话文件，对每个会话离线执行启发式压缩并输出 `context_compaction_eval_v1`。评估项包括是否真实压缩、估算 token 压缩率、初始目标保留、最近尾部消息保留、路径保留、工具名保留，以及 `--compact-required-marker` 指定的关键字符串保留。任一会话未通过时 CLI exit `2`，可作为长会话回归或 CI gate。`CTX-COMPACT-N04` 后，运行时 LLM 压缩使用同类 retention 判断作为降级门槛。
 
 常用参数：
 

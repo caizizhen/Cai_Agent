@@ -1605,7 +1605,11 @@ class CaiAgentApp(App[None]):
             return
 
         if raw == "/compress":
-            from cai_agent.context_compaction import build_llm_compaction_prompt, compact_messages
+            from cai_agent.context_compaction import (
+                build_llm_compaction_prompt,
+                compact_messages,
+                evaluate_compaction_retention,
+            )
 
             mode = str(getattr(self._settings, "context_compact_mode", "heuristic") or "heuristic").strip().lower()
             if mode == "off":
@@ -1633,8 +1637,13 @@ class CaiAgentApp(App[None]):
                         role="active",
                         route_conversation_phase="review",
                     )
-                    summary_payload = extract_json_object(summary_text)
-                    summary_source = "llm"
+                    parsed = extract_json_object(summary_text)
+                    if isinstance(parsed, dict):
+                        summary_payload = parsed
+                        summary_source = "llm"
+                    else:
+                        fallback_reason = "llm_compaction_failed: non_json_summary"
+                        summary_source = "heuristic"
                 except Exception as exc:
                     fallback_reason = f"llm_compaction_failed: {exc}"
                     summary_source = "heuristic"
@@ -1647,6 +1656,22 @@ class CaiAgentApp(App[None]):
                 summary_source=summary_source,
                 fallback_reason=fallback_reason,
             )
+            if summary_source == "llm":
+                retention = evaluate_compaction_retention(
+                    self._messages,
+                    comp.messages,
+                    keep_tail_messages=int(getattr(self._settings, "context_compact_keep_tail_messages", 8) or 8),
+                )
+                if not retention.passed:
+                    fallback_reason = f"llm_compaction_quality_failed: {retention.reason}"
+                    summary_source = "heuristic"
+                    comp = compact_messages(
+                        self._messages,
+                        keep_tail_messages=int(getattr(self._settings, "context_compact_keep_tail_messages", 8) or 8),
+                        summary_max_chars=int(getattr(self._settings, "context_compact_summary_max_chars", 6000) or 6000),
+                        summary_source=summary_source,
+                        fallback_reason=fallback_reason,
+                    )
             if (
                 summary_source == "llm"
                 and (not comp.compacted or comp.compacted_estimated_tokens >= comp.original_estimated_tokens)

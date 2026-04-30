@@ -30,6 +30,22 @@ class ContextCompactionEvalResult:
     payload: dict[str, Any]
 
 
+@dataclass(frozen=True)
+class ContextCompactionRetentionResult:
+    payload: dict[str, Any]
+
+    @property
+    def passed(self) -> bool:
+        return bool(self.payload.get("passed"))
+
+    @property
+    def reason(self) -> str:
+        reasons = self.payload.get("failed_reasons")
+        if isinstance(reasons, list) and reasons:
+            return ",".join(str(x) for x in reasons if str(x).strip())
+        return "retention_check_failed"
+
+
 def _content_text(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -59,6 +75,77 @@ def _retention_probe(text: str, limit: int = 80) -> str:
     return " ".join(str(text or "").split())[: max(1, int(limit))].strip()
 
 
+def _extract_lines(text: str, *, limit: int = 6) -> list[str]:
+    out: list[str] = []
+    for line in str(text or "").replace("\\n", "\n").replace("\\r", "\n").splitlines():
+        clean = line.strip()
+        if not clean:
+            continue
+        out.append(_truncate(clean, 220))
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _classify_tool_result(tool: str, result: str) -> dict[str, Any]:
+    low_tool = tool.lower()
+    low = result.lower()
+    lines = _extract_lines(result, limit=8)
+    paths = _extract_paths(result, limit=12)
+    meta: dict[str, Any] = {}
+    if paths:
+        meta["paths"] = paths
+
+    if "traceback" in low or "exception" in low:
+        meta["tool_kind"] = "traceback"
+        failure_lines = [
+            line for line in lines if "traceback" in line.lower() or "error" in line.lower() or "exception" in line.lower()
+        ]
+        meta["failure_summary"] = failure_lines[-3:] if failure_lines else lines[-3:]
+        return meta
+
+    if "pytest" in low or "failed" in low or " passed" in low or " error" in low:
+        meta["tool_kind"] = "test"
+        failure_lines = [
+            line
+            for line in lines
+            if "failed" in line.lower()
+            or "error" in line.lower()
+            or "traceback" in line.lower()
+            or line.startswith("E ")
+            or line.startswith("FAILED ")
+        ]
+        meta["failure_summary"] = failure_lines[:6] if failure_lines else lines[:6]
+        return meta
+
+    if "diff --git" in result or "\n+++" in result or "\n---" in result or low_tool in {"git_diff", "diff"}:
+        added = sum(1 for line in result.splitlines() if line.startswith("+") and not line.startswith("+++"))
+        removed = sum(1 for line in result.splitlines() if line.startswith("-") and not line.startswith("---"))
+        meta["tool_kind"] = "git_diff"
+        meta["diff_stats"] = {"added_lines": added, "removed_lines": removed}
+        meta["evidence"] = [line for line in lines if line.startswith("diff --git") or line.startswith("@@")][:6]
+        return meta
+
+    if "search" in low_tool or any(":" in line and _PATH_RE.search(line) for line in lines):
+        meta["tool_kind"] = "search"
+        meta["evidence"] = lines[:8]
+        return meta
+
+    if "read" in low_tool or "file" in low_tool:
+        meta["tool_kind"] = "read"
+        meta["evidence"] = lines[:6]
+        return meta
+
+    if "run" in low_tool or "command" in low_tool or "shell" in low_tool:
+        meta["tool_kind"] = "command"
+        meta["evidence"] = lines[:6]
+        return meta
+
+    meta["tool_kind"] = "generic"
+    meta["evidence"] = lines[:4]
+    return meta
+
+
 def _tool_row(raw: str, *, limit: int) -> dict[str, Any] | None:
     try:
         obj = json.loads(raw)
@@ -77,11 +164,13 @@ def _tool_row(raw: str, *, limit: int) -> dict[str, Any] | None:
         or "exception" in low
         or "traceback" in low
     )
-    return {
+    row = {
         "tool": tool.strip(),
         "error": bool(is_error),
         "result_preview": _truncate(result, limit),
     }
+    row.update(_classify_tool_result(tool.strip(), result))
+    return row
 
 
 def _extract_paths(text: str, *, limit: int = 24) -> list[str]:
@@ -118,6 +207,129 @@ def _extract_tool_names(messages: list[dict[str, Any]], *, limit: int = 24) -> l
     return out
 
 
+def _parse_context_summary_payload(content: Any) -> dict[str, Any] | None:
+    text = _content_text(content).strip()
+    if not text.startswith("[context_summary_v1]"):
+        return None
+    raw = text[len("[context_summary_v1]") :].strip()
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    if payload.get("schema_version") != "context_compaction_summary_v1":
+        return None
+    return payload
+
+
+def _append_unique(out: list[Any], items: Any, *, key: str | None = None, limit: int = 100) -> None:
+    if not isinstance(items, list):
+        return
+    seen: set[str] = set()
+    for existing in out:
+        if key and isinstance(existing, dict):
+            marker = str(existing.get(key) or "").strip()
+        else:
+            marker = json.dumps(existing, ensure_ascii=False, sort_keys=True)
+        if marker:
+            seen.add(marker)
+    for item in items:
+        if key and isinstance(item, dict):
+            marker = str(item.get(key) or "").strip()
+        else:
+            marker = json.dumps(item, ensure_ascii=False, sort_keys=True)
+        if not marker or marker in seen:
+            continue
+        out.append(item)
+        seen.add(marker)
+        if len(out) >= limit:
+            break
+
+
+def evaluate_compaction_retention(
+    source_messages: list[dict[str, Any]],
+    compacted_messages: list[dict[str, Any]],
+    *,
+    keep_tail_messages: int = 8,
+    required_markers: list[str] | tuple[str, ...] = (),
+    min_path_retention_ratio: float = 0.80,
+    min_tool_retention_ratio: float = 0.80,
+) -> ContextCompactionRetentionResult:
+    """Check whether a candidate compacted context retained critical evidence."""
+    original = [dict(m) for m in source_messages if isinstance(m, dict)]
+    compacted = [dict(m) for m in compacted_messages if isinstance(m, dict)]
+    compacted_text = "\n".join(_content_text(m.get("content")) for m in compacted)
+    source_text = "\n".join(_content_text(m.get("content")) for m in original)
+
+    paths = _extract_paths(source_text)
+    tools = _extract_tool_names(original)
+    markers = [str(x).strip() for x in required_markers if str(x).strip()]
+
+    marker_hits = [
+        {"marker": marker, "retained": marker in compacted_text}
+        for marker in markers
+    ]
+    path_hits = [
+        {"path": path, "retained": path in compacted_text}
+        for path in paths
+    ]
+    tool_hits = [
+        {"tool": tool, "retained": tool in compacted_text}
+        for tool in tools
+    ]
+
+    first_user = next((m for m in original if m.get("role") == "user"), None)
+    first_user_text = _retention_probe(_content_text(first_user.get("content") if first_user else ""), 80)
+    initial_goal_retained = bool(first_user_text) and first_user_text in compacted_text
+
+    tail = original[-max(1, int(keep_tail_messages)) :]
+    tail_texts = [
+        _retention_probe(_content_text(m.get("content")), 80)
+        for m in tail
+        if _retention_probe(_content_text(m.get("content")), 80)
+    ]
+    tail_retained_count = sum(1 for text in tail_texts if text in compacted_text)
+    tail_retention_ratio = float(tail_retained_count) / len(tail_texts) if tail_texts else 1.0
+
+    def _ratio(rows: list[dict[str, Any]]) -> float:
+        if not rows:
+            return 1.0
+        return float(sum(1 for row in rows if bool(row.get("retained")))) / len(rows)
+
+    path_retention_ratio = _ratio(path_hits)
+    tool_retention_ratio = _ratio(tool_hits)
+    marker_retention_ratio = _ratio(marker_hits)
+
+    checks = {
+        "initial_goal_retained": initial_goal_retained,
+        "tail_retained": tail_retention_ratio >= 1.0,
+        "paths_retained": path_retention_ratio >= float(min_path_retention_ratio),
+        "tools_retained": tool_retention_ratio >= float(min_tool_retention_ratio),
+        "markers_retained": marker_retention_ratio >= 1.0,
+    }
+    failed_reasons = [name for name, ok in checks.items() if not bool(ok)]
+    payload = {
+        "schema_version": "context_compaction_retention_v1",
+        "passed": not failed_reasons,
+        "failed_reasons": failed_reasons,
+        "checks": checks,
+        "retention": {
+            "initial_goal_retained": initial_goal_retained,
+            "tail_retention_ratio": round(float(tail_retention_ratio), 4),
+            "path_retention_ratio": round(float(path_retention_ratio), 4),
+            "tool_retention_ratio": round(float(tool_retention_ratio), 4),
+            "marker_retention_ratio": round(float(marker_retention_ratio), 4),
+            "paths": path_hits,
+            "tools": tool_hits,
+            "markers": marker_hits,
+        },
+    }
+    return ContextCompactionRetentionResult(payload=payload)
+
+
 def _build_summary_payload(
     messages: list[dict[str, Any]],
     *,
@@ -127,6 +339,8 @@ def _build_summary_payload(
     tool_calls: list[dict[str, Any]] = []
     notes: list[dict[str, str]] = []
     all_text: list[str] = []
+    prior_summaries: list[dict[str, Any]] = []
+    prior_source_message_count = 0
     note_budget = max(120, min(500, summary_max_chars // 10))
     tool_budget = max(120, min(700, summary_max_chars // 8))
 
@@ -136,6 +350,19 @@ def _build_summary_payload(
         role = str(msg.get("role") or "unknown")
         role_counts[role] = role_counts.get(role, 0) + 1
         text = _content_text(msg.get("content"))
+        prior = _parse_context_summary_payload(text)
+        if prior is not None:
+            prior_summaries.append(prior)
+            try:
+                prior_source_message_count += int(prior.get("source_message_count") or 0)
+            except Exception:
+                pass
+            for key, value in (prior.get("role_counts") or {}).items():
+                try:
+                    role_counts[str(key)] = role_counts.get(str(key), 0) + int(value)
+                except Exception:
+                    continue
+            continue
         if text:
             all_text.append(text)
         tool = _tool_row(text, limit=tool_budget)
@@ -149,17 +376,41 @@ def _build_summary_payload(
             notes.append({"role": role, "preview": preview})
 
     errors = [row for row in tool_calls if row.get("error")]
+    important_paths = _extract_paths("\n".join(all_text))
+    for prior in prior_summaries:
+        _append_unique(important_paths, prior.get("important_paths"), limit=24)
+        _append_unique(important_paths, prior.get("files_touched"), limit=24)
+        _append_unique(tool_calls, prior.get("tool_calls"), key="tool", limit=20)
+        _append_unique(notes, prior.get("conversation_notes"), key="preview", limit=24)
+        for key in ("goal", "last_user_intent"):
+            value = prior.get(key)
+            if isinstance(value, str) and value.strip():
+                notes.append({"role": "summary", "preview": _truncate(value, note_budget)})
+        for key in ("decisions", "facts", "tool_evidence", "open_todos", "risks"):
+            vals = prior.get(key)
+            if isinstance(vals, list):
+                for value in vals:
+                    if isinstance(value, str) and value.strip():
+                        notes.append({"role": f"summary.{key}", "preview": _truncate(value, note_budget)})
+                        if len(notes) >= 24:
+                            break
+            if len(notes) >= 24:
+                break
+    errors = [row for row in tool_calls if row.get("error")]
     payload = {
         "schema_version": "context_compaction_summary_v1",
         "generated_at": datetime.now(UTC).isoformat(),
-        "source_message_count": len(messages),
+        "source_message_count": len(messages) + prior_source_message_count,
         "role_counts": role_counts,
         "tool_calls_count": len(tool_calls),
         "tool_errors_count": len(errors),
         "tool_calls": tool_calls[:20],
-        "important_paths": _extract_paths("\n".join(all_text)),
+        "important_paths": important_paths[:24],
         "conversation_notes": notes[:24],
     }
+    if prior_summaries:
+        payload["merged_summary_count"] = len(prior_summaries)
+        payload["merged_source_message_count"] = prior_source_message_count
     def _payload_len() -> int:
         return len(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
 
@@ -357,46 +608,19 @@ def evaluate_compaction_quality(
         keep_tail_messages=keep_tail_messages,
         summary_max_chars=summary_max_chars,
     )
-    compacted_text = "\n".join(_content_text(m.get("content")) for m in comp.messages)
-    source_text = "\n".join(_content_text(m.get("content")) for m in original)
-
-    paths = _extract_paths(source_text)
-    tools = _extract_tool_names(original)
-    markers = [str(x).strip() for x in required_markers if str(x).strip()]
-    marker_hits = [
-        {"marker": marker, "retained": marker in compacted_text}
-        for marker in markers
-    ]
-    path_hits = [
-        {"path": path, "retained": path in compacted_text}
-        for path in paths
-    ]
-    tool_hits = [
-        {"tool": tool, "retained": tool in compacted_text}
-        for tool in tools
-    ]
-
-    first_user = next((m for m in original if m.get("role") == "user"), None)
-    first_user_text = _retention_probe(_content_text(first_user.get("content") if first_user else ""), 80)
-    initial_goal_retained = bool(first_user_text) and first_user_text in compacted_text
-
-    tail = original[-max(1, int(keep_tail_messages)) :]
-    tail_texts = [
-        _retention_probe(_content_text(m.get("content")), 80)
-        for m in tail
-        if _retention_probe(_content_text(m.get("content")), 80)
-    ]
-    tail_retained_count = sum(1 for text in tail_texts if text in compacted_text)
-    tail_retention_ratio = float(tail_retained_count) / len(tail_texts) if tail_texts else 1.0
-
-    def _ratio(rows: list[dict[str, Any]], key: str) -> float:
-        if not rows:
-            return 1.0
-        return float(sum(1 for row in rows if bool(row.get("retained")))) / len(rows)
-
-    path_retention_ratio = _ratio(path_hits, "path")
-    tool_retention_ratio = _ratio(tool_hits, "tool")
-    marker_retention_ratio = _ratio(marker_hits, "marker")
+    retention_payload = evaluate_compaction_retention(
+        original,
+        comp.messages,
+        keep_tail_messages=keep_tail_messages,
+        required_markers=required_markers,
+    ).payload
+    retention = retention_payload.get("retention") or {}
+    retention_checks = retention_payload.get("checks") or {}
+    initial_goal_retained = bool(retention.get("initial_goal_retained"))
+    tail_retention_ratio = float(retention.get("tail_retention_ratio") or 0.0)
+    path_retention_ratio = float(retention.get("path_retention_ratio") or 0.0)
+    tool_retention_ratio = float(retention.get("tool_retention_ratio") or 0.0)
+    marker_retention_ratio = float(retention.get("marker_retention_ratio") or 0.0)
     token_reduction_ratio = 0.0
     if comp.original_estimated_tokens > 0:
         token_reduction_ratio = max(
@@ -408,11 +632,11 @@ def evaluate_compaction_quality(
     checks = {
         "compacted": bool(comp.compacted),
         "token_reduction": token_reduction_ratio >= float(min_token_reduction_ratio),
-        "initial_goal_retained": initial_goal_retained,
-        "tail_retained": tail_retention_ratio >= 1.0,
-        "paths_retained": path_retention_ratio >= 0.80,
-        "tools_retained": tool_retention_ratio >= 0.80,
-        "markers_retained": marker_retention_ratio >= 1.0,
+        "initial_goal_retained": bool(retention_checks.get("initial_goal_retained")),
+        "tail_retained": bool(retention_checks.get("tail_retained")),
+        "paths_retained": bool(retention_checks.get("paths_retained")),
+        "tools_retained": bool(retention_checks.get("tools_retained")),
+        "markers_retained": bool(retention_checks.get("markers_retained")),
     }
     score_parts = [
         1.0 if checks["compacted"] else 0.0,
@@ -448,9 +672,9 @@ def evaluate_compaction_quality(
             "path_retention_ratio": round(float(path_retention_ratio), 4),
             "tool_retention_ratio": round(float(tool_retention_ratio), 4),
             "marker_retention_ratio": round(float(marker_retention_ratio), 4),
-            "paths": path_hits,
-            "tools": tool_hits,
-            "markers": marker_hits,
+            "paths": retention.get("paths") or [],
+            "tools": retention.get("tools") or [],
+            "markers": retention.get("markers") or [],
         },
     }
     return ContextCompactionEvalResult(payload=payload)

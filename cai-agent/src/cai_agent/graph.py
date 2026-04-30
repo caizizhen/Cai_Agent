@@ -7,7 +7,11 @@ from typing import Any, Literal, NotRequired, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from cai_agent.config import Settings
-from cai_agent.context_compaction import build_llm_compaction_prompt, compact_messages
+from cai_agent.context_compaction import (
+    build_llm_compaction_prompt,
+    compact_messages,
+    evaluate_compaction_retention,
+)
 from cai_agent.context import augment_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, extract_json_object, get_last_usage
 from cai_agent.llm_factory import chat_completion_by_role, peek_last_profile_route_decision
@@ -170,6 +174,17 @@ def build_app(
                     if isinstance(parsed, dict):
                         summary_payload = parsed
                         summary_source = "llm"
+                    else:
+                        fallback_reason = "llm_compaction_failed: non_json_summary"
+                        _emit(
+                            progress,
+                            {
+                                "phase": "compact_fallback",
+                                "mode": "llm",
+                                "fallback": "heuristic",
+                                "error": fallback_reason,
+                            },
+                        )
                 except Exception as exc:
                     fallback_reason = f"llm_compaction_failed: {exc}"
                     summary_source = "heuristic"
@@ -190,6 +205,32 @@ def build_app(
                 summary_source=summary_source,
                 fallback_reason=fallback_reason,
             )
+            if summary_source == "llm":
+                retention = evaluate_compaction_retention(
+                    messages,
+                    comp.messages,
+                    keep_tail_messages=int(getattr(settings, "context_compact_keep_tail_messages", 8) or 8),
+                )
+                if not retention.passed:
+                    fallback_reason = f"llm_compaction_quality_failed: {retention.reason}"
+                    summary_source = "heuristic"
+                    comp = compact_messages(
+                        messages,
+                        keep_tail_messages=int(getattr(settings, "context_compact_keep_tail_messages", 8) or 8),
+                        summary_max_chars=int(getattr(settings, "context_compact_summary_max_chars", 6000) or 6000),
+                        summary_source=summary_source,
+                        fallback_reason=fallback_reason,
+                    )
+                    _emit(
+                        progress,
+                        {
+                            "phase": "compact_fallback",
+                            "mode": "llm",
+                            "fallback": "heuristic",
+                            "error": fallback_reason,
+                            "retention": retention.payload,
+                        },
+                    )
             if (
                 summary_source == "llm"
                 and (not comp.compacted or comp.compacted_estimated_tokens >= comp.original_estimated_tokens)
