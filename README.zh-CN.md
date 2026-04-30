@@ -228,10 +228,10 @@ cai-agent ui -w (Get-Location).Path
 
 ## 权限与安全
 
-- **read_file / list_dir / list_tree / write_file**：相对工作区；禁止 `..`。
-- **glob_search / search_text**：有结果条数与扫描上限。
+- **read_file / list_dir / list_tree / write_file**：默认相对工作区；禁止 `..`。解限模式下可用**绝对路径**访问任意磁盘路径（落在工作区外时每次仍须危险**二次确认**，除非关闭 `dangerous_confirmation_required`）。
+- **glob_search / search_text**：默认扫描相对工作区；解限下 **`root`** 可用绝对路径（工作区外须二次确认）；有结果条数与扫描上限。
 - **git_status / git_diff**：只读。
-- **run_command**：仅允许白名单中的可执行文件名；禁止 shell 元字符；`cwd` 必须在工作区内。
+- **run_command**：仅允许白名单中的可执行文件名；禁止 shell 元字符；**`cwd`** 默认相对工作区；解限下可用绝对 **`cwd`**（工作区外须二次确认）。
 - **fetch_url**：默认关闭或强白名单；受 `[permissions].fetch_url` 约束。
 - **mcp_***：需 `[agent].mcp_enabled = true`。
 
@@ -239,7 +239,7 @@ cai-agent ui -w (Get-Location).Path
 
 在 `cai-agent.toml` 中配置 **`[safety].unrestricted_mode`**（默认 `false`）。开启后，`run_command` 不再因高危子串被**硬性阻断**，改为：若仍启用 **`[safety].dangerous_confirmation_required`**（默认 `true`），则对危险操作要求**二次确认**后再执行。
 
-- **与工作区无关**：解限 **不会** 取消 **`[agent].workspace`** 沙箱。文件类工具（`read_file` / `write_file` / `list_dir` / `glob_search` / `search_text` 等）的路径、`run_command` 的 **`cwd`**，仍必须落在当前工作区内；不能因工作区在 `D:\…` 就去删 **`E:\`** 下的目录。若要操作其它目录，请把 **`workspace`**（或启动 TUI 时的 **`-w`**）设为**包含目标路径的根目录**，或使用资源管理器等在 Agent 外操作。
+- **与工作区外的路径**：未开启解限时，工具 **`path` / `glob_search`·`search_text` 的 `root` / `run_command` 的 `cwd`** 只能使用**相对 `[agent].workspace` 的路径**；传入绝对路径会被拒绝。**开启 `unrestricted_mode` 后**允许使用**绝对路径**访问盘上任意位置；若 **`dangerous_confirmation_required`** 仍为 **true**（默认），则每次落在工作区外的绝对路径仍会触发**二次确认**（与 MCP / 高危命令等确认同一套 `/danger-approve` / Modal）。相对路径的解释不变（仍以当前工作区为根）。
 - **TUI**：`/unrestricted` 查看状态；`/unrestricted on|off` 切换（若自 TOML 启动则会写回配置文件）；`/danger-approve` 放行**下一次**危险工具调用。交互式会话中，若未预授权且未设置 `CAI_DANGEROUS_APPROVE`，触发危险工具时会出现**模态确认框**（允许本次 / 取消；对 MCP 与明文 `http` 的 `fetch_url` 还可选**本会话放行**）。活动条同步显示「等待危险操作确认」类提示。
 - **本会话放行（解限 + 仍要求确认时）**：`/danger-session-mcp <MCP工具名>`、`/danger-session-fetch <主机名或 http URL>`、`/danger-session-clear` 清空列表（任务运行中也可输入）。
 - **审计（可选）**：`[safety].dangerous_audit_log_enabled = true` 或 `CAI_DANGEROUS_AUDIT_LOG=1` 时，向工作区 **`.cai/dangerous-approve.jsonl`** 追加 JSON 行（授予、执行、会话放行等事件）；默认关闭。

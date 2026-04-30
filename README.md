@@ -233,10 +233,10 @@ cai-agent ui -w (Get-Location).Path
 
 ## Permissions and safety
 
-- **read_file / list_dir / list_tree / write_file**: workspace-relative; `..` blocked.
-- **glob_search / search_text**: bounded matches and bytes.
+- **read_file / list_dir / list_tree / write_file**: workspace-relative by default; `..` blocked. With unrestricted mode, **absolute paths** are allowed anywhere on disk (targets **outside** `[agent].workspace` still require dangerous confirmation unless `dangerous_confirmation_required=false`).
+- **glob_search / search_text**: bounded matches and bytes; unrestricted mode allows absolute **`root`** (outside workspace requires confirmation).
 - **git_status / git_diff**: read-only.
-- **run_command**: allowlisted executable names only; no shell metacharacters; `cwd` must stay inside workspace.
+- **run_command**: allowlisted executable names only; no shell metacharacters; **`cwd`** is workspace-relative by default; unrestricted mode allows absolute **`cwd`** (outside workspace requires confirmation).
 - **fetch_url**: optional; HTTPS GET with host allowlist unless configured otherwise; gated by `[permissions].fetch_url`.
 - **mcp_***: require `[agent].mcp_enabled = true`.
 
@@ -244,7 +244,7 @@ cai-agent ui -w (Get-Location).Path
 
 Set **`[safety].unrestricted_mode`** (default `false`) in `cai-agent.toml`. When **on**, high-risk `run_command` patterns are **not hard-blocked**; if **`[safety].dangerous_confirmation_required`** remains **true** (default), dangerous tool calls still need **explicit confirmation** before they run via `dispatch`.
 
-- **Not a filesystem sandbox bypass**: unrestricted mode **does not** widen **`[agent].workspace`**. File tools (`read_file`, `write_file`, `list_dir`, `glob_search`, `search_text`, …) and `run_command` **`cwd`** still must stay inside that workspace root—you cannot delete arbitrary folders on **`E:\`** while the workspace is **`D:\…`**. Point **`workspace`** (or **`cai-agent ui -w`**) at a root that contains what you need, or perform out-of-scope deletes outside the agent.
+- **Absolute paths outside the workspace**: when unrestricted mode is **off**, tool **`path`**, **`glob_search`/`search_text` `root`**, and **`run_command` `cwd`** must stay **workspace-relative**; absolute paths are rejected. When unrestricted mode is **on**, **absolute paths are allowed anywhere on disk**; if **`dangerous_confirmation_required`** stays **true** (default), each tool call whose resolved absolute target lies **outside** **`[agent].workspace`** still requires **danger confirmation** (same `/danger-approve` / modal flow as other dangerous tools). Relative paths remain interpreted under the workspace root.
 - **TUI**: `/unrestricted` shows status; `/unrestricted on|off` toggles (persists when the session started from TOML); `/danger-approve` authorizes **the next** dangerous `dispatch`. Without prior approval or `CAI_DANGEROUS_APPROVE`, a modal asks for one-off approval (and for MCP + cleartext `http` `fetch_url`, optional **session-wide** approval). The footer may show a “waiting for dangerous confirmation” style hint.
 - **Session allowlists** (unrestricted + confirmation still enabled): `/danger-session-mcp <tool name>`, `/danger-session-fetch <hostname or http URL>`, `/danger-session-clear`.
 - **Audit (optional)**: `[safety].dangerous_audit_log_enabled` or `CAI_DANGEROUS_AUDIT_LOG=1` appends JSONL events under **`.cai/dangerous-approve.jsonl`**; default **off**.

@@ -308,6 +308,7 @@
 | `SAFETY-N06-D01` | `Done` | `SAFETY-N06` | P4-4 Gateway 危险确认契约 | `gateway_danger.py`；Slack/Discord 执行路径 goal 前缀剥离 + grant；`danger_gateway_contract_v1` | `SAFETY-N05-D01` | pytest + smoke |
 | `SAFETY-N07-D01` | `Done` | `SAFETY-N07` | 关键写 noop 启发式 | `[safety].dangerous_critical_write_skip_if_unchanged` + `needs_dangerous_confirmation` 读盘 UTF-8 规范化比对；doctor / `tools guard` policy；模板注释 | `SAFETY-N06-D01` | pytest + smoke |
 | `SAFETY-N07-D02` | `Done` | `SAFETY-N07` | 关键写 TOML/JSON 语义 noop | 在 D01 基础上对关键 `.toml`/`.json` 做解析后递归键序规范化深比较；SAFETY backlog Explore 本条收口 | `SAFETY-N07-D01` | pytest + smoke |
+| `SAFETY-N08-D01` | `Done` | `SAFETY-N08` | 解限绝对路径跨工作区 | `resolve_tool_path`；文件工具 + `run_command cwd`；工作区外须二次确认；`test_unrestricted_filesystem_paths.py` | `SAFETY-N07-D02` | pytest |
 
 ### 10.1 建议开单顺序
 

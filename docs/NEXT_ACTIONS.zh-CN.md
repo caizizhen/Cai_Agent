@@ -7,13 +7,13 @@
 
 ## 当前目标
 
-- **解限安全**：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 清单 **P4 已全部 Done**；**`SAFETY-N07-D01/D02`** 已交付关键写 **文本 + TOML/JSON 语义 noop**（可关）；清单内 **Explore 已清零**，更深项需另独立项与评审。
+- **解限安全**：[`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) 清单 **P4 已全部 Done**；**`SAFETY-N08-D01`** 解限下 **绝对路径可跨 `[agent].workspace`**（工作区外路径默认仍须二次确认）；**`SAFETY-N07-D01/D02`** 关键写 noop（可关）；清单 **Explore 已清零**，更深项需另立项评审。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | 解限 SAFETY **无当前排队项**（`SAFETY-N07-D02` 已完成）；下一优先见下方「后续队列」 |
+| - | - | Clear | 解限 SAFETY **无当前排队项**（含 `SAFETY-N08-D01`、`SAFETY-N07-D02`）；下一优先见下方「后续队列」 |
 
 ## 后续队列
 
@@ -34,6 +34,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `SAFETY-N08-D01` | 2026-05-01 | Unrestricted mode: `resolve_tool_path` allows absolute paths outside workspace for file tools + `run_command cwd`; outside-workspace uses dangerous confirmation when enabled; `test_unrestricted_filesystem_paths.py`. | python -m pytest -q cai-agent/tests: PASS (988 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N07-D02` | 2026-05-01 | Critical write_file TOML/JSON semantic noop; SAFETY backlog Explore cleared; docs and tests updated. | python -m pytest -q cai-agent/tests: PASS (980 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N07-D01` | 2026-05-01 | Critical write_file noop heuristic: skip basename dangerous confirmation when disk file exists and normalized UTF-8 matches; doctor/guard/smoke/tests. | python -m pytest -q cai-agent/tests: PASS (976 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |
 | `SAFETY-N06-D01` | 2026-05-01 | P4-4：gateway_danger goal 前缀放行；Slack/Discord 执行路径接入；tools guard danger_gateway_contract_v1。 | python -m pytest -q cai-agent/tests: PASS (971 passed, 20 subtests)<br>python scripts/smoke_new_features.py: NEW_FEATURE_CHECKS_OK |

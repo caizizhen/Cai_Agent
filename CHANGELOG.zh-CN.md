@@ -6,7 +6,7 @@
 
 ### Unreleased
 
-- **文档**：明确 **`unrestricted_mode` 不会放开 `[agent].workspace`**（文件工具与 `run_command` 的 `cwd` 仍限工作区内）；已更新 **`README.md`** / **`README.zh-CN.md`** 与 **`SAFETY_UNRESTRICTED_BACKLOG`** 开篇说明。
+- **SAFETY-N08-D01 解限文件系统绝对路径**：**`unrestricted_mode=true`** 时，`read_file`/`list_dir`/`list_tree`/`write_file`/`make_dir`/`glob_search`/`search_text` 可使用 **`[agent].workspace` 外的绝对路径**；**`run_command` 的 `cwd`** 亦可为工作区外绝对路径；若 **`dangerous_confirmation_required`** 仍为 **true**（默认），解析后落在工作区外的路径每次仍须危险**二次确认**。未解限时工具路径不接受绝对路径。实现：`sandbox.resolve_tool_path`；回归 **`test_unrestricted_filesystem_paths.py`**；README / SAFETY backlog / **`TOOLS_REGISTRY.zh-CN.md`**。
 
 - **修复**：TUI 执行 **`/unrestricted on|off`** 时 `_persist_unrestricted_mode` 内正则错误地使用 **`\\[`** 等双重转义，触发 **`re.PatternError`** 崩溃；已改为正确 **`\[`** 写法并兼容 **`[safety]`** 段 CRLF；回归 **`test_unrestricted_mode_config.py`**。
 

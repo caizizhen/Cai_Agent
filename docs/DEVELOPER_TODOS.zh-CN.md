@@ -8,11 +8,11 @@
 
 | 顺位 | 子任务 ID | 状态 | 开发目标 | 代码入口 | 完成门槛 |
 |---|---|---|---|---|---|
-| - | - | Clear | 解限 SAFETY 路线图当前 **无排队开发项**（`SAFETY-N07-D02` 已完成；更深 YAML/semver 等须另立项） | — | — |
+| - | - | Clear | 解限 SAFETY 路线图当前 **无排队开发项**（含 **`SAFETY-N08-D01`** 跨工作区绝对路径、`SAFETY-N07-D02`；更深 YAML/semver 等须另立项） | — | — |
 
 ## 执行顺序
 
-1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；**P0–P4** 与 **`SAFETY-N07-D01/D02`** 均已收口，清单 **Explore 已清零**。
+1. **解限与安全**：全景清单 [`SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md)；**P0–P4**、**`SAFETY-N08-D01`**（跨工作区绝对路径）与 **`SAFETY-N07-D01/D02`** 均已收口，清单 **Explore 已清零**。
 2. 若并行上下文面：优先 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
 3. 若暂停上下文面：再回到 Gateway slash 深化或 Ops operator 路由深化中选择。
 

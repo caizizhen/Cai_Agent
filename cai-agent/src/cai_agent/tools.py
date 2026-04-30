@@ -22,7 +22,7 @@ from cai_agent.config import Settings
 from cai_agent.http_trust import effective_http_trust_env
 from cai_agent.permissions import enforce_tool_permission
 from cai_agent.runtime.registry import get_runtime_backend
-from cai_agent.sandbox import SandboxError, resolve_workspace_path
+from cai_agent.sandbox import SandboxError, resolve_tool_path, resolve_workspace_path
 
 
 ALLOWED_CMD_NAMES = frozenset(
@@ -148,7 +148,7 @@ def _critical_write_basename_effectively_noop(
     if not ws:
         return False
     try:
-        p = resolve_workspace_path(ws, rel)
+        p = resolve_tool_path(ws, rel, unrestricted=bool(getattr(settings, "unrestricted_mode", False)))
     except SandboxError:
         return False
     if not p.is_file():
@@ -183,6 +183,59 @@ def _reject_path_traversal_token(s: str, *, label: str) -> None:
         raise SandboxError(f"{label} 不允许包含 '..'")
     if os.path.isabs(s):
         raise SandboxError(f"{label} 不允许绝对路径")
+
+
+def _tool_path_display(workspace: str, p: Path) -> str:
+    """Human-readable path for tool results (relative when under workspace)."""
+    root = Path(workspace).resolve()
+    try:
+        return p.relative_to(root).as_posix()
+    except ValueError:
+        return str(p)
+
+
+def _filesystem_escape_workspace_message(settings: Settings, name: str, args: dict[str, Any]) -> str | None:
+    """解限 + 绝对路径且落在 workspace 外 → 须二次确认的说明文案。"""
+    ws = str(getattr(settings, "workspace", "") or "").strip()
+    if not ws:
+        return None
+    ws_root = Path(ws).resolve()
+
+    def check_raw(raw: str, *, label: str) -> str | None:
+        r = str(raw or "").strip()
+        if not r:
+            return None
+        if not Path(r).is_absolute():
+            return None
+        try:
+            p = resolve_tool_path(ws, r, unrestricted=True)
+        except SandboxError:
+            return f"{name} {label} 绝对路径无效或不可解析: {r!r}"
+        try:
+            p.relative_to(ws_root)
+            return None
+        except ValueError:
+            return (
+                f"{name} {label} 在工作区 [{ws}] 之外 ({r!r})；解限模式下访问工作区外路径须二次确认"
+            )
+
+    if name == "read_file":
+        return check_raw(str(args.get("path", "")), label="path")
+    if name == "list_dir":
+        return check_raw(str(args.get("path", ".")), label="path")
+    if name == "list_tree":
+        return check_raw(str(args.get("path", ".")), label="path")
+    if name == "write_file":
+        return check_raw(str(args.get("path", "")), label="path")
+    if name == "make_dir":
+        return check_raw(str(args.get("path", "")), label="path")
+    if name == "glob_search":
+        return check_raw(str(args.get("root", ".")), label="root")
+    if name == "search_text":
+        return check_raw(str(args.get("root", ".")), label="root")
+    if name == "run_command":
+        return check_raw(str(args.get("cwd", ".")), label="cwd")
+    return None
 
 
 def _is_high_risk_command(settings: Settings, argv: list[str]) -> tuple[bool, str]:
@@ -245,6 +298,9 @@ def needs_dangerous_confirmation(
         return (False, "")
     if not bool(getattr(settings, "dangerous_confirmation_required", True)):
         return (False, "")
+    esc = _filesystem_escape_workspace_message(settings, name, args)
+    if esc:
+        return (True, esc)
     if name == "run_command":
         argv = args.get("argv")
         if not isinstance(argv, list) or not argv:
@@ -454,11 +510,11 @@ def prepare_interactive_dangerous_dispatch(
     )
 
 
-def tool_read_file(workspace: str, args: dict[str, Any]) -> str:
+def tool_read_file(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     rel = str(args.get("path", "")).strip()
     if not rel:
         raise SandboxError("read_file 需要 path")
-    p = resolve_workspace_path(workspace, rel)
+    p = resolve_tool_path(workspace, rel, unrestricted=unrestricted_fs)
     if not p.is_file():
         raise SandboxError(f"不是文件: {p}")
     data = p.read_bytes()
@@ -490,9 +546,9 @@ def tool_read_file(workspace: str, args: dict[str, Any]) -> str:
     return out
 
 
-def tool_list_dir(workspace: str, args: dict[str, Any]) -> str:
+def tool_list_dir(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     rel = str(args.get("path", ".")).strip() or "."
-    p = resolve_workspace_path(workspace, rel)
+    p = resolve_tool_path(workspace, rel, unrestricted=unrestricted_fs)
     if not p.is_dir():
         raise SandboxError(f"不是目录: {p}")
     names = sorted(p.iterdir(), key=lambda x: x.name.lower())
@@ -505,9 +561,9 @@ def tool_list_dir(workspace: str, args: dict[str, Any]) -> str:
     return "\n".join(lines) if lines else "(空目录)"
 
 
-def tool_list_tree(workspace: str, args: dict[str, Any]) -> str:
+def tool_list_tree(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     rel = str(args.get("path", ".")).strip() or "."
-    root = resolve_workspace_path(workspace, rel)
+    root = resolve_tool_path(workspace, rel, unrestricted=unrestricted_fs)
     if not root.is_dir():
         raise SandboxError(f"不是目录: {root}")
 
@@ -523,7 +579,10 @@ def tool_list_tree(workspace: str, args: dict[str, Any]) -> str:
     lines_out: list[str] = []
     count = 0
 
-    rel_root = root.relative_to(root_real).as_posix() if root != root_real else "."
+    try:
+        rel_root = root.relative_to(root_real).as_posix() if root != root_real else "."
+    except ValueError:
+        rel_root = str(root.resolve())
     lines_out.append(f"{rel_root}/")
     count += 1
     truncated = False
@@ -562,29 +621,32 @@ def tool_list_tree(workspace: str, args: dict[str, Any]) -> str:
     return "\n".join(lines_out)
 
 
-def tool_write_file(workspace: str, args: dict[str, Any]) -> str:
+def tool_write_file(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     rel = str(args.get("path", "")).strip()
     content = args.get("content", "")
     if not rel:
         raise SandboxError("write_file 需要 path")
     if not isinstance(content, str):
         content = str(content)
-    p = resolve_workspace_path(workspace, rel)
+    p = resolve_tool_path(workspace, rel, unrestricted=unrestricted_fs)
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(content, encoding="utf-8", newline="\n")
-    return f"已写入 {p.relative_to(Path(workspace).resolve())}（{len(content)} 字符）"
+    disp = _tool_path_display(workspace, p)
+    return f"已写入 {disp}（{len(content)} 字符）"
 
 
-def tool_make_dir(workspace: str, args: dict[str, Any]) -> str:
+def tool_make_dir(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     rel = str(args.get("path", "")).strip()
     if not rel:
         raise SandboxError("make_dir 需要 path")
     root = Path(workspace).resolve()
-    p = resolve_workspace_path(workspace, rel)
+    p = resolve_tool_path(workspace, rel, unrestricted=unrestricted_fs)
     if p.exists() and not p.is_dir():
-        raise SandboxError(f"路径已存在且不是目录: {p.relative_to(root)}")
+        disp = _tool_path_display(workspace, p)
+        raise SandboxError(f"路径已存在且不是目录: {disp}")
     p.mkdir(parents=True, exist_ok=True)
-    return f"已创建或已存在目录: {p.relative_to(root).as_posix()}"
+    disp_ok = _tool_path_display(workspace, p)
+    return f"已创建或已存在目录: {disp_ok}"
 
 
 def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
@@ -614,7 +676,8 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
                     f"run_command 命中高危模式并被阻断: {p!r}（可在 [permissions].run_command_approval_mode=allow_all 放开）",
                 )
     cwd_arg = str(args.get("cwd", ".")).strip() or "."
-    cwd_path = resolve_workspace_path(settings.workspace, cwd_arg)
+    ufs = bool(getattr(settings, "unrestricted_mode", False))
+    cwd_path = resolve_tool_path(settings.workspace, cwd_arg, unrestricted=ufs)
     if not cwd_path.is_dir():
         raise SandboxError(f"run_command 的 cwd 不是目录: {cwd_path}")
     rb = str(getattr(settings, "runtime_backend", "local") or "local").strip().lower() or "local"
@@ -630,7 +693,10 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
         tail2 = "\n".join(out_l).strip()
         if len(tail2) > 80_000:
             tail2 = tail2[:80_000] + "\n...[已截断]"
-        rel_cwd2 = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
+        try:
+            rel_cwd2 = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
+        except ValueError:
+            rel_cwd2 = str(cwd_path)
         status2 = f"exit={proc.returncode} cwd={rel_cwd2} backend=local"
         return f"{status2}\n{tail2}" if tail2 else status2
 
@@ -671,19 +737,22 @@ def tool_run_command(settings: Settings, args: dict[str, Any]) -> str:
     tail = "\n".join(out).strip()
     if len(tail) > 80_000:
         tail = tail[:80_000] + "\n...[已截断]"
-    rel_cwd = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
+    try:
+        rel_cwd = cwd_path.relative_to(Path(settings.workspace).resolve()).as_posix()
+    except ValueError:
+        rel_cwd = str(cwd_path)
     ek = f" err_kind={res.error_kind}" if res.error_kind else ""
     status = f"exit={res.returncode} cwd={rel_cwd} backend={res.backend}{ek}"
     return f"{status}\n{tail}" if tail else status
 
 
-def tool_glob_search(workspace: str, args: dict[str, Any]) -> str:
+def tool_glob_search(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     pattern = str(args.get("pattern", "")).strip()
     if not pattern:
         raise SandboxError('glob_search 需要 pattern，例如 "**/*.py"')
     _reject_path_traversal_token(pattern, label="pattern")
     root_rel = str(args.get("root", ".")).strip() or "."
-    root = resolve_workspace_path(workspace, root_rel)
+    root = resolve_tool_path(workspace, root_rel, unrestricted=unrestricted_fs)
     if not root.is_dir():
         raise SandboxError(f"不是目录: {root}")
     max_hits = args.get("max_matches", 200)
@@ -692,7 +761,7 @@ def tool_glob_search(workspace: str, args: dict[str, Any]) -> str:
     max_hits = int(max_hits)
     max_hits = min(max(max_hits, 1), 500)
 
-    root_real = Path(workspace).resolve()
+    root_anchor = root.resolve()
     paths_raw = sorted(
         {Path(p).resolve() for p in glob.glob(str(root / pattern), recursive=True)},
     )
@@ -701,7 +770,7 @@ def tool_glob_search(workspace: str, args: dict[str, Any]) -> str:
         if not p.is_file() and not p.is_dir():
             continue
         try:
-            rel = p.relative_to(root_real)
+            rel = p.relative_to(root_anchor)
         except ValueError:
             continue
         rel_lines.append(rel.as_posix())
@@ -716,7 +785,7 @@ def tool_glob_search(workspace: str, args: dict[str, Any]) -> str:
     return f"共 {len(rel_lines)} 条{note}\n" + "\n".join(rel_lines)
 
 
-def tool_search_text(workspace: str, args: dict[str, Any]) -> str:
+def tool_search_text(workspace: str, args: dict[str, Any], *, unrestricted_fs: bool = False) -> str:
     query = str(args.get("query", ""))
     if not query.strip():
         raise SandboxError("search_text 需要 query（子串，区分大小写）")
@@ -726,7 +795,7 @@ def tool_search_text(workspace: str, args: dict[str, Any]) -> str:
         raise SandboxError("query 过长（>400）")
 
     root_rel = str(args.get("root", ".")).strip() or "."
-    root = resolve_workspace_path(workspace, root_rel)
+    root = resolve_tool_path(workspace, root_rel, unrestricted=unrestricted_fs)
     if not root.is_dir():
         raise SandboxError(f"不是目录: {root}")
 
@@ -746,7 +815,7 @@ def tool_search_text(workspace: str, args: dict[str, Any]) -> str:
     max_bytes = int(args.get("max_file_bytes", 400_000))
     max_bytes = min(max(max_bytes, 1024), 2_000_000)
 
-    root_real = Path(workspace).resolve()
+    root_anchor = root.resolve()
     candidates = sorted(
         {
             Path(p)
@@ -761,7 +830,7 @@ def tool_search_text(workspace: str, args: dict[str, Any]) -> str:
             break
         try:
             rp = path.resolve()
-            rp.relative_to(root_real)
+            rp.relative_to(root_anchor)
         except ValueError:
             continue
         try:
@@ -775,7 +844,7 @@ def tool_search_text(workspace: str, args: dict[str, Any]) -> str:
             text = path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
             continue
-        rel = path.relative_to(root_real).as_posix()
+        rel = path.relative_to(root_anchor).as_posix()
         for i, line in enumerate(text.splitlines(), start=1):
             if query in line:
                 hits.append(f"{rel}:{i}:{line[:500]}")
@@ -1137,6 +1206,7 @@ def tool_mcp_call_tool(settings: Settings, args: dict[str, Any]) -> str:
 
 def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
     ws = settings.workspace
+    ufs = bool(getattr(settings, "unrestricted_mode", False))
     enforce_tool_permission(settings, name)
     need_confirm, reason = needs_dangerous_confirmation(settings, name, args)
     if need_confirm:
@@ -1163,21 +1233,21 @@ def dispatch(settings: Settings, name: str, args: dict[str, Any]) -> str:
                 },
             )
     if name == "read_file":
-        return tool_read_file(ws, args)
+        return tool_read_file(ws, args, unrestricted_fs=ufs)
     if name == "list_dir":
-        return tool_list_dir(ws, args)
+        return tool_list_dir(ws, args, unrestricted_fs=ufs)
     if name == "list_tree":
-        return tool_list_tree(ws, args)
+        return tool_list_tree(ws, args, unrestricted_fs=ufs)
     if name == "write_file":
-        return tool_write_file(ws, args)
+        return tool_write_file(ws, args, unrestricted_fs=ufs)
     if name == "make_dir":
-        return tool_make_dir(ws, args)
+        return tool_make_dir(ws, args, unrestricted_fs=ufs)
     if name == "run_command":
         return tool_run_command(settings, args)
     if name == "glob_search":
-        return tool_glob_search(ws, args)
+        return tool_glob_search(ws, args, unrestricted_fs=ufs)
     if name == "search_text":
-        return tool_search_text(ws, args)
+        return tool_search_text(ws, args, unrestricted_fs=ufs)
     if name == "git_status":
         return tool_git_status(settings, args)
     if name == "git_diff":
@@ -1212,17 +1282,17 @@ DISPATCH_TOOL_NAMES: frozenset[str] = frozenset(
 
 def tools_spec_markdown() -> str:
     return """可用工具（通过 JSON 调用）：
-- read_file: {"path": "...", "line_start": 1, "line_end": 120} — line_end 可省略表示读到文件末尾
-- list_dir: {"path": "." 或子目录}
-- list_tree: {"path": ".", "max_depth": 3, "max_entries": 400} — 目录树（深度与条数受限）
-- glob_search: {"pattern": "**/*.py", "root": ".", "max_matches": 200}
-- search_text: {"query": "子串", "root": ".", "glob": "**/*.py", "max_files": 100, "max_matches": 80, "max_file_bytes": 400000}
+- read_file: {"path": "...", "line_start": 1, "line_end": 120} — line_end 可省略表示读到文件末尾；解限模式下 ``path`` 可为绝对路径（工作区外须二次确认）
+- list_dir: {"path": "." 或子目录} — 解限下 ``path`` 可为绝对路径（工作区外须二次确认）
+- list_tree: {"path": ".", "max_depth": 3, "max_entries": 400} — 目录树（深度与条数受限）；解限下 ``path`` 可为绝对路径（工作区外须二次确认）
+- glob_search: {"pattern": "**/*.py", "root": ".", "max_matches": 200} — 解限下 ``root`` 可为绝对路径（工作区外须二次确认）
+- search_text: {"query": "子串", "root": ".", "glob": "**/*.py", "max_files": 100, "max_matches": 80, "max_file_bytes": 400000} — 解限下 ``root`` 可为绝对路径（工作区外须二次确认）
 - git_status: {"short": true} — 只读 git 状态
 - git_diff: {"staged": false, "path": "可选相对路径"} — 只读 git diff
 - mcp_list_tools: {"force": false} — 从 MCP Bridge 拉取工具清单（短时缓存，需开启 MCP）
 - mcp_call_tool: {"name":"tool_name","args":{...}} — 调用 MCP Bridge 工具（需开启 MCP）；当 [safety].unrestricted_mode=true 且 dangerous_confirmation_required=true 时，每次调用需二次确认
 - fetch_url: {"url": "https://..."} — GET；默认仅 HTTPS 且须 allow_hosts 白名单；[fetch_url].unrestricted=true 时可任意公网主机并允许 http；不支持 file://；[fetch_url].max_redirects（1–50，默认 20）控制跟随重定向；请求前对 DNS 解析结果做私网/本机拒绝（反 DNS rebinding），内网解析需 [fetch_url].allow_private_resolved_ips=true 或 CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS=1（解限且要求确认时须二次确认）；受 permissions.fetch_url 约束；明文 http 在解限且要求确认时需二次确认
-- write_file: {"path": "相对路径", "content": "文件全文"} — 解限且要求确认时：敏感后缀与内置关键配置文件名（如 pyproject.toml / package.json 等）写入须二次确认；可用 ``dangerous_write_file_critical_basenames`` 追加
-- make_dir: {"path": "相对目录路径"} — 在工作区内递归创建目录（等同 mkdir -p）；权限同 write_file
-- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符；当 [safety].unrestricted_mode=true 且命中高危模式或 ``run_command_extra_danger_basenames`` 所列基名时，需先做二次确认
+- write_file: {"path": "相对或绝对路径", "content": "文件全文"} — 非解限仅允许相对工作区路径；解限下可用绝对路径（工作区外须二次确认）；敏感后缀与关键配置文件名等规则仍适用
+- make_dir: {"path": "相对或绝对目录路径"} — 递归创建目录（mkdir -p）；非解限仅工作区内；解限绝对路径在工作区外须二次确认；权限同 write_file
+- run_command: {"argv": ["python", "script.py"], "cwd": "."} — argv[0] 只能是允许基名之一，禁止路径与 shell 元字符；解限下 ``cwd`` 可为绝对路径（工作区外须二次确认）；命中高危模式或 ``run_command_extra_danger_basenames`` 仍须二次确认
 """

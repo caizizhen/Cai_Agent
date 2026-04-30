@@ -1,6 +1,6 @@
 # 解限模式与安全确认：完整开发清单
 
-> 产品语义：**默认不按「任务类型」拦工具**；仅在命中**危险行为**时要求二次确认（TUI：`/danger-approve`；非交互：`CAI_DANGEROUS_APPROVE=1`）。**「解限」指危险规则的交互放行方式，不是取消 `[agent].workspace` 沙箱**（路径仍不得越界）。  
+> 产品语义：**默认不按「任务类型」拦工具**；仅在命中**危险行为**时要求二次确认（TUI：`/danger-approve`；非交互：`CAI_DANGEROUS_APPROVE=1`）。**「解限」包含**：① `run_command` 高危由硬阻断改为确认链路；② **文件类工具与 `run_command` 的 `cwd` 可使用绝对路径访问工作区外**（默认仍须二次确认；相对路径始终以 `[agent].workspace` 为根）。未解限时工具路径不允许绝对路径。  
 > 配置：`[safety].unrestricted_mode`、`[safety].dangerous_confirmation_required`（见 `cai-agent.toml` 模板）。
 
 ## 状态图例
@@ -98,4 +98,4 @@ python scripts/smoke_new_features.py
 
 ## 关联变更记录
 
-- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`、`SAFETY-N05-D01`、`SAFETY-N06-D01`、`SAFETY-N07-D01`、`SAFETY-N07-D02`
+- `CHANGELOG.md` / `CHANGELOG.zh-CN.md`：`SAFETY-N01-D01`、`SAFETY-N01-D02`、`SAFETY-N02-*`、`SAFETY-N03-D01`、`SAFETY-N04-D01`、`SAFETY-N05-D01`、`SAFETY-N06-D01`、`SAFETY-N07-D01`、`SAFETY-N07-D02`、`SAFETY-N08-D01`

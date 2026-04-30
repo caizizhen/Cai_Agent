@@ -4,7 +4,7 @@
 
 ### Unreleased
 
-- **Docs**: Clarified that **`unrestricted_mode` does not bypass `[agent].workspace`** (file tools and `run_command` cwd stay sandboxed); **`README.md`** / **`README.zh-CN.md`** + SAFETY backlog opener.
+- **SAFETY-N08-D01 unrestricted filesystem absolute paths**: With **`unrestricted_mode=true`**, `read_file`/`list_dir`/`list_tree`/`write_file`/`make_dir`/`glob_search`/`search_text` accept **absolute paths** outside **`[agent].workspace`**; **`run_command cwd`** may be absolute outside the workspace; **outside-workspace targets still require dangerous confirmation** when **`dangerous_confirmation_required`** is true (same `/danger-approve` / modal budget). Non-unrestricted mode rejects absolute paths. Implemented via **`sandbox.resolve_tool_path`**; tests in **`test_unrestricted_filesystem_paths.py`**; README + SAFETY backlog + **`TOOLS_REGISTRY.zh-CN.md`** updated.
 
 - **Fix**: TUI `/unrestricted on|off` crashed with **`re.PatternError`** because `_persist_unrestricted_mode` accidentally doubled regex escapes (`\\[` became a broken character class). Patterns are corrected; **`[safety]`** scanning tolerates CRLF; regression tests added in **`test_unrestricted_mode_config.py`**.
 

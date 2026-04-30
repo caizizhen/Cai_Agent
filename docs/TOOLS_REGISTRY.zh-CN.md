@@ -7,16 +7,16 @@
 
 | 工具名 | 分类 | 权限键 | 说明 |
 |--------|------|--------|------|
-| `read_file` | 文件系统（只读） | `read_file` | 读取工作区内文件，支持 `line_start`/`line_end` 切片 |
-| `list_dir` | 文件系统（只读） | `read_file` | 列出目录内容 |
-| `list_tree` | 文件系统（只读） | `read_file` | 目录树（深度与条数受限） |
-| `glob_search` | 文件系统（只读） | `read_file` | 按 glob 模式搜索文件路径 |
-| `search_text` | 文件系统（只读） | `read_file` | 文本子串搜索（类 ripgrep） |
+| `read_file` | 文件系统（只读） | `read_file` | 读取文件（默认相对工作区）；解限时可绝对路径（工作区外须二次确认）；支持 `line_start`/`line_end` |
+| `list_dir` | 文件系统（只读） | `read_file` | 列出目录内容（解限时可绝对路径，工作区外须二次确认） |
+| `list_tree` | 文件系统（只读） | `read_file` | 目录树（深度与条数受限；解限时可绝对路径，工作区外须二次确认） |
+| `glob_search` | 文件系统（只读） | `read_file` | 按 glob 搜索路径（解限时 ``root`` 可绝对路径，工作区外须二次确认） |
+| `search_text` | 文件系统（只读） | `read_file` | 文本子串搜索（解限时 ``root`` 可绝对路径，工作区外须二次确认） |
 | `git_status` | Git（只读） | `git_status` | 只读 `git status` |
 | `git_diff` | Git（只读） | `git_diff` | 只读 `git diff`，支持 `staged` 标志 |
-| `write_file` | 文件系统（写入） | `write_file` | 在工作区写入/覆盖文件 |
-| `make_dir` | 文件系统（写入） | `write_file` | 在工作区内递归创建目录（等同 `mkdir -p`） |
-| `run_command` | Shell 执行 | `run_command` | 按白名单 `argv[0]` 执行命令；受 `[permissions].run_command_allowed_commands` 约束 |
+| `write_file` | 文件系统（写入） | `write_file` | 写入/覆盖文件（解限时可绝对路径，工作区外须二次确认） |
+| `make_dir` | 文件系统（写入） | `write_file` | 递归创建目录（等同 `mkdir -p`；解限时可绝对路径，工作区外须二次确认） |
+| `run_command` | Shell 执行 | `run_command` | 按白名单 `argv[0]` 执行命令；解限时 `cwd` 可绝对路径（工作区外须二次确认）；受 `[permissions]` 约束 |
 | `fetch_url` | 网络（只读） | `fetch_url` | HTTPS GET；受主机白名单与 `[permissions].fetch_url` 约束；**`[fetch_url].max_redirects`**（**1–50**，默认 **20**）或 **`CAI_FETCH_URL_MAX_REDIRECTS`** 控制跟随重定向次数；请求前 **`getaddrinfo`** 解析 IP 校验（反 DNS rebinding），内网解析需 **`allow_private_resolved_ips`** / **`CAI_FETCH_URL_ALLOW_PRIVATE_RESOLVED_IPS`** |
 | `mcp_list_tools` | MCP Bridge | `mcp_list_tools` | 从 MCP Bridge 拉取工具清单（短时缓存） |
 | `mcp_call_tool` | MCP Bridge | `mcp_call_tool` | 调用 MCP Bridge 工具（需 `mcp_enabled=true`） |
