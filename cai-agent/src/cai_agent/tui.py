@@ -369,13 +369,14 @@ def _persist_unrestricted_mode(settings: Settings, enabled: bool) -> tuple[bool,
         return (False, f"配置文件不存在: {path}")
     text = path.read_text(encoding="utf-8")
     wanted = "true" if enabled else "false"
-    sec_pat = re.compile(r"(?ms)^\\[safety\\]\\s*\\n(?P<body>.*?)(?=^\\[|\\Z)")
+    # Raw string: use \[ \] \s \n once — doubling (\\[) surfaces as "\\[" in the pattern and breaks the regex.
+    sec_pat = re.compile(r"(?ms)^\[safety\]\s*\r?\n(?P<body>.*?)(?=^\[|\Z)")
     m = sec_pat.search(text)
     if m:
         body = m.group("body")
-        if re.search(r"(?m)^\\s*unrestricted_mode\\s*=", body):
+        if re.search(r"(?m)^\s*unrestricted_mode\s*=", body):
             body2 = re.sub(
-                r"(?m)^\\s*unrestricted_mode\\s*=\\s*(?:true|false)\\s*$",
+                r"(?m)^\s*unrestricted_mode\s*=\s*(?:true|false)\s*\r?$",
                 f"unrestricted_mode = {wanted}",
                 body,
                 count=1,

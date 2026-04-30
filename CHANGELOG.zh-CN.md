@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **修复**：TUI 执行 **`/unrestricted on|off`** 时 `_persist_unrestricted_mode` 内正则错误地使用 **`\\[`** 等双重转义，触发 **`re.PatternError`** 崩溃；已改为正确 **`\[`** 写法并兼容 **`[safety]`** 段 CRLF；回归 **`test_unrestricted_mode_config.py`**。
+
 - **文档**：英文 **`README.md`** 增补 **`[safety]`** 解限说明（危险二次确认、关键写 noop、网关 **`[danger-approve]`** 前缀）；配置表示例增加 **`[safety]`**。**`README.zh-CN.md`** 配置表同步增加 **`[safety]`** 行以保持中英对照。
 
 - **SAFETY-N07-D02 解限关键写语义 noop（TOML/JSON）**：在 **SAFETY-N07-D01** 文本规范化比对之外，关键 basename 且扩展名为 **`.toml`/`.json`** 时若两侧均可解析且递归按键排序后的结构化数据相等，亦跳过 basename 级二次确认；解析失败则仍按原危险判定；扩展 `test_unrestricted_danger_dispatch_extended.py`；解限 SAFETY backlog 中本条 Explore 收口。

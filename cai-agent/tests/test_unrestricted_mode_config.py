@@ -4,6 +4,8 @@ import os
 import textwrap
 import unittest
 
+from pathlib import Path
+
 from cai_agent.config import Settings
 
 
@@ -172,6 +174,109 @@ class UnrestrictedModeConfigTests(unittest.TestCase):
                 os.environ.pop("CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED", None)
             else:
                 os.environ["CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED"] = old
+
+
+class PersistUnrestrictedModeTomlTests(unittest.TestCase):
+    def test_persist_updates_existing_safety_section(self) -> None:
+        import tempfile
+
+        from cai_agent.tui import _persist_unrestricted_mode
+
+        body = (
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+
+                [safety]
+                unrestricted_mode = false
+                dangerous_confirmation_required = true
+                """
+            ).strip()
+            + "\n"
+        )
+        with tempfile.NamedTemporaryFile(
+            "w",
+            suffix=".toml",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            f.write(body)
+            path = f.name
+        try:
+            s = Settings.from_env(config_path=path)
+            self.assertFalse(s.unrestricted_mode)
+            ok, detail = _persist_unrestricted_mode(s, True)
+            self.assertTrue(ok, detail)
+            self.assertEqual(Path(path).resolve(), Path(detail).resolve())
+            written = Path(path).read_text(encoding="utf-8")
+            self.assertRegex(written, r"(?m)^\s*unrestricted_mode\s*=\s*true\s*$")
+            s2 = Settings.from_env(config_path=path)
+            self.assertTrue(s2.unrestricted_mode)
+        finally:
+            os.unlink(path)
+
+    def test_persist_appends_safety_when_missing(self) -> None:
+        import tempfile
+
+        from cai_agent.tui import _persist_unrestricted_mode
+
+        body = (
+            textwrap.dedent(
+                """
+                [llm]
+                base_url = "http://localhost/v1"
+                model = "m"
+                api_key = "k"
+                """
+            ).strip()
+            + "\n"
+        )
+        with tempfile.NamedTemporaryFile(
+            "w",
+            suffix=".toml",
+            delete=False,
+            encoding="utf-8",
+        ) as f:
+            f.write(body)
+            path = f.name
+        try:
+            s = Settings.from_env(config_path=path)
+            self.assertFalse(getattr(s, "unrestricted_mode", False))
+            ok, detail = _persist_unrestricted_mode(s, True)
+            self.assertTrue(ok, detail)
+            written = Path(path).read_text(encoding="utf-8")
+            self.assertIn("[safety]", written)
+            self.assertRegex(written, r"(?m)^\s*unrestricted_mode\s*=\s*true\s*$")
+        finally:
+            os.unlink(path)
+
+    def test_persist_handles_crlf_safety_header(self) -> None:
+        import tempfile
+
+        from cai_agent.tui import _persist_unrestricted_mode
+
+        body = (
+            "[llm]\r\nbase_url = \"http://localhost/v1\"\r\nmodel = \"m\"\r\napi_key = \"k\"\r\n\r\n"
+            "[safety]\r\nunrestricted_mode = false\r\n"
+        )
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            suffix=".toml",
+            delete=False,
+        ) as f:
+            f.write(body.encode("utf-8"))
+            path = f.name
+        try:
+            s = Settings.from_env(config_path=path)
+            ok, detail = _persist_unrestricted_mode(s, True)
+            self.assertTrue(ok, detail)
+            written = Path(path).read_text(encoding="utf-8")
+            self.assertRegex(written.replace("\r\n", "\n"), r"(?m)^\s*unrestricted_mode\s*=\s*true\s*$")
+        finally:
+            os.unlink(path)
 
 
 if __name__ == "__main__":

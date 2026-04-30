@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Fix**: TUI `/unrestricted on|off` crashed with **`re.PatternError`** because `_persist_unrestricted_mode` accidentally doubled regex escapes (`\\[` became a broken character class). Patterns are corrected; **`[safety]`** scanning tolerates CRLF; regression tests added in **`test_unrestricted_mode_config.py`**.
+
 - **Docs**: English **`README.md`** now documents unrestricted **`[safety]`** behaviour (danger confirmations, critical-write noop, gateway **`[danger-approve]`** prefixes); config table adds **`[safety]`**. **`README.zh-CN.md`** config table adds the same **`[safety]`** row for parity.
 
 - **SAFETY-N07-D02 critical `write_file` semantic noop (TOML/JSON, unrestricted)**: Extends **SAFETY-N07-D01**: when text-normalized bodies still differ, skip critical-basename confirmation if both sides parse as equivalent structured documents for critical basenames ending in **`.toml`** or **`.json`** (recursive dict key sort + deep equality); invalid parses fall back to requiring confirmation when the write would otherwise be flagged; tests extend `test_unrestricted_danger_dispatch_extended.py`; docs backlog Explore closed for this slice.
