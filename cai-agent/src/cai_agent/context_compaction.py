@@ -330,6 +330,25 @@ def evaluate_compaction_retention(
     return ContextCompactionRetentionResult(payload=payload)
 
 
+def retention_quality_score(payload: dict[str, Any] | None) -> float | None:
+    if not isinstance(payload, dict):
+        return None
+    retention = payload.get("retention") or {}
+    checks = payload.get("checks") or {}
+    parts: list[float] = []
+    for key in ("initial_goal_retained", "tail_retained", "paths_retained", "tools_retained", "markers_retained"):
+        if key in checks:
+            parts.append(1.0 if bool(checks.get(key)) else 0.0)
+    for key in ("tail_retention_ratio", "path_retention_ratio", "tool_retention_ratio", "marker_retention_ratio"):
+        try:
+            parts.append(max(0.0, min(1.0, float(retention.get(key)))))
+        except Exception:
+            continue
+    if not parts:
+        return None
+    return round(sum(parts) / len(parts), 4)
+
+
 def _build_summary_payload(
     messages: list[dict[str, Any]],
     *,

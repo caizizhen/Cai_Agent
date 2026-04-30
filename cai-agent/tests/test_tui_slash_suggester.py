@@ -6,10 +6,13 @@ import asyncio
 import unittest
 
 from cai_agent.tui import (
+    CompactStatusSnapshot,
     SlashCommandSuggester,
     SlashCompletionContext,
     _SLASH_COMMAND_CANDIDATES,
     _cai_brand_markup,
+    _compact_quality_score,
+    _format_compact_status,
     _parse_mcp_tool_lines,
     _slash_menu_matches,
     _slash_menu_rows,
@@ -72,6 +75,52 @@ class CaiBrandMarkupTests(unittest.TestCase):
         s = _cai_brand_markup()
         self.assertIn("Cai", s)
         self.assertIn("$primary", s)
+
+
+class CompactStatusFormatTests(unittest.TestCase):
+    def test_no_compact_run(self) -> None:
+        self.assertEqual(_format_compact_status(None), "compact: no run yet")
+
+    def test_compact_snapshot_line(self) -> None:
+        line = _format_compact_status(
+            CompactStatusSnapshot(
+                mode="llm",
+                summary_source="heuristic",
+                original_message_count=12,
+                compacted_message_count=5,
+                original_estimated_tokens=1000,
+                compacted_estimated_tokens=250,
+                fallback_reason="llm_compaction_quality_failed: paths_retained",
+                quality_score=0.875,
+            ),
+        )
+        self.assertIn("mode=llm", line)
+        self.assertIn("source=heuristic", line)
+        self.assertIn("messages=12->5", line)
+        self.assertIn("tokens=1000->250", line)
+        self.assertIn("ratio=75.0%", line)
+        self.assertIn("fallback=llm_compaction_quality_failed", line)
+        self.assertIn("quality=0.88", line)
+
+    def test_quality_score_from_retention_payload(self) -> None:
+        score = _compact_quality_score(
+            {
+                "checks": {
+                    "initial_goal_retained": True,
+                    "tail_retained": True,
+                    "paths_retained": False,
+                },
+                "retention": {
+                    "tail_retention_ratio": 1.0,
+                    "path_retention_ratio": 0.5,
+                    "tool_retention_ratio": 1.0,
+                    "marker_retention_ratio": 1.0,
+                },
+            },
+        )
+        self.assertIsNotNone(score)
+        self.assertGreater(score or 0.0, 0.0)
+        self.assertLess(score or 1.0, 1.0)
 
 
 class SlashTypoHintTests(unittest.TestCase):

@@ -40,6 +40,8 @@
 
 `CTX-COMPACT-N07` 起，`tool_calls[]` 会根据工具结果类型提取结构化证据。pytest/测试输出会保留 `failure_summary`，traceback 会提取错误线索，git diff 会记录 `diff_stats`，search/read/command 输出会保留路径和关键 evidence。旧字段 `tool`、`error`、`result_preview` 保持兼容。
 
+`CTX-COMPACT-N08` 起，TUI 会记录最近一次上下文压缩状态，并在 `/status` 中显示 `mode`、`source`、message 数变化、估算 token 压缩前后、压缩率、fallback reason 与 quality score。手动 `/compress` 成功后也会在通知里显示 `source` 和 `quality`，便于判断压缩是否可靠。
+
 TUI `/compress` 使用同一套启发式压缩器手动压缩当前会话，并刷新上下文进度条。压缩事件会通过 progress 回调发出 `phase="compact"`，字段包括压缩前后 message 数和估算 token 数。
 
 ### 长会话质量评估

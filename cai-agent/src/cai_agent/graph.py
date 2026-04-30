@@ -11,6 +11,7 @@ from cai_agent.context_compaction import (
     build_llm_compaction_prompt,
     compact_messages,
     evaluate_compaction_retention,
+    retention_quality_score,
 )
 from cai_agent.context import augment_system_prompt
 from cai_agent.llm import estimate_tokens_from_messages, extract_json_object, get_last_usage
@@ -253,7 +254,14 @@ def build_app(
                         "error": fallback_reason,
                     },
                 )
+            quality_score: float | None = None
             if comp.compacted and comp.compacted_estimated_tokens < comp.original_estimated_tokens:
+                status_retention = evaluate_compaction_retention(
+                    messages,
+                    comp.messages,
+                    keep_tail_messages=int(getattr(settings, "context_compact_keep_tail_messages", 8) or 8),
+                )
+                quality_score = retention_quality_score(status_retention.payload)
                 messages = comp.messages
                 generation = int(state.get("compact_generation") or 0) + 1
                 summary_text = ""
@@ -281,6 +289,7 @@ def build_app(
                         "original_estimated_tokens": comp.original_estimated_tokens,
                         "compacted_estimated_tokens": comp.compacted_estimated_tokens,
                         "context_window": window,
+                        "quality_score": quality_score,
                     },
                 )
 

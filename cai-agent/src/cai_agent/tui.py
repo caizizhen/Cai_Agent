@@ -276,6 +276,67 @@ class SlashCompletionContext:
         self.command_names: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class CompactStatusSnapshot:
+    mode: str
+    summary_source: str
+    original_message_count: int
+    compacted_message_count: int
+    original_estimated_tokens: int
+    compacted_estimated_tokens: int
+    fallback_reason: str | None = None
+    quality_score: float | None = None
+
+
+def _compact_reduction_ratio(original_tokens: int, compacted_tokens: int) -> float:
+    original = max(0, int(original_tokens))
+    compacted = max(0, int(compacted_tokens))
+    if original <= 0:
+        return 0.0
+    return max(0.0, min(1.0, float(original - compacted) / float(original)))
+
+
+def _compact_quality_score(retention_payload: dict[str, Any] | None) -> float | None:
+    if not isinstance(retention_payload, dict):
+        return None
+    retention = retention_payload.get("retention") or {}
+    checks = retention_payload.get("checks") or {}
+    parts: list[float] = []
+    for key in ("initial_goal_retained", "tail_retained", "paths_retained", "tools_retained", "markers_retained"):
+        if key in checks:
+            parts.append(1.0 if bool(checks.get(key)) else 0.0)
+    for key in ("tail_retention_ratio", "path_retention_ratio", "tool_retention_ratio", "marker_retention_ratio"):
+        try:
+            parts.append(max(0.0, min(1.0, float(retention.get(key)))))
+        except Exception:
+            continue
+    if not parts:
+        return None
+    return round(sum(parts) / len(parts), 4)
+
+
+def _format_compact_status(snapshot: CompactStatusSnapshot | None) -> str:
+    if snapshot is None:
+        return "compact: no run yet"
+    ratio = _compact_reduction_ratio(
+        snapshot.original_estimated_tokens,
+        snapshot.compacted_estimated_tokens,
+    )
+    parts = [
+        "compact:",
+        f"mode={snapshot.mode}",
+        f"source={snapshot.summary_source}",
+        f"messages={snapshot.original_message_count}->{snapshot.compacted_message_count}",
+        f"tokens={snapshot.original_estimated_tokens}->{snapshot.compacted_estimated_tokens}",
+        f"ratio={ratio:.1%}",
+    ]
+    if snapshot.fallback_reason:
+        parts.append(f"fallback={snapshot.fallback_reason}")
+    if snapshot.quality_score is not None:
+        parts.append(f"quality={float(snapshot.quality_score):.2f}")
+    return " ".join(parts)
+
+
 def _parse_mcp_tool_lines(list_text: str) -> list[str]:
     """从 ``mcp_list_tools`` 文本输出中解析工具名（tab 分隔或纯行）。"""
     names: list[str] = []
@@ -562,6 +623,7 @@ class CaiAgentApp(App[None]):
         # 字符估算（尚未有真实 API 响应），在界面上显示 "~N" 前缀。
         self._ctx_tokens = 0
         self._ctx_is_estimate = True
+        self._last_compact_status: CompactStatusSnapshot | None = None
         self._slash_ctx = SlashCompletionContext()
         self._slash_suggester = SlashCommandSuggester(context=self._slash_ctx)
 
@@ -1013,6 +1075,31 @@ class CaiAgentApp(App[None]):
 
     def on_progress_update(self, event: ProgressUpdate) -> None:
         payload = event.payload or {}
+        if payload.get("phase") == "compact":
+            self._last_compact_status = CompactStatusSnapshot(
+                mode=str(payload.get("mode") or ""),
+                summary_source=str(payload.get("summary_source") or ""),
+                original_message_count=int(payload.get("original_message_count") or 0),
+                compacted_message_count=int(payload.get("compacted_message_count") or 0),
+                original_estimated_tokens=int(payload.get("original_estimated_tokens") or 0),
+                compacted_estimated_tokens=int(payload.get("compacted_estimated_tokens") or 0),
+                quality_score=(
+                    float(payload.get("quality_score"))
+                    if payload.get("quality_score") is not None
+                    else None
+                ),
+            )
+        elif payload.get("phase") == "compact_fallback" and self._last_compact_status is not None:
+            self._last_compact_status = CompactStatusSnapshot(
+                mode=self._last_compact_status.mode,
+                summary_source=self._last_compact_status.summary_source,
+                original_message_count=self._last_compact_status.original_message_count,
+                compacted_message_count=self._last_compact_status.compacted_message_count,
+                original_estimated_tokens=self._last_compact_status.original_estimated_tokens,
+                compacted_estimated_tokens=self._last_compact_status.compacted_estimated_tokens,
+                fallback_reason=str(payload.get("error") or ""),
+                quality_score=self._last_compact_status.quality_score,
+            )
         if payload.get("phase") == "usage":
             pt = int(payload.get("prompt_tokens") or 0)
             # 服务器返回的 prompt_tokens 才是"当前上下文的真实占用"。
@@ -1290,6 +1377,7 @@ class CaiAgentApp(App[None]):
                 f"上下文窗口: [cyan]{cw:,}[/] tokens\n"
                 f"  source=[cyan]{src}[/] — [dim]{_CONTEXT_WINDOW_SOURCE_LABELS.get(src, src)}[/]\n"
                 f"配置: [dim]{cfg}[/]\n"
+                f"{_format_compact_status(self._last_compact_status)}\n"
                 f"project_context={s.project_context}  git_context={s.git_context}\n"
                 f"mcp_enabled={s.mcp_enabled}  mcp_url={s.mcp_base_url or '(none)'}\n"
                 + format_tui_mcp_web_notebook_quickstart()
@@ -1686,6 +1774,22 @@ class CaiAgentApp(App[None]):
                     fallback_reason=fallback_reason,
                 )
             if comp.compacted and comp.compacted_estimated_tokens < comp.original_estimated_tokens:
+                status_retention = evaluate_compaction_retention(
+                    self._messages,
+                    comp.messages,
+                    keep_tail_messages=int(getattr(self._settings, "context_compact_keep_tail_messages", 8) or 8),
+                )
+                quality_score = _compact_quality_score(status_retention.payload)
+                self._last_compact_status = CompactStatusSnapshot(
+                    mode=mode,
+                    summary_source=summary_source,
+                    original_message_count=comp.original_message_count,
+                    compacted_message_count=comp.compacted_message_count,
+                    original_estimated_tokens=comp.original_estimated_tokens,
+                    compacted_estimated_tokens=comp.compacted_estimated_tokens,
+                    fallback_reason=fallback_reason,
+                    quality_score=quality_score,
+                )
                 self._messages = comp.messages
                 self._ctx_tokens = comp.compacted_estimated_tokens
                 self._ctx_is_estimate = True
@@ -1693,7 +1797,7 @@ class CaiAgentApp(App[None]):
                 self.notify(
                     f"已压缩上下文：messages {comp.original_message_count}->{comp.compacted_message_count}，"
                     f"估算 tokens {comp.original_estimated_tokens}->{comp.compacted_estimated_tokens}，"
-                    f"source={summary_source}。",
+                    f"source={summary_source}，quality={quality_score if quality_score is not None else 'n/a'}。",
                     severity="information",
                     timeout=4.5,
                 )

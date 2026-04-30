@@ -7,18 +7,18 @@
 
 ## 当前目标
 
-- `CTX-COMPACT-N07` 已完成并归档：`context_summary_v1.tool_calls[]` 已对 pytest/traceback、git diff、search 命中、长文件读取等输出保留结构化证据。N04-N07 集成 QA 记录见 `docs/qa/runs/context-compaction-n04-n07-integration-qa-20260430.md`。当前默认开发队列清空；下一轮建议继续 `CTX-COMPACT-N08` TUI 压缩可视化或 `CTX-COMPACT-N09` 安全/隐私过滤。
+- `CTX-COMPACT-N08` 已完成并归档：TUI `/status` 与 `/compress` 后会展示最近一次压缩 mode/source、tokens、ratio、fallback reason 与 quality score。当前默认开发队列清空；下一轮建议继续 `CTX-COMPACT-N09` 安全/隐私过滤或 `CTX-COMPACT-N10` 真实模型回归样本集。
 
 ## 现在做
 
 | 顺位 | 任务 | 状态 | 验收 |
 |---|---|---|---|
-| - | - | Clear | `CTX-COMPACT-N07` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260430-183958-CTX-COMPACT-N07.md` |
+| - | - | Clear | `CTX-COMPACT-N08` 已完成；完成证据见 `COMPLETED_TASKS_ARCHIVE.zh-CN.md` 与 `docs/qa/runs/task-finalize-20260430-200657-CTX-COMPACT-N08.md` |
 
 ## 后续队列
 
-- `CTX-COMPACT-N08`：TUI 压缩可视化
 - `CTX-COMPACT-N09`：安全/隐私过滤
+- `CTX-COMPACT-N10`：真实模型回归样本集
 - Gateway 深化（候选）：slash command 深化、多 workspace federation 的真实部署检查
 - Ops operator 路由深化（候选）：在 RBAC / workspaces 发现基础上继续补跨 workspace 操作路由与租户边界
 
@@ -34,6 +34,7 @@
 
 | 任务 | 日期 | 摘要 | 验证 |
 |---|---|---|---|
+| `CTX-COMPACT-N08` | 2026-04-30 | Show recent context compaction status in TUI | compileall context_compaction/graph/tui/__main__: PASS; pytest tui_slash_suggester + context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 51 passed |
 | `CTX-COMPACT-N07` | 2026-04-30 | Add tool-aware evidence extraction for context compaction summaries | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 22 passed |
 | `CTX-COMPACT-N06` | 2026-04-30 | Merge existing context summaries during repeated compaction | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 21 passed |
 | `CTX-COMPACT-N05` | 2026-04-30 | Add context compaction JSON schemas and fixture checks | compileall context_compaction/graph/tui/__main__: PASS; pytest context_compaction + graph_context_compaction + sessions_compact_eval_cli + compact_policy_explain_v1: 20 passed |
