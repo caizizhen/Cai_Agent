@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from cai_agent.config import Settings
+from cai_agent.memory import build_structured_memory_prompt_block
 from cai_agent.session import list_session_files, load_session
 
 INSTRUCTION_FILE_NAMES = (
@@ -105,6 +106,17 @@ def augment_system_prompt(settings: Settings, base: str) -> str:
         g = git_workspace_summary(settings.workspace)
         if g:
             parts.append(g)
+    if settings.memory_inject_enabled:
+        mem = build_structured_memory_prompt_block(
+            settings.workspace,
+            max_entries=settings.memory_inject_max_entries,
+            max_chars=settings.memory_inject_max_chars,
+            include_stale=settings.memory_inject_include_stale,
+            stale_after_days=settings.memory_inject_stale_after_days,
+            min_active_confidence=settings.memory_inject_min_active_confidence,
+        )
+        if mem:
+            parts.append(mem.rstrip())
     return "\n".join(parts).strip() + "\n"
 
 

@@ -6,6 +6,8 @@
 
 ### Unreleased
 
+- **功能**：结构化记忆（**`memory/entries.jsonl`**）默认注入 **TUI** 与 **CLI** 共用的 system prompt（**`augment_system_prompt`**）。可通过 **`[memory.inject]`**（**`enabled`**、**`max_entries`**、**`max_chars`**、**`include_stale`**、**`stale_after_days`**、**`min_active_confidence`**）或环境变量 **`CAI_MEMORY_INJECT_*`** 调整。**`load_memory_entries_validated`** 改为只读路径访问，避免纯读取时创建空 **`memory/`** 目录。**`doctor` / `GET /v1/doctor/summary`** 增加 **`memory_inject`** 字段。回归 **`test_memory_prompt_inject.py`**。
+
 - **修复**：`cai-agent doctor` 人类可读输出曾含 **`→`**、**`↔`** 等 Unicode，在受限为 **GBK** 的 Windows 控制台会因 **`UnicodeEncodeError`** 崩溃；相关文案已改为 ASCII（**`->`**、**`<->`**）。
 
 - **修复（TUI / 解限模式）**：**`build_app`** 在构造时闭包捕获了最初的 **`Settings`**，TUI 执行 **`/unrestricted on`** 后虽已更新 **`AgentShell._settings`** 并写盘，但 **`tools_node`** 仍用旧的 **`unrestricted_mode=false`** 调用 **`dispatch`**，导致 **`list_dir`** 等工作区外绝对路径被拒绝，只能重启后才生效。**`build_app`** 现支持可选 **`settings_supplier`**，TUI 传入 **`lambda: self._settings`**，每轮 LLM/工具节点使用当前配置。回归 **`test_graph_live_settings.py`**。

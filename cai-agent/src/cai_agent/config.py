@@ -340,6 +340,13 @@ class Settings:
     memory_policy_max_entries_per_day: int
     memory_policy_default_ttl_days: int | None
     memory_policy_recall_negative_audit: bool
+    # [memory.inject]：将结构化记忆注入 system prompt（TUI / CLI 共用；默认开启）
+    memory_inject_enabled: bool
+    memory_inject_max_entries: int
+    memory_inject_max_chars: int
+    memory_inject_include_stale: bool
+    memory_inject_stale_after_days: int
+    memory_inject_min_active_confidence: float
     # [skills.auto_extract]：任务后自动提炼（P0-SKEXT）
     skills_auto_extract_enabled: bool
     skills_auto_extract_mode: str
@@ -940,6 +947,82 @@ class Settings:
         else:
             memory_policy_recall_negative_audit = True
 
+        inject_sec = _section(memory_sec, "inject")
+        if os.getenv("CAI_MEMORY_INJECT_ENABLED") is not None:
+            memory_inject_enabled = _env_bool("CAI_MEMORY_INJECT_ENABLED", True)
+        else:
+            raw_mie = inject_sec.get("enabled")
+            memory_inject_enabled = raw_mie if isinstance(raw_mie, bool) else True
+
+        if os.getenv("CAI_MEMORY_INJECT_MAX_ENTRIES") is not None:
+            try:
+                memory_inject_max_entries = int(str(os.environ["CAI_MEMORY_INJECT_MAX_ENTRIES"]).strip(), 10)
+            except ValueError:
+                memory_inject_max_entries = 24
+        else:
+            raw_mien = inject_sec.get("max_entries")
+            if isinstance(raw_mien, int) and not isinstance(raw_mien, bool) and raw_mien > 0:
+                memory_inject_max_entries = min(500, int(raw_mien))
+            elif isinstance(raw_mien, float) and raw_mien > 0:
+                memory_inject_max_entries = min(500, int(raw_mien))
+            else:
+                memory_inject_max_entries = 24
+        memory_inject_max_entries = max(1, min(500, memory_inject_max_entries))
+
+        if os.getenv("CAI_MEMORY_INJECT_MAX_CHARS") is not None:
+            try:
+                memory_inject_max_chars = int(str(os.environ["CAI_MEMORY_INJECT_MAX_CHARS"]).strip(), 10)
+            except ValueError:
+                memory_inject_max_chars = 6000
+        else:
+            raw_mic = inject_sec.get("max_chars")
+            if isinstance(raw_mic, int) and not isinstance(raw_mic, bool) and raw_mic > 0:
+                memory_inject_max_chars = min(100_000, int(raw_mic))
+            elif isinstance(raw_mic, float) and raw_mic > 0:
+                memory_inject_max_chars = min(100_000, int(raw_mic))
+            else:
+                memory_inject_max_chars = 6000
+        memory_inject_max_chars = max(200, min(100_000, memory_inject_max_chars))
+
+        if os.getenv("CAI_MEMORY_INJECT_INCLUDE_STALE") is not None:
+            memory_inject_include_stale = _env_bool("CAI_MEMORY_INJECT_INCLUDE_STALE", False)
+        else:
+            raw_mis = inject_sec.get("include_stale")
+            memory_inject_include_stale = raw_mis if isinstance(raw_mis, bool) else False
+
+        if os.getenv("CAI_MEMORY_INJECT_STALE_AFTER_DAYS") is not None:
+            try:
+                memory_inject_stale_after_days = int(
+                    str(os.environ["CAI_MEMORY_INJECT_STALE_AFTER_DAYS"]).strip(),
+                    10,
+                )
+            except ValueError:
+                memory_inject_stale_after_days = 14
+        else:
+            raw_sad = inject_sec.get("stale_after_days")
+            if isinstance(raw_sad, int) and not isinstance(raw_sad, bool) and raw_sad > 0:
+                memory_inject_stale_after_days = min(3650, int(raw_sad))
+            elif isinstance(raw_sad, float) and raw_sad > 0:
+                memory_inject_stale_after_days = min(3650, int(raw_sad))
+            else:
+                memory_inject_stale_after_days = 14
+        memory_inject_stale_after_days = max(1, min(3650, memory_inject_stale_after_days))
+
+        if os.getenv("CAI_MEMORY_INJECT_MIN_ACTIVE_CONFIDENCE") is not None:
+            try:
+                memory_inject_min_active_confidence = float(
+                    str(os.environ["CAI_MEMORY_INJECT_MIN_ACTIVE_CONFIDENCE"]).strip(),
+                )
+            except ValueError:
+                memory_inject_min_active_confidence = 0.5
+        else:
+            raw_mac = inject_sec.get("min_active_confidence")
+            if isinstance(raw_mac, int | float) and not isinstance(raw_mac, bool):
+                memory_inject_min_active_confidence = float(raw_mac)
+            else:
+                memory_inject_min_active_confidence = 0.5
+        memory_inject_min_active_confidence = max(0.0, min(1.0, memory_inject_min_active_confidence))
+
         skills_sec = _section(file_data, "skills")
         ae_sec = _section(skills_sec, "auto_extract")
         if os.getenv("CAI_SKILLS_AUTO_EXTRACT_ENABLED") is not None:
@@ -1185,6 +1268,12 @@ class Settings:
             memory_policy_max_entries_per_day=memory_policy_max_entries_per_day,
             memory_policy_default_ttl_days=memory_policy_default_ttl_days,
             memory_policy_recall_negative_audit=memory_policy_recall_negative_audit,
+            memory_inject_enabled=memory_inject_enabled,
+            memory_inject_max_entries=memory_inject_max_entries,
+            memory_inject_max_chars=memory_inject_max_chars,
+            memory_inject_include_stale=memory_inject_include_stale,
+            memory_inject_stale_after_days=memory_inject_stale_after_days,
+            memory_inject_min_active_confidence=memory_inject_min_active_confidence,
             skills_auto_extract_enabled=skills_auto_extract_enabled,
             skills_auto_extract_mode=skills_auto_extract_mode,
             skills_auto_extract_min_goal_chars=skills_auto_extract_min_goal_chars,

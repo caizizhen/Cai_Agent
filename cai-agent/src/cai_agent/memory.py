@@ -172,7 +172,7 @@ def load_memory_entries_validated(
     root: str | Path,
 ) -> tuple[list[dict[str, Any]], list[str]]:
     """逐行校验 schema；无效行记入 warnings，不进入返回列表。"""
-    path = _entries_path(root)
+    path = _entries_file_readonly(root)
     if not path.is_file():
         return [], []
     valid: list[dict[str, Any]] = []
@@ -872,6 +872,60 @@ def evaluate_memory_entry_states(
         "stale_after_days": int(max(1, stale_after_days)),
         "min_active_confidence": float(max(0.0, min(1.0, min_active_confidence))),
     }
+
+
+def build_structured_memory_prompt_block(
+    root: str | Path,
+    *,
+    max_entries: int = 24,
+    max_chars: int = 6000,
+    include_stale: bool = False,
+    stale_after_days: int = 14,
+    min_active_confidence: float = 0.5,
+    per_entry_max_chars: int = 480,
+) -> str:
+    """将校验通过的 ``memory/entries.jsonl`` 条目格式化为可注入 system prompt 的 Markdown（只读，不创建目录）。"""
+    base = Path(root).expanduser().resolve()
+    rows, _warns = load_memory_entries_validated(base)
+    if not rows:
+        return ""
+    ann = annotate_memory_states(
+        rows,
+        stale_after_days=int(max(1, stale_after_days)),
+        min_active_confidence=float(max(0.0, min(1.0, min_active_confidence))),
+    )
+    picked: list[dict[str, Any]] = []
+    for row in ann:
+        st = str(row.get("state") or "").strip().lower()
+        if st == "expired":
+            continue
+        if st == "stale" and not include_stale:
+            continue
+        if st == "active" or (include_stale and st == "stale"):
+            picked.append(row)
+    if not picked:
+        return ""
+    sort_memory_rows(picked, "confidence")
+    me = max(1, min(500, int(max_entries)))
+    mc = max(200, min(100_000, int(max_chars)))
+    pec = max(32, min(8000, int(per_entry_max_chars)))
+    header = "\n---\n## 结构化记忆（memory/entries.jsonl）\n"
+    body_parts: list[str] = []
+    used = len(header)
+    for row in picked[:me]:
+        cat = str(row.get("category") or "general").strip() or "general"
+        text = str(row.get("text") or "").strip()
+        text = " ".join(text.split())
+        if len(text) > pec:
+            text = text[: pec - 1] + "…"
+        line = f"- **{cat}** {text}\n"
+        if used + len(line) > mc:
+            break
+        body_parts.append(line)
+        used += len(line)
+    if not body_parts:
+        return ""
+    return header + "".join(body_parts)
 
 
 def search_memory_entries(

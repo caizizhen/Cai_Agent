@@ -340,6 +340,21 @@ cai-agent memory health --json --fail-on-grade C
 cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-severity high
 ```
 
+### TUI / CLI 与结构化记忆注入（默认开启）
+
+在工作区根目录存在有效的 **`memory/entries.jsonl`** 时，**TUI** 与 **`cai-agent` 走 LangGraph 的 CLI 会话**会把其中 **active** 状态的条目（按置信度排序并受长度限制）自动拼进 **system prompt**，与 `cai-agent memory list` 使用同一套校验与状态规则。无需额外开关即可生效；若要关闭或调预算，可在 `cai-agent.toml` 中配置 **`[memory.inject]`**：
+
+| 键 | 含义 | 默认 |
+|----|------|------|
+| `enabled` | 是否注入 | `true` |
+| `max_entries` | 最多条目数（上限 500） | `24` |
+| `max_chars` | 注入块最大字符数 | `6000` |
+| `include_stale` | 是否包含 stale 条目 | `false` |
+| `stale_after_days` | 判定 stale 的天数 | `14` |
+| `min_active_confidence` | 低于则视为 stale 的置信度阈值 | `0.5` |
+
+也可用环境变量覆盖：`CAI_MEMORY_INJECT_ENABLED`、`CAI_MEMORY_INJECT_MAX_ENTRIES`、`CAI_MEMORY_INJECT_MAX_CHARS`、`CAI_MEMORY_INJECT_INCLUDE_STALE`、`CAI_MEMORY_INJECT_STALE_AFTER_DAYS`、`CAI_MEMORY_INJECT_MIN_ACTIVE_CONFIDENCE`。`cai-agent doctor --json`（及 HTTP **`/v1/doctor/summary`**）中的 **`memory_inject`** 字段可查看当前生效配置。
+
 ---
 
 ## 模型与 Profile

@@ -4,6 +4,8 @@
 
 ### Unreleased
 
+- **Feature**: Structured memory (`memory/entries.jsonl`) is injected into the system prompt by default for both **TUI** and **CLI** agent runs via `augment_system_prompt`. Configure with **`[memory.inject]`** (`enabled`, `max_entries`, `max_chars`, `include_stale`, `stale_after_days`, `min_active_confidence`) or env vars **`CAI_MEMORY_INJECT_*`**. `load_memory_entries_validated` now reads via a readonly path so listing/injection does not create empty `memory/` directories. **`doctor` / `GET /v1/doctor/summary`** expose **`memory_inject`**. Tests: **`test_memory_prompt_inject.py`**.
+
 - **Fix**: `cai-agent doctor` human-readable output used Unicode arrows (**`→`**, **`↔`**) that crash on Windows consoles limited to **GBK** (**`UnicodeEncodeError`**). Those labels now use ASCII (**`->`**, **`<->`**).
 
 - **Fix (TUI / unrestricted_mode)**: **`build_app`** captured the initial **`Settings`** in a closure, so **`/unrestricted on`** updated **`AgentShell._settings`** (and disk TOML) but **`tools_node`** still called **`dispatch`** with the old **`unrestricted_mode=false`** snapshot—absolute **`list_dir`** paths failed until restart. **`build_app`** now accepts optional **`settings_supplier`**; the TUI passes **`lambda: self._settings`** so each LLM/tool step reads live safety flags. Test: **`test_graph_live_settings.py`**.

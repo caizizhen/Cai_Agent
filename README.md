@@ -346,6 +346,21 @@ cai-agent memory health --json --fail-on-grade C
 cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-severity high
 ```
 
+### TUI / CLI structured memory injection (on by default)
+
+When **`memory/entries.jsonl`** under the workspace contains validated rows, both the **TUI** and **CLI agent runs** (LangGraph) append **active** entries to the **system prompt** (sorted by confidence, capped by size). No extra flag is required. To disable or tune budgets, set **`[memory.inject]`** in `cai-agent.toml`:
+
+| Key | Meaning | Default |
+|-----|---------|---------|
+| `enabled` | Enable injection | `true` |
+| `max_entries` | Max rows (cap 500) | `24` |
+| `max_chars` | Max characters for the injected block | `6000` |
+| `include_stale` | Include stale rows | `false` |
+| `stale_after_days` | Age threshold for stale | `14` |
+| `min_active_confidence` | Confidence floor for “active” | `0.5` |
+
+Override via env: `CAI_MEMORY_INJECT_ENABLED`, `CAI_MEMORY_INJECT_MAX_ENTRIES`, `CAI_MEMORY_INJECT_MAX_CHARS`, `CAI_MEMORY_INJECT_INCLUDE_STALE`, `CAI_MEMORY_INJECT_STALE_AFTER_DAYS`, `CAI_MEMORY_INJECT_MIN_ACTIVE_CONFIDENCE`. `cai-agent doctor --json` and **`GET /v1/doctor/summary`** expose **`memory_inject`**.
+
 ---
 
 ## Models and profiles

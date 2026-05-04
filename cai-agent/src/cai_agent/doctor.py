@@ -681,6 +681,16 @@ def build_doctor_payload(settings: Settings) -> dict[str, Any]:
                 getattr(settings, "memory_policy_recall_negative_audit", True),
             ),
         },
+        "memory_inject": {
+            "enabled": bool(getattr(settings, "memory_inject_enabled", True)),
+            "max_entries": int(getattr(settings, "memory_inject_max_entries", 24) or 24),
+            "max_chars": int(getattr(settings, "memory_inject_max_chars", 6000) or 6000),
+            "include_stale": bool(getattr(settings, "memory_inject_include_stale", False)),
+            "stale_after_days": int(getattr(settings, "memory_inject_stale_after_days", 14) or 14),
+            "min_active_confidence": float(
+                getattr(settings, "memory_inject_min_active_confidence", 0.5) or 0.5,
+            ),
+        },
         "memory_provider": memory_provider,
         "skills_auto_extract": {
             "enabled": bool(getattr(settings, "skills_auto_extract_enabled", False)),
@@ -748,6 +758,7 @@ def build_api_doctor_summary_v1(settings: Settings) -> dict[str, Any]:
         "profile_contract": p.get("profile_contract"),
         "profile_home_migration": p.get("profile_home_migration"),
         "memory_policy": p.get("memory_policy"),
+        "memory_inject": p.get("memory_inject"),
         "memory_provider": p.get("memory_provider"),
         "model_routing_enabled": p.get("model_routing_enabled"),
         "model_routing_rules_count": p.get("model_routing_rules_count"),
