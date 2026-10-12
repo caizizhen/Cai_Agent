@@ -66,3 +66,11 @@ uv run --project cai-agent python scripts/finalize_task.py --task-id <ID> --summ
 This removes the task from `NEXT_ACTIONS` current work, appends completion evidence
 to `COMPLETED_TASKS_ARCHIVE.zh-CN.md`, and writes a QA run note. Use `--push`
 only after the working tree contains the intended files and tests passed.
+
+## Cursor Cloud specific instructions
+
+- The default image has `python3` (3.12) and no `python` binary. Install links `/usr/bin/python3` to `/usr/local/bin/python`.
+- Install from the repo root with `python3 -m pip install --user -U pip` and `python3 -m pip install --user -e "./cai-agent[dev]"`. `~/.local/bin` is not on the default PATH, so `cai-agent` and `pytest` are symlinked into `/usr/local/bin`.
+- Pytest, smoke, `doctor`, and `onboarding` do not need a model API key. `cai-agent run` needs an OpenAI-compatible endpoint.
+- From the repo root: `python -m pytest -q cai-agent/tests`, `python scripts/smoke_new_features.py`, `python scripts/gen_tools_registry_zh.py --check`, and `QA_SKIP_LOG=1 python scripts/run_regression.py`.
+- CI uses pip, not `uv`. The completion command above works as `python scripts/finalize_task.py` when `uv` is absent.
