@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com"/>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
   <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@450;550;650&display=swap" rel="stylesheet"/>
-  <link rel="stylesheet" href="/static/app.css"/>
+  <link rel="stylesheet" href="/static/app.css?v=20261013b"/>
 </head>
 <body>
   <div id="app">
@@ -90,16 +90,122 @@
         </div>
       </div>
 
-      <div class="composer-wrap">
-        <div class="composer">
-          <textarea id="input" rows="2" placeholder="给 Agent 下任务…（Enter 发送，Shift+Enter 换行）"></textarea>
-          <div class="composer-bottom">
-            <div class="composer-hint" id="composer-hint">Ready</div>
-            <button type="button" class="btn btn-primary" id="send">发送</button>
-          </div>
+      <div id="approve" role="dialog" aria-label="工具权限确认">
+        <div class="approve-title">需要确认工具调用</div>
+        <div class="approve-detail" id="approve-detail"></div>
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="approve-allow">允许</button>
+          <button type="button" class="btn btn-deny" id="approve-deny">拒绝</button>
         </div>
       </div>
+
+      <div class="composer-wrap">
+        <div class="stats-bar" id="session-stats">
+          <div class="stats-pill-wrap">
+            <button type="button" class="stats-pill" id="pill-session" title="会话统计">
+              <span class="pill-ico" aria-hidden="true">◷</span>
+              <span id="pill-session-label">0 轮 0 步</span>
+            </button>
+            <div class="stats-pop" id="pop-session" hidden>
+              <div class="stats-pop-head"><span class="pill-ico">◷</span> 会话统计</div>
+              <div class="stats-pop-row"><span>模型用时</span><span id="stat-model-time">—</span></div>
+              <div class="stats-pop-row"><span>工具调用用时</span><span id="stat-tool-time">—</span></div>
+              <div class="stats-pop-row"><span>首 token 平均 (TTFT)</span><span id="stat-ttft">—</span></div>
+              <div class="stats-pop-row"><span>输出速度 (TPS)</span><span id="stat-tps">—</span></div>
+            </div>
+          </div>
+          <div class="stats-pill-wrap">
+            <button type="button" class="stats-pill" id="pill-token" title="Token 用量">
+              <span class="pill-ico" aria-hidden="true">▥</span>
+              <span id="pill-token-label">用量 —</span>
+            </button>
+            <div class="stats-pop" id="pop-token" hidden>
+              <div class="stats-pop-head">
+                <span><span class="pill-ico">▥</span> Token 用量</span>
+                <span id="stat-token-total">0 tok</span>
+              </div>
+              <div class="stats-pop-row"><span>缓存命中</span><span id="stat-cache-hit">—</span></div>
+              <div class="stats-pop-row"><span>未缓存输入</span><span id="stat-uncached">—</span></div>
+              <div class="stats-pop-row"><span>缓存读取</span><span id="stat-cache-read">—</span></div>
+              <div class="stats-pop-row"><span>输出</span><span id="stat-output">—</span></div>
+            </div>
+          </div>
+          <div class="ctx-ring" id="ctx-ring" title="上下文占用">
+            <svg viewBox="0 0 36 36" aria-hidden="true">
+              <circle class="ctx-bg" cx="18" cy="18" r="14"/>
+              <circle class="ctx-fg" id="ctx-fg" cx="18" cy="18" r="14"/>
+            </svg>
+            <span id="stat-context-pct">0%</span>
+          </div>
+        </div>
+        <div class="composer">
+          <div class="composer-attach" id="composer-attach" hidden></div>
+          <textarea id="input" rows="2" placeholder="发消息或创建任务，粘贴/拖入图片，/ 调用指令，@ 文件或对话"></textarea>
+          <div class="composer-bottom">
+            <div class="composer-left">
+              <div class="plus-wrap">
+                <button type="button" class="btn-circle" id="btn-plus" title="添加">＋</button>
+                <div class="plus-menu" id="plus-menu" hidden>
+                  <button type="button" data-action="image">图片</button>
+                  <button type="button" data-action="file">附件文件</button>
+                  <button type="button" data-action="feedback">反馈</button>
+                  <button type="button" data-action="goal">目标 / 任务</button>
+                  <button type="button" data-action="workspace">工作区</button>
+                </div>
+              </div>
+              <label class="composer-select perm-select" title="工具权限">
+                <span class="ico" aria-hidden="true">⛨</span>
+                <select id="composer-approval">
+                  <option value="auto">完全权限</option>
+                  <option value="confirm">需确认</option>
+                  <option value="deny">只读安全</option>
+                </select>
+              </label>
+            </div>
+            <div class="composer-right">
+              <div class="model-picker" title="切换模型">
+                <button type="button" class="model-picker-btn" id="composer-model-btn" aria-haspopup="listbox" aria-expanded="false">
+                  <span class="model-picker-label" id="composer-model-label">选择模型</span>
+                  <span class="model-picker-caret" aria-hidden="true">▾</span>
+                </button>
+                <div class="model-picker-menu" id="composer-model-menu" hidden role="listbox"></div>
+              </div>
+              <button type="button" class="btn-send" id="send" title="发送">↑</button>
+            </div>
+          </div>
+        </div>
+        <div class="composer-hint" id="composer-hint">Ready</div>
+      </div>
     </section>
+  </div>
+
+  <input type="file" id="file-attach-input" hidden multiple />
+  <input type="file" id="image-attach-input" hidden multiple accept="image/png,image/jpeg,image/gif,image/webp" />
+
+  <div class="note-mask" id="note-mask" hidden></div>
+  <div class="note-modal" id="note-modal" hidden role="dialog" aria-modal="true">
+    <div class="note-head">
+      <h3 id="note-title">反馈</h3>
+      <button type="button" class="btn btn-ghost btn-tiny" id="note-close">✕</button>
+    </div>
+    <textarea id="note-body" rows="4" placeholder="输入内容…"></textarea>
+    <div class="note-actions">
+      <button type="button" class="btn btn-ghost" id="note-cancel">取消</button>
+      <button type="button" class="btn btn-primary" id="note-ok">添加到输入框</button>
+    </div>
+  </div>
+
+  <div class="note-mask" id="confirm-mask" hidden></div>
+  <div class="note-modal confirm-modal" id="confirm-modal" hidden role="dialog" aria-modal="true">
+    <div class="note-head">
+      <h3 id="confirm-title">确认</h3>
+      <button type="button" class="btn btn-ghost btn-tiny" id="confirm-close">✕</button>
+    </div>
+    <p class="confirm-msg" id="confirm-msg"></p>
+    <div class="note-actions">
+      <button type="button" class="btn btn-ghost" id="confirm-cancel">取消</button>
+      <button type="button" class="btn btn-primary" id="confirm-ok">确定</button>
+    </div>
   </div>
 
   <div class="drawer-mask" id="settings-mask" hidden></div>
@@ -109,31 +215,46 @@
       <button type="button" class="btn btn-ghost" id="settings-close">✕</button>
     </div>
     <div class="drawer-body">
-      <h3>Model provider</h3>
-      <label class="field">协议
-        <select id="set-provider">
-          <option value="openai">OpenAI Compatible（/v1/chat/completions）</option>
-          <option value="anthropic">Anthropic Messages（/v1/messages）</option>
-        </select>
-      </label>
-      <label class="field">API Base URL
-        <input id="set-base-url" type="text" placeholder="https://api.openai.com/v1 或 https://api.anthropic.com" autocomplete="off"/>
-      </label>
-      <label class="field">API Key
-        <input id="set-api-key" type="password" placeholder="leave blank to keep" autocomplete="off"/>
-      </label>
-      <div class="file-toolbar" style="margin-bottom:0.75rem">
-        <button type="button" class="btn btn-outline btn-tiny" id="btn-fetch-models">获取可用模型</button>
-        <span class="hint" id="models-fetch-status"></span>
+      <h3>Models</h3>
+      <p class="hint">可添加多个本地 / 第三方模型，切换当前使用的配置。</p>
+      <div id="model-profile-list" class="model-profile-list"></div>
+      <button type="button" class="btn btn-outline" id="btn-model-add" style="width:100%;margin:0.35rem 0 0.85rem">＋ 添加模型</button>
+
+      <div id="model-editor" class="model-editor" hidden>
+        <h3 id="model-editor-title">编辑模型</h3>
+        <input type="hidden" id="set-profile-id" value=""/>
+        <label class="field">显示名称
+          <input id="set-profile-name" type="text" placeholder="例如 Local Gemma / Claude" autocomplete="off"/>
+        </label>
+        <label class="field">协议
+          <select id="set-provider">
+            <option value="openai">OpenAI Compatible（本地 / 第三方）</option>
+            <option value="anthropic">Anthropic Messages</option>
+          </select>
+        </label>
+        <label class="field">API Base URL
+          <input id="set-base-url" type="text" placeholder="http://localhost:1234/v1 或 https://api.anthropic.com" autocomplete="off"/>
+        </label>
+        <label class="field">API Key
+          <input id="set-api-key" type="password" placeholder="leave blank to keep" autocomplete="off"/>
+        </label>
+        <div class="file-toolbar" style="margin-bottom:0.75rem">
+          <button type="button" class="btn btn-outline btn-tiny" id="btn-fetch-models">获取可用模型</button>
+          <span class="hint" id="models-fetch-status"></span>
+        </div>
+        <label class="field">Model
+          <select id="set-model-select">
+            <option value="">— 手动输入或先获取 —</option>
+          </select>
+        </label>
+        <label class="field">Model id
+          <input id="set-model" type="text" placeholder="model-id" autocomplete="off"/>
+        </label>
+        <div class="file-toolbar" style="margin-bottom:0.85rem">
+          <button type="button" class="btn btn-primary btn-tiny" id="btn-model-save-profile">保存此模型</button>
+          <button type="button" class="btn btn-ghost btn-tiny" id="btn-model-cancel">取消</button>
+        </div>
       </div>
-      <label class="field">Model
-        <select id="set-model-select">
-          <option value="">— 手动输入或先获取 —</option>
-        </select>
-      </label>
-      <label class="field">Model id（可改）
-        <input id="set-model" type="text" placeholder="model-id" autocomplete="off"/>
-      </label>
 
       <h3>Agent</h3>
       <label class="field">Max steps
@@ -196,6 +317,6 @@
     <div class="file-status" id="file-status"></div>
   </div>
 
-  <script src="/static/app.js"></script>
+  <script src="/static/app.js?v=20261013b"></script>
 </body>
 </html>

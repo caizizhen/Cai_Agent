@@ -93,3 +93,90 @@ def test_sessions_carry_workspace_meta(tmp_path, monkeypatch):
     row = next(s for s in listed if s["id"] == created["session_id"])
     assert "proj" in row["workspace"].replace("\\", "/")
     assert row.get("updated_at")
+
+
+def test_session_delete(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAI_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CAI_WORKSPACE", str(tmp_path / "ws"))
+    (tmp_path / "ws").mkdir()
+    client = TestClient(build_app(SessionHub()))
+    sid = client.post("/api/session/new").json()["session_id"]
+    assert client.get("/api/sessions").json()["sessions"]
+    deleted = client.delete(f"/api/session/{sid}")
+    assert deleted.status_code == 200
+    assert deleted.json()["ok"] is True
+    assert client.get("/api/sessions").json()["sessions"] == []
+
+
+def test_model_profiles_crud(tmp_path, monkeypatch):
+    monkeypatch.setenv("CAI_HOME", str(tmp_path / "home"))
+    monkeypatch.setenv("CAI_WORKSPACE", str(tmp_path / "ws"))
+    (tmp_path / "ws").mkdir()
+    client = TestClient(build_app(SessionHub()))
+
+    a = client.post(
+        "/api/models/profiles",
+        json={
+            "name": "Local",
+            "provider": "openai",
+            "base_url": "http://127.0.0.1:1234/v1",
+            "model": "local-a",
+            "api_key": "k1",
+        },
+    )
+    assert a.status_code == 200
+    assert a.json()["model"] == "local-a"
+    assert len(a.json()["models"]) >= 1
+
+    b = client.post(
+        "/api/models/profiles",
+        json={
+            "name": "Claude",
+            "provider": "anthropic",
+            "base_url": "https://api.anthropic.com",
+            "model": "claude-sonnet-4-5",
+            "api_key": "sk-ant",
+            "activate": False,
+        },
+    )
+    assert b.status_code == 200
+    models = b.json()["models"]
+    assert len(models) >= 2
+    claude = next(m for m in models if m["model"] == "claude-sonnet-4-5")
+    act = client.post(f"/api/models/profiles/{claude['id']}/activate")
+    assert act.status_code == 200
+    assert act.json()["provider"] == "anthropic"
+    assert act.json()["model"] == "claude-sonnet-4-5"
+
+    # Re-activate must refresh top-level endpoint (no "toggle twice" lag).
+    hub = SessionHub()
+    client2 = TestClient(build_app(hub))
+    local = next(m for m in client2.get("/api/runtime").json()["models"] if m["model"] == "local-a")
+    client2.post(
+        "/api/models/profiles",
+        json={
+            "id": "strata",
+            "name": "Strata",
+            "provider": "openai",
+            "base_url": "http://127.0.0.1:1111//v1",
+            "model": "qwen3.8-flash-next-iq3_s",
+            "activate": True,
+        },
+    )
+    view = client2.post("/api/models/profiles/strata/activate").json()
+    assert view["model"] == "qwen3.8-flash-next-iq3_s"
+    assert "1111" in view["base_url"]
+    assert "//v1" not in view["base_url"].replace("://", "")
+    hub.reload_settings()
+    assert hub.settings.model == "qwen3.8-flash-next-iq3_s"
+    assert "1111" in hub.settings.base_url
+
+    # Switching back updates engine settings without keeping stale handle URL.
+    client2.post(f"/api/models/profiles/{local['id']}/activate")
+    hub.reload_settings()
+    assert hub.settings.model == "local-a"
+    assert "1234" in hub.settings.base_url
+
+    html = client.get("/").text
+    assert "model-profile-list" in html
+    assert "btn-model-add" in html

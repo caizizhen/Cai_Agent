@@ -56,15 +56,49 @@ class AgentSession:
     def messages(self) -> list[AgentMessage]:
         return self.store.load_messages(self.session_id)
 
-    async def prompt(self, text: str) -> list[AgentMessage]:
+    async def prompt(
+        self,
+        text: str,
+        *,
+        images: list[dict[str, Any]] | None = None,
+    ) -> list[AgentMessage]:
         if self._busy:
             raise RuntimeError("session busy")
         self._busy = True
         try:
             history = self.store.load_messages(self.session_id)
-            produced = await self.agent.run(history, text)
+            ready_images: list[dict[str, Any]] = []
+            for img in images or []:
+                if not isinstance(img, dict):
+                    continue
+                data = str(img.get("data") or img.get("data_b64") or "").strip()
+                mime = str(img.get("mime") or "image/png")
+                name = str(img.get("name") or "image")
+                if not data:
+                    continue
+                ref = self.store.save_image_b64(
+                    self.session_id,
+                    data_b64=data,
+                    mime=mime,
+                    name=name,
+                )
+                # Keep payload for this turn's LLM call; jsonl stores file refs only.
+                ready_images.append({**ref, "data": data.split(",", 1)[-1] if data.startswith("data:") else data})
+            metrics_box: dict[str, Any] = {}
+
+            def _capture(ev: AgentEvent) -> None:
+                if ev.type == "agent_end":
+                    metrics_box["metrics"] = (ev.data or {}).get("metrics") or {}
+
+            unsub = self.agent.subscribe(_capture)
+            try:
+                produced = await self.agent.run(history, text, images=ready_images or None)
+            finally:
+                unsub()
             for m in produced:
                 self.store.append(self.session_id, m)
+            if metrics_box.get("metrics"):
+                self.store.add_run_metrics(self.session_id, metrics_box["metrics"])
             return produced
         finally:
             self._busy = False

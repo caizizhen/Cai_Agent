@@ -44,7 +44,10 @@ def _load_yaml(path: Path) -> dict[str, Any]:
 
 def normalize_base_url(base_url: str, provider: str) -> str:
     """Normalize provider base URL (OpenAI keeps /v1; Anthropic root host)."""
-    url = (base_url or "").rstrip("/")
+    url = (base_url or "").strip().rstrip("/")
+    # Fix common typos like http://host:1111//v1
+    while "//" in url.replace("://", ""):
+        url = url.replace("://", "\0").replace("//", "/").replace("\0", "://")
     prov = (provider or "openai").lower()
     if prov in ("anthropic", "anthropic-messages", "claude"):
         if not url:

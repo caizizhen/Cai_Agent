@@ -21,8 +21,8 @@ class EngineHandle:
     bus: EventBus
     settings: Settings
 
-    async def prompt(self, text: str):
-        return await self.bridge.prompt(text)
+    async def prompt(self, text: str, *, images: list | None = None):
+        return await self.bridge.prompt(text, images=images)
 
     async def abort(self) -> None:
         await self.bridge.abort()

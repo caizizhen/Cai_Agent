@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -80,7 +81,53 @@ def save_runtime_file(patch: dict[str, Any]) -> dict[str, Any]:
             continue
         if k == "api_key" and isinstance(v, str) and v.strip() in ("", "********"):
             continue  # keep existing secret
+        if k == "models" and isinstance(v, list):
+            cur[k] = _merge_models_list(cur.get("models"), v)
+            continue
         cur[k] = v
+    # If caller patches top-level model fields, keep the active profile in sync
+    # (do not sync-from-profile first — that would clobber the new top-level values).
+    top_keys = {"provider", "base_url", "model", "api_key", "model_name"}
+    if top_keys & set(patch.keys()) and "models" not in patch:
+        models = list(cur.get("models") or []) if isinstance(cur.get("models"), list) else []
+        active = str(cur.get("active_model_id") or "")
+        if not models:
+            boot = _profile_from_top(cur)
+            cur["models"] = [boot]
+            cur["active_model_id"] = boot["id"]
+        else:
+            updated = []
+            matched = False
+            for m in models:
+                if not isinstance(m, dict):
+                    continue
+                if (not matched) and (str(m.get("id")) == active or not active):
+                    provider = str(cur.get("provider") or m.get("provider") or "openai").lower()
+                    if provider not in ("openai", "anthropic"):
+                        provider = "openai"
+                    key = cur.get("api_key")
+                    if key is None or (isinstance(key, str) and key.strip() in ("", "********")):
+                        key = m.get("api_key") or ""
+                    pid = str(m.get("id") or uuid.uuid4().hex)
+                    updated.append(
+                        {
+                            "id": pid,
+                            "name": str(cur.get("model_name") or m.get("name") or cur.get("model") or "model"),
+                            "provider": provider,
+                            "base_url": normalize_base_url(
+                                str(cur.get("base_url") or m.get("base_url") or ""),
+                                provider,
+                            ),
+                            "model": str(cur.get("model") or m.get("model") or ""),
+                            "api_key": str(key or ""),
+                        },
+                    )
+                    cur["active_model_id"] = pid
+                    matched = True
+                else:
+                    updated.append(m)
+            cur["models"] = updated
+    cur = _sync_active_from_models(cur)
     path = runtime_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(cur, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -95,16 +142,200 @@ def mask_api_key(key: str) -> str:
     return key[:3] + "********" + key[-2:]
 
 
+def _profile_from_top(rt: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(rt.get("active_model_id") or "default"),
+        "name": str(rt.get("model_name") or rt.get("model") or "default"),
+        "provider": str(rt.get("provider") or "openai"),
+        "base_url": str(rt.get("base_url") or ""),
+        "model": str(rt.get("model") or ""),
+        "api_key": str(rt.get("api_key") or ""),
+    }
+
+
+def _merge_models_list(existing: Any, incoming: list[Any]) -> list[dict[str, Any]]:
+    old_by_id: dict[str, dict[str, Any]] = {}
+    if isinstance(existing, list):
+        for row in existing:
+            if isinstance(row, dict) and row.get("id"):
+                old_by_id[str(row["id"])] = row
+    out: list[dict[str, Any]] = []
+    for row in incoming:
+        if not isinstance(row, dict):
+            continue
+        pid = str(row.get("id") or uuid.uuid4().hex)
+        prev = old_by_id.get(pid) or {}
+        key = row.get("api_key")
+        if key is None or (isinstance(key, str) and key.strip() in ("", "********")):
+            key = prev.get("api_key") or ""
+        provider = str(row.get("provider") or prev.get("provider") or "openai").lower()
+        if provider not in ("openai", "anthropic"):
+            provider = "openai"
+        model_id = str(row.get("model") or prev.get("model") or "")
+        out.append(
+            {
+                "id": pid,
+                "name": str(row.get("name") or prev.get("name") or model_id or "model"),
+                "provider": provider,
+                "base_url": normalize_base_url(
+                    str(row.get("base_url") or prev.get("base_url") or ""),
+                    provider,
+                ),
+                "model": model_id,
+                "api_key": str(key or ""),
+            },
+        )
+    return out
+
+
+def _sync_active_from_models(rt: dict[str, Any]) -> dict[str, Any]:
+    """Keep top-level provider/model/base_url/api_key aligned with active profile."""
+    models = rt.get("models")
+    if not isinstance(models, list) or not models:
+        if rt.get("model") or rt.get("base_url"):
+            boot = _profile_from_top(rt)
+            rt["models"] = [boot]
+            rt["active_model_id"] = boot["id"]
+        return rt
+    active = str(rt.get("active_model_id") or "")
+    chosen = None
+    for m in models:
+        if isinstance(m, dict) and str(m.get("id")) == active:
+            chosen = m
+            break
+    if chosen is None and isinstance(models[0], dict):
+        chosen = models[0]
+        rt["active_model_id"] = str(chosen.get("id") or "")
+    if not isinstance(chosen, dict):
+        return rt
+    provider = str(chosen.get("provider") or "openai").lower()
+    if provider not in ("openai", "anthropic"):
+        provider = "openai"
+    rt["provider"] = provider
+    rt["base_url"] = normalize_base_url(str(chosen.get("base_url") or ""), provider)
+    rt["model"] = str(chosen.get("model") or "")
+    if chosen.get("api_key") is not None:
+        rt["api_key"] = str(chosen.get("api_key") or "")
+    rt["model_name"] = str(chosen.get("name") or rt["model"])
+    return rt
+
+
+def public_model_profile(p: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": str(p.get("id") or ""),
+        "name": str(p.get("name") or p.get("model") or "model"),
+        "provider": str(p.get("provider") or "openai"),
+        "base_url": str(p.get("base_url") or ""),
+        "model": str(p.get("model") or ""),
+        "api_key": mask_api_key(str(p.get("api_key") or "")),
+        "api_key_set": bool(p.get("api_key")),
+    }
+
+
+def list_model_profiles(runtime: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    rt = _sync_active_from_models(dict(runtime if runtime is not None else load_runtime_file()))
+    models = rt.get("models") if isinstance(rt.get("models"), list) else []
+    return [public_model_profile(m) for m in models if isinstance(m, dict)]
+
+
+def upsert_model_profile(body: dict[str, Any]) -> dict[str, Any]:
+    """Create or update a model profile; activate it by default when new."""
+    rt = load_runtime_file()
+    rt = _sync_active_from_models(rt)
+    models = list(rt.get("models") or []) if isinstance(rt.get("models"), list) else []
+    pid = str(body.get("id") or "").strip() or uuid.uuid4().hex
+    existing = None
+    for m in models:
+        if isinstance(m, dict) and str(m.get("id")) == pid:
+            existing = m
+            break
+    provider = str(body.get("provider") or (existing or {}).get("provider") or "openai").lower()
+    if provider not in ("openai", "anthropic"):
+        provider = "openai"
+    key = body.get("api_key")
+    if key is None or (isinstance(key, str) and key.strip() in ("", "********")):
+        key = (existing or {}).get("api_key") or ""
+    row = {
+        "id": pid,
+        "name": str(body.get("name") or (existing or {}).get("name") or body.get("model") or "model"),
+        "provider": provider,
+        "base_url": normalize_base_url(
+            str(body.get("base_url") or (existing or {}).get("base_url") or ""),
+            provider,
+        ),
+        "model": str(body.get("model") or (existing or {}).get("model") or ""),
+        "api_key": str(key or ""),
+    }
+    if existing is None:
+        models.append(row)
+    else:
+        models = [row if isinstance(m, dict) and str(m.get("id")) == pid else m for m in models]
+    activate = body.get("activate")
+    if activate is None:
+        activate = existing is None or str(rt.get("active_model_id") or "") == pid
+    patch: dict[str, Any] = {"models": models}
+    if activate:
+        patch["active_model_id"] = pid
+    save_runtime_file(patch)
+    return runtime_public_view(settings_with_runtime())
+
+
+def delete_model_profile(profile_id: str) -> dict[str, Any]:
+    pid = str(profile_id or "").strip()
+    if not pid:
+        raise ValueError("id required")
+    rt = load_runtime_file()
+    models = [m for m in (rt.get("models") or []) if isinstance(m, dict) and str(m.get("id")) != pid]
+    if not models and (rt.get("model") or rt.get("base_url")):
+        # keep at least empty list
+        models = []
+    patch: dict[str, Any] = {"models": models}
+    if str(rt.get("active_model_id") or "") == pid:
+        patch["active_model_id"] = str(models[0]["id"]) if models else ""
+    save_runtime_file(patch)
+    return runtime_public_view(settings_with_runtime())
+
+
+def activate_model_profile(profile_id: str) -> dict[str, Any]:
+    pid = str(profile_id or "").strip()
+    if not pid:
+        raise ValueError("id required")
+    rt = load_runtime_file()
+    models = rt.get("models") if isinstance(rt.get("models"), list) else []
+    chosen = next((m for m in models if isinstance(m, dict) and str(m.get("id")) == pid), None)
+    if not isinstance(chosen, dict):
+        raise ValueError("model profile not found")
+    # Persist active id AND top-level fields so Settings/engine never lag one switch behind.
+    provider = str(chosen.get("provider") or "openai").lower()
+    if provider not in ("openai", "anthropic"):
+        provider = "openai"
+    save_runtime_file(
+        {
+            "active_model_id": pid,
+            "provider": provider,
+            "base_url": normalize_base_url(str(chosen.get("base_url") or ""), provider),
+            "model": str(chosen.get("model") or ""),
+            "model_name": str(chosen.get("name") or chosen.get("model") or ""),
+            "api_key": chosen.get("api_key") if chosen.get("api_key") is not None else None,
+        },
+    )
+    return runtime_public_view(settings_with_runtime())
+
+
 def runtime_public_view(settings: Settings, ui: dict[str, Any] | None = None) -> dict[str, Any]:
     """JSON-safe runtime view for Settings UI (api_key masked)."""
     ui = ui or load_settings()
     ws = list_workspaces(settings.workspace)
+    rt = _sync_active_from_models(load_runtime_file())
     return {
         "provider": settings.provider,
         "model": settings.model,
         "base_url": settings.base_url,
         "api_key": mask_api_key(settings.api_key),
         "api_key_set": bool(settings.api_key),
+        "model_name": str(rt.get("model_name") or settings.model),
+        "active_model_id": str(rt.get("active_model_id") or ""),
+        "models": list_model_profiles(rt),
         "max_steps": settings.max_iterations,
         "stream": settings.stream,
         "debug": settings.debug,
@@ -118,6 +349,7 @@ def runtime_public_view(settings: Settings, ui: dict[str, Any] | None = None) ->
 
 def apply_runtime_to_settings(base: Settings, runtime: dict[str, Any]) -> Settings:
     """Apply runtime.json fields onto a Settings instance."""
+    runtime = _sync_active_from_models(dict(runtime))
     workspace = runtime.get("workspace")
     model = runtime.get("model")
     base_url = runtime.get("base_url")

@@ -22,6 +22,44 @@ class LLMResult:
     content: str = ""
     tool_calls: list[dict[str, Any]] = field(default_factory=list)
     chunks: list[StreamChunk] = field(default_factory=list)
+    usage: dict[str, int] = field(default_factory=dict)
+
+
+def normalize_usage(raw: Any) -> dict[str, int]:
+    """Normalize OpenAI/Anthropic usage blobs to prompt/completion/total/cache ints."""
+    if not isinstance(raw, dict):
+        return {}
+    prompt = int(raw.get("prompt_tokens") or raw.get("input_tokens") or 0)
+    completion = int(raw.get("completion_tokens") or raw.get("output_tokens") or 0)
+    total = int(raw.get("total_tokens") or (prompt + completion) or 0)
+    details = raw.get("prompt_tokens_details") or raw.get("input_tokens_details") or {}
+    if not isinstance(details, dict):
+        details = {}
+    cache_read = int(
+        raw.get("cache_read_input_tokens")
+        or raw.get("cached_tokens")
+        or details.get("cached_tokens")
+        or details.get("cache_read_tokens")
+        or 0,
+    )
+    cache_write = int(
+        raw.get("cache_creation_input_tokens")
+        or details.get("cache_write_tokens")
+        or details.get("cache_creation_tokens")
+        or 0,
+    )
+    out: dict[str, int] = {}
+    if prompt:
+        out["prompt_tokens"] = prompt
+    if completion:
+        out["completion_tokens"] = completion
+    if total:
+        out["total_tokens"] = total
+    if cache_read:
+        out["cache_read_tokens"] = cache_read
+    if cache_write:
+        out["cache_write_tokens"] = cache_write
+    return out
 
 
 class OpenAICompatLLM:
@@ -35,7 +73,10 @@ class OpenAICompatLLM:
         mock: bool = False,
         stream: bool = True,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        url = (base_url or "").strip().rstrip("/")
+        while "//" in url.replace("://", ""):
+            url = url.replace("://", "\0").replace("//", "/").replace("\0", "://")
+        self.base_url = url
         if not self.base_url.endswith("/v1"):
             self.base_url += "/v1"
         self.model = model
@@ -144,7 +185,11 @@ class OpenAICompatLLM:
         msg = data["choices"][0]["message"]
         content = msg.get("content") or ""
         tool_calls = msg.get("tool_calls") or []
-        result = LLMResult(content=content, tool_calls=list(tool_calls))
+        result = LLMResult(
+            content=content,
+            tool_calls=list(tool_calls),
+            usage=normalize_usage(data.get("usage")),
+        )
         if on_chunk and content:
             on_chunk(StreamChunk(kind="text", text=content))
         for tc in tool_calls:
@@ -176,6 +221,7 @@ class OpenAICompatLLM:
         content_parts: list[str] = []
         # tool_index -> accumulating tool call
         tool_acc: dict[int, dict[str, Any]] = {}
+        usage: dict[str, int] = {}
 
         async with httpx.AsyncClient(
             timeout=180.0,
@@ -206,6 +252,8 @@ class OpenAICompatLLM:
                         data = json.loads(data_str)
                     except json.JSONDecodeError:
                         continue
+                    if data.get("usage"):
+                        usage = normalize_usage(data.get("usage"))
                     choices = data.get("choices") or []
                     if not choices:
                         continue
@@ -239,7 +287,7 @@ class OpenAICompatLLM:
                 on_chunk(StreamChunk(kind="tool_call", tool_call=tc))
         if on_chunk:
             on_chunk(StreamChunk(kind="done"))
-        return LLMResult(content="".join(content_parts), tool_calls=tool_calls)
+        return LLMResult(content="".join(content_parts), tool_calls=tool_calls, usage=usage)
 
     async def stream(
         self,

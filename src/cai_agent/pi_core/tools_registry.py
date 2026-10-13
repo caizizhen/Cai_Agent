@@ -7,6 +7,8 @@ from typing import Any
 
 
 ToolHandler = Callable[[dict[str, Any]], Awaitable[str] | str]
+# Returns True to allow, False to deny. Optional async gate before tool runs.
+ApprovalGate = Callable[[str, dict[str, Any], str], Awaitable[bool] | bool]
 
 
 @dataclass
@@ -20,6 +22,7 @@ class ToolSpec:
 @dataclass
 class ToolRegistry:
     tools: dict[str, ToolSpec] = field(default_factory=dict)
+    approval_gate: ApprovalGate | None = None
 
     def register(self, spec: ToolSpec) -> None:
         self.tools[spec.name] = spec
@@ -37,7 +40,13 @@ class ToolRegistry:
             for t in self.tools.values()
         ]
 
-    async def execute(self, name: str, arguments: dict[str, Any] | str) -> str:
+    async def execute(
+        self,
+        name: str,
+        arguments: dict[str, Any] | str,
+        *,
+        tool_call_id: str = "",
+    ) -> str:
         if name not in self.tools:
             return f"error: unknown tool {name}"
         if isinstance(arguments, str):
@@ -47,6 +56,12 @@ class ToolRegistry:
                 arguments = {"_raw": arguments}
         if not isinstance(arguments, dict):
             arguments = {}
+        if self.approval_gate is not None:
+            allowed = self.approval_gate(name, arguments, tool_call_id or "")
+            if hasattr(allowed, "__await__"):
+                allowed = await allowed  # type: ignore[misc]
+            if not allowed:
+                return f"error: tool '{name}' denied by approval policy"
         result = self.tools[name].handler(arguments)
         if hasattr(result, "__await__"):
             return await result  # type: ignore[misc]

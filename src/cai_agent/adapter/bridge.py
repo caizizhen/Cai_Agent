@@ -113,11 +113,11 @@ class EngineBridge:
                 ),
             )
 
-    async def prompt(self, text: str) -> list[Any]:
+    async def prompt(self, text: str, *, images: list[dict] | None = None) -> list[Any]:
         """Run a user prompt on the attached session."""
         if not self._session:
             raise RuntimeError("bridge has no session; call attach() first")
-        return await self._session.prompt(text)
+        return await self._session.prompt(text, images=images)
 
     async def abort(self) -> None:
         if self._session:

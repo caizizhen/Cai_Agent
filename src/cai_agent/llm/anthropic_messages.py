@@ -10,7 +10,7 @@ from typing import Any
 
 import httpx
 
-from cai_agent.llm.openai_compat import LLMResult, StreamChunk
+from cai_agent.llm.openai_compat import LLMResult, StreamChunk, normalize_usage
 
 ANTHROPIC_VERSION = "2023-06-01"
 DEFAULT_ANTHROPIC_BASE = "https://api.anthropic.com"
@@ -29,6 +29,31 @@ def normalize_anthropic_base(base_url: str) -> str:
     if url.endswith("/v1"):
         url = url[:-3].rstrip("/")
     return url or DEFAULT_ANTHROPIC_BASE
+
+
+def _openai_image_url_to_anthropic(url: str) -> dict[str, Any] | None:
+    """Convert OpenAI image_url data URL → Anthropic image content block."""
+    raw = str(url or "").strip()
+    if not raw:
+        return None
+    if raw.startswith("data:"):
+        try:
+            header, b64 = raw.split(",", 1)
+        except ValueError:
+            return None
+        mime = "image/png"
+        meta = header[5:] if header.startswith("data:") else header
+        if ";" in meta:
+            mime = meta.split(";", 1)[0] or mime
+        b64 = b64.strip()
+        if not b64:
+            return None
+        return {
+            "type": "image",
+            "source": {"type": "base64", "media_type": mime, "data": b64},
+        }
+    # remote URL — Anthropic supports url source on some endpoints
+    return {"type": "image", "source": {"type": "url", "url": raw}}
 
 
 def openai_tools_to_anthropic(tools: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
@@ -87,7 +112,30 @@ def openai_messages_to_anthropic(
                 system_parts.append(text)
             continue
         if role == "user":
-            push("user", str(m.get("content") or ""))
+            content = m.get("content")
+            if isinstance(content, list):
+                blocks: list[dict[str, Any]] = []
+                for part in content:
+                    if not isinstance(part, dict):
+                        continue
+                    ptype = part.get("type")
+                    if ptype == "text":
+                        text = str(part.get("text") or "")
+                        if text:
+                            blocks.append({"type": "text", "text": text})
+                    elif ptype == "image_url":
+                        url = ""
+                        iu = part.get("image_url")
+                        if isinstance(iu, dict):
+                            url = str(iu.get("url") or "")
+                        elif isinstance(iu, str):
+                            url = iu
+                        block = _openai_image_url_to_anthropic(url)
+                        if block:
+                            blocks.append(block)
+                push("user", blocks if blocks else "(empty)")
+            else:
+                push("user", str(content or ""))
             continue
         if role == "assistant":
             blocks: list[dict[str, Any]] = []
@@ -303,7 +351,11 @@ class AnthropicMessagesLLM:
             raise RuntimeError(f"Anthropic HTTP {r.status_code}: {r.text}")
         data = r.json()
         content, tool_calls = anthropic_content_to_openai(data.get("content"))
-        result = LLMResult(content=content, tool_calls=tool_calls)
+        result = LLMResult(
+            content=content,
+            tool_calls=tool_calls,
+            usage=normalize_usage(data.get("usage")),
+        )
         if on_chunk and content:
             on_chunk(StreamChunk(kind="text", text=content))
         for tc in tool_calls:
@@ -327,6 +379,7 @@ class AnthropicMessagesLLM:
         tool_acc: dict[int, dict[str, Any]] = {}
         # index -> raw json string for input
         tool_json: dict[int, str] = {}
+        usage: dict[str, int] = {}
 
         async with httpx.AsyncClient(timeout=180.0, trust_env=self.trust_env) as client:
             async with client.stream(
@@ -353,6 +406,12 @@ class AnthropicMessagesLLM:
                     except json.JSONDecodeError:
                         continue
                     etype = event.get("type")
+                    if etype == "message_delta" and isinstance(event.get("usage"), dict):
+                        usage = normalize_usage({**(usage or {}), **event["usage"]})
+                    elif etype == "message_start":
+                        msg = event.get("message") or {}
+                        if isinstance(msg.get("usage"), dict):
+                            usage = normalize_usage(msg["usage"])
                     if etype == "content_block_start":
                         idx = int(event.get("index") or 0)
                         block = event.get("content_block") or {}
@@ -397,7 +456,11 @@ class AnthropicMessagesLLM:
                 on_chunk(StreamChunk(kind="tool_call", tool_call=tc))
         if on_chunk:
             on_chunk(StreamChunk(kind="done"))
-        return LLMResult(content="".join(content_parts), tool_calls=tool_calls)
+        return LLMResult(
+            content="".join(content_parts),
+            tool_calls=tool_calls,
+            usage=usage,
+        )
 
     async def stream(
         self,
