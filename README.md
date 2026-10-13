@@ -1,654 +1,81 @@
 # CAI Agent
 
-Terminal-first coding agent on **LangGraph**: natural language over a workspace (tree, list dir, glob, text search, read/write files, sandboxed commands) against any **OpenAI-compatible** `POST /v1/chat/completions` endpoint (defaults work well with [LM Studio](https://lmstudio.ai/)). Optional **Textual** TUI.
+**Pi-style coding-agent kernel** with a DeepSeek Harness–inspired CLI / Web / Desktop UI.
 
-**Chinese README:** [README.zh-CN.md](README.zh-CN.md)
-
-**Planning / backlog (short pointers):** [docs/README.zh-CN.md](docs/README.zh-CN.md) · [CHANGELOG.md](CHANGELOG.md)
-
-**Model provider integration:** [docs/MODEL_PROVIDER_INTEGRATION.md](docs/MODEL_PROVIDER_INTEGRATION.md) · 中文：[docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md](docs/MODEL_PROVIDER_INTEGRATION.zh-CN.md)
-
----
-
-## Table of contents
-
-1. [Product positioning](#product-positioning)
-2. [Design principles](#design-principles)
-3. [Architecture](#architecture)
-4. [Requirements and install](#requirements-and-install)
-5. [Configuration](#configuration)
-6. [Permissions and safety](#permissions-and-safety)
-7. [Core agent: plan, run, continue, workflow](#core-agent-plan-run-continue-workflow)
-8. [Sessions, stats, insights, recall](#sessions-stats-insights-recall)
-9. [Memory](#memory)
-10. [Models and profiles](#models-and-profiles)
-11. [Tools surface (CLI)](#tools-surface-cli)
-12. [Browser automation](#browser-automation)
-13. [MCP](#mcp)
-14. [Voice, runtime, hooks](#voice-runtime-hooks)
-15. [Quality gate, security, cost](#quality-gate-security-cost)
-16. [ECC layout, export, plugins](#ecc-layout-export-plugins)
-17. [Observe and ops dashboard](#observe-and-ops-dashboard)
-18. [Schedules](#schedules)
-19. [Gateways](#gateways)
-20. [Feedback and repair](#feedback-and-repair)
-21. [TUI](#tui)
-22. [Repo rules, skills, commands](#repo-rules-skills-commands)
-23. [Development and testing](#development-and-testing)
-
----
-
-## Product positioning
-
-CAI Agent is a **single integrated runtime** that intentionally combines ideas from:
-
-- [anthropics/claude-code](https://github.com/anthropics/claude-code): terminal agent UX and workflow habits
-- [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent): profiles, dashboards, gateways, schedules, memory contracts, runtime backends
-- [affaan-m/everything-claude-code](https://github.com/affaan-m/everything-claude-code): rules, skills, hooks, cross-harness export, governance
-
-The goal is **integration** (one CLI + one graph), not a loose bundle of unrelated tools.
-
----
-
-## Design principles
-
-1. **Workspace as the trust boundary**  
-   All file paths are resolved under the configured workspace. Path traversal (`..`) is rejected. Commands run in a sandboxed allowlist.
-
-2. **One turn, one JSON from the model**  
-   The LLM must emit a single JSON object per step: either `{"type":"finish","message":"..."}` or `{"type":"tool","name":"...","args":{...}}`. This keeps parsing deterministic and makes logs replayable.
-
-3. **Explicit configuration layering**  
-   Environment variables override TOML; TOML overrides defaults. Config is discovered from `--config`, `CAI_CONFIG`, upward walks from cwd and workspace hints, then optional user-level global config.
-
-4. **Machine-readable outputs for automation**  
-   Many subcommands support `--json` with documented `schema_version` fields. Use these in CI instead of scraping text.
-
-5. **Optional integrations are optional**  
-   MCP, gateways, remote runtimes, and fetch-url are off unless you turn them on. The default path is local LLM + workspace tools only.
-
-6. **Governance in the repo**  
-   `rules/`, `skills/`, `commands/`, `agents/`, and `hooks/` are first-class assets you version with the project; export commands mirror them into Cursor / Codex / OpenCode layouts when needed.
-
----
-
-## Architecture
-
-High level:
-
-- **Entry**: CLI (`cai_agent/__main__.py`), TUI (`tui.py`), `workflow`, schedules, gateways — all load **Settings** from `config.py` (TOML + env + workspace).
-- **Graph**: `cai_agent/graph.py` builds a **LangGraph** `StateGraph`:
-  - **llm** node: calls the chat-completions API with system prompt + history; parses one JSON tool call or finish.
-  - **route**: after each LLM step, either **END**, **tools**, or back to **llm** (retry / next iteration).
-  - **tools** node: `cai_agent/tools.dispatch` runs workspace tools (read/write/list/search/git/shell subset) and optional MCP / fetch_url when enabled.
-- **Tools**: Implemented in `tools.py` + `sandbox.py` with strict limits (glob caps, search caps, command allowlist).
-
-Mermaid (simplified):
-
-```mermaid
-flowchart TB
-  User[User] --> Entry[CLI / TUI / workflow / schedules / gateways]
-  Entry --> Cfg[Settings: TOML + env + workspace]
-  subgraph LG["LangGraph StateGraph"]
-    LLM[llm node]
-    Route{route after llm}
-    TN[tools node]
-    LLM --> Route
-    Route -->|finished| Stop((END))
-    Route -->|pending tool| TN
-    Route -->|retry| LLM
-    TN --> LLM
-  end
-  Entry --> LLM
-  Cfg -.-> LLM
-  LLM --> API[OpenAI-compatible chat/completions]
-  TN --> Disp["dispatch: FS / search / git / shell / MCP / ..."]
-```
-
-Plain text:
+> Kernel is Pi: `pi_core` + `pi_session` + default tools (`read` / `write` / `edit` / `bash`), wired through an EventBus adapter. UI is Harness-style, not a Cordis/DSH kernel fork.
 
 ```text
-User → CLI / TUI / workflow / … + Settings (TOML + env + workspace)
-
-START → llm → route → END | tools → llm → …
-llm  → HTTP chat/completions
-tools → dispatch(...)
+Electron (desktop/) ──► Web shell + EventBus ──► Pi engine
+CLI / Web            ──► ui / surfaces       ──► Pi engine
 ```
 
----
+中文说明见 [README.zh-CN.md](README.zh-CN.md)。
 
-## Requirements and install
+## Features
 
-- **Python 3.11+** (see `cai-agent/pyproject.toml`).
-- An OpenAI-compatible **Chat Completions** base URL and model.
+- **Pi engine** — sequential tool loop, JSONL sessions, abort
+- **Providers** — OpenAI-compatible Chat Completions **and** Anthropic Messages
+- **Harness UI** — workspace tree with nested sessions, settings, file drawer
+- **Desktop** — Electron + local Python sidecar (Win / macOS / Linux)
+- **Layered** — `ui` → `adapter` → `engine` (no UI hard-wire into the loop)
+
+## Install
 
 ```bash
-cd cai-agent
-pip install -e .
-cai-agent --version
-```
-
-**Quick path:**
-
-```bash
-cai-agent onboarding
-cai-agent run "Summarize this repository layout"
-```
-
-For the full dry-run onboarding chain (models onboarding, TUI, session continue/recap hints):
-
-```bash
-cai-agent onboarding --json
-```
-
-For missing config, legacy config, or local asset drift, `cai-agent onboarding --json`, `cai-agent doctor --json`, and `cai-agent repair --dry-run --json` expose the same `install_recovery_flows_v1` / `next_steps` command chains.
-
-**Preset with multiple profiles** (LM Studio / Ollama / vLLM / OpenRouter / Zhipu / gateway placeholder):
-
-```bash
-cai-agent init --preset starter
-```
-
-**Global user config** (Windows `%APPDATA%\cai-agent\cai-agent.toml`, Linux/macOS `$XDG_CONFIG_HOME/cai-agent/cai-agent.toml`):
-
-```bash
-cai-agent init --global
-```
-
-### TUI quickstart (init -> model -> UI)
-
-For a first project-local TUI session, run this sequence:
-
-```bash
-# 1) Generate a starter config in the current workspace
-cai-agent init --preset starter
-
-# 2A) Local OpenAI-compatible endpoint (for example LM Studio / vLLM)
-cai-agent models add --preset lm_studio --id local --model qwen2.5-coder-7b-instruct --set-active
-
-# 2B) Or Xiaomi MiMo (prepare env var first)
-export MIMO_API_KEY="your-key"
-cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
-cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
-
-# 2C) Or Zhipu GLM-5.1 (OpenAI-compatible; prepare env var first)
-export ZAI_API_KEY="your-key"
-cai-agent models add --preset zhipu --id glm51 --model glm-5.1 --set-active
-
-# 2D) Or DeepSeek (OpenAI-compatible; prepare env var first)
-export DEEPSEEK_API_KEY="your-key"
-cai-agent models add --preset gateway --id deepseek --model deepseek-chat --set-active
-cai-agent models edit deepseek --api-key-env DEEPSEEK_API_KEY --base-url https://api.deepseek.com/v1 --model deepseek-chat
-
-# 3) Connectivity check
-cai-agent models ping --json
-
-# 4) Start TUI in this workspace
-cai-agent ui -w "$PWD"
-```
-
-On PowerShell, the equivalent is:
-
-```powershell
-cai-agent ui -w "$PWD"
-# or
-cai-agent ui -w (Get-Location).Path
-```
-
-**Upgrade note:** if you rely on `--json` shapes from older releases, read [docs/MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) and [CHANGELOG.md](CHANGELOG.md).
-
----
-
-## Configuration
-
-**Priority:** environment variables > TOML > built-in defaults.
-
-**Discovery order (highest wins first):**
-
-1. `--config <path>`
-2. `CAI_CONFIG`
-3. Walk up from cwd (up to 12 levels) for `cai-agent.toml` / `.cai-agent.toml`
-4. Walk from `CAI_WORKSPACE` and from `-w/--workspace` hint
-5. User-level global config path (see above)
-
-**Important keys**
-
-| Section | Role |
-|--------|------|
-| `[llm]` | `base_url`, `model`, `api_key`, `provider` (`openai_compatible` or `copilot`), `temperature`, `timeout_sec`, `context_window` (TUI denominator; display-only), `http_trust_env` |
-| `[copilot]` | Used when `llm.provider = copilot`; overridden by `COPILOT_*` env |
-| `[agent]` | `workspace`, `max_iterations`, `command_timeout_sec`, `mock`, `project_context`, `git_context`, `mcp_enabled` |
-| `[mcp]` | MCP bridge URL / key / timeout when `mcp_enabled` |
-| `[permissions]` | Per-tool policy: `allow` / `ask` / `deny` for `write_file`, `run_command`, `fetch_url` |
-| `[safety]` | Unrestricted mode + dangerous confirmations (see below): `unrestricted_mode`, `dangerous_confirmation_required`, `dangerous_audit_log_enabled`, `dangerous_critical_write_skip_if_unchanged`, … — templates + [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) |
-| `[models]` | `active` profile id; `[[models.profile]]` blocks for multi-backend setups |
-
-**Zhipu (GLM)** example: `provider = openai_compatible`, `base_url = https://open.bigmodel.cn/api/paas/v4` (no extra `/v1`; runtime normalizes). Use env `ZAI_API_KEY` with `api_key_env = "ZAI_API_KEY"` in the profile.
-
-**Xiaomi MiMo** (OpenAI-compatible): default preset id is `xiaomi_mimo` with model `MiMo-V2.5-Pro`. If your key comes from the official OpenCode-style setup, map it as `api_key_env = "MIMO_API_KEY"` and use your dedicated `base_url` (for example `https://token-plan-cn.xiaomimimo.com/v1`).
-
-**Copilot-style proxy:** set `llm.provider = copilot` and `[copilot]` or `COPILOT_BASE_URL` / `COPILOT_MODEL` / `COPILOT_API_KEY`.
-
----
-
-## Permissions and safety
-
-- **read_file / list_dir / list_tree / write_file**: workspace-relative by default; `..` blocked. With unrestricted mode, **absolute paths** are allowed anywhere on disk (targets **outside** `[agent].workspace` still require dangerous confirmation unless `dangerous_confirmation_required=false`).
-- **glob_search / search_text**: bounded matches and bytes; unrestricted mode allows absolute **`root`** (outside workspace requires confirmation).
-- **git_status / git_diff**: read-only.
-- **run_command**: allowlisted executable names only; no shell metacharacters; **`cwd`** is workspace-relative by default; unrestricted mode allows absolute **`cwd`** (outside workspace requires confirmation).
-- **fetch_url**: optional; HTTPS GET with host allowlist unless configured otherwise; gated by `[permissions].fetch_url`.
-- **mcp_***: require `[agent].mcp_enabled = true`.
-
-### Unrestricted mode (`[safety]`)
-
-Set **`[safety].unrestricted_mode`** (default `false`) in `cai-agent.toml`. When **on**, high-risk `run_command` patterns are **not hard-blocked**; if **`[safety].dangerous_confirmation_required`** remains **true** (default), dangerous tool calls still need **explicit confirmation** before they run via `dispatch`.
-
-- **Absolute paths outside the workspace**: when unrestricted mode is **off**, tool **`path`**, **`glob_search`/`search_text` `root`**, and **`run_command` `cwd`** must stay **workspace-relative**; absolute paths are rejected. When unrestricted mode is **on**, **absolute paths are allowed anywhere on disk**; if **`dangerous_confirmation_required`** stays **true** (default), each tool call whose resolved absolute target lies **outside** **`[agent].workspace`** still requires **danger confirmation** (same `/danger-approve` / modal flow as other dangerous tools). Relative paths remain interpreted under the workspace root.
-- **TUI**: `/unrestricted` shows status; `/unrestricted on|off` toggles (persists when the session started from TOML); `/danger-approve` authorizes **the next** dangerous `dispatch`. Without prior approval or `CAI_DANGEROUS_APPROVE`, a modal asks for one-off approval (and for MCP + cleartext `http` `fetch_url`, optional **session-wide** approval). The footer may show a “waiting for dangerous confirmation” style hint. **After toggling unrestricted mode, the next LLM/tool step uses the updated flags immediately (no TUI restart).**
-- **Tool JSON**: prefer `{"type":"tool","name":"…","args":{…}}`, but top-level keys such as **`path`**, **`root`**, **`cwd`**, **`pattern`** beside **`name`** are merged into **`args`** so absolute roots are not silently dropped.
-- **Windows**: a bare drive letter **`E:`** is normalized to the **`E:\`** volume root when resolving unrestricted paths; prefer **`E:\`** or **`E:/`** when you mean the drive root.
-- **Session allowlists** (unrestricted + confirmation still enabled): `/danger-session-mcp <tool name>`, `/danger-session-fetch <hostname or http URL>`, `/danger-session-clear`.
-- **Audit (optional)**: `[safety].dangerous_audit_log_enabled` or `CAI_DANGEROUS_AUDIT_LOG=1` appends JSONL events under **`.cai/dangerous-approve.jsonl`**; default **off**.
-- **What counts as dangerous (today)**: high-risk `run_command`; **`[safety].run_command_extra_danger_basenames`**; `write_file` to sensitive suffixes or **built-in / configured critical basenames** (for example `pyproject.toml`; see templates); **any** **`mcp_call_tool`**; cleartext **`http://`** **`fetch_url`**; **`fetch_url`** when **`[fetch_url].allow_private_resolved_ips=true`** (private DNS resolution risk); **`file://`** **`fetch_url`** is **rejected**.
-- **Critical-write noop (default on)**: **`[safety].dangerous_critical_write_skip_if_unchanged`** (**`CAI_DANGEROUS_CRITICAL_WRITE_SKIP_IF_UNCHANGED`**): for those critical `write_file` paths, if a UTF-8 file already exists on disk under the workspace and either **normalized text matches** or **both sides parse as `.toml`/`.json` with recursively equal structure** (sorted keys, deep compare), basename-level confirmation is skipped; **new** files, encoding issues, oversized on-disk files, or parse failures keep the usual confirmation path.
-- **Non-interactive / CI**: **`CAI_DANGEROUS_APPROVE=1`** opts in globally (**use with care**).
-- **Backlog / parity checklist**: [`docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md`](docs/SAFETY_UNRESTRICTED_BACKLOG.zh-CN.md) (Chinese doc name; behaviour matches the runtime).
-
-Non-interactive **ask** mode: set `CAI_AUTO_APPROVE=1` or pass `--auto-approve` on `run` / `continue` / `command` / `agent` / `fix-build`.
-
-Do not commit real API keys.
-
----
-
-## Core agent: plan, run, continue, workflow
-
-### `cai-agent plan`
-
-Read-only planning text (no tool execution). Persist with `--write-plan ./PLAN.md`. Use `--json` for stable keys (`plan_schema_version`, `generated_at`, `task`, `usage`, …).
-
-```bash
-cai-agent plan "Add OAuth2 login; list files to touch and risks"
-cai-agent plan "..." --json
-```
-
-### `cai-agent run`
-
-Single-shot goal → tools loop → final answer. `--json` emits machine-readable run summary (tokens, tools, `run_schema_version`, events, …).
-
-```bash
-cai-agent run "List TODOs in src/"
-cai-agent run --json "Review security of the diff" -w /path/to/repo
-cai-agent run --model gpt-4o-mini "Explain graph.py"
-```
-
-### `cai-agent continue`
-
-Resume a saved session file.
-
-```bash
-cai-agent run --save-session .cai-session.json "First analysis step"
-cai-agent continue .cai-session.json "Now propose implementation steps"
-```
-
-### `cai-agent workflow`
-
-Multi-step JSON workflow. Supports `merge_strategy`, `on_error` (`fail_fast` / `continue_on_error`), optional `budget_max_tokens`, per-step `workspace` / `model` / `parallel_group`, and root `quality_gate` (with optional post-workflow gate summary).
-
-```bash
-cai-agent workflow workflow.json --json
-```
-
----
-
-## Sessions, stats, insights, recall
-
-| Command | Purpose |
-|--------|---------|
-| `cai-agent sessions` | List session files; `--details` adds parsed summaries |
-| `cai-agent sessions --json` | `sessions_list_v1` |
-| `cai-agent stats --json` | Aggregate stats across sessions (`stats_schema_version`, …) |
-| `cai-agent insights --json --days 7` | Cross-session trends (`models_top`, `tools_top`, …) |
-| `cai-agent recall --query "auth" --days 14 --json` | Search within recent session transcripts |
-| `cai-agent recall-index build` / `refresh` / `doctor` | Incremental index for recall at scale |
-| `cai-agent recall-index search …` | Search via index |
-
----
-
-## Memory
-
-Namespace: `cai-agent memory …`
-
-| Subcommand | Purpose |
-|-----------|---------|
-| `extract` | Extract structured memory → `memory/entries.jsonl` (stdout JSON when applicable) |
-| `list --json` | List entries (`memory_list_v1`) |
-| `search --json` | Substring search |
-| `instincts` | List instinct markdown snapshot paths |
-| `validate-entries` / `entries fix` | Validate or repair entries file |
-| `prune` | TTL / confidence / cap pruning |
-| `state --json` | active/stale/expired distribution |
-| `health --json` | Health score, grade, freshness, coverage, conflicts (`--fail-on-grade`) |
-| `nudge --json` | Hermes-style “should you extract memory?” reminder |
-| `nudge-report --json` | Trend over nudge history |
-| `export` / `import` | Bundle memory tree |
-| `export-entries` / `import-entries` | Entry-level import/export with validation |
-| `provider list|use|test` | Pluggable memory provider registry |
-| `user-model --json` | Behavior summary from sessions; `--with-store-v3` includes SQLite snapshot |
-| `user-model export` | `user_model_bundle_v1` |
-| `user-model store init|list` | SQLite belief store |
-| `user-model learn` / `query` | Write/query beliefs |
-
-Typical automation:
-
-```bash
-cai-agent memory health --json --fail-on-grade C
-cai-agent memory nudge --json --write-file ./.cai/memory-nudge.json --fail-on-severity high
-```
-
-### TUI / CLI structured memory injection (on by default)
-
-When **`memory/entries.jsonl`** under the workspace contains validated rows, both the **TUI** and **CLI agent runs** (LangGraph) append **active** entries to the **system prompt** (sorted by confidence, capped by size). No extra flag is required. To disable or tune budgets, set **`[memory.inject]`** in `cai-agent.toml`:
-
-| Key | Meaning | Default |
-|-----|---------|---------|
-| `enabled` | Enable injection | `true` |
-| `max_entries` | Max rows (cap 500) | `24` |
-| `max_chars` | Max characters for the injected block | `6000` |
-| `include_stale` | Include stale rows | `false` |
-| `stale_after_days` | Age threshold for stale | `14` |
-| `min_active_confidence` | Confidence floor for “active” | `0.5` |
-
-Override via env: `CAI_MEMORY_INJECT_ENABLED`, `CAI_MEMORY_INJECT_MAX_ENTRIES`, `CAI_MEMORY_INJECT_MAX_CHARS`, `CAI_MEMORY_INJECT_INCLUDE_STALE`, `CAI_MEMORY_INJECT_STALE_AFTER_DAYS`, `CAI_MEMORY_INJECT_MIN_ACTIVE_CONFIDENCE`. `cai-agent doctor --json` and **`GET /v1/doctor/summary`** expose **`memory_inject`**.
-
----
-
-## Models and profiles
-
-For mainstream cloud, router, and local model backends, see the provider-by-provider setup guide: [docs/MODEL_PROVIDER_INTEGRATION.md](docs/MODEL_PROVIDER_INTEGRATION.md).
-
-```bash
-cai-agent models                    # default: list profiles
-cai-agent models list
-cai-agent models use <profile_id>
-cai-agent models add --preset vllm --id my-vllm --model <id>
-cai-agent models add --preset zhipu --id glm --set-active
-cai-agent models add --preset xiaomi_mimo --id mimo-pro --set-active
-cai-agent models ping --json
-cai-agent models clone …            # clone profile home tree when configured
-```
-
-MiMo official-key mapping example:
-
-```bash
-cai-agent models edit mimo-pro --api-key-env MIMO_API_KEY --base-url https://token-plan-cn.xiaomimimo.com/v1 --model mimo-v2.5-pro
-```
-
-Profiles live under `[models]` / `[[models.profile]]` in TOML; switching active profile updates which LLM endpoint the graph uses.
-
----
-
-## Tools surface (CLI)
-
-For debugging and CI contracts without running the full agent:
-
-```bash
-cai-agent tools contract
-cai-agent tools list
-cai-agent tools bridge
-cai-agent tools guard
-cai-agent tools web-fetch --url …   # exercises fetch_url path when enabled
-cai-agent tools browser-check --json
-cai-agent tools enable|disable …    # web/image/browser/tts categories
-```
-
----
-
-## Browser automation
-
-Browser support is **MCP first**. CAI Agent does not bundle a browser runtime; it checks and calls a configured Browser MCP provider, with the Playwright MCP preset as the default onboarding path.
-
-Readiness and template discovery:
-
-```bash
-cai-agent mcp-check --preset browser --list-only --json
-cai-agent mcp-check --preset browser --print-template
-cai-agent tools bridge --preset browser --json
-cai-agent tools browser-check --json
-cai-agent browser check --json
-```
-
-Plan a browser task without executing it:
-
-```bash
-cai-agent browser task --url https://example.com "summarize the visible page" --json
-```
-
-Execute the currently supported mapped MCP calls only after explicit confirmation:
-
-```bash
-cai-agent browser task --url https://example.com "open the page and capture a page snapshot" --execute --confirm --json
-```
-
-Current execution mapping is intentionally narrow: `navigate` maps to `browser_navigate`, and delegated page review maps to `browser_snapshot`. More sensitive actions such as click, type, upload, and download require a new planned step and explicit confirmation before they are expanded. Refused and confirmed execution paths append `.cai/browser/audit.jsonl` and refresh `.cai/browser/artifacts-manifest.json`; screenshots, downloads, and traces are kept under `.cai/browser/`. See [docs/BROWSER_PROVIDER_RFC.zh-CN.md](docs/BROWSER_PROVIDER_RFC.zh-CN.md) and [docs/schema/README.zh-CN.md](docs/schema/README.zh-CN.md) for the JSON contracts (`browser_provider_check_v1`, `browser_task_v1`, `browser_mcp_execution_v1`, `browser_audit_event_v1`).
-
----
-
-## MCP
-
-Enable in TOML:
-
-```toml
-[agent]
-mcp_enabled = true
-
-[mcp]
-base_url = "http://localhost:8787"
-timeout_sec = 20
-```
-
-Then:
-
-```bash
-cai-agent mcp-check --verbose
-cai-agent mcp-check --force
-cai-agent mcp-check --tool ping --args "{}"
-```
-
-There is also `cai-agent mcp-serve` for serving MCP-compatible endpoints (see `--help`).
-
----
-
-## Voice, runtime, hooks
-
-- **`cai-agent voice config|check`**: voice provider contract / health.
-- **`cai-agent runtime list`**: registered backends (local, docker, ssh, …).
-- **`cai-agent runtime test`**: echo self-test on a chosen backend.
-- **`cai-agent hooks list`**: summarize `hooks.json`.
-- **`cai-agent hooks run-event …`**: run hook entries (supports dry-run / JSON).
-
----
-
-## Quality gate, security, cost
-
-```bash
-cai-agent quality-gate --json
-cai-agent quality-gate --lint --security-scan
-cai-agent security-scan --json
-cai-agent cost budget --check
-cai-agent release-ga --json …       # aggregate gate matrix (see --help for flags)
-```
-
-Use `quality_gate` inside `workflow.json` to run a post-workflow gate and surface `quality_gate` / `post_gate` in JSON output.
-
----
-
-## ECC layout, export, plugins
-
-**Cross-harness export** (Cursor / Codex / OpenCode manifests + README):
-
-```bash
-cai-agent export --target cursor -w .
-```
-
-**ECC** (Everything Claude Code style layout helpers):
-
-```bash
-cai-agent ecc layout --json
-cai-agent ecc scaffold
-cai-agent ecc catalog …
-cai-agent ecc sync …
-cai-agent ecc pack …
-cai-agent ecc pack-import --from-workspace …   # dry-run by default; --apply --force with backups
-cai-agent ecc pack-repair --json               # manifest vs export dirs; exit 2 if error-level issues
-```
-
-**`ecc pack-import` ingest gate (ECC-N02-D05)**
-
-- **`--json` plans** include **`ingest_gate`** (**`ecc_pack_ingest_gate_v1`**): scans **`hooks.json`** under the source workspace **`rules` / `skills` / `agents` / `commands`** and applies the same dangerous-command heuristics as runtime **`hook_runtime`** for resolved **`command` / `script`** argv; **`script` paths that escape the source root** are rejected.
-- **`--apply`** bails with **`ok=false`**, **`error=ingest_gate_rejected`**, and **no writes** when the gate fails (use the default dry-run / plan JSON to inspect **`ingest_gate`** first).
-- The same gate as a **readiness summary for “am I a safe pack source?”**: **`cai-agent doctor --json`** → **`ecc_pack_ingest_gate`**; **`GET /v1/doctor/summary`** → **`ecc_pack_ingest_gate`** (redacted shape).
-- Policy context: **`docs/ECC_04B_INGEST_SANITIZER_POLICY.zh-CN.md`** / **`docs/ECC_04B_INGEST_SANITIZER_POLICY.md`** and **`docs/schema/ecc_ingest_sanitizer_policy_v1.snapshot.json`**.
-- **`cai-agent skills hub install`**: when the manifest includes **`hooks.json`** files to copy, JSON output includes the same **`ecc_pack_ingest_gate_v1`** gate (**`ingest_scan_kind=explicit_hooks`**). Non-**`--dry-run`** installs abort with **`ingest_gate_rejected`** (no writes) if the gate fails.
-
-**Plugins**:
-
-```bash
-cai-agent plugins --json
-cai-agent plugins --json --with-compat-matrix
-cai-agent plugins sync-home --target opencode --json
-cai-agent plugins sync-home --target opencode --apply --force --json
-cai-agent plugins --compat-check
-```
-
-`sync-home` previews or applies copying `rules` / `skills` / `agents` / `commands` into harness-specific folders; conflicts can require `--force` (with `.backup-*` behavior as documented in help).
-
----
-
-## Observe and ops dashboard
-
-```bash
-cai-agent observe --json
-cai-agent observe-report …
-cai-agent ops dashboard --format json|text|html
-cai-agent ops serve --host 127.0.0.1 --port 8765 [--allow-workspace DIR] … [--role viewer|operator|admin]
-```
-
-### Using the ops Web UI (`ops serve`)
-
-1. **Start the sidecar** (by default only the current directory is allowed; pass **`--allow-workspace <absolute-dir>`** repeatedly for multiple repos).
-
-2. **Liveness / probes**: **`GET http://127.0.0.1:8765/v1/ops/healthz`** returns **`ops_liveness_v1`** and **does not** require **`Authorization`** (unlike dashboard routes).
-
-3. **Browser dashboard**: open **`/v1/ops/dashboard.html?workspace=<url-encoded-absolute-path>`**; optional **`live_mode=sse|poll`**, **`live_interval_seconds`**, **`html_refresh_seconds`**.
-
-4. **JSON**: **`GET /v1/ops/dashboard?workspace=…`** (required, allowlisted).
-
-5. **Workspace index**: **`GET /v1/ops/workspaces`** with optional **`include_summary=1`**.
-
-6. **Auth**: if **`CAI_OPS_API_TOKEN`** (or **`CAI_API_TOKEN`**) is set, send **`Authorization: Bearer …`** for all routes **except** **`/v1/ops/healthz`**.
-
-7. **Controlled writes** (schedule reorder, gateway bind edits, profile switch): **`POST /v1/ops/dashboard/interactions`**; server **`--role`** caps capabilities; optional **`X-CAI-Actor`** / **`X-CAI-Role`**. See [docs/OPS_DYNAMIC_WEB_API.md](docs/OPS_DYNAMIC_WEB_API.md).
-
-8. **Action audit read API**: **`GET /v1/ops/action-audit`** returns **`ops_action_audit_query_v1`**. Omit **`workspace`** to merge recent audit rows across the ops allowlist; set **`workspace`** to scope to one root. Optional filters: **`action`**, **`mode`**, **`ok`**, **`actor_prefix`**, **`limit`**.
-
-9. **Sprint plan** (ops / gateway / cloud runtime / voice): [docs/PLATFORM_SURFACES_SPRINT_PLAN.zh-CN.md](docs/PLATFORM_SURFACES_SPRINT_PLAN.zh-CN.md) (Chinese; normative scheduling table).
-
-HTTP contract details: [docs/OPS_DYNAMIC_WEB_API.md](docs/OPS_DYNAMIC_WEB_API.md).
-
----
-
-## Schedules
-
-```bash
-cai-agent schedule add --every-minutes 60 --goal "Daily summary"
-cai-agent schedule add-memory-nudge --json
-cai-agent schedule list --json
-cai-agent schedule run-due --json              # dry-run unless --execute
-cai-agent schedule daemon --execute --json …
-cai-agent schedule stats --json --days 30
-```
-
-Audit / schema docs live under `docs/schema/` (e.g. schedule audit JSONL).
-
----
-
-## Gateways
-
-Unified under `cai-agent gateway …` with sub-trees for Telegram, Discord, Slack, Teams, plus helpers like `gateway platforms list`, `gateway maps summarize`, `gateway federation-summary`, `gateway route-preview`, etc.
-
-Typical Telegram local webhook flow starts with `gateway telegram serve-webhook` and mapping commands (`bind`, `list`, `allow`, …). See gateway-specific docs under `docs/` for env vars and signing secrets (Slack signing secret, Teams manifest, Discord bot token).
-
-**Dangerous approvals on gateways (unrestricted mode):** Slack event execution and Discord polling execution strip leading lines **`[danger-approve]`** or **`/danger-approve`** from the user goal (same semantics as TUI `/danger-approve`; customizable via **`CAI_GATEWAY_DANGER_APPROVE_TOKENS`**). Contract summary lives under **`danger_gateway_contract_v1`** in **`cai-agent tools guard --json`**.
-
----
-
-## Feedback and repair
-
-```bash
-cai-agent feedback submit "…"
-cai-agent feedback list
-cai-agent doctor --json
-cai-agent repair …                  # guided fixes where implemented
-```
-
----
-
-## Voice (default OOS / MCP)
-
-No default real-time duplex voice product. Use **`cai-agent voice config|check`** for local contract status; prefer **MCP** for STT/TTS. See **[docs/VOICE_MCP_RUNBOOK.md](docs/VOICE_MCP_RUNBOOK.md)**.
-
----
-
-## TUI
-
-```bash
-cai-agent ui -w "$PWD"
-```
-
-Slash commands include `/help`, `/status`, `/models` (or **Ctrl+M**), `/mcp`, `/save`, `/load`, `/sessions`, `/clear`, `/usage`, and project templates from `commands/*.md`. Model panel **Enter** switches the **current session**; persist default with `cai-agent models use <id>` or `[models].active` in TOML.
-
-Context bar uses `prompt_tokens` vs `context_window` (from explicit profile / inferred hosted-model default / llm / env / default).
-
----
-
-## Repo rules, skills, commands
-
-- `rules/common/`, `rules/python/`: engineering conventions.
-- `skills/`: reusable workflows (also mirrored under `.cursor/skills` in some setups).
-- `commands/`, `agents/`: templates for `cai-agent command` / `cai-agent agent`.
-- `hooks/`: `hooks.json` metadata for session automation.
-
-```bash
-cai-agent commands
-cai-agent command plan "…"
-cai-agent agents
-cai-agent agent code-reviewer "…"
-```
-
----
-
-## Development and testing
-
-```bash
-cd cai-agent
 pip install -e ".[dev]"
+```
+
+## Quick start
+
+### Desktop
+
+```bash
+cd desktop
+npm install
+npm run desktop
+```
+
+Settings → protocol (`openai` / `anthropic`) → Base URL / API Key / Model.  
+Sidebar → **工作区** to add folders; chats nest under each workspace.
+
+### CLI / Web
+
+```bash
+CAI_MOCK=1 cai-agent run "hello"
+cai-agent ui
+cai-agent web --port 8765
+```
+
+Copy [`config.example.yaml`](config.example.yaml) → `cai.config.yaml`.
+
+Env: `CAI_PROVIDER`, `LM_BASE_URL`, `LM_MODEL`, `LM_API_KEY`, `CAI_WORKSPACE`, `CAI_HOME`, `CAI_MOCK`.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `src/cai_agent/pi_core/` | Pi agent loop |
+| `src/cai_agent/pi_session/` | Sessions + store |
+| `src/cai_agent/adapter/` | EventBus + bridge |
+| `src/cai_agent/llm/` | OpenAI + Anthropic clients |
+| `src/cai_agent/surfaces/` | Web API + static shell |
+| `src/cai_agent/ui/` | CLI / TUI |
+| `desktop/` | Electron host |
+
+## Docs
+
+| Doc | |
+|-----|--|
+| [Architecture](docs/architecture.md) | [中文](docs/architecture.zh-CN.md) |
+| [Guide](docs/guide.md) | [中文](docs/guide.zh-CN.md) |
+| [Acceptance](docs/acceptance.md) | [中文](docs/acceptance.zh-CN.md) |
+
+## Test
+
+```bash
 python -m pytest -q
 ```
 
-From repo root (after install):
-
-```bash
-python scripts/smoke_new_features.py
-python scripts/run_regression.py
-```
-
-Active engineering checklists: [docs/DEVELOPER_TODOS.zh-CN.md](docs/DEVELOPER_TODOS.zh-CN.md) · [docs/TEST_TODOS.zh-CN.md](docs/TEST_TODOS.zh-CN.md).
-
-Shipped features and migration notes: [CHANGELOG.md](CHANGELOG.md) / [CHANGELOG.zh-CN.md](CHANGELOG.zh-CN.md).
-
----
-
 ## License
 
-MIT License — see repository license file.
+See repository license file if present; otherwise all rights reserved by the project owners.

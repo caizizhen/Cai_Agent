@@ -1,59 +1,36 @@
-# --- Python ---
+# Python
 __pycache__/
 *.py[cod]
 *.egg-info/
 .eggs/
-build/
 dist/
-
-# --- Virtual envs / tools ---
+build/
 .venv/
-.env
+venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
-.tox/
-.coverage
-.coverage.*
-htmlcov/
-cai-agent/uv.lock
+*.egg
 
-# --- Editor / OS ---
-.vscode/
-.idea/
-*.swp
+# Local config / secrets
+cai.config.yaml
+cai.config.yml
+.env
+.env.*
+
+# CAI runtime (user machine)
+.cai/
+
+# Node / Electron
+desktop/node_modules/
+desktop/dist/
+desktop/out/
+desktop/*.log
+
+# OS / IDE
 .DS_Store
 Thumbs.db
-
-# --- Cai Agent runtime artifacts ---
-# 不要把本地 / 临时配置的备份 / 写时副本放进仓
-*.toml.bak
-cai-agent.toml.bak
-
-# Cai Agent 的运行时缓存（last-workflow / observe 状态等）
-.cai/
-cai-agent/.cai/
-
-# Memory / instinct 快照属于运行时产物，按时间命名，不入仓
-memory/instincts/instincts-*.md
-cai-agent/memory/instincts/instincts-*.md
-
-# QA 临时驱动 / 实验脚本
-.tmp_qa/
-.tmp_qg/
-.tmp/
-.tmp-test/
-.tmp-test-*/
-.test-tmp/
-.tmp-tests/
-.tmp-codex-pytest/
-.pytest-basetemp/
-.pytest-tmp/
-.pytest-tmp*/
-cai-agent/tests/.tmp-pytest/
-tmp*/
-pytest-*-temp/
-scratch-test-dir/
-
-# 临时 plan / regression 工件
-.regression-workflow.json
+.idea/
+.vscode/
+*.swp
+*.swo

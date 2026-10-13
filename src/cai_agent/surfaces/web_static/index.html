@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>CAI · Harness</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Sora:wght@450;550;650&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/static/app.css"/>
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <div class="mark" aria-hidden="true">C</div>
+        <div class="brand-text">
+          <span class="name">cai</span>
+          <span class="harness-pill">HARNESS</span>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon" id="btn-settings" title="设置">⚙</button>
+      </div>
+
+      <div class="sidebar-actions">
+        <button type="button" class="btn btn-new-chat" id="btn-new">
+          <span class="ico-plus" aria-hidden="true">＋</span>
+          新会话
+        </button>
+      </div>
+
+      <div class="nav-scroll">
+        <section class="nav-section">
+          <div class="nav-section-head">
+            <span class="nav-section-title">
+              <span class="sec-ico" aria-hidden="true">⌘</span>
+              插件
+            </span>
+          </div>
+          <div class="plugin-empty hint">暂无插件</div>
+        </section>
+
+        <section class="nav-section nav-workspaces">
+          <div class="nav-section-head">
+            <span class="nav-section-title">工作区</span>
+            <div class="nav-section-actions">
+              <button type="button" class="btn btn-ghost btn-icon" id="btn-ws-search" title="搜索">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+              </button>
+              <button type="button" class="btn btn-ghost btn-icon" id="btn-ws-filter" title="仅显示有会话">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M7 12h10M10 18h4"/></svg>
+              </button>
+              <button type="button" class="btn btn-ghost btn-icon" id="btn-ws-add" title="添加工作区">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15h6"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="ws-search-wrap" id="ws-search-wrap" hidden>
+            <input type="search" id="ws-search" placeholder="搜索工作区或会话…" autocomplete="off"/>
+          </div>
+          <div id="workspace-tree" class="workspace-tree"></div>
+        </section>
+      </div>
+
+      <div class="sidebar-footer-bar">
+        <button type="button" class="btn btn-ghost btn-tiny" id="btn-files-open">文件</button>
+        <button type="button" class="btn btn-ghost btn-tiny" id="btn-theme" title="切换主题">Theme</button>
+      </div>
+    </aside>
+
+    <section class="main">
+      <header class="session-header">
+        <span class="status-dot" id="status-dot" title="idle"></span>
+        <span class="title" id="header-title">New conversation</span>
+        <span class="tag" id="header-tools">read · write · edit · bash</span>
+        <span class="spacer"></span>
+        <span class="tag muted" id="ws-chip" title="当前工作区">—</span>
+        <span class="tag muted" id="header-model">model</span>
+      </header>
+
+      <div id="chat">
+        <div class="chat-inner" id="chat-inner">
+          <div class="hero" id="hero">
+            <h1>CAI</h1>
+            <p>选择或添加工作区，再给 Agent 下任务（对齐 DeepSeek Harness）。</p>
+            <div class="hero-presets">
+              <button type="button" class="pill" id="btn-hero-ws">打开工作区…</button>
+              <button type="button" class="pill" id="btn-hero-settings">配置模型</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="composer-wrap">
+        <div class="composer">
+          <textarea id="input" rows="2" placeholder="给 Agent 下任务…（Enter 发送，Shift+Enter 换行）"></textarea>
+          <div class="composer-bottom">
+            <div class="composer-hint" id="composer-hint">Ready</div>
+            <button type="button" class="btn btn-primary" id="send">发送</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="drawer-mask" id="settings-mask" hidden></div>
+  <aside class="drawer" id="settings-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>Settings</h2>
+      <button type="button" class="btn btn-ghost" id="settings-close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <h3>Model provider</h3>
+      <label class="field">协议
+        <select id="set-provider">
+          <option value="openai">OpenAI Compatible（/v1/chat/completions）</option>
+          <option value="anthropic">Anthropic Messages（/v1/messages）</option>
+        </select>
+      </label>
+      <label class="field">API Base URL
+        <input id="set-base-url" type="text" placeholder="https://api.openai.com/v1 或 https://api.anthropic.com" autocomplete="off"/>
+      </label>
+      <label class="field">API Key
+        <input id="set-api-key" type="password" placeholder="leave blank to keep" autocomplete="off"/>
+      </label>
+      <div class="file-toolbar" style="margin-bottom:0.75rem">
+        <button type="button" class="btn btn-outline btn-tiny" id="btn-fetch-models">获取可用模型</button>
+        <span class="hint" id="models-fetch-status"></span>
+      </div>
+      <label class="field">Model
+        <select id="set-model-select">
+          <option value="">— 手动输入或先获取 —</option>
+        </select>
+      </label>
+      <label class="field">Model id（可改）
+        <input id="set-model" type="text" placeholder="model-id" autocomplete="off"/>
+      </label>
+
+      <h3>Agent</h3>
+      <label class="field">Max steps
+        <input id="set-max-steps" type="number" min="1" max="64" value="16"/>
+      </label>
+      <label class="field">Approval
+        <select id="set-approval">
+          <option value="auto">Auto</option>
+          <option value="confirm">Confirm</option>
+          <option value="deny">Deny dangerous</option>
+        </select>
+      </label>
+      <label class="field check">
+        <input id="set-stream" type="checkbox" checked/> Stream tokens
+      </label>
+      <label class="field check">
+        <input id="set-debug" type="checkbox"/> Debug
+      </label>
+
+      <h3>Workspace</h3>
+      <p class="hint" id="set-workspace-label">—</p>
+      <p class="hint">在侧栏「工作区」中添加 / 切换。</p>
+
+      <h3>Appearance</h3>
+      <label class="field">Theme
+        <select id="set-theme">
+          <option value="dark">Dark</option>
+          <option value="light">Light</option>
+        </select>
+      </label>
+      <button type="button" class="btn btn-primary" id="settings-save">保存</button>
+    </div>
+  </aside>
+
+  <div class="drawer-mask" id="files-mask" hidden></div>
+  <aside class="drawer" id="files-drawer" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>文件</h2>
+      <button type="button" class="btn btn-ghost" id="files-close">✕</button>
+    </div>
+    <div class="drawer-body">
+      <div class="file-toolbar">
+        <button type="button" class="btn btn-outline btn-tiny" id="btn-file-new">新建</button>
+        <button type="button" class="btn btn-outline btn-tiny" id="btn-dir-new">文件夹</button>
+        <button type="button" class="btn btn-outline btn-tiny" id="btn-files-refresh">刷新</button>
+      </div>
+      <div id="file-tree"></div>
+    </div>
+  </aside>
+
+  <div class="drawer-mask" id="file-mask" hidden></div>
+  <div class="modal modal-editor" id="file-modal" hidden>
+    <div class="drawer-head">
+      <h2 id="file-modal-title">File</h2>
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-primary btn-tiny" id="file-save">保存</button>
+      <button type="button" class="btn btn-ghost" id="file-close">✕</button>
+    </div>
+    <textarea id="file-modal-body" class="file-editor" spellcheck="false"></textarea>
+    <div class="file-status" id="file-status"></div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

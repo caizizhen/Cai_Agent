@@ -1,1 +1,0 @@
-"""Bundled configuration templates."""

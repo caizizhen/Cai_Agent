@@ -1,0 +1,18 @@
+# CAI example config — copy to cai.config.yaml or pass --config
+# Env vars (CAI_PROVIDER, LM_MODEL, CAI_WORKSPACE, …) override these values.
+
+workspace: .
+
+# openai | anthropic
+provider: openai
+
+# openai: .../v1   ·  anthropic: https://api.anthropic.com (no /v1 suffix required)
+base_url: http://localhost:1234/v1
+model: google/gemma-4-31b
+api_key: lm-studio
+
+max_steps: 16
+stream: true
+debug: false
+mock: false
+command_timeout_sec: 120
